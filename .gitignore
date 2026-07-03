@@ -1,0 +1,17 @@
+# Rust build artifacts
+/target/
+
+# CodeGraph local index/cache
+/.codegraph/
+
+# Generated binaries/debug symbols
+*.exe
+*.dll
+*.so
+*.dylib
+*.rlib
+*.pdb
+
+# Temporary files
+*.tmp
+*.temp

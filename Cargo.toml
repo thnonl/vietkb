@@ -1,0 +1,33 @@
+[workspace]
+members = [
+    "crates/vietkb-core",
+    "crates/vietkb-config",
+    "crates/vietkb-platform",
+    "crates/vietkb-linux-common",
+    "crates/vietkb-linux-ibus",
+    "crates/vietkb-linux-fcitx5",
+    "crates/vietkb-windows",
+    "crates/vietkb-macos",
+    "crates/vietkb-ui",
+    "crates/vietkb-daemon",
+    "crates/vietkb-cli",
+    "crates/vietkb-gui",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

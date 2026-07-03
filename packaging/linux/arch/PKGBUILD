@@ -1,0 +1,18 @@
+pkgname=vietkb
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Vietnamese keyboard input engine"
+arch=('x86_64' 'aarch64')
+license=('MIT')
+depends=('ibus')
+makedepends=('rust')
+source=()
+sha256sums=()
+
+build() {
+  cargo build --release --locked
+}
+
+package() {
+  install -Dm755 target/release/vietkb-cli "$pkgdir/usr/bin/vietkb-cli"
+}

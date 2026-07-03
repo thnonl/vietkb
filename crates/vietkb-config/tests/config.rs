@@ -1,0 +1,39 @@
+use vietkb_config::{AppConfig, CommitMode, FallbackMode, LinuxFrontend};
+
+#[test]
+fn default_config_is_direct_commit() {
+    let config = AppConfig::default();
+    assert_eq!(config.linux.frontend, LinuxFrontend::Auto);
+    assert_eq!(config.linux.commit_mode, CommitMode::Direct);
+    assert_eq!(config.linux.fallback_mode, FallbackMode::SurroundingTextThenPreedit);
+}
+
+#[test]
+fn config_roundtrips_toml() {
+    let input = r#"
+[input]
+method = "telex"
+charset = "unicode"
+enabled = true
+
+[hotkeys]
+toggle = "Ctrl+Shift"
+
+[linux]
+frontend = "ibus"
+commit_mode = "direct"
+fallback_mode = "surrounding-text-then-preedit"
+
+[apps."code.exe"]
+enabled = false
+browser_fix = true
+"#;
+
+    let config = AppConfig::from_toml(input).unwrap_or_else(|err| panic!("parse failed: {err}"));
+    assert_eq!(config.linux.frontend, LinuxFrontend::Ibus);
+    assert_eq!(config.apps.get("code.exe").and_then(|app| app.enabled), Some(false));
+
+    let encoded = config.to_toml().unwrap_or_else(|err| panic!("serialize failed: {err}"));
+    let decoded = AppConfig::from_toml(&encoded).unwrap_or_else(|err| panic!("parse failed: {err}"));
+    assert_eq!(decoded, config);
+}
