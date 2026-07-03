@@ -109,7 +109,6 @@ pub struct SystemConfig {
     pub start_with_windows: bool,
     pub show_dialog_on_startup: bool,
     pub notification_sound: bool,
-    pub vietnamese_interface: bool,
     pub standard_key_sending: bool,
     pub metro_apps_support: bool,
     pub custom_tray_icon: bool,
@@ -211,7 +210,6 @@ impl Default for SystemConfig {
             start_with_windows: true,
             show_dialog_on_startup: false,
             notification_sound: true,
-            vietnamese_interface: true,
             standard_key_sending: true,
             metro_apps_support: false,
             custom_tray_icon: false,
@@ -364,9 +362,6 @@ impl AppConfig {
                 ("system", "notification_sound") => {
                     config.system.notification_sound = parse_bool(value)?
                 }
-                ("system", "vietnamese_interface") => {
-                    config.system.vietnamese_interface = parse_bool(value)?
-                }
                 ("system", "standard_key_sending") => {
                     config.system.standard_key_sending = parse_bool(value)?
                 }
@@ -402,14 +397,14 @@ impl AppConfig {
                 "[hotkeys]\ntoggle={}\nrestore_word={}\n\n",
                 "[hotkeys.function_keys]\nctrl={}\nshift={}\nalt={}\nwin={}\nf1_toggle_vietnamese_on={}\nf2_toggle_vietnamese_off={}\nf3_unicode={}\nf4_charset={}\nf4_charset_value={}\nf5_settings={}\nf6_convert_tool={}\nf7_convert_clipboard={}\nf11_toggle_excluded_apps={}\nf12_reset={}\n\n",
                 "[typing]\nold_oa_uy={}\nsmart_mark={}\nuse_j_f_w_as_consonants={}\nauto_capitalize_after_punctuation={}\nuse_clipboard_to_send_keys={}\nspell_check={}\nrestore_wrong_word={}\nus_keyboard_layout_when_off={}\nsuggestion_fix_1={}\nsuggestion_fix_2={}\nskip_english_words={}\n\n",
-                "[system]\nrun_as_admin={}\nstart_with_windows={}\nshow_dialog_on_startup={}\nnotification_sound={}\nvietnamese_interface={}\nstandard_key_sending={}\nmetro_apps_support={}\ncustom_tray_icon={}\nexcluded_apps={}\nauto_exclude_apps={}\ncheck_updates_on_startup={}\n\n",
+                "[system]\nrun_as_admin={}\nstart_with_windows={}\nshow_dialog_on_startup={}\nnotification_sound={}\nstandard_key_sending={}\nmetro_apps_support={}\ncustom_tray_icon={}\nexcluded_apps={}\nauto_exclude_apps={}\ncheck_updates_on_startup={}\n\n",
                 "[linux]\nfrontend={}\ncommit_mode={}\nfallback_mode={}\n"
             ),
             input_method_to_ini(self.input.method), charset_to_ini(self.input.charset), self.input.enabled,
             self.hotkeys.toggle, self.hotkeys.restore_word,
             self.hotkeys.function_keys.ctrl, self.hotkeys.function_keys.shift, self.hotkeys.function_keys.alt, self.hotkeys.function_keys.win, self.hotkeys.function_keys.f1_toggle_vietnamese_on, self.hotkeys.function_keys.f2_toggle_vietnamese_off, self.hotkeys.function_keys.f3_unicode, self.hotkeys.function_keys.f4_charset, self.hotkeys.function_keys.f4_charset_value, self.hotkeys.function_keys.f5_settings, self.hotkeys.function_keys.f6_convert_tool, self.hotkeys.function_keys.f7_convert_clipboard, self.hotkeys.function_keys.f11_toggle_excluded_apps, self.hotkeys.function_keys.f12_reset,
             self.typing.old_oa_uy, self.typing.smart_mark, self.typing.use_j_f_w_as_consonants, self.typing.auto_capitalize_after_punctuation, self.typing.use_clipboard_to_send_keys, self.typing.spell_check, self.typing.restore_wrong_word, self.typing.us_keyboard_layout_when_off, self.typing.suggestion_fix_1, self.typing.suggestion_fix_2, self.typing.skip_english_words,
-            self.system.run_as_admin, self.system.start_with_windows, self.system.show_dialog_on_startup, self.system.notification_sound, self.system.vietnamese_interface, self.system.standard_key_sending, self.system.metro_apps_support, self.system.custom_tray_icon, self.system.excluded_apps, self.system.auto_exclude_apps, self.system.check_updates_on_startup,
+            self.system.run_as_admin, self.system.start_with_windows, self.system.show_dialog_on_startup, self.system.notification_sound, self.system.standard_key_sending, self.system.metro_apps_support, self.system.custom_tray_icon, self.system.excluded_apps, self.system.auto_exclude_apps, self.system.check_updates_on_startup,
             linux_frontend_to_ini(self.linux.frontend), commit_mode_to_ini(self.linux.commit_mode), fallback_mode_to_ini(self.linux.fallback_mode),
         )
     }

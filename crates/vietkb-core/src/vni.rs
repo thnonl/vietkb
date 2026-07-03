@@ -1,14 +1,21 @@
 use crate::engine::EngineAction;
-use crate::transform::{apply_tone, change_mark, Tone};
+use crate::transform::{apply_tone, change_mark, strip_tone, Tone};
 
 pub fn apply_vni(word: &mut String, ch: char) -> EngineAction {
     if let Some(tone) = tone_from_key(ch) {
         if let Some(changed) = apply_tone(word, tone) {
             let delete_graphemes = word.chars().count();
-            *word = changed.clone();
+            let insert = if changed == *word {
+                let mut raw: String = word.chars().map(strip_tone).collect();
+                raw.push(ch);
+                raw
+            } else {
+                changed
+            };
+            *word = insert.clone();
             return EngineAction::Replace {
                 delete_graphemes,
-                insert: changed,
+                insert,
             };
         }
     }

@@ -41,6 +41,11 @@ fn vni_basic_words() {
 }
 
 #[test]
+fn vni_repeated_tone_key_escapes_to_raw_text() {
+    assert_eq!(simulate(InputMethod::Vni, "a11"), "a1");
+}
+
+#[test]
 fn viqr_basic_words() {
     let cases = [
         ("Tie^'ng Vie^.t", "Tiếng Việt"),

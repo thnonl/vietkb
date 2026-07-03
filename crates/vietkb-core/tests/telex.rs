@@ -81,6 +81,11 @@ fn telex_tones() {
 }
 
 #[test]
+fn repeated_tone_key_escapes_to_raw_text() {
+    assert_eq!(simulate("ass"), "as");
+}
+
+#[test]
 fn boundaries_clear_word_state() {
     assert_eq!(simulate("tieengs Vieetj"), "tiếng Việt");
     assert_eq!(simulate("a,b"), "a,b");

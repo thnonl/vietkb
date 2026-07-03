@@ -85,6 +85,9 @@ mod app {
                     &config.hotkeys.toggle,
                     config.typing.skip_english_words,
                 );
+                if let Err(err) = vietkb_windows::set_start_with_windows(config.system.start_with_windows) {
+                    eprintln!("failed to sync autostart setting: {err}");
+                }
 
                 app.manage(AppState {
                     config: Mutex::new(config.clone()),
@@ -210,6 +213,12 @@ mod app {
                     })
                     .build(app)?;
 
+                if !config.system.show_dialog_on_startup {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
+                }
+
                 Ok(())
             })
             .invoke_handler(tauri::generate_handler![
@@ -254,6 +263,7 @@ mod app {
         let Ok(mut config) = state.config.lock() else {
             return;
         };
+        let was_enabled = config.input.enabled;
         config.input.enabled = enabled;
         mutate(&mut config);
         let method = input_method_from_slug(method_config_to_slug(config.input.method));
@@ -263,6 +273,12 @@ mod app {
             &config.hotkeys.toggle,
             config.typing.skip_english_words,
         );
+        if was_enabled != enabled && config.system.notification_sound {
+            vietkb_windows::play_notification_sound();
+        }
+        if let Err(err) = vietkb_windows::set_start_with_windows(config.system.start_with_windows) {
+            eprintln!("failed to sync autostart setting: {err}");
+        }
         let _ = save_config_to_disk(&config);
         update_tray_menu(app, config.input.method, config.input.charset, enabled);
         update_tray_icon(app, enabled);
@@ -369,11 +385,12 @@ mod app {
             settings.typing.skip_english_words,
         );
 
-        let (method_config, charset) = {
+        let (method_config, charset, should_play_sound) = {
             let mut config = state
                 .config
                 .lock()
                 .map_err(|_| "Không thể khóa cấu hình".to_owned())?;
+            let was_enabled = config.input.enabled;
             config.hotkeys = settings.hotkeys;
             config.typing = settings.typing;
             config.system = settings.system;
@@ -382,10 +399,19 @@ mod app {
             view.enabled = settings.enabled;
             view.method = method_to_config(method);
             view.apply_to(&mut config);
+            vietkb_windows::set_start_with_windows(config.system.start_with_windows)
+                .map_err(|err| err.to_string())?;
             save_config_to_disk(&config).map_err(|err| err.to_string())?;
-            (config.input.method, config.input.charset)
+            (
+                config.input.method,
+                config.input.charset,
+                was_enabled != config.input.enabled && config.system.notification_sound,
+            )
         };
 
+        if should_play_sound {
+            vietkb_windows::play_notification_sound();
+        }
         update_tray_menu(&app, method_config, charset, settings.enabled);
         update_tray_icon(&app, settings.enabled);
 

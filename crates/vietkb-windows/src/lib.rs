@@ -1,4 +1,5 @@
 mod hook;
+mod system;
 
 use vietkb_core::EngineAction;
 use vietkb_platform::{AppInfo, EngineSink, PlatformBackend};
@@ -6,6 +7,7 @@ use vietkb_platform::{AppInfo, EngineSink, PlatformBackend};
 pub use hook::{
     is_keyboard_enabled, run_keyboard_loop, set_enabled_changed_callback, set_keyboard_config,
 };
+pub use system::{play_notification_sound, set_start_with_windows};
 
 #[derive(Debug, Default)]
 pub struct WindowsBackend {
