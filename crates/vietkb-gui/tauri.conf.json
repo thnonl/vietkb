@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "VietKB",
+  "version": "0.1.0",
+  "identifier": "dev.vietkb.app",
+  "build": {
+    "frontendDist": "dist"
+  },
+  "bundle": {
+    "icon": ["icons/icon.ico"]
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "VietKB x64 - Bộ gõ tiếng Việt",
+        "width": 700,
+        "height": 435,
+        "minWidth": 700,
+        "minHeight": 435,
+        "resizable": false,
+        "maximizable": false,
+        "center": true
+      }
+    ]
+  }
+}

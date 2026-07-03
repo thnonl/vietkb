@@ -1,11 +1,14 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
-use vietkb_core::{EngineAction, InputMethod, KeyCode, KeyInput, SimpleVietnameseEngine, VietnameseEngine};
+use vietkb_core::{
+    EngineAction, InputMethod, KeyCode, KeyInput, SimpleVietnameseEngine, VietnameseEngine,
+};
 use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyState, GetKeyboardState, SendInput, ToUnicode, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
-    KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_BACK, VK_CAPITAL, VK_CONTROL,
-    VK_PACKET, VK_RETURN, VK_SHIFT, VK_SPACE,
+    GetKeyState, GetKeyboardState, SendInput, ToUnicode, INPUT, INPUT_0, INPUT_KEYBOARD,
+    KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_BACK,
+    VK_CAPITAL, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_PACKET,
+    VK_RCONTROL, VK_RETURN, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT, VK_SPACE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, TranslateMessage,
@@ -29,21 +32,35 @@ struct HookState {
 struct Hotkey {
     ctrl: bool,
     shift: bool,
+    alt: bool,
+    win: bool,
+    key: Option<u32>,
 }
 
 impl Default for Hotkey {
     fn default() -> Self {
-        Self { ctrl: true, shift: true }
+        Self {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            win: false,
+            key: None,
+        }
     }
 }
 
-pub fn set_keyboard_config(enabled: bool, method: InputMethod, hotkey: &str) {
-    if let Some(state) = STATE.get() {
-        if let Ok(mut state) = state.lock() {
-            state.enabled = enabled;
-            state.hotkey = Hotkey::parse(hotkey);
-            state.engine.set_input_method(method);
-        }
+pub fn set_keyboard_config(
+    enabled: bool,
+    method: InputMethod,
+    hotkey: &str,
+    skip_english_words: bool,
+) {
+    let state = STATE.get_or_init(default_state);
+    if let Ok(mut state) = state.lock() {
+        state.enabled = enabled;
+        state.hotkey = Hotkey::parse(hotkey);
+        state.engine.set_input_method(method);
+        state.engine.set_skip_english_words(skip_english_words);
     }
 }
 
@@ -62,7 +79,8 @@ pub fn is_keyboard_enabled() -> bool {
 }
 
 pub fn run_keyboard_loop() -> anyhow::Result<()> {
-    let hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), HINSTANCE::default(), 0)? };
+    let hook =
+        unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), HINSTANCE::default(), 0)? };
     STATE.get_or_init(default_state);
 
     let mut msg = MSG::default();
@@ -92,15 +110,45 @@ fn default_state() -> Mutex<HookState> {
 
 impl Hotkey {
     fn parse(value: &str) -> Self {
-        let lower = value.to_ascii_lowercase();
-        Self {
-            ctrl: lower.contains("ctrl") || lower.contains("control"),
-            shift: lower.contains("shift"),
+        let mut hotkey = Self {
+            ctrl: false,
+            shift: false,
+            alt: false,
+            win: false,
+            key: None,
+        };
+
+        for part in value
+            .split('+')
+            .map(|part| part.trim().to_ascii_lowercase())
+        {
+            match part.as_str() {
+                "ctrl" | "control" => hotkey.ctrl = true,
+                "shift" => hotkey.shift = true,
+                "alt" => hotkey.alt = true,
+                "win" | "windows" | "meta" => hotkey.win = true,
+                "space" => hotkey.key = Some(VK_SPACE.0 as u32),
+                "enter" | "return" => hotkey.key = Some(VK_RETURN.0 as u32),
+                "backspace" => hotkey.key = Some(VK_BACK.0 as u32),
+                key if key.len() == 1 => {
+                    if let Some(ch) = key.chars().next() {
+                        hotkey.key = Some(ch.to_ascii_uppercase() as u32);
+                    }
+                }
+                _ => {}
+            }
         }
+
+        hotkey
     }
 
-    fn pressed(self) -> bool {
-        (!self.ctrl || key_down(VK_CONTROL.0)) && (!self.shift || key_down(VK_SHIFT.0))
+    fn pressed(self, vk: u32) -> bool {
+        self.key
+            .map_or_else(|| is_modifier_vk(vk), |hotkey_vk| vk == hotkey_vk)
+            && modifier_down_exact(VK_CONTROL.0, self.ctrl, vk)
+            && modifier_down_exact(VK_SHIFT.0, self.shift, vk)
+            && modifier_down_exact(VK_MENU.0, self.alt, vk)
+            && (modifier_down(VK_LWIN.0, vk) || modifier_down(VK_RWIN.0, vk)) == self.win
     }
 }
 
@@ -136,7 +184,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 return unsafe { CallNextHookEx(None, code, wparam, lparam) };
             }
 
-            if state.hotkey.pressed() {
+            if state.hotkey.pressed(info.vkCode) {
                 if !state.hotkey_down {
                     state.hotkey_down = true;
                     state.enabled = !state.enabled;
@@ -181,7 +229,9 @@ fn should_intercept(ch: char, action: &EngineAction) -> bool {
     match action {
         EngineAction::Replace { .. } => true,
         EngineAction::Commit(text) => text != &ch.to_string(),
-        EngineAction::ToggleVietnamese | EngineAction::BeepOrReject | EngineAction::Preedit(_) => true,
+        EngineAction::ToggleVietnamese | EngineAction::BeepOrReject | EngineAction::Preedit(_) => {
+            true
+        }
         EngineAction::Noop => false,
     }
 }
@@ -189,7 +239,9 @@ fn should_intercept(ch: char, action: &EngineAction) -> bool {
 fn action_to_inputs(state: &mut HookState, action: EngineAction) -> Vec<INPUT> {
     let mut inputs = Vec::new();
     match action {
-        EngineAction::Commit(text) | EngineAction::Preedit(text) => push_text(state, &mut inputs, &text),
+        EngineAction::Commit(text) | EngineAction::Preedit(text) => {
+            push_text(state, &mut inputs, &text)
+        }
         EngineAction::Replace {
             delete_graphemes,
             insert,
@@ -227,7 +279,10 @@ fn send_inputs(inputs: &[INPUT]) {
     }
 }
 
-fn keyboard_input(vk: u16, flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS) -> INPUT {
+fn keyboard_input(
+    vk: u16,
+    flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS,
+) -> INPUT {
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
@@ -242,7 +297,10 @@ fn keyboard_input(vk: u16, flags: windows::Win32::UI::Input::KeyboardAndMouse::K
     }
 }
 
-fn unicode_input(unit: u16, flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS) -> INPUT {
+fn unicode_input(
+    unit: u16,
+    flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS,
+) -> INPUT {
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
@@ -265,6 +323,50 @@ fn is_injected_key(info: &KBDLLHOOKSTRUCT) -> bool {
 fn key_down(vk: u16) -> bool {
     let state = unsafe { GetKeyState(vk as i32) };
     state < 0
+}
+
+fn modifier_down_exact(vk: u16, expected: bool, current_vk: u32) -> bool {
+    modifier_down(vk, current_vk) == expected
+}
+
+fn modifier_down(vk: u16, current_vk: u32) -> bool {
+    key_down(vk) || modifier_matches(vk, current_vk)
+}
+
+fn modifier_matches(vk: u16, current_vk: u32) -> bool {
+    match VIRTUAL_KEY(vk) {
+        VK_CONTROL => {
+            current_vk == VK_CONTROL.0 as u32
+                || current_vk == VK_LCONTROL.0 as u32
+                || current_vk == VK_RCONTROL.0 as u32
+        }
+        VK_SHIFT => {
+            current_vk == VK_SHIFT.0 as u32
+                || current_vk == VK_LSHIFT.0 as u32
+                || current_vk == VK_RSHIFT.0 as u32
+        }
+        VK_MENU => {
+            current_vk == VK_MENU.0 as u32
+                || current_vk == VK_LMENU.0 as u32
+                || current_vk == VK_RMENU.0 as u32
+        }
+        VK_LWIN | VK_RWIN => current_vk == VK_LWIN.0 as u32 || current_vk == VK_RWIN.0 as u32,
+        _ => false,
+    }
+}
+
+fn is_modifier_vk(vk: u32) -> bool {
+    vk == VK_CONTROL.0 as u32
+        || vk == VK_LCONTROL.0 as u32
+        || vk == VK_RCONTROL.0 as u32
+        || vk == VK_SHIFT.0 as u32
+        || vk == VK_LSHIFT.0 as u32
+        || vk == VK_RSHIFT.0 as u32
+        || vk == VK_MENU.0 as u32
+        || vk == VK_LMENU.0 as u32
+        || vk == VK_RMENU.0 as u32
+        || vk == VK_LWIN.0 as u32
+        || vk == VK_RWIN.0 as u32
 }
 
 fn boundary_key(vk: u32) -> Option<KeyCode> {

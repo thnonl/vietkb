@@ -3,7 +3,7 @@
 #[cfg(target_os = "windows")]
 fn main() {
     if let Err(err) = app::run() {
-        native_windows_gui::modal_error_message(&native_windows_gui::Window::default(), "VietKB", &err.to_string());
+        eprintln!("vietkb-gui failed: {err}");
     }
 }
 
@@ -14,364 +14,446 @@ fn main() {
 
 #[cfg(target_os = "windows")]
 mod app {
-    use std::thread;
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+    use std::{env, fs, thread};
 
-    use native_windows_gui as nwg;
-    use vietkb_config::{AppConfig, InputMethodConfig};
+    use serde::{Deserialize, Serialize};
+    use tauri::image::Image;
+    use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+    use tauri::{AppHandle, Manager, State, Window, Wry};
+    use vietkb_config::{
+        AppConfig, CharsetConfig, HotkeyConfig, InputMethodConfig, SystemConfig, TypingConfig,
+    };
     use vietkb_core::InputMethod;
     use vietkb_ui::SettingsViewModel;
-    use winapi::um::winuser::{SendMessageW, SetForegroundWindow, TrackPopupMenu, BM_GETCHECK, BM_SETCHECK, BST_CHECKED, BST_UNCHECKED, CB_ERR, CB_GETCURSEL, CB_SETCURSEL, GetWindowTextLengthW, GetWindowTextW};
 
-    const METHODS: [&str; 3] = ["Telex", "VNI", "VIQR"];
-    const CHARSETS: [&str; 1] = ["Unicode"];
+    #[derive(Debug, Clone, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct UiSettings {
+        enabled: bool,
+        method: String,
+        charset: String,
+        hotkeys: HotkeyConfig,
+        typing: TypingConfig,
+        system: SystemConfig,
+    }
 
-    #[derive(Default)]
-    struct App {
-        window: nwg::Window,
-        icon: nwg::Icon,
-        basic_header: nwg::Label,
-        typing_header: nwg::Label,
-        enabled: nwg::CheckBox,
-        start_with_os: nwg::CheckBox,
-        method_label: nwg::Label,
-        method: nwg::ComboBox<&'static str>,
-        charset_label: nwg::Label,
-        charset: nwg::ComboBox<&'static str>,
-        hotkey_label: nwg::Label,
-        hotkey: nwg::TextInput,
-        smart_mark: nwg::CheckBox,
-        spell_check: nwg::CheckBox,
-        restore_keys: nwg::CheckBox,
-        browser_fix: nwg::CheckBox,
-        game_mode: nwg::CheckBox,
-        tray: nwg::TrayNotification,
-        tray_menu: nwg::Menu,
-        tray_toggle: nwg::MenuItem,
-        tray_telex: nwg::MenuItem,
-        tray_vni: nwg::MenuItem,
-        tray_viqr: nwg::MenuItem,
-        tray_exit: nwg::MenuItem,
-        sync_timer: nwg::Timer,
-        save: nwg::Button,
-        exit: nwg::Button,
-        handler: Option<nwg::EventHandler>,
+    #[derive(Debug, Clone, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SaveSettings {
+        enabled: bool,
+        method: String,
+        charset: String,
+        hotkeys: HotkeyConfig,
+        typing: TypingConfig,
+        system: SystemConfig,
+    }
+
+    struct AppState {
+        config: Mutex<AppConfig>,
+        tray_menu: Mutex<Option<TrayMenu>>,
+    }
+
+    #[derive(Clone)]
+    struct TrayMenu {
+        method_telex: CheckMenuItem<Wry>,
+        method_vni: CheckMenuItem<Wry>,
+        method_viqr: CheckMenuItem<Wry>,
+        charset_unicode: CheckMenuItem<Wry>,
+        charset_vni_windows: CheckMenuItem<Wry>,
+        charset_tcvn3: CheckMenuItem<Wry>,
+        toggle: CheckMenuItem<Wry>,
     }
 
     pub fn run() -> anyhow::Result<()> {
-        nwg::init()?;
-        nwg::Font::set_global_family("Segoe UI")?;
-
         thread::spawn(|| {
             if let Err(err) = vietkb_windows::run_keyboard_loop() {
                 eprintln!("keyboard hook failed: {err}");
             }
         });
 
-        let config = AppConfig::default();
-        let view = SettingsViewModel::from(&config);
-        let mut app = App::default();
+        tauri::Builder::default()
+            .setup(|app| {
+                let config = load_config_from_disk().unwrap_or_default();
+                let enabled = config.input.enabled;
+                let method = input_method_from_slug(method_config_to_slug(config.input.method));
+                vietkb_windows::set_keyboard_config(
+                    enabled,
+                    method,
+                    &config.hotkeys.toggle,
+                    config.typing.skip_english_words,
+                );
 
-        app.icon = nwg::Icon::from_system(nwg::OemIcon::Information);
+                app.manage(AppState {
+                    config: Mutex::new(config.clone()),
+                    tray_menu: Mutex::new(None),
+                });
 
-        nwg::Window::builder()
-            .size((640, 420))
-            .position((260, 220))
-            .title("VietKB")
-            .icon(Some(&app.icon))
-            .flags(nwg::WindowFlags::WINDOW | nwg::WindowFlags::VISIBLE)
-            .build(&mut app.window)?;
+                let app_handle = app.handle().clone();
+                vietkb_windows::set_enabled_changed_callback(move |enabled| {
+                    apply_config(&app_handle, enabled, |_config| {});
+                });
 
-        build_groups(&mut app)?;
-        build_basic(&mut app, &config, &view)?;
-        build_typing(&mut app)?;
-        build_tray(&mut app, view.enabled)?;
-        nwg::Timer::builder().parent(&app.window).interval(200).stopped(false).build(&mut app.sync_timer)?;
+                let method_telex = CheckMenuItem::with_id(
+                    app,
+                    "method_telex",
+                    "Telex",
+                    true,
+                    config.input.method == InputMethodConfig::Telex,
+                    None::<&str>,
+                )?;
+                let method_vni = CheckMenuItem::with_id(
+                    app,
+                    "method_vni",
+                    "VNI",
+                    true,
+                    config.input.method == InputMethodConfig::Vni,
+                    None::<&str>,
+                )?;
+                let method_viqr = CheckMenuItem::with_id(
+                    app,
+                    "method_viqr",
+                    "VIQR",
+                    true,
+                    config.input.method == InputMethodConfig::Viqr,
+                    None::<&str>,
+                )?;
+                let charset_unicode = CheckMenuItem::with_id(
+                    app,
+                    "charset_unicode",
+                    "Unicode",
+                    true,
+                    config.input.charset == CharsetConfig::Unicode,
+                    None::<&str>,
+                )?;
+                let charset_vni_windows = CheckMenuItem::with_id(
+                    app,
+                    "charset_vni_windows",
+                    "VNI Windows",
+                    true,
+                    config.input.charset == CharsetConfig::VniWindows,
+                    None::<&str>,
+                )?;
+                let charset_tcvn3 = CheckMenuItem::with_id(
+                    app,
+                    "charset_tcvn3",
+                    "TCVN3 (ABC)",
+                    true,
+                    config.input.charset == CharsetConfig::Tcvn3,
+                    None::<&str>,
+                )?;
+                let charset_menu = Submenu::with_items(
+                    app,
+                    "Chuyển mã",
+                    true,
+                    &[&charset_unicode, &charset_vni_windows, &charset_tcvn3],
+                )?;
+                let toggle =
+                    CheckMenuItem::with_id(app, "toggle", "Bật/tắt", true, enabled, None::<&str>)?;
+                let settings =
+                    MenuItem::with_id(app, "settings", "Mở cài đặt", true, None::<&str>)?;
+                let about = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
+                let quit = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
+                let menu = Menu::with_items(
+                    app,
+                    &[
+                        &method_telex,
+                        &method_vni,
+                        &method_viqr,
+                        &charset_menu,
+                        &toggle,
+                        &settings,
+                        &about,
+                        &quit,
+                    ],
+                )?;
+                if let Ok(mut tray_menu) = app.state::<AppState>().tray_menu.lock() {
+                    *tray_menu = Some(TrayMenu {
+                        method_telex: method_telex.clone(),
+                        method_vni: method_vni.clone(),
+                        method_viqr: method_viqr.clone(),
+                        charset_unicode: charset_unicode.clone(),
+                        charset_vni_windows: charset_vni_windows.clone(),
+                        charset_tcvn3: charset_tcvn3.clone(),
+                        toggle: toggle.clone(),
+                    });
+                }
 
-        nwg::Button::builder()
-            .text("Lưu cài đặt")
-            .parent(&app.window)
-            .position((420, 338))
-            .size((96, 32))
-            .build(&mut app.save)?;
+                TrayIconBuilder::with_id("main")
+                    .tooltip("VietKB")
+                    .icon(tray_icon(enabled)?)
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| match event.id.as_ref() {
+                        "method_telex" => set_input_method(app, InputMethod::Telex),
+                        "method_vni" => set_input_method(app, InputMethod::Vni),
+                        "method_viqr" => set_input_method(app, InputMethod::Viqr),
+                        "charset_unicode" => set_charset(app, CharsetConfig::Unicode),
+                        "charset_vni_windows" => set_charset(app, CharsetConfig::VniWindows),
+                        "charset_tcvn3" => set_charset(app, CharsetConfig::Tcvn3),
+                        "toggle" => toggle_keyboard(app),
+                        "settings" | "about" => show_main_window(app),
+                        "quit" => app.exit(0),
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            show_main_window(tray.app_handle());
+                        }
+                    })
+                    .build(app)?;
 
-        nwg::Button::builder()
-            .text("Thoát")
-            .parent(&app.window)
-            .position((528, 338))
-            .size((72, 32))
-            .build(&mut app.exit)?;
+                Ok(())
+            })
+            .invoke_handler(tauri::generate_handler![
+                load_settings,
+                save_settings,
+                set_enabled,
+                keyboard_enabled,
+                close_window,
+                exit_app
+            ])
+            .run(tauri::generate_context!())?;
 
-        let window = app.window.handle;
-        let save = app.save.handle;
-        let exit = app.exit.handle;
-        let enabled = app.enabled.handle;
-        let method = app.method.handle;
-        let hotkey = app.hotkey.handle;
-        let tray = app.tray.handle;
-        let tray_menu = app.tray_menu.handle;
-        let tray_toggle = app.tray_toggle.handle;
-        let tray_telex = app.tray_telex.handle;
-        let tray_vni = app.tray_vni.handle;
-        let tray_viqr = app.tray_viqr.handle;
-        let tray_exit = app.tray_exit.handle;
-        let sync_timer = app.sync_timer.handle;
-
-        app.handler = Some(nwg::full_bind_event_handler(&window, move |event, _event_data, handle| {
-            if event == nwg::Event::OnWindowClose || (event == nwg::Event::OnButtonClick && handle == exit) {
-                nwg::stop_thread_dispatch();
-            }
-
-            if event == nwg::Event::OnContextMenu && handle == tray {
-                let (x, y) = nwg::GlobalCursor::position();
-                popup_menu(tray_menu, x, y);
-            }
-
-            if event == nwg::Event::OnMenuItemSelected && handle == tray_exit {
-                nwg::stop_thread_dispatch();
-            }
-
-            if event == nwg::Event::OnTimerTick && handle == sync_timer {
-                set_checkbox_checked(enabled, vietkb_windows::is_keyboard_enabled());
-            }
-
-            if event == nwg::Event::OnMenuItemSelected && handle == tray_toggle {
-                set_checkbox_checked(enabled, !checkbox_checked(enabled));
-            }
-
-            if event == nwg::Event::OnMenuItemSelected && handle == tray_telex {
-                set_combo_selection(method, 0);
-            } else if event == nwg::Event::OnMenuItemSelected && handle == tray_vni {
-                set_combo_selection(method, 1);
-            } else if event == nwg::Event::OnMenuItemSelected && handle == tray_viqr {
-                set_combo_selection(method, 2);
-            }
-
-            if event == nwg::Event::OnButtonClick && handle == save
-                || event == nwg::Event::OnMenuItemSelected && (handle == tray_toggle || handle == tray_telex || handle == tray_vni || handle == tray_viqr)
-            {
-                let enabled = checkbox_checked(enabled);
-                let method = method_from_index(combo_selection(method));
-                let hotkey = text_input(hotkey);
-                vietkb_windows::set_keyboard_config(enabled, method, &hotkey);
-            }
-        }));
-
-        nwg::dispatch_thread_events();
         Ok(())
     }
 
-    fn build_groups(app: &mut App) -> anyhow::Result<()> {
-        nwg::Label::builder()
-            .text("Cơ bản")
-            .parent(&app.window)
-            .position((24, 18))
-            .size((160, 24))
-            .build(&mut app.basic_header)?;
-        nwg::Label::builder()
-            .text("Tùy chọn")
-            .parent(&app.window)
-            .position((24, 170))
-            .size((160, 24))
-            .build(&mut app.typing_header)?;
-        Ok(())
+    fn show_main_window(app: &AppHandle) {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
     }
 
-    fn build_basic(app: &mut App, config: &AppConfig, view: &SettingsViewModel) -> anyhow::Result<()> {
-        nwg::CheckBox::builder()
-            .text("Bật gõ tiếng Việt")
-            .parent(&app.window)
-            .position((24, 48))
-            .size((260, 26))
-            .check_state(checked(view.enabled))
-            .build(&mut app.enabled)?;
-
-        nwg::CheckBox::builder()
-            .text("Khởi động cùng hệ điều hành")
-            .parent(&app.window)
-            .position((330, 48))
-            .size((280, 26))
-            .build(&mut app.start_with_os)?;
-
-        label(&app.window, &mut app.method_label, "Kiểu gõ", 24, 88)?;
-        combo(&app.window, &mut app.method, &METHODS, method_index(view.method), 150, 84, 170)?;
-        label(&app.window, &mut app.charset_label, "Bảng mã", 24, 124)?;
-        combo(&app.window, &mut app.charset, &CHARSETS, 0, 150, 120, 170)?;
-        label(&app.window, &mut app.hotkey_label, "Phím bật/tắt", 330, 88)?;
-
-        nwg::TextInput::builder()
-            .text(&config.hotkeys.toggle)
-            .parent(&app.window)
-            .position((450, 84))
-            .size((150, 26))
-            .build(&mut app.hotkey)?;
-
-        Ok(())
-    }
-
-    fn build_typing(app: &mut App) -> anyhow::Result<()> {
-        checkbox(&app.window, &mut app.smart_mark, "Đặt dấu thanh thông minh", 24, 204, 280, true)?;
-        checkbox(&app.window, &mut app.spell_check, "Kiểm tra chính tả tiếng Việt", 330, 204, 280, true)?;
-        checkbox(&app.window, &mut app.restore_keys, "Khôi phục phím gốc khi hủy", 24, 242, 280, true)?;
-        checkbox(&app.window, &mut app.browser_fix, "Sửa lỗi dấu trên trình duyệt", 330, 242, 280, true)?;
-        checkbox(&app.window, &mut app.game_mode, "Chế độ tương thích game", 24, 280, 280, false)?;
-        Ok(())
-    }
-
-    fn build_tray(app: &mut App, enabled: bool) -> anyhow::Result<()> {
-        nwg::TrayNotification::builder()
-            .parent(&app.window)
-            .icon(Some(&app.icon))
-            .tip(Some(tray_tip(enabled)))
-            .build(&mut app.tray)?;
-
-        nwg::Menu::builder()
-            .popup(true)
-            .parent(&app.window)
-            .build(&mut app.tray_menu)?;
-
-        menu_item(&app.tray_menu, &mut app.tray_toggle, toggle_label(enabled))?;
-        menu_item(&app.tray_menu, &mut app.tray_telex, "Telex")?;
-        menu_item(&app.tray_menu, &mut app.tray_vni, "VNI")?;
-        menu_item(&app.tray_menu, &mut app.tray_viqr, "VIQR")?;
-        menu_item(&app.tray_menu, &mut app.tray_exit, "Thoát")?;
-        app.tray_telex.set_checked(true);
-        Ok(())
-    }
-
-    fn menu_item(parent: &nwg::Menu, out: &mut nwg::MenuItem, text: &str) -> anyhow::Result<()> {
-        nwg::MenuItem::builder().text(text).parent(parent).build(out)?;
-        Ok(())
-    }
-
-    fn label(parent: &nwg::Window, out: &mut nwg::Label, text: &str, x: i32, y: i32) -> anyhow::Result<()> {
-        nwg::Label::builder()
-            .text(text)
-            .parent(parent)
-            .position((x, y))
-            .size((120, 24))
-            .build(out)?;
-        Ok(())
-    }
-
-    fn combo(
-        parent: &nwg::Window,
-        out: &mut nwg::ComboBox<&'static str>,
-        items: &[&'static str],
-        index: usize,
-        x: i32,
-        y: i32,
-        width: i32,
-    ) -> anyhow::Result<()> {
-        nwg::ComboBox::builder()
-            .parent(parent)
-            .position((x, y))
-            .size((width, 90))
-            .collection(items.to_vec())
-            .selected_index(Some(index))
-            .build(out)?;
-        Ok(())
-    }
-
-    fn checkbox(
-        parent: &nwg::Window,
-        out: &mut nwg::CheckBox,
-        text: &str,
-        x: i32,
-        y: i32,
-        width: i32,
-        is_checked: bool,
-    ) -> anyhow::Result<()> {
-        nwg::CheckBox::builder()
-            .text(text)
-            .parent(parent)
-            .position((x, y))
-            .size((width, 26))
-            .check_state(checked(is_checked))
-            .build(out)?;
-        Ok(())
-    }
-
-    fn checked(value: bool) -> nwg::CheckBoxState {
-        if value {
-            nwg::CheckBoxState::Checked
+    fn tray_icon(enabled: bool) -> tauri::Result<Image<'static>> {
+        let bytes: &[u8] = if enabled {
+            include_bytes!("../icons/V.ico")
         } else {
-            nwg::CheckBoxState::Unchecked
+            include_bytes!("../icons/E.ico")
+        };
+        Image::from_bytes(bytes)
+    }
+
+    fn update_tray_icon(app: &AppHandle, enabled: bool) {
+        if let Some(tray) = app.tray_by_id("main") {
+            if let Ok(icon) = tray_icon(enabled) {
+                let _ = tray.set_icon(Some(icon));
+            }
         }
     }
 
-    fn method_index(method: InputMethodConfig) -> usize {
-        match method {
-            InputMethodConfig::Telex => 0,
-            InputMethodConfig::Vni => 1,
-            InputMethodConfig::Viqr => 2,
+    fn apply_config(app: &AppHandle, enabled: bool, mutate: impl FnOnce(&mut AppConfig)) {
+        let state = app.state::<AppState>();
+        let Ok(mut config) = state.config.lock() else {
+            return;
+        };
+        config.input.enabled = enabled;
+        mutate(&mut config);
+        let method = input_method_from_slug(method_config_to_slug(config.input.method));
+        vietkb_windows::set_keyboard_config(
+            enabled,
+            method,
+            &config.hotkeys.toggle,
+            config.typing.skip_english_words,
+        );
+        let _ = save_config_to_disk(&config);
+        update_tray_menu(app, config.input.method, config.input.charset, enabled);
+        update_tray_icon(app, enabled);
+    }
+
+    fn settings_path() -> PathBuf {
+        env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(|parent| parent.join("settings.ini")))
+            .unwrap_or_else(|| PathBuf::from("settings.ini"))
+    }
+
+    fn load_config_from_disk() -> Option<AppConfig> {
+        let input = fs::read_to_string(settings_path()).ok()?;
+        AppConfig::from_ini(&input).ok()
+    }
+
+    fn save_config_to_disk(config: &AppConfig) -> std::io::Result<()> {
+        fs::write(settings_path(), config.to_ini())
+    }
+
+    fn update_tray_menu(
+        app: &AppHandle,
+        method: InputMethodConfig,
+        charset: CharsetConfig,
+        enabled: bool,
+    ) {
+        let state = app.state::<AppState>();
+        let Ok(tray_menu) = state.tray_menu.lock() else {
+            return;
+        };
+        let Some(tray_menu) = tray_menu.as_ref() else {
+            return;
+        };
+
+        let _ = tray_menu
+            .method_telex
+            .set_checked(method == InputMethodConfig::Telex);
+        let _ = tray_menu
+            .method_vni
+            .set_checked(method == InputMethodConfig::Vni);
+        let _ = tray_menu
+            .method_viqr
+            .set_checked(method == InputMethodConfig::Viqr);
+        let _ = tray_menu
+            .charset_unicode
+            .set_checked(charset == CharsetConfig::Unicode);
+        let _ = tray_menu
+            .charset_vni_windows
+            .set_checked(charset == CharsetConfig::VniWindows);
+        let _ = tray_menu
+            .charset_tcvn3
+            .set_checked(charset == CharsetConfig::Tcvn3);
+        let _ = tray_menu.toggle.set_checked(enabled);
+    }
+
+    fn set_input_method(app: &AppHandle, method: InputMethod) {
+        let enabled = vietkb_windows::is_keyboard_enabled();
+        apply_config(app, enabled, |config| {
+            config.input.method = method_to_config(method)
+        });
+    }
+
+    fn set_charset(app: &AppHandle, charset: CharsetConfig) {
+        let enabled = vietkb_windows::is_keyboard_enabled();
+        apply_config(app, enabled, |config| config.input.charset = charset);
+    }
+
+    fn toggle_keyboard(app: &AppHandle) {
+        let enabled = !vietkb_windows::is_keyboard_enabled();
+        apply_config(app, enabled, |_config| {});
+    }
+
+    #[tauri::command]
+    fn load_settings(state: State<'_, AppState>) -> UiSettings {
+        let config = state
+            .config
+            .lock()
+            .map(|config| config.clone())
+            .unwrap_or_default();
+        let view = SettingsViewModel::from(&config);
+
+        UiSettings {
+            enabled: vietkb_windows::is_keyboard_enabled(),
+            method: method_config_to_slug(view.method).to_owned(),
+            charset: charset_config_to_slug(config.input.charset).to_owned(),
+            hotkeys: config.hotkeys,
+            typing: config.typing,
+            system: config.system,
         }
     }
 
-    fn method_from_index(index: usize) -> InputMethod {
-        match index {
-            1 => InputMethod::Vni,
-            2 => InputMethod::Viqr,
+    #[tauri::command]
+    fn save_settings(
+        app: AppHandle,
+        settings: SaveSettings,
+        state: State<'_, AppState>,
+    ) -> Result<(), String> {
+        let method = input_method_from_slug(&settings.method);
+        vietkb_windows::set_keyboard_config(
+            settings.enabled,
+            method,
+            &settings.hotkeys.toggle,
+            settings.typing.skip_english_words,
+        );
+
+        let (method_config, charset) = {
+            let mut config = state
+                .config
+                .lock()
+                .map_err(|_| "Không thể khóa cấu hình".to_owned())?;
+            config.hotkeys = settings.hotkeys;
+            config.typing = settings.typing;
+            config.system = settings.system;
+            config.input.charset = charset_from_slug(&settings.charset);
+            let mut view = SettingsViewModel::from(&*config);
+            view.enabled = settings.enabled;
+            view.method = method_to_config(method);
+            view.apply_to(&mut config);
+            save_config_to_disk(&config).map_err(|err| err.to_string())?;
+            (config.input.method, config.input.charset)
+        };
+
+        update_tray_menu(&app, method_config, charset, settings.enabled);
+        update_tray_icon(&app, settings.enabled);
+
+        Ok(())
+    }
+
+    #[tauri::command]
+    fn set_enabled(
+        app: AppHandle,
+        enabled: bool,
+        _state: State<'_, AppState>,
+    ) -> Result<(), String> {
+        apply_config(&app, enabled, |_config| {});
+        Ok(())
+    }
+
+    #[tauri::command]
+    fn keyboard_enabled() -> bool {
+        vietkb_windows::is_keyboard_enabled()
+    }
+
+    #[tauri::command]
+    fn close_window(window: Window) -> Result<(), String> {
+        window.hide().map_err(|err| err.to_string())
+    }
+
+    #[tauri::command]
+    fn exit_app(app: AppHandle) {
+        app.exit(0);
+    }
+
+    fn input_method_from_slug(value: &str) -> InputMethod {
+        match value {
+            "vni" => InputMethod::Vni,
+            "viqr" => InputMethod::Viqr,
             _ => InputMethod::Telex,
         }
     }
 
-    fn combo_selection(handle: nwg::ControlHandle) -> usize {
-        let Some(hwnd) = handle.hwnd() else {
-            return 0;
-        };
-        let index = unsafe { SendMessageW(hwnd, CB_GETCURSEL, 0, 0) };
-        if index == CB_ERR {
-            0
-        } else {
-            index as usize
+    fn method_to_config(method: InputMethod) -> InputMethodConfig {
+        match method {
+            InputMethod::Vni => InputMethodConfig::Vni,
+            InputMethod::Viqr => InputMethodConfig::Viqr,
+            InputMethod::Telex => InputMethodConfig::Telex,
         }
     }
 
-    fn set_combo_selection(handle: nwg::ControlHandle, index: usize) {
-        if let Some(hwnd) = handle.hwnd() {
-            unsafe { SendMessageW(hwnd, CB_SETCURSEL, index, 0) };
+    fn method_config_to_slug(method: InputMethodConfig) -> &'static str {
+        match method {
+            InputMethodConfig::Vni => "vni",
+            InputMethodConfig::Viqr => "viqr",
+            InputMethodConfig::Telex => "telex",
         }
     }
 
-    fn checkbox_checked(handle: nwg::ControlHandle) -> bool {
-        let Some(hwnd) = handle.hwnd() else {
-            return false;
-        };
-        unsafe { SendMessageW(hwnd, BM_GETCHECK, 0, 0) as usize == BST_CHECKED }
-    }
-
-    fn set_checkbox_checked(handle: nwg::ControlHandle, value: bool) {
-        if let Some(hwnd) = handle.hwnd() {
-            let state = if value { BST_CHECKED } else { BST_UNCHECKED };
-            unsafe { SendMessageW(hwnd, BM_SETCHECK, state, 0) };
+    fn charset_from_slug(value: &str) -> CharsetConfig {
+        match value {
+            "vni-windows" => CharsetConfig::VniWindows,
+            "tcvn3" => CharsetConfig::Tcvn3,
+            _ => CharsetConfig::Unicode,
         }
     }
 
-    fn text_input(handle: nwg::ControlHandle) -> String {
-        let Some(hwnd) = handle.hwnd() else {
-            return String::new();
-        };
-        let len = unsafe { GetWindowTextLengthW(hwnd) };
-        let mut buffer = vec![0u16; len as usize + 1];
-        let copied = unsafe { GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32) } as usize;
-        String::from_utf16_lossy(&buffer[..copied])
-    }
-
-    fn popup_menu(handle: nwg::ControlHandle, x: i32, y: i32) {
-        let Some((hwnd, menu)) = handle.pop_hmenu() else {
-            return;
-        };
-        unsafe {
-            SetForegroundWindow(hwnd);
-            TrackPopupMenu(menu, 0, x, y, 0, hwnd, std::ptr::null());
+    fn charset_config_to_slug(charset: CharsetConfig) -> &'static str {
+        match charset {
+            CharsetConfig::Unicode => "unicode",
+            CharsetConfig::VniWindows => "vni-windows",
+            CharsetConfig::Tcvn3 => "tcvn3",
         }
-    }
-
-    fn tray_tip(enabled: bool) -> &'static str {
-        if enabled { "VietKB - V" } else { "VietKB - E" }
-    }
-
-    fn toggle_label(enabled: bool) -> &'static str {
-        if enabled { "Tắt tiếng Việt (E)" } else { "Bật tiếng Việt (V)" }
     }
 }

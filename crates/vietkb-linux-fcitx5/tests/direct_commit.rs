@@ -15,7 +15,10 @@ fn replacement_uses_surrounding_text_delete_then_commit() {
         commit.outputs(),
         &[
             Fcitx5Output::CommitString("Vieet".to_owned()),
-            Fcitx5Output::DeleteSurroundingText { before: 5, after: 0 },
+            Fcitx5Output::DeleteSurroundingText {
+                before: 5,
+                after: 0
+            },
             Fcitx5Output::CommitString("Việt".to_owned()),
         ]
     );

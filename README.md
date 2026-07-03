@@ -29,7 +29,7 @@ VietKB là bộ gõ tiếng Việt nhẹ, tập trung vào trải nghiệm dùng
 sh scripts/install-linux.sh
 ```
 
-Script cài `vietkb-cli` vào `$HOME/.local/bin`. Gói tích hợp IBus/Fcitx5 nằm trong `packaging/linux` cho từng distro/input method.
+Script cài `vietkb-gui` vào `$HOME/.local/bin`.
 
 ### macOS
 
@@ -37,7 +37,7 @@ Script cài `vietkb-cli` vào `$HOME/.local/bin`. Gói tích hợp IBus/Fcitx5 n
 sh scripts/install-macos.sh
 ```
 
-Script cài `vietkb-cli` vào `$HOME/.local/bin`.
+Script cài `vietkb-gui` vào `$HOME/.local/bin`.
 
 ## Build riêng từng nền tảng
 
@@ -70,7 +70,7 @@ sh scripts/build-macos.sh
 
 - GUI hiện hỗ trợ Windows.
 - Các tuỳ chọn chưa có backend ổn định không hiển thị trong GUI.
-- Linux/macOS hiện ưu tiên CLI + integration package.
+- Linux/macOS build ra `vietkb-gui`, nhưng backend GUI/input hook chưa được triển khai.
 
 ## License
 

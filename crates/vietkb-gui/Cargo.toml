@@ -6,18 +6,18 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-native-windows-gui = "1.0"
+serde.workspace = true
+tauri = { version = "2", features = ["image-ico", "tray-icon"] }
 vietkb-config = { path = "../vietkb-config" }
 vietkb-core = { path = "../vietkb-core" }
 vietkb-ui = { path = "../vietkb-ui" }
 vietkb-windows = { path = "../vietkb-windows" }
-winapi = { version = "0.3", features = ["winuser"] }
 
-[target.'cfg(windows)'.build-dependencies]
-embed-resource = "2"
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
 
 [lints.rust]
-unsafe_code = "allow"
+unsafe_code = "forbid"
 
 [lints.clippy]
 unwrap_used = "deny"

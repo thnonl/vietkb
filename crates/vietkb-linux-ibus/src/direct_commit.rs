@@ -41,7 +41,8 @@ impl DirectCommit {
                 delete_graphemes,
                 insert,
             } => {
-                self.surrounding_text.replace_suffix(delete_graphemes, &insert);
+                self.surrounding_text
+                    .replace_suffix(delete_graphemes, &insert);
                 self.outputs.push(TextOutput::DeleteSurrounding {
                     graphemes: delete_graphemes,
                 });

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14919B" />
+      <stop offset="100%" stop-color="#0B666E" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#tealGrad)" />
+  <g fill="#FFFFFF" opacity="0.95">
+    <rect x="76" y="170" width="64" height="48" rx="10" />
+    <rect x="156" y="170" width="64" height="48" rx="10" />
+    <rect x="292" y="170" width="64" height="48" rx="10" />
+    <rect x="372" y="170" width="64" height="48" rx="10" />
+    <rect x="76" y="238" width="64" height="48" rx="10" />
+    <rect x="156" y="238" width="64" height="48" rx="10" />
+    <rect x="292" y="238" width="64" height="48" rx="10" />
+    <rect x="372" y="238" width="64" height="48" rx="10" />
+    <rect x="76" y="306" width="64" height="48" rx="10" />
+    <rect x="156" y="306" width="200" height="48" rx="10" />
+    <rect x="372" y="306" width="64" height="48" rx="10" />
+  </g>
+  <path d="M 160 110 L 226 350 L 256 350 L 286 350 L 352 110 L 306 110 L 256 295 L 206 110 Z" 
+        fill="#FFFFFF" stroke="#E63946" stroke-width="16" stroke-linejoin="round" stroke-linecap="round" />
+</svg>

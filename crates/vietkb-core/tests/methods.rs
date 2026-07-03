@@ -49,6 +49,10 @@ fn viqr_basic_words() {
     ];
 
     for (input, expected) in cases {
-        assert_eq!(simulate(InputMethod::Viqr, input), expected, "input={input}");
+        assert_eq!(
+            simulate(InputMethod::Viqr, input),
+            expected,
+            "input={input}"
+        );
     }
 }

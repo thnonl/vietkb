@@ -12,7 +12,10 @@ fn recorded_backend_captures_emitted_actions() {
         .unwrap_or_else(|err| panic!("emit failed: {err}"));
 
     assert!(backend.is_started());
-    assert_eq!(backend.emitted(), &[EngineAction::Noop, EngineAction::Commit("a".to_owned())]);
+    assert_eq!(
+        backend.emitted(),
+        &[EngineAction::Noop, EngineAction::Commit("a".to_owned())]
+    );
 
     backend
         .stop()

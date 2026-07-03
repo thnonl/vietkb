@@ -86,3 +86,31 @@ fn boundaries_clear_word_state() {
     assert_eq!(simulate("a,b"), "a,b");
     assert_eq!(simulate("Thasi Thasi Thasi"), "Thái Thái Thái");
 }
+
+#[test]
+fn can_skip_common_english_words() {
+    let mut engine = SimpleVietnameseEngine::new();
+    engine.set_skip_english_words(true);
+    let mut output = String::new();
+
+    for ch in "google windows Tieengs".chars() {
+        match engine.process_key(KeyInput::from_char(ch)) {
+            EngineAction::Noop
+            | EngineAction::Preedit(_)
+            | EngineAction::ToggleVietnamese
+            | EngineAction::BeepOrReject => {}
+            EngineAction::Commit(text) => output.push_str(&text),
+            EngineAction::Replace {
+                delete_graphemes,
+                insert,
+            } => {
+                for _ in 0..delete_graphemes {
+                    output.pop();
+                }
+                output.push_str(&insert);
+            }
+        }
+    }
+
+    assert_eq!(output, "google windows Tiếng");
+}

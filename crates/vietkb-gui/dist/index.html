@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VietKB</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="titlebar">
+        <div>
+          <strong>VietKB - Vietnamese Keyboard</strong>
+        </div>
+        <div class="title-actions">
+          <label class="status-toggle">
+            <input id="themeToggle" type="checkbox" />
+            <span>Dark mode</span>
+          </label>
+          <label class="status-toggle">
+            <input id="enabled" type="checkbox" />
+            <span id="statusText">Đang bật</span>
+          </label>
+        </div>
+      </header>
+
+      <section class="control-panel">
+        <label>Bảng mã</label>
+        <select id="charset">
+          <option value="unicode">Unicode</option>
+          <option value="vni-windows">VNI Windows</option>
+          <option value="tcvn3">TCVN3 (ABC)</option>
+        </select>
+        <label>Kiểu gõ</label>
+        <select id="method">
+          <option value="telex">Telex</option>
+          <option value="vni">VNI</option>
+          <option value="viqr">VIQR</option>
+        </select>
+      </section>
+
+      <nav class="tabs" role="tablist">
+        <button class="active" data-tab="basic" type="button">Cơ bản</button>
+        <button data-tab="system" type="button">Nâng cao</button>
+        <button data-tab="hotkeys" type="button">Phím tắt</button>
+      </nav>
+
+      <section id="tab-basic" class="tab-pane group active">
+        <div class="option-grid two">
+          <label><input data-path="typing.oldOaUy" type="checkbox" /> Đặt dấu oà, uý (thay vì òa, úy)</label>
+          <label><input data-path="typing.spellCheck" type="checkbox" /> Bật kiểm tra chính tả</label>
+          <label><input data-path="typing.smartMark" type="checkbox" /> Đặt dấu tự do</label>
+          <label><input data-path="typing.restoreWrongWord" type="checkbox" /> Tự động khôi phục phím với từ sai</label>
+          <label><input data-path="typing.useJFWasConsonants" type="checkbox" /> Cho phép 'f j w z' làm phụ âm</label>
+          <label><input data-path="typing.autoCapitalizeAfterPunctuation" type="checkbox" /> Tự động viết hoa sau "Enter . ! ?"</label>
+          <label><input data-path="typing.suggestionFix1" type="checkbox" /> Sửa lỗi dấu của Gợi ý 1</label>
+          <label><input data-path="typing.useClipboardToSendKeys" type="checkbox" /> Sử dụng Clipboard để gửi phím</label>
+          <label><input data-path="typing.suggestionFix2" type="checkbox" /> Sửa lỗi dấu của Gợi ý 2</label>
+          <label><input data-path="typing.skipEnglishWords" type="checkbox" /> Nhận diện từ tiếng Anh, không bỏ dấu</label>
+        </div>
+      </section>
+
+      <section id="tab-hotkeys" class="tab-pane group">
+        <div class="hotkey-lines">
+          <label>Phím chuyển E/V</label>
+          <label><input data-mod="toggle" value="Ctrl" type="checkbox" /> Ctrl</label>
+          <label><input data-mod="toggle" value="Shift" type="checkbox" /> Shift</label>
+          <label><input data-mod="toggle" value="Alt" type="checkbox" /> Alt</label>
+          <label><input data-mod="toggle" value="Win" type="checkbox" /> Win</label>
+          <input id="toggleHotkey" class="hotkey-box" spellcheck="false" />
+
+          <label>Phím phục hồi từ</label>
+          <label><input data-mod="restore" value="Ctrl" type="checkbox" /> Ctrl</label>
+          <label><input data-mod="restore" value="Shift" type="checkbox" /> Shift</label>
+          <label><input data-mod="restore" value="Alt" type="checkbox" /> Alt</label>
+          <label><input data-mod="restore" value="Win" type="checkbox" /> Win</label>
+          <input id="restoreHotkey" class="hotkey-box" spellcheck="false" />
+        </div>
+      </section>
+
+      <section id="tab-system" class="tab-pane group">
+        <div class="option-grid two">
+          <label><input data-path="system.standardKeySending" type="checkbox" /> Gửi phím kiểu chuẩn</label>
+          <label><input data-path="system.startWithWindows" type="checkbox" /> Khởi động cùng Windows</label>
+          <label><input data-path="system.metroAppsSupport" type="checkbox" /> Hỗ trợ ứng dụng Metro</label>
+          <label><input data-path="system.showDialogOnStartup" type="checkbox" /> Hiện hộp thoại này khi khởi động</label>
+          <label><input data-path="system.notificationSound" type="checkbox" /> Âm thanh thông báo</label>
+          <label><input data-path="system.vietnameseInterface" type="checkbox" /> Vietnamese Interface</label>
+        </div>
+        <div class="subgroup update-row">
+          <label><input data-path="system.checkUpdatesOnStartup" type="checkbox" /> Kiểm tra cập nhật lúc khởi động</label>
+          <button type="button">Kiểm tra cập nhật...</button>
+        </div>
+      </section>
+
+      <footer>
+        <button type="button">Mặc định</button>
+        <span id="message" role="status"></span>
+        <button id="save" type="button">Lưu</button>
+        <button id="close" type="button">Ẩn</button>
+        <button id="exit" type="button">Thoát</button>
+      </footer>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

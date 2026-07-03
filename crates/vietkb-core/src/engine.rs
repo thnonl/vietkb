@@ -1,3 +1,4 @@
+use crate::english::is_english_word;
 use crate::key::{KeyCode, KeyInput};
 use crate::telex::apply_telex;
 use crate::viqr::apply_viqr;
@@ -19,7 +20,10 @@ pub enum Charset {
 pub enum EngineAction {
     Noop,
     Commit(String),
-    Replace { delete_graphemes: usize, insert: String },
+    Replace {
+        delete_graphemes: usize,
+        insert: String,
+    },
     Preedit(String),
     ToggleVietnamese,
     BeepOrReject,
@@ -37,7 +41,10 @@ pub struct SimpleVietnameseEngine {
     method: InputMethod,
     charset: Charset,
     enabled: bool,
+    skip_english_words: bool,
     word: String,
+    raw: String,
+    english_bypass: bool,
 }
 
 impl Default for SimpleVietnameseEngine {
@@ -46,7 +53,10 @@ impl Default for SimpleVietnameseEngine {
             method: InputMethod::Telex,
             charset: Charset::Unicode,
             enabled: true,
+            skip_english_words: true,
             word: String::new(),
+            raw: String::new(),
+            english_bypass: false,
         }
     }
 }
@@ -60,15 +70,53 @@ impl SimpleVietnameseEngine {
         &self.word
     }
 
-    fn commit_boundary(&mut self, text: &str) -> EngineAction {
+    pub fn set_skip_english_words(&mut self, value: bool) {
+        self.skip_english_words = value;
+    }
+
+    fn reset_word(&mut self) {
         self.word.clear();
+        self.raw.clear();
+        self.english_bypass = false;
+    }
+
+    fn commit_boundary(&mut self, text: &str) -> EngineAction {
+        self.reset_word();
         EngineAction::Commit(text.to_owned())
+    }
+
+    fn process_alphabetic(&mut self, ch: char) -> EngineAction {
+        self.raw.push(ch);
+
+        if self.english_bypass {
+            return EngineAction::Commit(ch.to_string());
+        }
+
+        let previous_graphemes = self.word.chars().count();
+        let action = match self.method {
+            InputMethod::Telex => apply_telex(&mut self.word, ch),
+            InputMethod::Vni => apply_vni(&mut self.word, ch),
+            InputMethod::Viqr => apply_viqr(&mut self.word, ch),
+        };
+
+        if self.skip_english_words && is_english_word(&self.raw) {
+            self.english_bypass = true;
+            let delete_graphemes = previous_graphemes;
+            let insert = self.raw.clone();
+            self.word.clear();
+            return EngineAction::Replace {
+                delete_graphemes,
+                insert,
+            };
+        }
+
+        action
     }
 }
 
 impl VietnameseEngine for SimpleVietnameseEngine {
     fn reset(&mut self) {
-        self.word.clear();
+        self.reset_word();
     }
 
     fn process_key(&mut self, input: KeyInput) -> EngineAction {
@@ -86,35 +134,34 @@ impl VietnameseEngine for SimpleVietnameseEngine {
                     return EngineAction::Commit(ch.to_string());
                 }
 
-                match self.method {
-                    InputMethod::Telex => apply_telex(&mut self.word, ch),
-                    InputMethod::Vni => apply_vni(&mut self.word, ch),
-                    InputMethod::Viqr => apply_viqr(&mut self.word, ch),
-                }
+                self.process_alphabetic(ch)
             }
+            KeyCode::Char(ch) if ch.is_whitespace() => self.commit_boundary(&ch.to_string()),
             KeyCode::Char(ch) if ch.is_ascii_digit() => {
-                if self.enabled && matches!(self.method, InputMethod::Vni) {
+                if self.enabled && !self.english_bypass && matches!(self.method, InputMethod::Vni) {
                     return apply_vni(&mut self.word, ch);
                 }
-                self.word.clear();
+                self.reset_word();
                 EngineAction::Commit(ch.to_string())
             }
             KeyCode::Char(ch) if is_ascii_punctuation(ch) => {
-                if self.enabled && matches!(self.method, InputMethod::Viqr) {
+                if self.enabled && !self.english_bypass && matches!(self.method, InputMethod::Viqr)
+                {
                     return apply_viqr(&mut self.word, ch);
                 }
-                self.word.clear();
+                self.reset_word();
                 EngineAction::Commit(ch.to_string())
             }
             KeyCode::Space => self.commit_boundary(" "),
             KeyCode::Enter => self.commit_boundary("\n"),
             KeyCode::Backspace => {
                 self.word.pop();
+                self.raw.pop();
                 EngineAction::Noop
             }
             KeyCode::Char(ch) => self.commit_boundary(&ch.to_string()),
             KeyCode::Other => {
-                self.word.clear();
+                self.reset_word();
                 EngineAction::Noop
             }
         }

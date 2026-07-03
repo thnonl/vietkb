@@ -23,10 +23,8 @@ fn detects_wayland_and_ibus() {
 
 #[test]
 fn fcitx_is_preferred_when_configured() {
-    let detected = LinuxEnvironment::detect_from(env(&[
-        ("DISPLAY", ":0"),
-        ("QT_IM_MODULE", "fcitx"),
-    ]));
+    let detected =
+        LinuxEnvironment::detect_from(env(&[("DISPLAY", ":0"), ("QT_IM_MODULE", "fcitx")]));
 
     assert_eq!(detected.session, SessionKind::X11);
     assert_eq!(detected.preferred_framework(), InputFramework::Fcitx5);

@@ -10,7 +10,6 @@ members = [
     "crates/vietkb-macos",
     "crates/vietkb-ui",
     "crates/vietkb-daemon",
-    "crates/vietkb-cli",
     "crates/vietkb-gui",
 ]
 resolver = "2"
