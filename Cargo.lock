@@ -3747,6 +3747,7 @@ name = "vietkb-windows"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "vietkb-config",
  "vietkb-core",
  "vietkb-platform",
  "windows 0.58.0",

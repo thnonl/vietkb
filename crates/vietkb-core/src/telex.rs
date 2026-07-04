@@ -1,9 +1,15 @@
-use crate::engine::EngineAction;
-use crate::transform::{apply_tone, change_mark, strip_tone, Tone};
+use crate::engine::{EngineAction, EngineOptions};
+use crate::transform::{apply_tone_with_options, change_mark, strip_tone, Tone};
 
-pub fn apply_telex(word: &mut String, ch: char) -> EngineAction {
+pub fn apply_telex_with_options(
+    word: &mut String,
+    ch: char,
+    options: EngineOptions,
+) -> EngineAction {
     if let Some(tone) = tone_from_key(ch) {
-        if let Some(changed) = apply_tone(word, tone) {
+        if let Some(changed) =
+            apply_tone_with_options(word, tone, options.old_oa_uy, options.smart_mark)
+        {
             let delete_graphemes = word.chars().count();
             let insert = if changed == *word {
                 let mut raw: String = word.chars().map(strip_tone).collect();

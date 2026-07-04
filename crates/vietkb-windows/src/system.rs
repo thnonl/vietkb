@@ -49,8 +49,7 @@ fn write_autostart_value(key: HKEY) -> anyhow::Result<()> {
     let quoted = format!("\"{}\"", exe.display());
     let mut wide: Vec<u16> = quoted.encode_utf16().collect();
     wide.push(0);
-    let bytes =
-        unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
+    let bytes = unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
 
     let status = unsafe { RegSetValueExW(key, RUN_VALUE, 0, REG_SZ, Some(bytes)) };
     if status != ERROR_SUCCESS {

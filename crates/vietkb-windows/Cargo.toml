@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+vietkb-config = { path = "../vietkb-config" }
 vietkb-core = { path = "../vietkb-core" }
 vietkb-platform = { path = "../vietkb-platform" }
 windows = { version = "0.58", features = [

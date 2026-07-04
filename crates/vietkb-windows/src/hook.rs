@@ -1,7 +1,9 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
+use vietkb_config::TypingConfig;
 use vietkb_core::{
-    EngineAction, InputMethod, KeyCode, KeyInput, SimpleVietnameseEngine, VietnameseEngine,
+    EngineAction, EngineOptions, InputMethod, KeyCode, KeyInput, SimpleVietnameseEngine,
+    VietnameseEngine,
 };
 use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -53,14 +55,19 @@ pub fn set_keyboard_config(
     enabled: bool,
     method: InputMethod,
     hotkey: &str,
-    skip_english_words: bool,
+    typing: &TypingConfig,
 ) {
     let state = STATE.get_or_init(default_state);
     if let Ok(mut state) = state.lock() {
         state.enabled = enabled;
         state.hotkey = Hotkey::parse(hotkey);
         state.engine.set_input_method(method);
-        state.engine.set_skip_english_words(skip_english_words);
+        state.engine.set_options(EngineOptions {
+            old_oa_uy: typing.old_oa_uy,
+            smart_mark: typing.smart_mark,
+            spell_check: typing.spell_check,
+            skip_english_words: typing.skip_english_words,
+        });
     }
 }
 

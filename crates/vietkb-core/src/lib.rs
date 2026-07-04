@@ -6,5 +6,7 @@ mod transform;
 mod viqr;
 mod vni;
 
-pub use engine::{Charset, EngineAction, InputMethod, SimpleVietnameseEngine, VietnameseEngine};
+pub use engine::{
+    Charset, EngineAction, EngineOptions, InputMethod, SimpleVietnameseEngine, VietnameseEngine,
+};
 pub use key::{KeyCode, KeyInput};

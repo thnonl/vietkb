@@ -62,8 +62,17 @@ pub fn change_mark(ch: char, mark: char) -> Option<char> {
 }
 
 pub fn apply_tone(word: &str, tone: Tone) -> Option<String> {
+    apply_tone_with_options(word, tone, false, true)
+}
+
+pub fn apply_tone_with_options(
+    word: &str,
+    tone: Tone,
+    old_oa_uy: bool,
+    smart_mark: bool,
+) -> Option<String> {
     let chars: Vec<char> = word.chars().collect();
-    let idx = tone_target(&chars)?;
+    let idx = tone_target(&chars, old_oa_uy, smart_mark)?;
     let toned = tone_char(chars[idx], tone)?;
     let mut out = String::new();
     for (i, ch) in chars.into_iter().enumerate() {
@@ -72,7 +81,7 @@ pub fn apply_tone(word: &str, tone: Tone) -> Option<String> {
     Some(out)
 }
 
-fn tone_target(chars: &[char]) -> Option<usize> {
+fn tone_target(chars: &[char], old_oa_uy: bool, smart_mark: bool) -> Option<usize> {
     let vowel_indices: Vec<usize> = chars
         .iter()
         .enumerate()
@@ -81,6 +90,14 @@ fn tone_target(chars: &[char]) -> Option<usize> {
 
     if vowel_indices.is_empty() {
         return None;
+    }
+
+    if !smart_mark {
+        return vowel_indices.last().copied();
+    }
+
+    if let Some(idx) = oa_oe_uy_target(chars, old_oa_uy) {
+        return Some(idx);
     }
 
     for preferred in ['ê', 'Ê', 'ơ', 'Ơ', 'ô', 'Ô', 'â', 'Â', 'ă', 'Ă'] {
@@ -97,6 +114,21 @@ fn tone_target(chars: &[char]) -> Option<usize> {
     }
 
     vowel_indices.last().copied()
+}
+
+fn oa_oe_uy_target(chars: &[char], old_oa_uy: bool) -> Option<usize> {
+    if !old_oa_uy {
+        return None;
+    }
+
+    for (idx, pair) in chars.windows(2).enumerate() {
+        let first = strip_tone(pair[0]).to_ascii_lowercase();
+        let second = strip_tone(pair[1]).to_ascii_lowercase();
+        if matches!((first, second), ('o', 'a') | ('o', 'e') | ('u', 'y')) {
+            return Some(idx + 1);
+        }
+    }
+    None
 }
 
 fn tone_char(ch: char, tone: Tone) -> Option<char> {

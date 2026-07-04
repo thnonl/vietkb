@@ -1,6 +1,6 @@
 use crate::english::is_english_word;
 use crate::key::{KeyCode, KeyInput};
-use crate::telex::apply_telex;
+use crate::telex::apply_telex_with_options;
 use crate::viqr::apply_viqr;
 use crate::vni::apply_vni;
 
@@ -14,6 +14,25 @@ pub enum InputMethod {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Charset {
     Unicode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EngineOptions {
+    pub old_oa_uy: bool,
+    pub smart_mark: bool,
+    pub spell_check: bool,
+    pub skip_english_words: bool,
+}
+
+impl Default for EngineOptions {
+    fn default() -> Self {
+        Self {
+            old_oa_uy: false,
+            smart_mark: true,
+            spell_check: true,
+            skip_english_words: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,7 +60,7 @@ pub struct SimpleVietnameseEngine {
     method: InputMethod,
     charset: Charset,
     enabled: bool,
-    skip_english_words: bool,
+    options: EngineOptions,
     word: String,
     raw: String,
     english_bypass: bool,
@@ -53,7 +72,7 @@ impl Default for SimpleVietnameseEngine {
             method: InputMethod::Telex,
             charset: Charset::Unicode,
             enabled: true,
-            skip_english_words: true,
+            options: EngineOptions::default(),
             word: String::new(),
             raw: String::new(),
             english_bypass: false,
@@ -71,7 +90,12 @@ impl SimpleVietnameseEngine {
     }
 
     pub fn set_skip_english_words(&mut self, value: bool) {
-        self.skip_english_words = value;
+        self.options.skip_english_words = value;
+    }
+
+    pub fn set_options(&mut self, options: EngineOptions) {
+        self.options = options;
+        self.reset();
     }
 
     fn reset_word(&mut self) {
@@ -94,12 +118,13 @@ impl SimpleVietnameseEngine {
 
         let previous_graphemes = self.word.chars().count();
         let action = match self.method {
-            InputMethod::Telex => apply_telex(&mut self.word, ch),
+            InputMethod::Telex => apply_telex_with_options(&mut self.word, ch, self.options),
             InputMethod::Vni => apply_vni(&mut self.word, ch),
             InputMethod::Viqr => apply_viqr(&mut self.word, ch),
         };
 
-        if self.skip_english_words && is_english_word(&self.raw) {
+        if self.options.spell_check && self.options.skip_english_words && is_english_word(&self.raw)
+        {
             self.english_bypass = true;
             let delete_graphemes = previous_graphemes;
             let insert = self.raw.clone();

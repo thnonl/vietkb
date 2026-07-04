@@ -83,9 +83,11 @@ mod app {
                     enabled,
                     method,
                     &config.hotkeys.toggle,
-                    config.typing.skip_english_words,
+                    &config.typing,
                 );
-                if let Err(err) = vietkb_windows::set_start_with_windows(config.system.start_with_windows) {
+                if let Err(err) =
+                    vietkb_windows::set_start_with_windows(config.system.start_with_windows)
+                {
                     eprintln!("failed to sync autostart setting: {err}");
                 }
 
@@ -271,7 +273,7 @@ mod app {
             enabled,
             method,
             &config.hotkeys.toggle,
-            config.typing.skip_english_words,
+            &config.typing,
         );
         if was_enabled != enabled && config.system.notification_sound {
             vietkb_windows::play_notification_sound();
@@ -382,7 +384,7 @@ mod app {
             settings.enabled,
             method,
             &settings.hotkeys.toggle,
-            settings.typing.skip_english_words,
+            &settings.typing,
         );
 
         let (method_config, charset, should_play_sound) = {

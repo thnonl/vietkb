@@ -1,7 +1,13 @@
-use vietkb_core::{EngineAction, KeyInput, SimpleVietnameseEngine, VietnameseEngine};
+use vietkb_core::{
+    EngineAction, EngineOptions, KeyInput, SimpleVietnameseEngine, VietnameseEngine,
+};
 
 fn simulate(input: &str) -> String {
     let mut engine = SimpleVietnameseEngine::new();
+    simulate_with_engine(input, &mut engine)
+}
+
+fn simulate_with_engine(input: &str, engine: &mut SimpleVietnameseEngine) -> String {
     let mut output = String::new();
 
     for ch in input.chars() {
@@ -118,4 +124,27 @@ fn can_skip_common_english_words() {
     }
 
     assert_eq!(output, "google windows Tiếng");
+}
+
+#[test]
+fn unikey_style_oa_uy_option_places_tone_on_second_vowel() {
+    let mut engine = SimpleVietnameseEngine::new();
+    engine.set_options(EngineOptions {
+        old_oa_uy: true,
+        ..EngineOptions::default()
+    });
+
+    assert_eq!(simulate_with_engine("thuyf", &mut engine), "thuỳ");
+}
+
+#[test]
+fn disabled_spell_check_keeps_telex_transforming_english_words() {
+    let mut engine = SimpleVietnameseEngine::new();
+    engine.set_options(EngineOptions {
+        spell_check: false,
+        skip_english_words: true,
+        ..EngineOptions::default()
+    });
+
+    assert_ne!(simulate_with_engine("windows", &mut engine), "windows");
 }
