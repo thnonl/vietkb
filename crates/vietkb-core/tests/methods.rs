@@ -40,6 +40,9 @@ fn vni_basic_words() {
         ("Tie6ng1 Vie6t5", "Tiếng Việt"),
         ("d9u7o7ng2", "đường"),
         ("hoa2", "hòa"),
+        ("thuong82", "thường"),
+        ("Thuong82", "Thường"),
+        ("TUONG82", "TƯỜNG"),
     ];
 
     for (input, expected) in cases {
@@ -55,6 +58,31 @@ fn vni_repeated_tone_key_escapes_to_raw_text() {
 #[test]
 fn vni_repeated_tone_changes_keep_word_stable() {
     assert_eq!(simulate(InputMethod::Vni, "thai1212"), "thài");
+}
+
+#[test]
+fn numeric_words_are_not_transformed_for_any_method() {
+    let cases = [
+        (InputMethod::Telex, "123 1thuongwf 2Tieengs"),
+        (InputMethod::Vni, "123 1thuong82 2Tie6ng1"),
+        (InputMethod::Viqr, "123 1d-u+o+`ng 2Tie^'ng"),
+    ];
+
+    for (method, input) in cases {
+        assert_eq!(simulate(method, input), input, "method={method:?}");
+    }
+}
+
+#[test]
+fn digit_suffix_restores_invalid_raw_words_for_telex_and_vni() {
+    let cases = [
+        (InputMethod::Telex, "pndquyens203@gmail.com"),
+        (InputMethod::Vni, "pndquyen203@gmail.com"),
+    ];
+
+    for (method, input) in cases {
+        assert_eq!(simulate(method, input), input, "method={method:?}");
+    }
 }
 
 #[test]

@@ -126,9 +126,7 @@ fn tone_target(chars: &[char], old_oa_uy: bool, smart_mark: bool) -> Option<usiz
         }
 
         if matches!((first_base, last_base), ('i' | 'u', 'a')) {
-            if first > 0
-                && matches!(chars[first - 1].to_ascii_lowercase(), 'g' | 'q')
-            {
+            if first > 0 && matches!(chars[first - 1].to_ascii_lowercase(), 'g' | 'q') {
                 return Some(last);
             }
             return Some(first);
@@ -211,6 +209,24 @@ pub fn strip_tone(ch: char) -> char {
         }
     }
     ch
+}
+
+pub fn apply_telex_w_mark(chars: &mut [char]) -> Option<()> {
+    let last = telex_w_target(chars)?;
+
+    if matches!(strip_tone(chars[last]), 'o' | 'O') {
+        if let Some(prev) = chars[..last]
+            .iter()
+            .rposition(|ch| matches!(strip_tone(*ch), 'u' | 'U'))
+        {
+            chars[prev] = change_mark(strip_tone(chars[prev]), 'w')?;
+            chars[last] = change_mark(strip_tone(chars[last]), 'w')?;
+            return Some(());
+        }
+    }
+
+    chars[last] = change_mark(chars[last], 'w')?;
+    Some(())
 }
 
 pub fn telex_w_target(chars: &[char]) -> Option<usize> {

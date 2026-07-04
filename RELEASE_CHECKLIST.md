@@ -1,5 +1,13 @@
 # Release checklist
 
+## Version/update metadata
+
+- Release repo: `https://github.com/thnonl/vietkb`
+- Update versions before build:
+  - `crates/vietkb-gui/Cargo.toml` → `[package].version`
+  - `crates/vietkb-gui/tauri.conf.json` → `version`
+- GitHub Releases assets should match `dist/<platform>/` outputs from build scripts.
+
 ## Core
 
 - `cargo test`

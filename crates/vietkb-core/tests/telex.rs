@@ -1,5 +1,5 @@
 use vietkb_core::{
-    EngineAction, EngineOptions, KeyInput, SimpleVietnameseEngine, VietnameseEngine,
+    EngineAction, EngineOptions, KeyCode, KeyInput, SimpleVietnameseEngine, VietnameseEngine,
 };
 
 fn simulate(input: &str) -> String {
@@ -7,26 +7,41 @@ fn simulate(input: &str) -> String {
     simulate_with_engine(input, &mut engine)
 }
 
+fn apply_action(output: &mut String, action: EngineAction) {
+    match action {
+        EngineAction::Noop
+        | EngineAction::Preedit(_)
+        | EngineAction::ToggleVietnamese
+        | EngineAction::BeepOrReject => {}
+        EngineAction::Commit(text) => output.push_str(&text),
+        EngineAction::Replace {
+            delete_graphemes,
+            insert,
+        } => {
+            for _ in 0..delete_graphemes {
+                output.pop();
+            }
+            output.push_str(&insert);
+        }
+    }
+}
+
 fn simulate_with_engine(input: &str, engine: &mut SimpleVietnameseEngine) -> String {
     let mut output = String::new();
 
     for ch in input.chars() {
-        match engine.process_key(KeyInput::from_char(ch)) {
-            EngineAction::Noop
-            | EngineAction::Preedit(_)
-            | EngineAction::ToggleVietnamese
-            | EngineAction::BeepOrReject => {}
-            EngineAction::Commit(text) => output.push_str(&text),
-            EngineAction::Replace {
-                delete_graphemes,
-                insert,
-            } => {
-                for _ in 0..delete_graphemes {
-                    output.pop();
-                }
-                output.push_str(&insert);
-            }
-        }
+        apply_action(&mut output, engine.process_key(KeyInput::from_char(ch)));
+    }
+
+    output
+}
+
+fn simulate_keys(keys: &[KeyInput]) -> String {
+    let mut engine = SimpleVietnameseEngine::new();
+    let mut output = String::new();
+
+    for key in keys {
+        apply_action(&mut output, engine.process_key(*key));
     }
 
     output
@@ -84,6 +99,56 @@ fn telex_tones() {
     for (input, expected) in cases {
         assert_eq!(simulate(input), expected, "input={input}");
     }
+}
+
+#[test]
+fn final_w_marks_both_u_and_o_in_uo_compounds() {
+    let cases = [
+        ("thuongwf", "thường"),
+        ("tuongwr", "tưởng"),
+        ("duongws", "dướng"),
+        ("Thuongwf", "Thường"),
+        ("TUONGWF", "TƯỜNG"),
+    ];
+
+    for (input, expected) in cases {
+        assert_eq!(simulate(input), expected, "input={input}");
+    }
+}
+
+#[test]
+fn backspace_recomputes_without_losing_initial_case() {
+    let keys = [
+        KeyInput::from_char('T'),
+        KeyInput::from_char('h'),
+        KeyInput::from_char('u'),
+        KeyInput::from_char('o'),
+        KeyInput::from_char('n'),
+        KeyInput::from_char('g'),
+        KeyInput::from_char('w'),
+        KeyInput::from_char('f'),
+        KeyInput::plain(KeyCode::Backspace),
+    ];
+
+    assert_eq!(simulate_keys(&keys), "Thương");
+}
+
+#[test]
+fn english_bypass_keeps_initial_capital_after_more_letters() {
+    assert_eq!(
+        simulate("Microsoft Google Windows"),
+        "Microsoft Google Windows"
+    );
+}
+
+#[test]
+fn numeric_words_are_not_transformed() {
+    assert_eq!(simulate("123 1thuongwf 2Tieengs"), "123 1thuongwf 2Tieengs");
+}
+
+#[test]
+fn digit_suffix_restores_invalid_raw_words() {
+    assert_eq!(simulate("pndquyens203@gmail.com"), "pndquyens203@gmail.com");
 }
 
 #[test]

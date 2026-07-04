@@ -18,14 +18,14 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, GetKeyboardState, SendInput, ToUnicode, INPUT, INPUT_0, INPUT_KEYBOARD,
     KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_BACK,
-    VK_CAPITAL, VK_CONTROL, VK_F1, VK_F11, VK_F12, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7,
-    VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_PACKET, VK_RCONTROL, VK_RETURN,
-    VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT, VK_SPACE,
+    VK_CAPITAL, VK_CONTROL, VK_F1, VK_F12, VK_F2, VK_F3, VK_F4, VK_LCONTROL, VK_LMENU, VK_LSHIFT,
+    VK_LWIN, VK_MENU, VK_PACKET, VK_RCONTROL, VK_RETURN, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
+    VK_SPACE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId,
-    SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, KBDLLHOOKSTRUCT, MSG,
-    WH_KEYBOARD_LL, WM_KEYDOWN, WM_SYSKEYDOWN,
+    SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL,
+    WM_KEYDOWN, WM_SYSKEYDOWN,
 };
 
 static STATE: OnceLock<Mutex<HookState>> = OnceLock::new();
@@ -37,9 +37,6 @@ type CommandCallback = Arc<dyn Fn(KeyboardCommand) + Send + Sync + 'static>;
 pub enum KeyboardCommand {
     SetEnabled(bool),
     SetCharset(Charset),
-    ShowSettings,
-    ConvertClipboard,
-    ToggleCurrentAppExclusion,
     Reset,
 }
 
@@ -397,9 +394,6 @@ fn handle_keyboard_command(state: &mut HookState, command: KeyboardCommand) {
         KeyboardCommand::SetEnabled(enabled) => state.enabled = enabled,
         KeyboardCommand::SetCharset(charset) => state.engine.set_charset(charset),
         KeyboardCommand::Reset => state.engine.reset(),
-        KeyboardCommand::ShowSettings
-        | KeyboardCommand::ConvertClipboard
-        | KeyboardCommand::ToggleCurrentAppExclusion => {}
     }
 }
 
@@ -415,12 +409,6 @@ fn function_key_command(config: &FunctionKeyConfig, vk: u32) -> Option<KeyboardC
         VK_F4 if config.f4_charset => Some(KeyboardCommand::SetCharset(
             charset_from_function_key_value(&config.f4_charset_value),
         )),
-        VK_F5 if config.f5_settings => Some(KeyboardCommand::ShowSettings),
-        VK_F6 if config.f6_convert_tool => Some(KeyboardCommand::ShowSettings),
-        VK_F7 if config.f7_convert_clipboard => Some(KeyboardCommand::ConvertClipboard),
-        VK_F11 if config.f11_toggle_excluded_apps => {
-            Some(KeyboardCommand::ToggleCurrentAppExclusion)
-        }
         VK_F12 if config.f12_reset => Some(KeyboardCommand::Reset),
         _ => None,
     }

@@ -171,9 +171,12 @@ mod app {
                     &[&charset_unicode, &charset_vni_windows, &charset_tcvn3],
                 )?;
                 let sep1 = PredefinedMenuItem::separator(app)?;
-                let toggle_label = if enabled { "Tắt tiếng Việt" } else { "Bật tiếng Việt" };
-                let toggle =
-                    MenuItem::with_id(app, "toggle", toggle_label, true, None::<&str>)?;
+                let toggle_label = if enabled {
+                    "Tắt tiếng Việt"
+                } else {
+                    "Bật tiếng Việt"
+                };
+                let toggle = MenuItem::with_id(app, "toggle", toggle_label, true, None::<&str>)?;
                 let sep2 = PredefinedMenuItem::separator(app)?;
                 let settings =
                     MenuItem::with_id(app, "settings", "Mở cài đặt", true, None::<&str>)?;
@@ -363,7 +366,11 @@ mod app {
         let _ = tray_menu
             .charset_tcvn3
             .set_checked(charset == CharsetConfig::Tcvn3);
-        let toggle_label = if enabled { "Tắt tiếng Việt" } else { "Bật tiếng Việt" };
+        let toggle_label = if enabled {
+            "Tắt tiếng Việt"
+        } else {
+            "Bật tiếng Việt"
+        };
         let _ = tray_menu.toggle.set_text(toggle_label);
     }
 
@@ -398,9 +405,6 @@ mod app {
                 let enabled = vietkb_windows::is_keyboard_enabled();
                 apply_config(app, enabled, |config| config.input.charset = config_charset);
             }
-            vietkb_windows::KeyboardCommand::ShowSettings
-            | vietkb_windows::KeyboardCommand::ConvertClipboard
-            | vietkb_windows::KeyboardCommand::ToggleCurrentAppExclusion => show_main_window(app),
             vietkb_windows::KeyboardCommand::Reset => {}
         }
     }

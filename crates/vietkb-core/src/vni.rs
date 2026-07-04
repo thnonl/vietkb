@@ -1,5 +1,7 @@
 use crate::engine::{EngineAction, EngineOptions};
-use crate::transform::{apply_tone_with_options, change_mark, strip_tone, telex_w_target, Tone};
+use crate::transform::{
+    apply_telex_w_mark, apply_tone_with_options, change_mark, strip_tone, Tone,
+};
 
 pub fn apply_vni_with_options(word: &mut String, ch: char, options: EngineOptions) -> EngineAction {
     if let Some(tone) = tone_from_key(ch) {
@@ -66,15 +68,16 @@ fn apply_mark(word: &str, mark: char) -> Option<String> {
         return Some(chars.into_iter().collect());
     }
 
-    let idx = if mark == 'w' {
-        telex_w_target(&chars)?
-    } else {
-        chars
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(idx, ch)| vni_mark(*ch, mark).map(|_| idx))?
-    };
+    if mark == 'w' {
+        apply_telex_w_mark(&mut chars)?;
+        return Some(chars.into_iter().collect());
+    }
+
+    let idx = chars
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(idx, ch)| vni_mark(*ch, mark).map(|_| idx))?;
     chars[idx] = vni_mark(chars[idx], mark)?;
     Some(chars.into_iter().collect())
 }

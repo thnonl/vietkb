@@ -20,6 +20,7 @@ const processSearch = document.querySelector("#processSearch");
 const processLoading = document.querySelector("#processLoading");
 const processOptions = document.querySelector("#processOptions");
 const excludedAppChips = document.querySelector("#excludedAppChips");
+const excludedAppsEnabled = document.querySelector("#excludedAppsEnabled");
 let knownProcesses = [];
 let loadingProcesses = false;
 
@@ -86,12 +87,16 @@ function removeExcludedApp(name) {
 }
 
 function renderExcludedApps() {
+  const enabled = Boolean(state.system?.excludedApps);
   const selected = new Set(excludedAppNames());
+  openProcessPicker.disabled = !enabled;
+  excludedAppChips.classList.toggle("disabled", !enabled);
   excludedAppChips.innerHTML = "";
   for (const name of selected) {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "chip";
+    chip.disabled = !enabled;
     chip.textContent = `${name} ×`;
     chip.addEventListener("click", () => removeExcludedApp(name));
     excludedAppChips.append(chip);
@@ -99,9 +104,10 @@ function renderExcludedApps() {
   if (!selected.size) {
     const empty = document.createElement("span");
     empty.className = "muted";
-    empty.textContent = "Chưa chọn process";
+    empty.textContent = enabled ? "Chưa chọn process" : "Danh sách loại trừ đang tắt";
     excludedAppChips.append(empty);
   }
+  if (!enabled && !processDialog.hidden) hideProcessDialog();
   if (!processDialog.hidden) renderProcessOptions();
 }
 
@@ -147,13 +153,6 @@ async function ensureProcessesLoaded() {
   renderProcessOptions();
 }
 
-const unimplementedPaths = new Set([
-  "typing.autoCapitalizeAfterPunctuation",
-  "typing.suggestionFix1",
-  "typing.suggestionFix2",
-  "system.checkUpdatesOnStartup",
-]);
-
 function render() {
   enabled.checked = state.enabled;
   statusText.textContent = state.enabled ? "Đang bật" : "Đang tắt";
@@ -170,12 +169,6 @@ function render() {
       element.checked = Boolean(value);
     } else {
       element.value = value;
-    }
-    const disabled = unimplementedPaths.has(element.dataset.path);
-    element.disabled = disabled;
-    element.closest("label")?.toggleAttribute("title", disabled);
-    if (disabled) {
-      element.closest("label").title = "Chưa hỗ trợ ở runtime";
     }
   });
   renderExcludedApps();
@@ -233,6 +226,7 @@ document.addEventListener("change", (event) => {
 
   if (element.dataset.path) {
     setByPath(state, element.dataset.path, element.type === "checkbox" ? element.checked : element.value);
+    if (element === excludedAppsEnabled) renderExcludedApps();
     return;
   }
 
@@ -260,6 +254,7 @@ function hideProcessDialog() {
 }
 
 openProcessPicker.addEventListener("click", async () => {
+  if (!state.system?.excludedApps) return;
   processDialog.hidden = false;
   processSearch.focus();
   await loadProcesses();

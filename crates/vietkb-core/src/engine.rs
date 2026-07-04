@@ -71,6 +71,7 @@ pub struct SimpleVietnameseEngine {
     word: String,
     raw: String,
     english_bypass: bool,
+    numeric_bypass: bool,
     viqr_escape: bool,
 }
 
@@ -84,6 +85,7 @@ impl Default for SimpleVietnameseEngine {
             word: String::new(),
             raw: String::new(),
             english_bypass: false,
+            numeric_bypass: false,
             viqr_escape: false,
         }
     }
@@ -146,6 +148,15 @@ impl SimpleVietnameseEngine {
             return EngineAction::Noop;
         }
 
+        if self.numeric_bypass {
+            self.raw.pop();
+            self.word.pop();
+            if self.raw.is_empty() {
+                self.numeric_bypass = false;
+            }
+            return EngineAction::Noop;
+        }
+
         let old_graphemes = self.word.chars().count();
         self.raw.pop();
         self.english_bypass = false;
@@ -192,6 +203,7 @@ impl SimpleVietnameseEngine {
         self.word.clear();
         self.raw.clear();
         self.english_bypass = false;
+        self.numeric_bypass = false;
         self.viqr_escape = false;
     }
 
@@ -213,6 +225,11 @@ impl SimpleVietnameseEngine {
 
     fn process_alphabetic(&mut self, ch: char) -> EngineAction {
         self.raw.push(ch);
+
+        if self.numeric_bypass {
+            self.word.push(ch);
+            return EngineAction::Commit(ch.to_string());
+        }
 
         if self.english_bypass {
             if matches!(self.method, InputMethod::Telex) && is_telex_transform_key(ch) {
@@ -281,6 +298,25 @@ impl VietnameseEngine for SimpleVietnameseEngine {
             }
             KeyCode::Char(ch) if ch.is_whitespace() => self.commit_boundary(&ch.to_string()),
             KeyCode::Char(ch) if ch.is_ascii_digit() => {
+                if self.raw.is_empty() || self.numeric_bypass {
+                    self.numeric_bypass = true;
+                    self.raw.push(ch);
+                    self.word.push(ch);
+                    return EngineAction::Commit(ch.to_string());
+                }
+
+                if should_bypass_digit_suffix(&self.raw) {
+                    let delete_graphemes = self.word.chars().count();
+                    self.raw.push(ch);
+                    self.word = self.raw.clone();
+                    self.english_bypass = false;
+                    self.numeric_bypass = true;
+                    return EngineAction::Replace {
+                        delete_graphemes,
+                        insert: self.raw.clone(),
+                    };
+                }
+
                 if self.enabled && matches!(self.method, InputMethod::Vni) {
                     if self.english_bypass {
                         self.word = self.raw.clone();
@@ -292,6 +328,12 @@ impl VietnameseEngine for SimpleVietnameseEngine {
                 EngineAction::Commit(ch.to_string())
             }
             KeyCode::Char(ch) if is_ascii_punctuation(ch) => {
+                if self.numeric_bypass {
+                    self.raw.push(ch);
+                    self.word.push(ch);
+                    return EngineAction::Commit(ch.to_string());
+                }
+
                 if self.enabled && matches!(self.method, InputMethod::Viqr) {
                     if ch == '\\' {
                         self.viqr_escape = true;
@@ -342,7 +384,10 @@ fn is_viqr_key(ch: char) -> bool {
 }
 
 fn is_telex_transform_key(ch: char) -> bool {
-    matches!(ch.to_ascii_lowercase(), 's' | 'f' | 'r' | 'x' | 'j' | 'a' | 'e' | 'o' | 'w' | 'd')
+    matches!(
+        ch.to_ascii_lowercase(),
+        's' | 'f' | 'r' | 'x' | 'j' | 'a' | 'e' | 'o' | 'w' | 'd'
+    )
 }
 
 fn should_keep_telex_consonant(raw: &str, ch: char) -> bool {
@@ -356,6 +401,22 @@ fn should_keep_telex_consonant(raw: &str, ch: char) -> bool {
         raw.as_str(),
         "of" | "oj" | "awf" | "owf" | "uwf" | "aww" | "oww" | "uww"
     )
+}
+
+fn should_bypass_digit_suffix(raw: &str) -> bool {
+    let lower = raw.to_ascii_lowercase();
+    if lower.len() > 7 {
+        return true;
+    }
+
+    let leading_consonants: String = lower
+        .chars()
+        .take_while(|ch| {
+            ch.is_ascii_alphabetic() && !matches!(ch, 'a' | 'e' | 'i' | 'o' | 'u' | 'y')
+        })
+        .collect();
+
+    leading_consonants.len() >= 3 && leading_consonants != "ngh"
 }
 
 fn should_restore_raw(raw: &str, transformed: &str) -> bool {

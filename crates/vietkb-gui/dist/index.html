@@ -52,10 +52,7 @@
           <label><input data-path="typing.smartMark" type="checkbox" /> Đặt dấu tự do</label>
           <label><input data-path="typing.restoreWrongWord" type="checkbox" /> Tự động khôi phục phím với từ sai</label>
           <label><input data-path="typing.useJFWasConsonants" type="checkbox" /> Cho phép 'f j w z' làm phụ âm</label>
-          <label><input data-path="typing.autoCapitalizeAfterPunctuation" type="checkbox" /> Tự động viết hoa sau "Enter . ! ?"</label>
-          <label><input data-path="typing.suggestionFix1" type="checkbox" /> Sửa lỗi dấu của Gợi ý 1</label>
           <label><input data-path="typing.useClipboardToSendKeys" type="checkbox" /> Sử dụng Clipboard để gửi phím</label>
-          <label><input data-path="typing.suggestionFix2" type="checkbox" /> Sửa lỗi dấu của Gợi ý 2</label>
           <label><input data-path="typing.skipEnglishWords" type="checkbox" /> Nhận diện từ tiếng Anh, không bỏ dấu</label>
         </div>
       </section>
@@ -85,18 +82,19 @@
           <label><input data-path="system.metroAppsSupport" type="checkbox" /> Hỗ trợ ứng dụng Metro</label>
           <label><input data-path="system.showDialogOnStartup" type="checkbox" /> Hiện hộp thoại này khi khởi động</label>
           <label><input data-path="system.notificationSound" type="checkbox" /> Âm thanh thông báo</label>
-          <label><input data-path="system.excludedApps" type="checkbox" /> Loại trừ ứng dụng</label>
         </div>
-        <div class="subgroup app-exclusions">
-          <div class="exclusion-head">
-            <span>Danh sách process không dùng bộ gõ</span>
-            <button id="openProcessPicker" class="mini" type="button">...</button>
+        <div class="system-columns">
+          <div class="subgroup app-exclusions">
+            <div class="exclusion-head">
+              <label><input id="excludedAppsEnabled" data-path="system.excludedApps" type="checkbox" /> Danh sách process không dùng bộ gõ</label>
+              <button id="openProcessPicker" class="mini" type="button">...</button>
+            </div>
+            <div id="excludedAppChips" class="chips"></div>
           </div>
-          <div id="excludedAppChips" class="chips"></div>
-        </div>
-        <div class="subgroup update-row">
-          <label><input data-path="system.checkUpdatesOnStartup" type="checkbox" /> Kiểm tra cập nhật lúc khởi động</label>
-          <button type="button">Kiểm tra cập nhật...</button>
+          <div class="subgroup update-row">
+            <label><input data-path="system.checkUpdatesOnStartup" type="checkbox" /> Kiểm tra cập nhật lúc khởi động</label>
+            <button type="button">Kiểm tra cập nhật...</button>
+          </div>
         </div>
       </section>
 

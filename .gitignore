@@ -4,13 +4,17 @@
 # CodeGraph local index/cache
 /.codegraph/
 
-# Generated binaries/debug symbols
+# Generated binaries/debug symbols outside release dist
 *.exe
 *.dll
 *.so
 *.dylib
 *.rlib
 *.pdb
+
+# Keep release build outputs from scripts/build-*.{sh,ps1}
+!/dist/
+!/dist/**
 
 # Temporary files
 *.tmp

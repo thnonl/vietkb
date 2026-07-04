@@ -29,7 +29,6 @@ fallback_mode = "surrounding-text-then-preedit"
 
 [apps."code.exe"]
 enabled = false
-browser_fix = true
 "#;
 
     let config = AppConfig::from_toml(input).unwrap_or_else(|err| panic!("parse failed: {err}"));
@@ -58,14 +57,12 @@ fn config_roundtrips_ini() {
         "code.exe".to_owned(),
         PerAppConfig {
             enabled: Some(false),
-            browser_fix: Some(true),
         },
     );
     config.apps.insert(
         "notepad.exe".to_owned(),
         PerAppConfig {
             enabled: Some(true),
-            browser_fix: None,
         },
     );
 
@@ -80,7 +77,6 @@ fn parses_ini_app_sections() {
     let input = r#"
 [apps.code.exe]
 enabled=false
-browser_fix=true
 
 [apps.notepad.exe]
 enabled=true
@@ -90,10 +86,6 @@ enabled=true
     assert_eq!(
         config.apps.get("code.exe").and_then(|app| app.enabled),
         Some(false)
-    );
-    assert_eq!(
-        config.apps.get("code.exe").and_then(|app| app.browser_fix),
-        Some(true)
     );
     assert_eq!(
         config.apps.get("notepad.exe").and_then(|app| app.enabled),

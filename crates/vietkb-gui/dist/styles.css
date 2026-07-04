@@ -64,8 +64,6 @@ body.light {
 
 * { box-sizing: border-box; }
 
-[hidden] { display: none !important; }
-
 html,
 body {
   height: 100%;
@@ -148,8 +146,7 @@ select {
 }
 
 select,
-.hotkey-box,
-.process-dialog input {
+.hotkey-box {
   height: 28px;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
@@ -169,16 +166,12 @@ select {
 }
 
 select:focus,
-.hotkey-box:focus,
-.process-dialog input:focus {
+.hotkey-box:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
 button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: max-content;
   min-width: 0;
   min-height: 28px;
@@ -186,7 +179,6 @@ button {
   border: 1px solid var(--border-strong);
   border-radius: 5px;
   color: var(--text-strong);
-  line-height: 1;
   background: var(--surface-2);
   cursor: pointer;
 }
@@ -309,6 +301,7 @@ label {
 .option-grid > label,
 .hotkey-lines > label:not(:first-child):not(:nth-child(7)),
 .update-row > label,
+.exclusion-head > label,
 .status-toggle {
   min-height: 28px;
   justify-content: space-between;
@@ -322,6 +315,7 @@ label {
 .option-grid > label:hover,
 .hotkey-lines > label:not(:first-child):not(:nth-child(7)):hover,
 .update-row > label:hover,
+.exclusion-head > label:hover,
 .status-toggle:hover {
   border-color: var(--border);
   background: var(--hover-tint);
@@ -336,6 +330,7 @@ input[type="checkbox"] {
 
 .option-grid input[type="checkbox"][data-path],
 .update-row input[type="checkbox"][data-path],
+#excludedAppsEnabled,
 #enabled,
 #themeToggle {
   position: relative;
@@ -352,6 +347,7 @@ input[type="checkbox"] {
 
 .option-grid input[type="checkbox"][data-path]::after,
 .update-row input[type="checkbox"][data-path]::after,
+#excludedAppsEnabled::after,
 #enabled::after,
 #themeToggle::after {
   content: "";
@@ -367,6 +363,7 @@ input[type="checkbox"] {
 
 .option-grid input[type="checkbox"][data-path]:checked,
 .update-row input[type="checkbox"][data-path]:checked,
+#excludedAppsEnabled:checked,
 #enabled:checked,
 #themeToggle:checked {
   border-color: var(--accent);
@@ -375,6 +372,7 @@ input[type="checkbox"] {
 
 .option-grid input[type="checkbox"][data-path]:checked::after,
 .update-row input[type="checkbox"][data-path]:checked::after,
+#excludedAppsEnabled:checked::after,
 #enabled:checked::after,
 #themeToggle:checked::after {
   transform: translateX(16px);
@@ -397,112 +395,32 @@ input[type="checkbox"] {
   background: var(--soft-tint);
 }
 
-.update-row {
+.system-columns {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.exclusion-head,
+.update-row {
+  display: flex;
   gap: 7px;
   align-items: center;
 }
 
-.app-exclusions {
-  position: relative;
+.exclusion-head > label,
+.update-row > label {
+  flex: 1 1 auto;
 }
 
-.exclusion-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
+button:disabled,
+.chips.disabled .chip {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  min-height: 28px;
-  align-items: center;
-}
-
-.chip {
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  color: var(--info-text);
-  border-color: var(--info-border);
-  background: var(--info-bg);
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.process-dialog {
-  width: 420px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px);
-  padding: 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  background: var(--surface);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-}
-
-.process-dialog header,
-.process-dialog footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 0 0 10px;
-}
-
-.process-dialog footer {
-  margin: 10px 0 0;
-  justify-content: flex-end;
-}
-
-.process-dialog input {
-  width: 100%;
-  margin-bottom: 8px;
-}
-
-.process-loading {
-  display: grid;
-  place-items: center;
-  min-height: 72px;
-  color: var(--muted);
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  background: var(--soft-tint);
-}
-
-.process-options {
-  display: grid;
-  gap: 2px;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.process-options button {
-  width: 100%;
-  justify-content: flex-start;
-  text-align: left;
-  border-color: transparent;
-  background: transparent;
-}
-
-.process-options button:hover {
-  background: var(--hover-tint);
+.chips.disabled {
+  opacity: 0.65;
 }
 
 .hotkey-lines {
