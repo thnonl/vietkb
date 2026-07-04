@@ -1,9 +1,11 @@
-use crate::engine::EngineAction;
-use crate::transform::{apply_tone, change_mark, strip_tone, Tone};
+use crate::engine::{EngineAction, EngineOptions};
+use crate::transform::{apply_tone_with_options, change_mark, strip_tone, telex_w_target, Tone};
 
-pub fn apply_vni(word: &mut String, ch: char) -> EngineAction {
+pub fn apply_vni_with_options(word: &mut String, ch: char, options: EngineOptions) -> EngineAction {
     if let Some(tone) = tone_from_key(ch) {
-        if let Some(changed) = apply_tone(word, tone) {
+        if let Some(changed) =
+            apply_tone_with_options(word, tone, options.old_oa_uy, options.smart_mark)
+        {
             let delete_graphemes = word.chars().count();
             let insert = if changed == *word {
                 let mut raw: String = word.chars().map(strip_tone).collect();
@@ -64,11 +66,15 @@ fn apply_mark(word: &str, mark: char) -> Option<String> {
         return Some(chars.into_iter().collect());
     }
 
-    let idx = chars
-        .iter()
-        .enumerate()
-        .rev()
-        .find_map(|(idx, ch)| vni_mark(*ch, mark).map(|_| idx))?;
+    let idx = if mark == 'w' {
+        telex_w_target(&chars)?
+    } else {
+        chars
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(idx, ch)| vni_mark(*ch, mark).map(|_| idx))?
+    };
     chars[idx] = vni_mark(chars[idx], mark)?;
     Some(chars.into_iter().collect())
 }

@@ -85,6 +85,14 @@
           <label><input data-path="system.metroAppsSupport" type="checkbox" /> Hỗ trợ ứng dụng Metro</label>
           <label><input data-path="system.showDialogOnStartup" type="checkbox" /> Hiện hộp thoại này khi khởi động</label>
           <label><input data-path="system.notificationSound" type="checkbox" /> Âm thanh thông báo</label>
+          <label><input data-path="system.excludedApps" type="checkbox" /> Loại trừ ứng dụng</label>
+        </div>
+        <div class="subgroup app-exclusions">
+          <div class="exclusion-head">
+            <span>Danh sách process không dùng bộ gõ</span>
+            <button id="openProcessPicker" class="mini" type="button">...</button>
+          </div>
+          <div id="excludedAppChips" class="chips"></div>
         </div>
         <div class="subgroup update-row">
           <label><input data-path="system.checkUpdatesOnStartup" type="checkbox" /> Kiểm tra cập nhật lúc khởi động</label>
@@ -92,8 +100,24 @@
         </div>
       </section>
 
+      <div id="processDialog" class="dialog-backdrop" hidden>
+        <section class="process-dialog" role="dialog" aria-modal="true" aria-labelledby="processDialogTitle">
+          <header>
+            <strong id="processDialogTitle">Chọn process loại trừ</strong>
+            <button id="closeProcessDialog" class="mini" type="button">×</button>
+          </header>
+          <input id="processSearch" type="text" placeholder="Tìm hoặc nhập process.exe" spellcheck="false" />
+          <div id="processLoading" class="process-loading" hidden>Đang lấy danh sách process...</div>
+          <div id="processOptions" class="process-options"></div>
+          <footer>
+            <button id="addTypedProcess" class="btn-info" type="button">Thêm process đã nhập</button>
+            <button id="doneProcessDialog" class="btn-primary" type="button">Xong</button>
+          </footer>
+        </section>
+      </div>
+
       <footer>
-        <button class="btn-secondary" type="button">Mặc định</button>
+        <button id="defaults" class="btn-secondary" type="button">Mặc định</button>
         <span id="message" role="status"></span>
         <button id="save" class="btn-primary" type="button">Lưu</button>
         <button id="close" class="btn-info" type="button">Ẩn</button>

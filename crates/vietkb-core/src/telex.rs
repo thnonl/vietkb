@@ -1,5 +1,5 @@
 use crate::engine::{EngineAction, EngineOptions};
-use crate::transform::{apply_tone_with_options, change_mark, strip_tone, Tone};
+use crate::transform::{apply_tone_with_options, change_mark, strip_tone, telex_w_target, Tone};
 
 pub fn apply_telex_with_options(
     word: &mut String,
@@ -62,11 +62,15 @@ fn apply_mark(word: &str, mark: char) -> Option<String> {
         return None;
     }
 
-    let idx = chars
-        .iter()
-        .enumerate()
-        .rev()
-        .find_map(|(idx, ch)| change_mark(*ch, mark).map(|_| idx))?;
+    let idx = if mark == 'w' {
+        telex_w_target(&chars)?
+    } else {
+        chars
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(idx, ch)| change_mark(*ch, mark).map(|_| idx))?
+    };
     chars[idx] = change_mark(chars[idx], mark)?;
     Some(chars.into_iter().collect())
 }

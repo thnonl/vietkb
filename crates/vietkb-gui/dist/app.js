@@ -10,6 +10,18 @@ const method = document.querySelector("#method");
 const toggleHotkey = document.querySelector("#toggleHotkey");
 const restoreHotkey = document.querySelector("#restoreHotkey");
 const message = document.querySelector("#message");
+const defaults = document.querySelector("#defaults");
+const openProcessPicker = document.querySelector("#openProcessPicker");
+const processDialog = document.querySelector("#processDialog");
+const closeProcessDialog = document.querySelector("#closeProcessDialog");
+const doneProcessDialog = document.querySelector("#doneProcessDialog");
+const addTypedProcess = document.querySelector("#addTypedProcess");
+const processSearch = document.querySelector("#processSearch");
+const processLoading = document.querySelector("#processLoading");
+const processOptions = document.querySelector("#processOptions");
+const excludedAppChips = document.querySelector("#excludedAppChips");
+let knownProcesses = [];
+let loadingProcesses = false;
 
 function getByPath(obj, path) {
   return path.split(".").reduce((value, key) => value?.[key], obj);
@@ -40,6 +52,108 @@ function applyTheme(isDark) {
   localStorage.setItem("vietkb.darkMode", String(isDark));
 }
 
+function normalizeProcessName(value) {
+  const name = value.trim().split(/[\\/]/).pop().toLowerCase();
+  return name && !name.endsWith(".exe") ? `${name}.exe` : name;
+}
+
+function excludedAppNames() {
+  return Object.entries(state.apps || {})
+    .filter(([, config]) => config.enabled === false)
+    .map(([name]) => name)
+    .sort();
+}
+
+function addExcludedApp(value) {
+  const name = normalizeProcessName(value);
+  if (!name) return;
+  state.apps ??= {};
+  state.apps[name] = { ...(state.apps[name] || {}), enabled: false };
+  processSearch.value = "";
+  renderExcludedApps();
+}
+
+function removeExcludedApp(name) {
+  if (!state.apps?.[name]) return;
+  const next = { ...state.apps[name] };
+  delete next.enabled;
+  if (Object.keys(next).length) {
+    state.apps[name] = next;
+  } else {
+    delete state.apps[name];
+  }
+  renderExcludedApps();
+}
+
+function renderExcludedApps() {
+  const selected = new Set(excludedAppNames());
+  excludedAppChips.innerHTML = "";
+  for (const name of selected) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.textContent = `${name} ×`;
+    chip.addEventListener("click", () => removeExcludedApp(name));
+    excludedAppChips.append(chip);
+  }
+  if (!selected.size) {
+    const empty = document.createElement("span");
+    empty.className = "muted";
+    empty.textContent = "Chưa chọn process";
+    excludedAppChips.append(empty);
+  }
+  if (!processDialog.hidden) renderProcessOptions();
+}
+
+function renderProcessOptions() {
+  const query = processSearch.value.trim().toLowerCase();
+  const selected = new Set(excludedAppNames());
+  const matches = knownProcesses
+    .filter((name) => !selected.has(name) && (!query || name.includes(query)))
+    .slice(0, 80);
+  const typed = normalizeProcessName(processSearch.value);
+  processOptions.innerHTML = "";
+  if (typed && !selected.has(typed) && !matches.includes(typed)) {
+    appendProcessOption(`Thêm “${typed}”`, typed);
+  }
+  for (const name of matches) appendProcessOption(name, name);
+}
+
+function appendProcessOption(label, value) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("click", () => addExcludedApp(value));
+  processOptions.append(button);
+}
+
+async function loadProcesses() {
+  if (loadingProcesses) return;
+  loadingProcesses = true;
+  processLoading.hidden = false;
+  processOptions.hidden = true;
+  try {
+    knownProcesses = await invoke("list_processes");
+  } finally {
+    loadingProcesses = false;
+    processLoading.hidden = true;
+    processOptions.hidden = false;
+  }
+  renderProcessOptions();
+}
+
+async function ensureProcessesLoaded() {
+  if (!knownProcesses.length) await loadProcesses();
+  renderProcessOptions();
+}
+
+const unimplementedPaths = new Set([
+  "typing.autoCapitalizeAfterPunctuation",
+  "typing.suggestionFix1",
+  "typing.suggestionFix2",
+  "system.checkUpdatesOnStartup",
+]);
+
 function render() {
   enabled.checked = state.enabled;
   statusText.textContent = state.enabled ? "Đang bật" : "Đang tắt";
@@ -57,7 +171,14 @@ function render() {
     } else {
       element.value = value;
     }
+    const disabled = unimplementedPaths.has(element.dataset.path);
+    element.disabled = disabled;
+    element.closest("label")?.toggleAttribute("title", disabled);
+    if (disabled) {
+      element.closest("label").title = "Chưa hỗ trợ ở runtime";
+    }
   });
+  renderExcludedApps();
 }
 
 async function save(showMessage = true) {
@@ -124,6 +245,42 @@ document.addEventListener("change", (event) => {
       state.hotkeys.restoreWord = hotkey;
       restoreHotkey.value = hotkey;
     }
+  }
+});
+
+defaults.addEventListener("click", async () => {
+  state = await invoke("default_settings");
+  render();
+  message.textContent = "Đã khôi phục mặc định (chưa lưu)";
+  setTimeout(() => (message.textContent = ""), 1600);
+});
+
+function hideProcessDialog() {
+  processDialog.hidden = true;
+}
+
+openProcessPicker.addEventListener("click", async () => {
+  processDialog.hidden = false;
+  processSearch.focus();
+  await loadProcesses();
+});
+
+closeProcessDialog.addEventListener("click", hideProcessDialog);
+doneProcessDialog.addEventListener("click", hideProcessDialog);
+addTypedProcess.addEventListener("click", () => addExcludedApp(processSearch.value));
+processDialog.addEventListener("click", (event) => {
+  if (event.target === processDialog) hideProcessDialog();
+});
+
+processSearch.addEventListener("focus", () => void ensureProcessesLoaded());
+processSearch.addEventListener("input", () => void ensureProcessesLoaded());
+processSearch.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addExcludedApp(processSearch.value);
+  }
+  if (event.key === "Escape") {
+    hideProcessDialog();
   }
 });
 

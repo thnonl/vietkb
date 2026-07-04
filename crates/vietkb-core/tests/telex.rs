@@ -39,7 +39,7 @@ fn telex_basic_words() {
         ("tieengs", "tiếng"),
         ("Vieetj", "Việt"),
         ("dduwowngf", "đường"),
-        ("hoaf", "hoà"),
+        ("hoaf", "hòa"),
         ("thuyeenf", "thuyền"),
         ("quas", "quá"),
         ("giaf", "già"),
@@ -128,13 +128,63 @@ fn can_skip_common_english_words() {
 
 #[test]
 fn unikey_style_oa_uy_option_places_tone_on_second_vowel() {
+    let cases = [
+        ("hoaf", "hoà"),
+        ("hoef", "hoè"),
+        ("thuyf", "thuỳ"),
+        ("HOAF", "HOÀ"),
+        ("Thuyf", "Thuỳ"),
+    ];
+
+    for (input, expected) in cases {
+        let mut engine = SimpleVietnameseEngine::new();
+        engine.set_options(EngineOptions {
+            old_oa_uy: true,
+            ..EngineOptions::default()
+        });
+        assert_eq!(
+            simulate_with_engine(input, &mut engine),
+            expected,
+            "input={input}"
+        );
+    }
+}
+
+#[test]
+fn unikey_style_tone_target_keeps_qu_gi_and_trailing_consonant_rules() {
+    let cases = [
+        ("quas", "quá"),
+        ("giaf", "già"),
+        ("toans", "toán"),
+        ("thuyeenf", "thuyền"),
+        ("nguyeenx", "nguyễn"),
+    ];
+
+    for (input, expected) in cases {
+        assert_eq!(simulate(input), expected, "input={input}");
+    }
+}
+
+#[test]
+fn use_j_f_w_as_consonants_keeps_invalid_telex_positions_raw() {
     let mut engine = SimpleVietnameseEngine::new();
     engine.set_options(EngineOptions {
-        old_oa_uy: true,
+        use_j_f_w_as_consonants: true,
         ..EngineOptions::default()
     });
 
-    assert_eq!(simulate_with_engine("thuyf", &mut engine), "thuỳ");
+    assert_eq!(simulate_with_engine("of af uw", &mut engine), "of à ư");
+}
+
+#[test]
+fn disabled_use_j_f_w_as_consonants_preserves_legacy_telex_tone_keys() {
+    let mut engine = SimpleVietnameseEngine::new();
+    engine.set_options(EngineOptions {
+        use_j_f_w_as_consonants: false,
+        ..EngineOptions::default()
+    });
+
+    assert_eq!(simulate_with_engine("of", &mut engine), "ò");
 }
 
 #[test]
@@ -147,4 +197,16 @@ fn disabled_spell_check_keeps_telex_transforming_english_words() {
     });
 
     assert_ne!(simulate_with_engine("windows", &mut engine), "windows");
+}
+
+#[test]
+fn restore_wrong_word_restores_invalid_transformed_word_at_boundary() {
+    let mut engine = SimpleVietnameseEngine::new();
+    engine.set_options(EngineOptions {
+        use_j_f_w_as_consonants: false,
+        restore_wrong_word: true,
+        ..EngineOptions::default()
+    });
+
+    assert_eq!(simulate_with_engine("of tieengs", &mut engine), "of tiếng");
 }

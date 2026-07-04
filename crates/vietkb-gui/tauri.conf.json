@@ -7,7 +7,7 @@
     "frontendDist": "dist"
   },
   "bundle": {
-    "icon": ["icons/icon.ico"]
+    "icon": ["icons/icon-logo.ico"]
   },
   "app": {
     "withGlobalTauri": true,

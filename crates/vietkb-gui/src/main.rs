@@ -14,19 +14,23 @@ fn main() {
 
 #[cfg(target_os = "windows")]
 mod app {
+    use std::collections::BTreeMap;
+    #[cfg(target_os = "windows")]
+    use std::os::windows::process::CommandExt;
     use std::path::PathBuf;
     use std::sync::Mutex;
-    use std::{env, fs, thread};
+    use std::{env, fs, process::Command, thread};
 
     use serde::{Deserialize, Serialize};
     use tauri::image::Image;
-    use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
+    use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
     use tauri::{AppHandle, Manager, State, Window, Wry};
     use vietkb_config::{
-        AppConfig, CharsetConfig, HotkeyConfig, InputMethodConfig, SystemConfig, TypingConfig,
+        AppConfig, CharsetConfig, HotkeyConfig, InputMethodConfig, PerAppConfig, SystemConfig,
+        TypingConfig,
     };
-    use vietkb_core::InputMethod;
+    use vietkb_core::{Charset, InputMethod};
     use vietkb_ui::SettingsViewModel;
 
     #[derive(Debug, Clone, Serialize)]
@@ -38,6 +42,7 @@ mod app {
         hotkeys: HotkeyConfig,
         typing: TypingConfig,
         system: SystemConfig,
+        apps: BTreeMap<String, PerAppConfig>,
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -49,6 +54,7 @@ mod app {
         hotkeys: HotkeyConfig,
         typing: TypingConfig,
         system: SystemConfig,
+        apps: BTreeMap<String, PerAppConfig>,
     }
 
     struct AppState {
@@ -64,7 +70,7 @@ mod app {
         charset_unicode: CheckMenuItem<Wry>,
         charset_vni_windows: CheckMenuItem<Wry>,
         charset_tcvn3: CheckMenuItem<Wry>,
-        toggle: CheckMenuItem<Wry>,
+        toggle: MenuItem<Wry>,
     }
 
     pub fn run() -> anyhow::Result<()> {
@@ -82,8 +88,13 @@ mod app {
                 vietkb_windows::set_keyboard_config(
                     enabled,
                     method,
+                    charset_to_core(config.input.charset),
                     &config.hotkeys.toggle,
+                    &config.hotkeys.restore_word,
+                    &config.hotkeys.function_keys,
                     &config.typing,
+                    &config.system,
+                    &config.apps,
                 );
                 if let Err(err) =
                     vietkb_windows::set_start_with_windows(config.system.start_with_windows)
@@ -99,6 +110,10 @@ mod app {
                 let app_handle = app.handle().clone();
                 vietkb_windows::set_enabled_changed_callback(move |enabled| {
                     apply_config(&app_handle, enabled, |_config| {});
+                });
+                let app_handle = app.handle().clone();
+                vietkb_windows::set_command_callback(move |command| {
+                    handle_keyboard_command(&app_handle, command);
                 });
 
                 let method_telex = CheckMenuItem::with_id(
@@ -155,11 +170,15 @@ mod app {
                     true,
                     &[&charset_unicode, &charset_vni_windows, &charset_tcvn3],
                 )?;
+                let sep1 = PredefinedMenuItem::separator(app)?;
+                let toggle_label = if enabled { "Tắt tiếng Việt" } else { "Bật tiếng Việt" };
                 let toggle =
-                    CheckMenuItem::with_id(app, "toggle", "Bật/tắt", true, enabled, None::<&str>)?;
+                    MenuItem::with_id(app, "toggle", toggle_label, true, None::<&str>)?;
+                let sep2 = PredefinedMenuItem::separator(app)?;
                 let settings =
                     MenuItem::with_id(app, "settings", "Mở cài đặt", true, None::<&str>)?;
                 let about = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
+                let sep3 = PredefinedMenuItem::separator(app)?;
                 let quit = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
                 let menu = Menu::with_items(
                     app,
@@ -167,8 +186,11 @@ mod app {
                         &method_telex,
                         &method_vni,
                         &method_viqr,
+                        &sep1,
                         &charset_menu,
+                        &sep2,
                         &toggle,
+                        &sep3,
                         &settings,
                         &about,
                         &quit,
@@ -210,7 +232,7 @@ mod app {
                             ..
                         } = event
                         {
-                            show_main_window(tray.app_handle());
+                            toggle_keyboard(tray.app_handle());
                         }
                     })
                     .build(app)?;
@@ -225,9 +247,11 @@ mod app {
             })
             .invoke_handler(tauri::generate_handler![
                 load_settings,
+                default_settings,
                 save_settings,
                 set_enabled,
                 keyboard_enabled,
+                list_processes,
                 close_window,
                 exit_app
             ])
@@ -245,9 +269,9 @@ mod app {
 
     fn tray_icon(enabled: bool) -> tauri::Result<Image<'static>> {
         let bytes: &[u8] = if enabled {
-            include_bytes!("../icons/V.ico")
+            include_bytes!("../icons/on.ico")
         } else {
-            include_bytes!("../icons/E.ico")
+            include_bytes!("../icons/off.ico")
         };
         Image::from_bytes(bytes)
     }
@@ -272,8 +296,13 @@ mod app {
         vietkb_windows::set_keyboard_config(
             enabled,
             method,
+            charset_to_core(config.input.charset),
             &config.hotkeys.toggle,
+            &config.hotkeys.restore_word,
+            &config.hotkeys.function_keys,
             &config.typing,
+            &config.system,
+            &config.apps,
         );
         if was_enabled != enabled && config.system.notification_sound {
             vietkb_windows::play_notification_sound();
@@ -334,7 +363,8 @@ mod app {
         let _ = tray_menu
             .charset_tcvn3
             .set_checked(charset == CharsetConfig::Tcvn3);
-        let _ = tray_menu.toggle.set_checked(enabled);
+        let toggle_label = if enabled { "Tắt tiếng Việt" } else { "Bật tiếng Việt" };
+        let _ = tray_menu.toggle.set_text(toggle_label);
     }
 
     fn set_input_method(app: &AppHandle, method: InputMethod) {
@@ -354,6 +384,27 @@ mod app {
         apply_config(app, enabled, |_config| {});
     }
 
+    fn handle_keyboard_command(app: &AppHandle, command: vietkb_windows::KeyboardCommand) {
+        match command {
+            vietkb_windows::KeyboardCommand::SetEnabled(enabled) => {
+                apply_config(app, enabled, |_config| {});
+            }
+            vietkb_windows::KeyboardCommand::SetCharset(charset) => {
+                let config_charset = match charset {
+                    Charset::Unicode => CharsetConfig::Unicode,
+                    Charset::VniWindows => CharsetConfig::VniWindows,
+                    Charset::Tcvn3 => CharsetConfig::Tcvn3,
+                };
+                let enabled = vietkb_windows::is_keyboard_enabled();
+                apply_config(app, enabled, |config| config.input.charset = config_charset);
+            }
+            vietkb_windows::KeyboardCommand::ShowSettings
+            | vietkb_windows::KeyboardCommand::ConvertClipboard
+            | vietkb_windows::KeyboardCommand::ToggleCurrentAppExclusion => show_main_window(app),
+            vietkb_windows::KeyboardCommand::Reset => {}
+        }
+    }
+
     #[tauri::command]
     fn load_settings(state: State<'_, AppState>) -> UiSettings {
         let config = state
@@ -361,15 +412,26 @@ mod app {
             .lock()
             .map(|config| config.clone())
             .unwrap_or_default();
+        settings_to_ui(config, vietkb_windows::is_keyboard_enabled())
+    }
+
+    #[tauri::command]
+    fn default_settings() -> UiSettings {
+        let config = AppConfig::default();
+        settings_to_ui(config.clone(), config.input.enabled)
+    }
+
+    fn settings_to_ui(config: AppConfig, enabled: bool) -> UiSettings {
         let view = SettingsViewModel::from(&config);
 
         UiSettings {
-            enabled: vietkb_windows::is_keyboard_enabled(),
+            enabled,
             method: method_config_to_slug(view.method).to_owned(),
             charset: charset_config_to_slug(config.input.charset).to_owned(),
             hotkeys: config.hotkeys,
             typing: config.typing,
             system: config.system,
+            apps: config.apps,
         }
     }
 
@@ -383,8 +445,13 @@ mod app {
         vietkb_windows::set_keyboard_config(
             settings.enabled,
             method,
+            charset_to_core(charset_from_slug(&settings.charset)),
             &settings.hotkeys.toggle,
+            &settings.hotkeys.restore_word,
+            &settings.hotkeys.function_keys,
             &settings.typing,
+            &settings.system,
+            &settings.apps,
         );
 
         let (method_config, charset, should_play_sound) = {
@@ -396,6 +463,7 @@ mod app {
             config.hotkeys = settings.hotkeys;
             config.typing = settings.typing;
             config.system = settings.system;
+            config.apps = settings.apps;
             config.input.charset = charset_from_slug(&settings.charset);
             let mut view = SettingsViewModel::from(&*config);
             view.enabled = settings.enabled;
@@ -436,6 +504,30 @@ mod app {
     }
 
     #[tauri::command]
+    fn list_processes() -> Vec<String> {
+        let mut command = Command::new("tasklist");
+        command.args(["/FO", "CSV", "/NH"]);
+        #[cfg(target_os = "windows")]
+        command.creation_flags(0x0800_0000);
+        let output = command.output();
+        let Ok(output) = output else {
+            return Vec::new();
+        };
+        let Ok(text) = String::from_utf8(output.stdout) else {
+            return Vec::new();
+        };
+        let mut processes = text
+            .lines()
+            .filter_map(|line| line.trim().trim_matches('"').split("\",\"").next())
+            .map(|name| name.trim().to_ascii_lowercase())
+            .filter(|name| name.ends_with(".exe"))
+            .collect::<Vec<_>>();
+        processes.sort();
+        processes.dedup();
+        processes
+    }
+
+    #[tauri::command]
     fn close_window(window: Window) -> Result<(), String> {
         window.hide().map_err(|err| err.to_string())
     }
@@ -466,6 +558,14 @@ mod app {
             InputMethodConfig::Vni => "vni",
             InputMethodConfig::Viqr => "viqr",
             InputMethodConfig::Telex => "telex",
+        }
+    }
+
+    fn charset_to_core(charset: CharsetConfig) -> Charset {
+        match charset {
+            CharsetConfig::Unicode => Charset::Unicode,
+            CharsetConfig::VniWindows => Charset::VniWindows,
+            CharsetConfig::Tcvn3 => Charset::Tcvn3,
         }
     }
 

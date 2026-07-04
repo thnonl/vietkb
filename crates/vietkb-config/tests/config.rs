@@ -1,4 +1,4 @@
-use vietkb_config::{AppConfig, CommitMode, FallbackMode, LinuxFrontend};
+use vietkb_config::{AppConfig, CommitMode, FallbackMode, LinuxFrontend, PerAppConfig};
 
 #[test]
 fn default_config_is_direct_commit() {
@@ -54,9 +54,49 @@ fn config_roundtrips_ini() {
     config.hotkeys.toggle = "Alt+Z".to_owned();
     config.typing.skip_english_words = false;
     config.system.start_with_windows = false;
+    config.apps.insert(
+        "code.exe".to_owned(),
+        PerAppConfig {
+            enabled: Some(false),
+            browser_fix: Some(true),
+        },
+    );
+    config.apps.insert(
+        "notepad.exe".to_owned(),
+        PerAppConfig {
+            enabled: Some(true),
+            browser_fix: None,
+        },
+    );
 
     let encoded = config.to_ini();
     let decoded = AppConfig::from_ini(&encoded).unwrap_or_else(|err| panic!("parse failed: {err}"));
 
     assert_eq!(decoded, config);
+}
+
+#[test]
+fn parses_ini_app_sections() {
+    let input = r#"
+[apps.code.exe]
+enabled=false
+browser_fix=true
+
+[apps.notepad.exe]
+enabled=true
+"#;
+
+    let config = AppConfig::from_ini(input).unwrap();
+    assert_eq!(
+        config.apps.get("code.exe").and_then(|app| app.enabled),
+        Some(false)
+    );
+    assert_eq!(
+        config.apps.get("code.exe").and_then(|app| app.browser_fix),
+        Some(true)
+    );
+    assert_eq!(
+        config.apps.get("notepad.exe").and_then(|app| app.enabled),
+        Some(true)
+    );
 }

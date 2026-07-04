@@ -61,10 +61,6 @@ pub fn change_mark(ch: char, mark: char) -> Option<char> {
     Some(changed)
 }
 
-pub fn apply_tone(word: &str, tone: Tone) -> Option<String> {
-    apply_tone_with_options(word, tone, false, true)
-}
-
 pub fn apply_tone_with_options(
     word: &str,
     tone: Tone,
@@ -100,16 +96,50 @@ fn tone_target(chars: &[char], old_oa_uy: bool, smart_mark: bool) -> Option<usiz
         return Some(idx);
     }
 
-    for preferred in ['ê', 'Ê', 'ơ', 'Ơ', 'ô', 'Ô', 'â', 'Â', 'ă', 'Ă'] {
+    for preferred in ['ê', 'Ê', 'ơ', 'Ơ', 'ô', 'Ô', 'â', 'Â', 'ă', 'Ă', 'ư', 'Ư'] {
         if let Some(idx) = chars.iter().position(|ch| strip_tone(*ch) == preferred) {
             return Some(idx);
         }
     }
 
     if vowel_indices.len() >= 2 {
+        if let Some(idx) = modern_oa_oe_uy_target(chars) {
+            return Some(idx);
+        }
+
+        let first = vowel_indices[vowel_indices.len() - 2];
         let last = *vowel_indices.last()?;
-        if matches!(strip_tone(chars[last]), 'i' | 'I' | 'u' | 'U' | 'y' | 'Y') {
-            return vowel_indices.get(vowel_indices.len() - 2).copied();
+        let first_base = strip_tone(chars[first]).to_ascii_lowercase();
+        let last_base = strip_tone(chars[last]).to_ascii_lowercase();
+        let has_trailing_consonant = chars[last + 1..].iter().any(|ch| ch.is_ascii_alphabetic());
+
+        if first_base == 'u'
+            && last_base == 'y'
+            && first > 0
+            && matches!(chars[first - 1].to_ascii_lowercase(), 'q')
+        {
+            return Some(last);
+        }
+
+        if matches!((first_base, last_base), ('a' | 'e', 'o')) {
+            return Some(first);
+        }
+
+        if matches!((first_base, last_base), ('i' | 'u', 'a')) {
+            if first > 0
+                && matches!(chars[first - 1].to_ascii_lowercase(), 'g' | 'q')
+            {
+                return Some(last);
+            }
+            return Some(first);
+        }
+
+        if matches!((first_base, last_base), ('i', 'u')) {
+            return Some(if has_trailing_consonant { last } else { first });
+        }
+
+        if matches!(last_base, 'i' | 'u' | 'y') {
+            return Some(first);
         }
     }
 
@@ -126,6 +156,25 @@ fn oa_oe_uy_target(chars: &[char], old_oa_uy: bool) -> Option<usize> {
         let second = strip_tone(pair[1]).to_ascii_lowercase();
         if matches!((first, second), ('o', 'a') | ('o', 'e') | ('u', 'y')) {
             return Some(idx + 1);
+        }
+    }
+    None
+}
+
+fn modern_oa_oe_uy_target(chars: &[char]) -> Option<usize> {
+    for (idx, pair) in chars.windows(2).enumerate() {
+        let first = strip_tone(pair[0]).to_ascii_lowercase();
+        let second = strip_tone(pair[1]).to_ascii_lowercase();
+        let has_trailing_consonant = chars[idx + 2..].iter().any(|ch| ch.is_ascii_alphabetic());
+        let is_quy = first == 'u'
+            && second == 'y'
+            && idx > 0
+            && matches!(chars[idx - 1].to_ascii_lowercase(), 'q');
+        if !has_trailing_consonant
+            && !is_quy
+            && matches!((first, second), ('o', 'a') | ('o', 'e') | ('u', 'y'))
+        {
+            return Some(idx);
         }
     }
     None
@@ -162,6 +211,21 @@ pub fn strip_tone(ch: char) -> char {
         }
     }
     ch
+}
+
+pub fn telex_w_target(chars: &[char]) -> Option<usize> {
+    let last = chars
+        .iter()
+        .rposition(|ch| matches!(strip_tone(*ch), 'a' | 'A' | 'u' | 'U' | 'o' | 'O'))?;
+    if matches!(strip_tone(chars[last]), 'u' | 'U') {
+        if let Some(prev) = chars[..last]
+            .iter()
+            .rposition(|ch| matches!(strip_tone(*ch), 'u' | 'U'))
+        {
+            return Some(prev);
+        }
+    }
+    Some(last)
 }
 
 fn is_vowel(ch: char) -> bool {

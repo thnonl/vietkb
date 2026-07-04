@@ -1,3 +1,4 @@
+mod charset;
 mod engine;
 mod english;
 mod key;

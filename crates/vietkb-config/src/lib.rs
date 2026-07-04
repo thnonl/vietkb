@@ -277,6 +277,16 @@ impl AppConfig {
             let key = key.trim();
             let value = unquote(value.trim());
 
+            if let Some(app_name) = section.strip_prefix("apps.") {
+                let app = config.apps.entry(app_name.to_owned()).or_default();
+                match key {
+                    "enabled" => app.enabled = Some(parse_bool(value)?),
+                    "browser_fix" => app.browser_fix = Some(parse_bool(value)?),
+                    _ => {}
+                }
+                continue;
+            }
+
             match (section.as_str(), key) {
                 ("input", "method") => config.input.method = parse_input_method(value)?,
                 ("input", "charset") => config.input.charset = parse_charset(value)?,
@@ -391,7 +401,7 @@ impl AppConfig {
     }
 
     pub fn to_ini(&self) -> String {
-        format!(
+        let mut output = format!(
             concat!(
                 "[input]\nmethod={}\ncharset={}\nenabled={}\n\n",
                 "[hotkeys]\ntoggle={}\nrestore_word={}\n\n",
@@ -406,7 +416,21 @@ impl AppConfig {
             self.typing.old_oa_uy, self.typing.smart_mark, self.typing.use_j_f_w_as_consonants, self.typing.auto_capitalize_after_punctuation, self.typing.use_clipboard_to_send_keys, self.typing.spell_check, self.typing.restore_wrong_word, self.typing.us_keyboard_layout_when_off, self.typing.suggestion_fix_1, self.typing.suggestion_fix_2, self.typing.skip_english_words,
             self.system.run_as_admin, self.system.start_with_windows, self.system.show_dialog_on_startup, self.system.notification_sound, self.system.standard_key_sending, self.system.metro_apps_support, self.system.custom_tray_icon, self.system.excluded_apps, self.system.auto_exclude_apps, self.system.check_updates_on_startup,
             linux_frontend_to_ini(self.linux.frontend), commit_mode_to_ini(self.linux.commit_mode), fallback_mode_to_ini(self.linux.fallback_mode),
-        )
+        );
+
+        for (exe, app) in &self.apps {
+            output.push_str("\n[apps.");
+            output.push_str(exe);
+            output.push_str("]\n");
+            if let Some(enabled) = app.enabled {
+                output.push_str(&format!("enabled={enabled}\n"));
+            }
+            if let Some(browser_fix) = app.browser_fix {
+                output.push_str(&format!("browser_fix={browser_fix}\n"));
+            }
+        }
+
+        output
     }
 }
 
