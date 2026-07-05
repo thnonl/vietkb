@@ -305,6 +305,17 @@ impl VietnameseEngine for SimpleVietnameseEngine {
                     return EngineAction::Commit(ch.to_string());
                 }
 
+                if self.enabled && matches!(self.method, InputMethod::Vni) && ch == '0' {
+                    if self.english_bypass {
+                        self.word = self.raw.clone();
+                        self.english_bypass = false;
+                    }
+                    self.raw.push(ch);
+                    let action = apply_vni_with_options(&mut self.word, ch, self.options);
+                    self.raw = self.word.clone();
+                    return action;
+                }
+
                 if should_bypass_digit_suffix(&self.raw) {
                     let delete_graphemes = self.word.chars().count();
                     self.raw.push(ch);
@@ -322,8 +333,10 @@ impl VietnameseEngine for SimpleVietnameseEngine {
                         self.word = self.raw.clone();
                         self.english_bypass = false;
                     }
+                    self.raw.push(ch);
                     return apply_vni_with_options(&mut self.word, ch, self.options);
                 }
+
                 self.reset_word();
                 EngineAction::Commit(ch.to_string())
             }
@@ -405,10 +418,6 @@ fn should_keep_telex_consonant(raw: &str, ch: char) -> bool {
 
 fn should_bypass_digit_suffix(raw: &str) -> bool {
     let lower = raw.to_ascii_lowercase();
-    if lower.len() > 7 {
-        return true;
-    }
-
     let leading_consonants: String = lower
         .chars()
         .take_while(|ch| {

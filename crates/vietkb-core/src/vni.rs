@@ -1,9 +1,20 @@
 use crate::engine::{EngineAction, EngineOptions};
 use crate::transform::{
-    apply_telex_w_mark, apply_tone_with_options, change_mark, strip_tone, Tone,
+    apply_telex_w_mark, apply_tone_with_options, change_mark, strip_tone, strip_vietnamese_mark,
+    Tone,
 };
 
 pub fn apply_vni_with_options(word: &mut String, ch: char, options: EngineOptions) -> EngineAction {
+    if ch == '0' {
+        let delete_graphemes = word.chars().count();
+        let insert: String = word.chars().map(strip_vietnamese_mark).collect();
+        *word = insert.clone();
+        return EngineAction::Replace {
+            delete_graphemes,
+            insert,
+        };
+    }
+
     if let Some(tone) = tone_from_key(ch) {
         if let Some(changed) =
             apply_tone_with_options(word, tone, options.old_oa_uy, options.smart_mark)

@@ -8,7 +8,12 @@
   },
   "bundle": {
     "icon": ["icons/icon-logo.ico"],
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "install-icon": "icons/installer.ico"
+      }
+    }
   },
   "plugins": {
     "updater": {

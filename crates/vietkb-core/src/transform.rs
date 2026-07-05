@@ -96,6 +96,15 @@ fn tone_target(chars: &[char], old_oa_uy: bool, smart_mark: bool) -> Option<usiz
         return Some(idx);
     }
 
+    for (idx, triple) in chars.windows(3).enumerate() {
+        let first = strip_tone(triple[0]).to_ascii_lowercase();
+        let second = strip_tone(triple[1]).to_ascii_lowercase();
+        let third = strip_tone(triple[2]).to_ascii_lowercase();
+        if matches!((first, second, third), ('u', 'y', 'u')) {
+            return Some(idx + 1);
+        }
+    }
+
     for preferred in ['ê', 'Ê', 'ơ', 'Ơ', 'ô', 'Ô', 'â', 'Â', 'ă', 'Ă', 'ư', 'Ư'] {
         if let Some(idx) = chars.iter().position(|ch| strip_tone(*ch) == preferred) {
             return Some(idx);
@@ -113,12 +122,19 @@ fn tone_target(chars: &[char], old_oa_uy: bool, smart_mark: bool) -> Option<usiz
         let last_base = strip_tone(chars[last]).to_ascii_lowercase();
         let has_trailing_consonant = chars[last + 1..].iter().any(|ch| ch.is_ascii_alphabetic());
 
-        if first_base == 'u'
-            && last_base == 'y'
-            && first > 0
-            && matches!(chars[first - 1].to_ascii_lowercase(), 'q')
-        {
-            return Some(last);
+        if first_base == 'u' && last_base == 'y' {
+            if has_trailing_consonant
+                || (first > 0 && matches!(chars[first - 1].to_ascii_lowercase(), 'q'))
+                || (first > 1
+                    && matches!(chars[first - 1].to_ascii_lowercase(), 'h')
+                    && matches!(chars[first - 2].to_ascii_lowercase(), 'k'))
+                || (first > 1
+                    && matches!(chars[first - 1].to_ascii_lowercase(), 'g')
+                    && matches!(chars[first - 2].to_ascii_lowercase(), 'n'))
+            {
+                return Some(last);
+            }
+            return Some(first);
         }
 
         if matches!((first_base, last_base), ('a' | 'e', 'o')) {
@@ -168,10 +184,7 @@ fn modern_oa_oe_uy_target(chars: &[char]) -> Option<usize> {
             && second == 'y'
             && idx > 0
             && matches!(chars[idx - 1].to_ascii_lowercase(), 'q');
-        if !has_trailing_consonant
-            && !is_quy
-            && matches!((first, second), ('o', 'a') | ('o', 'e') | ('u', 'y'))
-        {
+        if !has_trailing_consonant && !is_quy && matches!((first, second), ('o', 'a') | ('o', 'e')) {
             return Some(idx);
         }
     }
@@ -209,6 +222,22 @@ pub fn strip_tone(ch: char) -> char {
         }
     }
     ch
+}
+
+pub fn strip_vietnamese_mark(ch: char) -> char {
+    match strip_tone(ch) {
+        'ă' | 'â' => 'a',
+        'Ă' | 'Â' => 'A',
+        'ê' => 'e',
+        'Ê' => 'E',
+        'ô' | 'ơ' => 'o',
+        'Ô' | 'Ơ' => 'O',
+        'ư' => 'u',
+        'Ư' => 'U',
+        'đ' => 'd',
+        'Đ' => 'D',
+        base => base,
+    }
 }
 
 pub fn apply_telex_w_mark(chars: &mut [char]) -> Option<()> {
