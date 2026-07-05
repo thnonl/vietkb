@@ -256,9 +256,8 @@ impl AppConfig {
 
             if let Some(app_name) = section.strip_prefix("apps.") {
                 let app = config.apps.entry(app_name.to_owned()).or_default();
-                match key {
-                    "enabled" => app.enabled = Some(parse_bool(value)?),
-                    _ => {}
+                if key == "enabled" {
+                    app.enabled = Some(parse_bool(value)?);
                 }
                 continue;
             }

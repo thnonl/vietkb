@@ -7,7 +7,9 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true
+serde_json = "1.0.150"
 tauri = { version = "2", features = ["image-ico", "tray-icon"] }
+tauri-plugin-updater = "2"
 vietkb-config = { path = "../vietkb-config" }
 vietkb-core = { path = "../vietkb-core" }
 vietkb-ui = { path = "../vietkb-ui" }

@@ -26,6 +26,7 @@ mod app {
     use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
     use tauri::{AppHandle, Manager, State, Window, Wry};
+    use tauri_plugin_updater::UpdaterExt;
     use vietkb_config::{
         AppConfig, CharsetConfig, HotkeyConfig, InputMethodConfig, PerAppConfig, SystemConfig,
         TypingConfig,
@@ -81,6 +82,7 @@ mod app {
         });
 
         tauri::Builder::default()
+            .plugin(tauri_plugin_updater::Builder::new().build())
             .setup(|app| {
                 let config = load_config_from_disk().unwrap_or_default();
                 let enabled = config.input.enabled;
@@ -255,6 +257,7 @@ mod app {
                 set_enabled,
                 keyboard_enabled,
                 list_processes,
+                check_updates,
                 close_window,
                 exit_app
             ])
@@ -529,6 +532,24 @@ mod app {
         processes.sort();
         processes.dedup();
         processes
+    }
+
+    #[tauri::command]
+    async fn check_updates(app: AppHandle) -> Result<String, String> {
+        let updater = app.updater().map_err(|err| err.to_string())?;
+        let Some(update) = updater.check().await.map_err(|err| err.to_string())? else {
+            return Ok(format!("Bạn đang dùng phiên bản mới nhất ({})", env!("CARGO_PKG_VERSION")));
+        };
+
+        let version = update.version.clone();
+        update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|err| err.to_string())?;
+
+        Ok(format!(
+            "Đã cài đặt VietKB {version}. Ứng dụng sẽ thoát để hoàn tất cập nhật."
+        ))
     }
 
     #[tauri::command]

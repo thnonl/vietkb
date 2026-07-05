@@ -84,6 +84,7 @@ impl Default for Hotkey {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn set_keyboard_config(
     enabled: bool,
     method: InputMethod,

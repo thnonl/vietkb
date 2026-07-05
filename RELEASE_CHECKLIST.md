@@ -3,10 +3,15 @@
 ## Version/update metadata
 
 - Release repo: `https://github.com/thnonl/vietkb`
+- Update endpoint: `https://github.com/thnonl/vietkb/releases/latest/download/latest.json`
+- Update signing private key: `%USERPROFILE%\.tauri\vietkb.key` (do not commit/share)
+- Update public key is embedded in `crates/vietkb-gui/tauri.conf.json`.
 - Update versions before build:
   - `crates/vietkb-gui/Cargo.toml` → `[package].version`
   - `crates/vietkb-gui/tauri.conf.json` → `version`
-- GitHub Releases assets should match `dist/<platform>/` outputs from build scripts.
+- Build updater artifacts with `scripts/build-windows-release.ps1`.
+- GitHub Releases assets must include the Windows installer, its `.sig`, and `latest.json`.
+- `latest.json` must reference the uploaded installer URL and inline `.sig` content.
 
 ## Core
 

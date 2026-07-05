@@ -7,7 +7,19 @@
     "frontendDist": "dist"
   },
   "bundle": {
-    "icon": ["icons/icon-logo.ico"]
+    "icon": ["icons/icon-logo.ico"],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg3QjAzNjhGMEFCMDI3MkEKUldRcUo3QUtqemF3aDlLLzZsenpTNURrYWs1WVptazdhaWZneCt1dWE5Q2k1NHRsT2RpS0ZkU24K",
+      "endpoints": [
+        "https://github.com/thnonl/vietkb/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   },
   "app": {
     "withGlobalTauri": true,

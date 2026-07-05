@@ -12,10 +12,8 @@
 *.rlib
 *.pdb
 
-# Keep release build outputs from scripts/build-*.{sh,ps1}
-!/dist/
-!/dist/**
-
 # Temporary files
 *.tmp
 *.temp
+
+dist

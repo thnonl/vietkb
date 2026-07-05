@@ -82,7 +82,7 @@ enabled=false
 enabled=true
 "#;
 
-    let config = AppConfig::from_ini(input).unwrap();
+    let config = AppConfig::from_ini(input).unwrap_or_else(|err| panic!("parse failed: {err}"));
     assert_eq!(
         config.apps.get("code.exe").and_then(|app| app.enabled),
         Some(false)
