@@ -52,6 +52,9 @@
   margin-left: auto;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  width: 236px;
+  flex: none;
   gap: 8px;
   height: 28px;
   padding: 0 10px;
@@ -150,10 +153,10 @@
   gap: 8px;
 }
 .status .f small {
-  /* 12/16 at --text-2; the 8 px gap on `.f` is the only space to the control. */
+  /* 12/16 t2: 8 px to its own select, 16 px (8 margin + 8 gap) from the previous one. */
   font: 400 12px/16px var(--sm);
   color: var(--t2);
-  margin-left: 0;
+  margin-left: 8px;
 }
 
 /* ---- rows --------------------------------------------------------------- */
@@ -258,7 +261,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
+  padding: 0 64px 0 12px;
   margin: 0 -12px;
   position: relative;
   border-top: 1px solid var(--line-2);
@@ -803,7 +806,7 @@
 .sh {
   font: 600 13px/20px var(--ui);
   color: var(--t1);
-  padding: 12px 0 6px;
+  padding: 18px 0 6px;
   flex: none;
   border-bottom: 1px solid var(--line-2);
 }
@@ -811,17 +814,34 @@
   display: none;
 }
 .cap {
-  width: 236px;
+  width: 276px;
   height: 32px;
   display: flex;
   align-items: center;
   gap: 3px;
-  padding: 0 5px;
+  /* no right padding: the ✕/↺ button ends flush with the well edge (x = 696) */
+  padding: 0 0 0 5px;
   border-radius: 8px;
   background: var(--sunken);
   box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.06), inset 0 0 0 1px var(--line-1);
   flex: none;
   text-align: left;
+}
+/* The capture target fills the well; ✕ / ↺ live inside it at the right. */
+.capa {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .cap .end {
   margin-left: auto;
@@ -867,12 +887,9 @@
   color: var(--acc-text);
   font: 500 13px/20px var(--ui);
 }
-.slot {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  display: grid;
-  place-items: center;
+/* Action buttons sit inside the well and end on its right edge. */
+.cap > .btn.icon.sm {
+  border-radius: 0 8px 8px 0;
 }
 .row.rec {
   background: var(--acc-tint);
@@ -882,21 +899,24 @@
   opacity: 0;
 }
 .row.tall {
-  height: 66px;
+  height: 64px;
   align-items: flex-start;
   padding-top: 4px;
 }
-.row.tall .cap,
-.row.tall .slot {
+.row.tall .cap {
   margin-top: 3px;
 }
+/* Full-width amber warning line at top 42 (4 pad + 20 label + 18 note). */
 .row .msg {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 42px;
   display: flex;
   align-items: center;
   gap: 6px;
   font: 400 12px/18px var(--sm);
-  color: var(--t2);
-  margin-top: 2px;
+  color: var(--warn);
   white-space: nowrap;
 }
 .row .msg .i {
@@ -959,10 +979,10 @@
   flex: none;
 }
 .hang + .hang {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 .hang:first-of-type {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 .hang > h3 {
   font: 600 13px/20px var(--ui);

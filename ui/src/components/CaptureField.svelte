@@ -182,45 +182,46 @@
   };
 </script>
 
-<button
-  type="button"
+<div
   class="cap"
   class:rec={editing}
   class:warn={conflict !== null || warning !== null}
-  class:empty={!editing && !value}
-  id={`cap-${field}`}
-  aria-label={`${label} — phím tắt hiện tại ${value ?? "chưa đặt"}`}
-  onfocus={begin}
-  onblur={reset}
-  onkeydown={onkeydown}
-  onkeyup={onkeyup}>
-  {#if editing}
-    {#if keys.length === 0}
-      <span style="color:var(--t3);font:400 13px/20px var(--ui);padding:0 4px">Nhấn tổ hợp phím…</span>
-    {:else}
+  class:empty={!editing && !value}>
+  <button
+    type="button"
+    class="capa"
+    id={`cap-${field}`}
+    aria-label={`${label} — phím tắt hiện tại ${value ?? "chưa đặt"}`}
+    onfocus={begin}
+    onblur={reset}
+    onkeydown={onkeydown}
+    onkeyup={onkeyup}>
+    {#if editing}
+      {#if keys.length === 0}
+        <span style="color:var(--t3);font:400 13px/20px var(--ui);padding:0 4px">Nhấn tổ hợp phím…</span>
+      {:else}
+        {#each keys as key (key)}
+          <Keycap text={key} />
+          <span class="plus">+</span>
+        {/each}
+      {/if}
+      <span class="caret"></span>
+      <span class="end"><Keycap text="Esc" small /> huỷ</span>
+    {:else if value}
       {#each keys as key (key)}
         <Keycap text={key} />
-        <span class="plus">+</span>
       {/each}
+      {#if conflict}
+        <span class="end"><span class="tag warn"><Icon name="warning" small />Trùng</span></span>
+      {:else if warning}
+        <span class="end"><span class="tag warn"><Icon name="warning" small />Dễ trùng</span></span>
+      {/if}
+    {:else}
+      Chưa đặt
+      <span class="end">Đặt phím</span>
     {/if}
-    <span class="caret"></span>
-    <span class="end"><Keycap text="Esc" small /> huỷ</span>
-  {:else if value}
-    {#each keys as key (key)}
-      <Keycap text={key} />
-    {/each}
-    {#if conflict}
-      <span class="end"><span class="tag warn"><Icon name="warning" small />Trùng</span></span>
-    {:else if warning}
-      <span class="end"><span class="tag warn"><Icon name="warning" small />Dễ trùng</span></span>
-    {/if}
-  {:else}
-    Chưa đặt
-    <span class="end">Đặt phím</span>
-  {/if}
-</button>
+  </button>
 
-<span class="slot">
   {#if editing}
     <button
       type="button"
@@ -241,4 +242,4 @@
       <Icon name="reset" small />
     </button>
   {/if}
-</span>
+</div>
