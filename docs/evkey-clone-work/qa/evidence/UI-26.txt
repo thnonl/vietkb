@@ -1,0 +1,7 @@
+case=UI-26 tray charset
+build=target\release\vietkb.exe 2026-10-29 03:41:02 sha256=15BCDA2A3DB7576FEB459B7F54F60E5AAF73F1D67BA22F2301430B33C55F29F3
+scale=1.25
+tray menu items: Context | Bật/tắt tiếng Việt | Kiểu gõ | Mở cài đặt… | Phím tắt… | Thoát VietKB
+Bảng mã item present=false
+input.charset=unicode (unchanged; no UI path to change it)
+result=FAIL — Bảng mã submenu absent from tray menu

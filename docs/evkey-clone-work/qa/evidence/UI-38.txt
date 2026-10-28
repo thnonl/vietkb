@@ -1,0 +1,4 @@
+﻿space in trigger:dialogOpen=True,err='Từ tắt viết liền, không có dấu cách'
+empty trigger:dialogOpen=True,err='Nhập từ tắt, ví dụ dc'
+empty expansion:dialogOpen=True,err='Phần thay thế không được để trống — muốn bỏ thì xoá cả mục.'
+unexpectedSaves=

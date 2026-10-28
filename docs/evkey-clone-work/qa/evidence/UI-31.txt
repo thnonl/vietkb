@@ -1,0 +1,3 @@
+﻿before=Ctrl+Alt+K
+afterEsc=Ctrl+Alt+K
+afterBackspaceEnter=

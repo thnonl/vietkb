@@ -1,0 +1,2 @@
+﻿hint=hòa, thúy
+persisted=True

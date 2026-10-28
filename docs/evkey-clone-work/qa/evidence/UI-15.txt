@@ -1,0 +1,3 @@
+﻿configRules=0
+shownCount=0
+dialogOpen=True

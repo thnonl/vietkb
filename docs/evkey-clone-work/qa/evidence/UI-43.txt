@@ -1,0 +1,6 @@
+﻿toast=Không lưu được thay đổi: cannot write C:\Users\namth\AppData\Roaming\VietKB\config.toml: Access is denied. (os error 5)
+toggleBefore=On
+toggleAfter=On
+configBefore=true
+configAfter=true
+lockMode=exclusive handle

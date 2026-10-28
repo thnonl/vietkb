@@ -1,0 +1,2 @@
+﻿config=Ctrl+Alt+K
+ariaShows=True

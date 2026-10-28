@@ -1,0 +1,3 @@
+﻿count=11
+limit=12
+Bật tiếng Việt | Đặt dấu kiểu mới | Kiểm tra chính tả | Bảng gõ tắt… | Cho phép gõ tắt | Quản lý… | Phím tắt… | Nâng cao… | Thoát VietKB | Đóng | Kiểu gõ

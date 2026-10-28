@@ -1,0 +1,2 @@
+﻿configAfterDelete=[]
+rowAfterDelete=False

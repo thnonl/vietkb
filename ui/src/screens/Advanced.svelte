@@ -175,17 +175,6 @@
       </div>
     </div>
     <div class="v4sr">
-      <span class="lb">Ngôn ngữ hiển thị</span>
-      <Select
-        width={116}
-        label="Ngôn ngữ hiển thị"
-        value={settings?.system.language ?? "vi"}
-        options={[
-          { value: "vi", label: "Tiếng Việt" },
-          { value: "en", label: "English" },
-        ]}
-        onchange={(language) => setSystem({ language })} />
-      <span class="sp"></span>
       <span class="lb">Màu nền</span>
       <Select
         width={132}

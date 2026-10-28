@@ -1,0 +1,5 @@
+﻿emptyState=True
+addedToConfig=1
+ruleRow=True
+afterRemove=0
+countNow=0

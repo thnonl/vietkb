@@ -1,0 +1,6 @@
+﻿persisted=True
+englishLabel=False
+Bật tiếng Việt=True
+Kiểm tra chính tả=True
+Gõ=False
+Đóng=True

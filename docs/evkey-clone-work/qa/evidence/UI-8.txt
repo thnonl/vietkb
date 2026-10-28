@@ -1,0 +1,5 @@
+﻿scrollbars=0
+documentVerticallyScrollable=False
+controlsOutsideClient=
+scale=1.25
+100%/150%: display scaling not changed

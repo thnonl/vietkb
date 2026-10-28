@@ -1,0 +1,4 @@
+﻿logical=720x560
+search=True
+toolbar=Nhập từ tệp…,Xuất ra tệp…,Thêm
+rows=3

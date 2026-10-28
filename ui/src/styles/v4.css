@@ -175,6 +175,32 @@
   grid-template-columns: 1fr 248px;
   align-items: center;
 }
+/* A row that carries an amber warning line grows to 64 px so the message
+ * never overlaps the field or the next row. */
+.v4row.hkrow.tall {
+  height: 64px;
+  align-items: flex-start;
+  padding-top: 4px;
+}
+.v4row.hkrow.tall .cap {
+  margin-top: 3px;
+}
+/* Full-width amber warning line at top 42 (4 pad + 20 label + 18 note). */
+.v4row .msg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 42px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 400 12px/18px var(--sm);
+  color: var(--warn);
+  white-space: nowrap;
+}
+.v4row .msg .i {
+  color: var(--warn);
+}
 .v4sheet .sel {
   height: 32px;
 }

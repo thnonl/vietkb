@@ -1,0 +1,4 @@
+﻿top=Context | Bật/tắt tiếng Việt | Kiểu gõ | Mở cài đặt… | Phím tắt… | Thoát VietKB
+separators=3
+methods=Telex=16,VNI=0
+charsets=

@@ -1,0 +1,6 @@
+﻿allOpen=True
+hotkeysClosed=True
+othersStay=True
+mainClosed=True
+secondariesStay=True
+processAlive=True

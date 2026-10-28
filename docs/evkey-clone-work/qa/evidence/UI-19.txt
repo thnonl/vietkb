@@ -1,0 +1,5 @@
+﻿logical=560x496
+checkboxes=15
+combos=3
+numberEdit=True
+sections=3

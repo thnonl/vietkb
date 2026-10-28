@@ -293,7 +293,8 @@ P1 holds with a wide margin; the `Noop` path is allocation-free and ~1 ns as the
 
 ## 8. Still unverified
 
-1. **§3 (UI/UX, 48 rows)** and the tray/hook end-to-end behaviour — GUI pass.
+1. **§3 (UI/UX) and the tray/hook end-to-end behaviour** — covered by part 3 for the rebuilt
+   shell (46 cases); system-wide hook behaviour remains part 2 §11.
 2. **`convert_text` / R1 / R2 for all nine charsets** — no decoder in `vkb-core`; needs the app's
    convert tool (§2.10 matrix).
 3. **`tcvn3`, `vni_windows`, `bk_hcm1`, `vps` byte tables** — no authoritative source compared;
@@ -372,7 +373,8 @@ Typed into a real target window through the installed hook, not the test harness
 
 ## 13. Still unverified
 
-1. **§3 GUI tests** from `50-test-cases.md` (48 UI/UX rows) — not run in this pass.
+1. **§3 GUI tests** from `50-test-cases.md` — **now covered by part 3 below** (rebuilt shell,
+   46 cases, 38 pass / 8 fail, defects `D-UI-01…06`).
 2. **5 legacy charsets** — `tcvn3`, `vni_windows`, `bk_hcm1`, `vps` (no authoritative byte table
    available) and `viscii` beyond the 14 letters + `ờ`/`ề` (only those are verified). Same status as
    part 1 §5/§8.3.
@@ -381,3 +383,92 @@ Typed into a real target window through the installed hook, not the test harness
    untested.
 5. **Installer install/uninstall round-trip** — only the artefact size (2.01 MB) is verified; it has
    not been installed and removed on a clean machine.
+
+---
+
+# 80 — Verification report, part 3: rebuilt UI (§3)
+
+**Date:** 2026-10-29 · **Owner:** QA · **Scope:** `50-test-cases.md` §3 rewritten for the
+rebuilt shell and executed against the release build. **No product code was changed** —
+tests, evidence and this report only.
+
+## 14. Build under test
+
+| | |
+|---|---|
+| binary | `E:\vietkb\target\release\vietkb.exe` |
+| built | 2026-10-29 03:41:02 (+07:00) |
+| SHA-256 | `15BCDA2A3DB7576FEB459B7F54F60E5AAF73F1D67BA22F2301430B33C55F29F3` |
+| source cut | `ui/dist` 03:34:04 from `ui/src` + `crates` 03:33:50; the tree was being edited by another session during this task, so the binary is pinned by hash above |
+| display | 2560 × 1440 @ 125 % (window 600 × 480 physical = 480 × 384 logical) |
+
+## 15. How the cases run
+
+`docs/evkey-clone-work/qa/` holds the harness. PowerShell + UI Automation
+(`UIAutomationClient`), with **MSAA `IAccessible`** for the native tray menu (UIA exposes the
+popup window but not its items) and `SendInput` only for the keystrokes a case needs
+(`Tab`, `Esc`, `Enter`, `Backspace`, `Ctrl+Alt+K`, `Ctrl+Shift`). No screenshots, no
+keystrokes into other applications, no window moves. Each group restarts the app from the
+baseline `config.toml`; the baseline is restored at the end.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File docs\evkey-clone-work\qa\run.ps1
+```
+
+Artifacts: `qa/results-final.csv` (46 rows, merged: group A from `qa/results-groupA.csv`,
+groups B–G from `qa/results-run10.csv`), `qa/evidence/UI-*.txt` (one file per case),
+`qa/build.txt`.
+
+## 16. Result
+
+**46 cases · 38 pass · 8 fail · 0 blocked.** The eight failures reproduce across runs:
+
+| case | defect | one line |
+|---|---|---|
+| UI-11 | D-UI-01 | main window has no `Bảng mã` select |
+| UI-17 | D-UI-02 | `Ngôn ngữ hiển thị` persists `en` but no string changes |
+| UI-23 | D-UI-01 | tray menu has no `Bảng mã ▸` submenu |
+| UI-26 | D-UI-01 | charset cannot be changed from the tray either |
+| UI-32 | D-UI-03 | modifier-only chord (`Ctrl+Shift`) is never captured, so no live conflict warning |
+| UI-33 | D-UI-04 | a conflict already stored in `config.toml` is shown without any warning |
+| UI-34 | D-UI-05 | `Tự động khôi phục…` does not disable live when spell check is turned off in another window |
+| UI-40 | D-UI-06 | macro table renders 8 of 12 rows and has no scrollbar |
+
+Everything else passed, including: 480 × 384 frameless shell and the 36 px drag strip;
+theme cycle with cross-window broadcast; minimize / close-to-tray / reopen; 11/12 control
+budget; no scrollbar or clipping at 125 %; all three secondary windows at their exact sizes;
+window independence; the five tray items that remain, their submenu checkmarks and effects;
+live apply with no Save button; hotkey capture/cancel/clear; macro CRUD, validation and
+TSV round-trip; app-rule add/remove and overrides; the error toast on an unwritable config;
+the 11-control Tab order; modal focus and Esc; persistence across restart.
+
+## 17. What automation could not verify
+
+1. **Window drag** — exercising it would move the window, which the run forbids. Only the
+   36 px strip and the `startDragging()` handler were checked (`UI-3`).
+2. **100 % and 150 % DPI** — the machine exposes one 125 % monitor and changing system
+   scaling was out of scope. The window is sized in logical pixels, so the layout is
+   DPI-independent by construction; `UI-8` is measured at 125 % only.
+3. **Focus-ring contrast and theme repaint** — `UI-4`/`UI-44` prove the theme value, the
+   broadcast and the focus order; the actual ring pixels (`2px solid --focus`) and the
+   light/dark repaint need eyes or a capture (screenshots were prohibited).
+4. **Tray icon artwork** — the enabled/disabled bitmap and the `… · Telex · Unicode`
+   tooltip suffix were read as text/tooltip; the pixels were not compared.
+5. **System-wide hotkey effect** — pressing a captured hotkey in another application is
+   outside the allowed input scope. `UI-30` proves the value is stored and reloaded; the
+   hook path is part 2 §11.
+6. **Native Open/Save dialogs** in other locales — the automation reads the English
+   `File name:`/`Save` controls; a Vietnamese-locale dialog may label them differently.
+
+## 18. Infrastructure caveats (not product defects)
+
+* Another session was editing and rebuilding the same tree during this pass. One full run
+  lost the WebView renderer mid-group (the page went blank, the process stayed); group A
+  was re-run alone against the same binary and is reported from that clean execution. The
+  merged `results-final.csv` is therefore per-case latest-healthy, not one single sweep.
+* Force-killing the app between groups leaves a **ghost tray icon** in the Windows 11
+  overflow; `UI-24` then reads two concatenated tooltips. A normal `Thoát VietKB` leaves a
+  single icon (`UI-28`). The harness now quits via the tray where possible.
+* `SendInput` was refused with a silent zero when the target window was not foreground;
+  the harness aborts a keystroke case instead of typing into another app, which is why a
+  few cases needed a group retry under load.

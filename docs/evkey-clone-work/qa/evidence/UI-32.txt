@@ -1,0 +1,4 @@
+﻿before=
+config=
+fieldCaughtModifierOnly=False
+warnings=

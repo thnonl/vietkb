@@ -1,0 +1,4 @@
+﻿before=method=vni, modern=false, cycle=Ctrl+Alt+K, macro=zed
+after=method=vni, modern=false, cycle=Ctrl+Alt+K, macro=zed
+uiMethod=VNI
+uiModern=Off

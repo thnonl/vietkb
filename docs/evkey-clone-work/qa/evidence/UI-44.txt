@@ -1,0 +1,2 @@
+﻿tabOrder=Bật tiếng Việt > Kiểu gõ > Đặt dấu kiểu mới > Kiểm tra chính tả > Bảng gõ tắt… > Cho phép gõ tắt > Quản lý… > Phím tắt… > Nâng cao… > Thoát VietKB > Đóng
+focusRing: tokens.css :focus-visible 2px solid --focus (#5844c8 light / #b9aeff dark, both > 3:1)

@@ -7,7 +7,9 @@
   import * as api from "../lib/api";
   import { closeCurrent } from "../lib/window.svelte";
   import { DEFAULT_HOTKEYS, hotkeyActionLabel } from "../lib/catalog";
+  import { canonicalize, prettyHotkey } from "../lib/hotkey";
   import type { HotkeyActionField } from "../lib/catalog";
+  import type { HotkeyField } from "../lib/bindings";
 
   const settings = $derived(app.settings);
   const native = api.isTauri();
@@ -25,6 +27,84 @@
     app.patch({ hotkeys: { [field]: next } });
   };
 
+  /** Row wording when the action has a row; the catalogue label otherwise. */
+  const labelForField = (field: string): string =>
+    rows.find((row) => row.field === field)?.label ?? hotkeyActionLabel(field);
+
+  /** Stored form, canonicalised; `config.toml` is a supported editor. */
+  const canonicalValue = (value: string | null | undefined): string => {
+    if (!value || !value.trim()) return "";
+    return canonicalize(value).canonical ?? value.trim();
+  };
+
+  const canonicalHotkeys = $derived.by(() => {
+    const out: Partial<Record<HotkeyActionField, string>> = {};
+    const hotkeys = settings?.hotkeys;
+    if (!hotkeys) return out;
+    for (const field of Object.keys(hotkeys) as HotkeyField[]) {
+      if (field === "toggleMode") continue;
+      const value = hotkeys[field];
+      out[field as HotkeyActionField] = canonicalValue(typeof value === "string" ? value : null);
+    }
+    return out;
+  });
+
+  /** Every conflicting pair, both sides marked. An unbound hotkey never clashes. */
+  const storedConflicts = $derived.by(() => {
+    const out: Partial<Record<HotkeyActionField, string>> = {};
+    const bound = (Object.entries(canonicalHotkeys) as [HotkeyActionField, string][]).filter(
+      ([, value]) => value !== "",
+    );
+    for (const [field, value] of bound) {
+      const others = bound
+        .filter(([other, otherValue]) => other !== field && otherValue === value)
+        .map(([other]) => labelForField(other));
+      if (others.length > 0) {
+        out[field] = `Trùng “${prettyHotkey(value)}” với ${others.join(", ")} — chọn tổ hợp khác.`;
+      }
+    }
+    return out;
+  });
+
+  type Problem = { kind: "conflict" | "error" | "warn"; text: string };
+  let live = $state<Partial<Record<HotkeyActionField, Problem | null>>>({});
+  /** The other row in a pending (not yet committed) clash, marked alongside. */
+  let clashPartner = $state<HotkeyActionField | null>(null);
+
+  const problemFor = (field: HotkeyActionField): Problem | null => {
+    const current = live[field];
+    if (current) return current;
+    const stored = storedConflicts[field];
+    return stored ? { kind: "conflict", text: stored } : null;
+  };
+
+  const report = (field: HotkeyActionField, problem: Problem | null) => {
+    const partner = clashPartner;
+    clashPartner = null;
+    if (!problem) {
+      live = { ...live, [field]: null, ...(partner ? { [partner]: null } : {}) };
+      return;
+    }
+    const text =
+      problem.kind === "conflict"
+        ? `Trùng với ${problem.text} — chọn tổ hợp khác.`
+        : problem.text;
+    live = { ...live, [field]: { kind: problem.kind, text } };
+    if (problem.kind === "conflict") {
+      const other = rows.find((row) => row.label === problem.text)?.field ?? null;
+      if (other && other !== field) {
+        clashPartner = other;
+        live = {
+          ...live,
+          [other]: {
+            kind: "conflict",
+            text: `Trùng với ${labelForField(field)} — chọn tổ hợp khác.`,
+          },
+        };
+      }
+    }
+  };
+
   const conflictFor = async (
     field: HotkeyActionField,
     canonical: string,
@@ -33,16 +113,19 @@
       const clash = await api.checkHotkeyConflict(canonical, field);
       if (!clash) return null;
       const camel = clash.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
-      return hotkeyActionLabel(camel);
+      return labelForField(camel);
     }
     for (const [other, value] of Object.entries(settings?.hotkeys ?? {})) {
-      if (other !== field && value === canonical) return hotkeyActionLabel(other);
+      if (other === "toggleMode" || other === field) continue;
+      if (canonicalValue(value as string | null) === canonical) return labelForField(other);
     }
     return null;
   };
 
   const resetAll = async () => {
     await app.resetSection("hotkeys");
+    live = {};
+    clashPartner = null;
     app.toast("success", "Đã đặt lại tất cả phím tắt");
   };
 </script>
@@ -58,7 +141,11 @@
     </div>
 
     {#each rows as row, index (row.field)}
-      <div class="v4row hkrow" class:noline={index === 0}>
+      {@const problem = problemFor(row.field)}
+      <div
+        class="v4row hkrow"
+        class:noline={index === 0}
+        class:tall={problem !== null}>
         <div class="l"><b>{row.label}</b></div>
         <CaptureField
           width={248}
@@ -66,9 +153,17 @@
           value={settings?.hotkeys[row.field] ?? null}
           label={row.label}
           defaultValue={DEFAULT_HOTKEYS[row.field]}
+          conflictText={storedConflicts[row.field] ?? null}
           oncommit={(next) => save(row.field, next)}
           onreset={() => save(row.field, DEFAULT_HOTKEYS[row.field])}
+          onproblem={(next) => report(row.field, next)}
           checkConflict={(canonical) => conflictFor(row.field, canonical)} />
+        {#if problem}
+          <div class="msg" role="status">
+            <Icon name="warning" small />
+            {problem.text}
+          </div>
+        {/if}
       </div>
     {/each}
 

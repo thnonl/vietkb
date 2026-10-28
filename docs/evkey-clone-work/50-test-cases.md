@@ -716,61 +716,76 @@ tone**. R1+R2 required. **Status: VERIFIED**; ordering check (`U+0302` before `U
 
 ## 3. UI/UX acceptance tests
 
-Screens under test (sidebar order): **1 Tổng quan** (`overview`), **2 Gõ** (`typing`),
-**3 Bảng mã** (`charset`), **4 Gõ tắt** (`macro`), **5 Loại trừ** (`apps`),
-**6 Phím tắt** (`hotkeys`), **7 Hệ thống** (`system`), **8 Giới thiệu** (`about`).
-Window baseline 1040×720 (contract `ui.window_*`).
+**Rebuilt shell (verified 2026-10-29).** The tabbed 720 × 560 panel is gone. The shipped
+build has three frameless windows and a tray menu:
 
-| id | area | steps | expected | prio |
-|---|---|---|---|---|
-| UI-1 | navigation | Click each of the 8 sidebar entries in order, then reverse order | each opens its screen, exactly one entry is marked active, content changes, no full reload, no console error | P0 |
-| UI-2 | navigation | Reach every screen with the keyboard only (Tab to the sidebar, arrow keys, Enter) | all 8 reachable, focus ring visible on the sidebar, no trap | P0 |
-| UI-3 | navigation | Resize 1024×700 → 1366×768 → 1440×900 | no horizontal scrollbar, no clipped label, no overlap, sidebar stays fixed width | P0 |
-| UI-4 | Tổng quan | Open the screen with the app enabled | shows enabled state, current kiểu gõ, current bảng mã, version, config path; changing method here works | P0 |
-| UI-5 | Tổng quan | Click the enable switch | switch flips immediately, tray icon reflects the new state within 1 s, no Save button involved | P0 |
-| UI-6 | Gõ | Open the screen | every checkbox from the contract `[typing]` block is present with its EVKey Vietnamese label verbatim (`Đặt dấu kiểu mới`, `Đặt dấu tự do`, `Cho phép 'f j w z' làm phụ âm`, `Tự động viết hoa sau Enter . ! ?`, `Bật kiểm tra chính tả`, `Tự động khôi phục phím với từ sai`, …) | P0 |
-| UI-7 | Gõ | Toggle `Đặt dấu kiểu mới` off, type `hoaf` in Notepad, toggle on, retype | first yields `hoà`, second yields `hòa`, with no restart and no Save | P0 |
-| UI-8 | Bảng mã | Open the screen | exactly 9 bảng mã options listed with their Vietnamese names: Unicode dựng sẵn, Unicode tổ hợp, TCVN3 (ABC), VNI Windows, VIQR, VISCII, BK HCM1, VPS, UTF-8 | P0 |
-| UI-9 | Bảng mã | Select each charset and read the sample preview below the list | preview re-renders the same sample sentence for each charset and is legible; unknown charsets show a placeholder, never mojibake silently | P0 |
-| UI-10 | Gõ tắt | Open the screen with 7 macros configured | table shows trigger + expansion, one row per macro, sorted or searchable, count shown | P0 |
-| UI-11 | Gõ tắt | Search `vn` in the filter field | list filters to matching triggers and expansions, case-insensitive, empty state shown for no match | P1 |
-| UI-12 | Gõ tắt | Add `btw` → `by the way`, press the row's confirm | row appears, typing `btw` + space in Notepad expands immediately (live apply) | P0 |
-| UI-13 | Gõ tắt | Edit an existing expansion, then delete a row (single) and delete 3 selected rows at once | edit persists, each delete removes exactly the selected rows, no confirmation-less bulk loss of more than selected | P0 |
-| UI-14 | Gõ tắt | Import a file with 5000 entries, then export | import reports the inserted count; export writes a file that re-imports to the same 5000 entries; UI stays responsive (< 1 s per action, no freeze) | P0 |
-| UI-15 | Gõ tắt | Import a malformed file (bad line, duplicate trigger, empty trigger) | error message names the offending line, valid rows either all rejected or all imported consistently — never a half-applied state | P1 |
-| UI-16 | Loại trừ | Click "add app", use the running-app picker | picker lists running processes with a readable name and `process.exe`, search filters it, choosing one adds the rule | P0 |
-| UI-17 | Loại trừ | Add `game.exe` with enabled=false, start a dummy process with that name | typing in that process produces raw ASCII; other apps still transform | P0 |
-| UI-18 | Loại trừ | Remove a rule | rule disappears, typing in that process transforms again, no restart | P0 |
-| UI-19 | Loại trừ | Toggle `Loại trừ ứng dụng tự động` (`apps.remember_per_app`) on, then use the tray on two apps | remembered rules appear in the list and survive a restart | P1 |
-| UI-20 | Phím tắt | Focus the "bật" hotkey field and press `Ctrl+Alt+V`, then Enter | field shows the canonical string `Ctrl+Alt+V`, Enter commits, the hotkey works system-wide | P0 |
-| UI-21 | Phím tắt | In the capture field press Esc after typing a combo | capture cancels, previous value restored, nothing persisted | P0 |
-| UI-22 | Phím tắt | In the capture field press Backspace | field clears to empty, and empty means "no hotkey" (contract §5), persisted as `""` | P0 |
-| UI-23 | Phím tắt | Set `enable` and `disable` to the same combo | inline conflict message naming the other field, the value is not persisted, other fields stay editable | P0 |
-| UI-24 | Phím tắt | Type a bare letter with no modifier into the field | inline error, not persisted; UI must not silently accept `V` | P0 |
-| UI-25 | Phím tắt | Press "reset" on one field and on the whole section | resets to contract defaults (`F1`/`F2`, `F11`, `F6`, `F8`, `F9`, empty others) | P1 |
-| UI-26 | Phím tắt | Check every field in the section | exactly the 9 contract hotkeys are present, no extras, no missing (`enable`, `disable`, `toggle`, `restore_word`, `app_exclude`, `convert_tool`, `macro_panel`, `macro_toggle`, `open_settings`) | P0 |
-| UI-27 | Hệ thống | Toggle theme light → dark → system | whole window repaints with no flash of unstyled content, both tokens sets readable, no hardcoded colour left behind | P0 |
-| UI-28 | Hệ thống | Switch language vi → en → vi | every visible string changes on the same screen without reload; product terms stay Vietnamese where they are EVKey terminology; no missing-key placeholder text | P0 |
-| UI-29 | Hệ thống | Toggle `Khởi động cùng Windows` | state persists and `HKCU\...\Run` (or Task Scheduler) entry appears/disappears accordingly | P1 |
-| UI-30 | Hệ thống | Click "mở thư mục cấu hình" | Explorer opens `%APPDATA%\VietKB` (created if absent), no console window flashes | P2 |
-| UI-31 | Giới thiệu | Open the screen | version, arch, hook state, config path from `app_info()` are shown and match reality | P1 |
-| UI-32 | live-apply | Change 10 settings across 4 screens quickly | each change is debounced (~150 ms), no lost write, final config file matches the last UI state | P0 |
-| UI-33 | live-apply | Make a change with the config file read-only | a toast reports the persistence failure, the UI does not pretend the change was saved | P0 |
-| UI-34 | live-apply | Search every screen for a "Save"/"Lưu" button | none exists; no screen requires an explicit save | P0 |
-| UI-35 | focus | Tab through a full screen | focus order follows visual order, every focused control has a visible ring with ≥ 3:1 contrast against its background | P0 |
-| UI-36 | focus | Open a dialog/panel (macro editor, app picker) | focus moves into it, Esc closes, focus returns to the invoking control | P0 |
-| UI-37 | contrast | Measure text and control colours in both themes | body text ≥ 4.5:1, large text ≥ 3:1, borders of required controls ≥ 3:1; report measured pairs | P1 |
-| UI-38 | tray | Right-click the tray icon | menu contains exactly: bật/tắt, kiểu gõ submenu (Telex/VNI/VIQR), bảng mã submenu (9), mở cài đặt, thoát | P0 |
-| UI-39 | tray | Toggle enable from the tray, then from the UI | icon changes between the enabled and disabled artwork, the UI switch reflects it within 1 s | P0 |
-| UI-40 | tray | Change kiểu gõ and bảng mã from the tray only | the UI shows the new values next time the window opens; typing honours them immediately | P0 |
-| UI-41 | window | Close the settings window with the X, with `start_minimized`/close-to-tray behaviour | process keeps running, tray icon stays, hook still transforms; "thoát" from the tray exits the process | P0 |
-| UI-42 | window | Launch the exe a second time while running | no second tray icon, no second hook; the existing window is focused (single instance) | P0 |
-| UI-43 | first-run | Delete `%APPDATA%\VietKB`, first launch | first-run experience appears (language choice and/or short intro), defaults match the contract `Default`, config file created at exit or on first change | P0 |
-| UI-44 | persistence | Change method, charset, 3 toggles, 1 hotkey, 1 macro, 1 app rule; quit; relaunch | every value is identical after restart; `version = 1` present; unknown keys written by hand are still present after a UI write | P0 |
-| UI-45 | persistence | Truncate `config.toml` mid-line, relaunch | app starts with defaults, shows a recovery notice, and **backs up** the corrupt file instead of deleting it | P0 |
-| UI-46 | persistence | Set `config.toml` to a newer `version = 99` | app refuses to downgrade silently: either preserves the file and runs read-only defaults, or migrates; chosen behaviour must be documented and tested once | P1 |
-| UI-47 | scale | Open Gõ tắt with 5000 macros, scroll to the end, type in the search box | scroll stays smooth (no multi-second freeze), search responds < 200 ms | P1 |
-| UI-48 | empty states | Open Loại trừ with no rules, Gõ tắt with no macros | explicit empty state text, not a blank panel; the add action is visible | P2 |
+| surface | size (logical) | contents |
+|---|---|---|
+| Main | 480 × 384 | caption (logo · `VietKB` · theme · minimize · close); `Bật tiếng Việt` + hotkey; `Kiểu gõ`; `Đặt dấu kiểu mới`; `Kiểm tra chính tả`; `Cho phép gõ tắt` + `Bảng gõ tắt…`; `Loại trừ ứng dụng` + count + `Quản lý…`; footer `Phím tắt…` · `Nâng cao…` · `Thoát VietKB` · `Đóng` |
+| `Phím tắt` | 520 × 460 | 4 capture rows (`Bật/tắt tiếng Việt`, `Đổi kiểu gõ`, `Khôi phục từ gõ sai`, `Mở cài đặt`), `Kiểu chuyển bật/tắt`, `Đặt lại tất cả`, `Đóng` |
+| `Nâng cao` | 560 × 496 | `Gõ` (8 checkboxes), `Tương thích` (3), `Hệ thống` (4), `Sửa lỗi dấu gợi ý`, `Độ trễ giữa các phím`, `Ngôn ngữ hiển thị`, `Màu nền`, `Đặt lại tất cả…`, `Đóng` |
+| `Bảng gõ tắt` | 720 × 560 | search, `Nhập từ tệp…`, `Xuất ra tệp…`, `Thêm`, table, footer `Đóng` |
+| Tray | — | `Bật/tắt tiếng Việt`, `Kiểu gõ ▸` (Telex, VNI), `Mở cài đặt…`, `Phím tắt…`, `Thoát VietKB` |
+
+**Not present in this build (see `60-defects.md`):** the `Bảng mã` select on the main
+window and the `Bảng mã ▸` tray submenu — the output charset has no UI path at all.
+The main window has **11** content controls (budget is 12), because of that removal.
+
+**Baseline for every row:** release build `target\release\vietkb.exe` (2026-10-29 03:41,
+SHA-256 `15BCDA2A…F29F3`), `config.toml` as captured in `qa/build.txt` — `enabled=false`,
+Telex, Unicode dựng sẵn, `modern_tone=true`, `spell_check=true`, `macro_enabled=true`,
+three macros (`dc`, `ko`, `vn`), no app rules, theme `system`, language `vi`.
+Display 2560 × 1440 @ 125 % (window is 600 × 480 physical = 480 × 384 logical).
+`verify` states the measured outcome; `PASS`/`FAIL` + defect id.
+
+| id | area | precondition | steps | expected | verify | evidence |
+|---|---|---|---|---|---|---|
+| UI-1 | main window | baseline, app open | read the UIA bounding rectangle, `GetDpiForWindow`, client vs window rect, and `GWL_STYLE` | 480 × 384 logical; client area equals the window (no OS frame); not resizable, no maximize box | PASS — 600 × 480 @ 1.25 = 480 × 384, framePx 0, `WS_THICKFRAME`/`WS_MAXIMIZEBOX` off | `qa/evidence/UI-1.txt` |
+| UI-2 | title bar | baseline | enumerate the caption controls and their x order | logo, `VietKB`, theme button (`Giao diện: …`), `Thu nhỏ`, `Đóng, VietKB vẫn chạy`, in that order | PASS — all five, ordered, theme label names the current theme | `qa/evidence/UI-2.txt` |
+| UI-3 | drag region | baseline | measure the caption; inspect the pointer handler | 36 px logical strip whose non-control area starts a window drag; double-click does not maximise | PASS (static) — 36 px strip + `startDragging()` handler; a real drag was **not** exercised (window must not move) | `qa/evidence/UI-3.txt` |
+| UI-4 | theme | baseline, theme `system` | click the theme button 3×, read its label and `system.theme` after each; check the `Nâng cao` `Màu nền` combo | `system → light → dark → system`, label follows, value persists and broadcasts to other windows | PASS — `Sáng/light → Tối/dark → Theo Windows/system`; the advanced combo followed | `qa/evidence/UI-4.txt` |
+| UI-5 | window | baseline | `Thu nhỏ`; read `WindowPattern`; restore | minimises, process stays, restore returns `Normal` | PASS — `Minimized`, process alive, `Normal` after restore | `qa/evidence/UI-5.txt` |
+| UI-6 | window | baseline | click the caption X; check the window, process and tray icon; reopen from the tray | window destroyed, process and tray survive, `Mở cài đặt…` brings it back | PASS — window gone, process alive, tray `VietKB · Đã tắt tiếng Việt`, reopened | `qa/evidence/UI-6.txt` |
+| UI-7 | layout | baseline | count interactive content controls (toggle/button/select), excluding the caption | ≤ 12 | PASS — 11/12 (the `Bảng mã` select is the missing twelfth, UI-11) | `qa/evidence/UI-7.txt` |
+| UI-8 | layout | baseline @ 125 % | look for `ScrollBar` elements; read the document `ScrollPattern`; compare every control with the client rect | no scrollbar, nothing scrollable, no control clipped; same at 100 % and 150 % DPI | PASS @125 % — 0 scrollbars, not scrollable, 0 clipped. **100 %/150 % not exercised** (system scaling was not changed) | `qa/evidence/UI-8.txt` |
+| UI-9 | enable row | baseline | read the hotkey label and switch; toggle; wait for the config write; toggle back | `Ctrl + Shift` label; switch state matches config; change persists ≤ 1 s, no Save | PASS — label exact, `Off→On`, persisted | `qa/evidence/UI-9.txt` |
+| UI-10 | kiểu gõ | baseline | read the select options and value; choose VNI; wait; restore Telex | options match the build catalogue, value comes from config, change persists | PASS — Telex, VNI; `vni` persisted. VIQR is no longer offered (D-UI-07) | `qa/evidence/UI-10.txt` |
+| UI-11 | bảng mã | baseline | look for a `Bảng mã` select on the main window | select present with the 6 verified charsets; change persists ≤ 1 s | **FAIL D-UI-01** — no `Bảng mã` label or select exists on the main window | `qa/evidence/UI-11.txt` |
+| UI-12 | dấu kiểu mới | baseline | read the hint; toggle; wait; restore | hint `hòa, thúy`; `typing.modern_tone` follows the switch | PASS — hint exact, persisted | `qa/evidence/UI-12.txt` |
+| UI-13 | spell check | baseline | toggle `Kiểm tra chính tả`; wait; restore | `typing.spell_check` follows | PASS | `qa/evidence/UI-13.txt` |
+| UI-14 | macros entry | baseline | toggle `Cho phép gõ tắt`; wait; click `Bảng gõ tắt…` | `typing.macro_enabled` persists; the macro window opens | PASS — persisted and opened | `qa/evidence/UI-14.txt` |
+| UI-15 | exclusions entry | baseline, 0 rules | read the count; click `Quản lý…` | count equals `apps.rules.len`; the rules dialog opens | PASS — `0` vs config 0, dialog opens | `qa/evidence/UI-15.txt` |
+| UI-16 | footer | baseline | list footer buttons in x order | `Phím tắt…`, `Nâng cao…`, spacer, `Thoát VietKB`, `Đóng` | PASS — exact order | `qa/evidence/UI-16.txt` |
+| UI-17 | language | baseline, `Nâng cao` open | switch `Ngôn ngữ hiển thị` to English; wait; read the main window strings; restore vi | the same screen re-renders in English, product terms stay Vietnamese, no missing-key placeholders | **FAIL D-UI-02** — `system.language` becomes `en`, every visible label stays Vietnamese | `qa/evidence/UI-17.txt` |
+| UI-18 | phím tắt window | baseline | open from the footer; measure and inventory | 520 × 460 frameless; 4 capture rows, segmented mode, reset, close | PASS — 520 × 460, 4 rows, segmented switch | `qa/evidence/UI-18.txt` |
+| UI-19 | nâng cao window | baseline | open from the footer; measure and inventory | 560 × 496 frameless; 3 section headings, 15 checkboxes, 3 selects, delay input, reset, close | PASS — 560 × 496, 15/3/1, sections 3 | `qa/evidence/UI-19.txt` |
+| UI-20 | bảng gõ tắt window | baseline, 3 macros | open from `Bảng gõ tắt…`; measure and inventory | 720 × 560 frameless; search, import, export, add, table rows, close | PASS — 720 × 560, search, 3 toolbar buttons, 3 rows | `qa/evidence/UI-20.txt` |
+| UI-21 | window independence | baseline | open all three secondaries; close `Phím tắt`; close the main window | closing one secondary leaves the others and the process; closing the main leaves both secondaries and the process | PASS — each step independent, process alive | `qa/evidence/UI-21.txt` |
+| UI-22 | reopen | after UI-21 | reopen the main from the tray; close `Nâng cao`; reopen it from the footer | main returns with secondaries; a closed secondary opens fresh | PASS | `qa/evidence/UI-22.txt` |
+| UI-23 | tray menu | baseline | open the tray menu; read every item and separator; open `Kiểu gõ`; open `Bảng mã` | toggle, `Kiểu gõ ▸`, `Bảng mã ▸`, settings, hotkeys, quit, 3 separators; submenu items match the catalogue and carry a check | **FAIL D-UI-01** — items are toggle, `Kiểu gõ`, settings, hotkeys, quit; **`Bảng mã` is absent** (`Kiểu gõ` = 2 items, Telex checked) | `qa/evidence/UI-23.txt` |
+| UI-24 | tray toggle | baseline, main open | invoke `Bật/tắt tiếng Việt`; wait; compare config, main switch and tooltip | config flips, main switch follows ≤ 3 s, tooltip changes with state | PASS — `false→true`, switch On, tooltip switches to `Tiếng Việt · Telex` (a ghost icon from force-killed runs can concatenate tooltips — environment artefact) | `qa/evidence/UI-24.txt` |
+| UI-25 | tray method | enabled on | open `Kiểu gõ`; check the current item; choose VNI | Telex checked; VNI sets `input.method`, the main select and the tooltip | PASS — Telex checked (state 16), config `vni`, UI `VNI`, tooltip `… VNI` | `qa/evidence/UI-25.txt` |
+| UI-26 | tray charset | enabled on | open `Bảng mã`; list items; choose VISCII | 6 charsets with Unicode checked; VISCII sets `input.charset` and the tooltip | **FAIL D-UI-01** — no `Bảng mã` submenu exists; charset cannot be changed from the tray | `qa/evidence/UI-26.txt` |
+| UI-27 | tray open | main closed, hotkeys closed | menu → `Phím tắt…`; close main; menu → `Mở cài đặt…` | each item opens its window | PASS — both windows opened | `qa/evidence/UI-27.txt` |
+| UI-28 | tray quit | baseline | menu → `Thoát VietKB` | the process exits (window, tray and hook gone) | PASS — process gone in < 4 s | `qa/evidence/UI-28.txt` |
+| UI-29 | live apply | baseline | search main/hotkeys/advanced for a Save control; change method, tone style and spell check in quick succession | no Save anywhere; every change is written ≤ 1.5 s after the click | PASS — 0 Save buttons, all three writes landed | `qa/evidence/UI-29.txt` |
+| UI-30 | hotkey capture | `Phím tắt` open | focus `Đổi kiểu gõ`; press `Ctrl+Alt+K`; Enter | field shows the canonical string; `hotkeys.cycle_method` persists | PASS — `Ctrl+Alt+K` committed and shown | `qa/evidence/UI-30.txt` |
+| UI-31 | hotkey cancel | `cycle_method=Ctrl+Alt+K` | capture `Ctrl+Alt+M`, press Esc; then focus, Backspace, Enter | Esc restores the old value and persists nothing; Backspace+Enter stores `""` | PASS — Esc kept `Ctrl+Alt+K`; clear stored `""` | `qa/evidence/UI-31.txt` |
+| UI-32 | hotkey conflict (live) | `Phím tắt` open | focus a second field; press `Ctrl+Shift` (already bound to the toggle); Enter | the field shows a conflict warning naming the other action and does not commit | **FAIL D-UI-03** — the field never captures the modifier-only chord (draft resets on key-up) and no warning appears; nothing is persisted | `qa/evidence/UI-32.txt` |
+| UI-33 | hotkey conflict (stored) | set `cycle_method = "Ctrl+Shift+Z"` (same as `restore_word`), restart | open `Phím tắt`; look for a conflict marker on either field | both fields show a visible conflict state on load | **FAIL D-UI-04** — both fields show `Ctrl+Shift+Z` with no warning; conflicts are only checked while editing | `qa/evidence/UI-33.txt` |
+| UI-34 | option dependency | `Nâng cao` open, spell check on | turn `Kiểm tra chính tả` off in the main window; observe `Tự động khôi phục từ gõ sai`; reopen `Nâng cao` | the dependent row disables within 1 s in every open window, and stays disabled after reopen | **FAIL D-UI-05** — live window stays enabled; only a reopened window is disabled | `qa/evidence/UI-34.txt` |
+| UI-35 | macro add | macro window, 3 macros | `Thêm` → trigger `qa1`, content `QA one` → `Lưu` | row appears and `[macros] qa1` persists | PASS | `qa/evidence/UI-35.txt` |
+| UI-36 | macro edit | after UI-35 | `Sửa qa1`; change content to `QA two`; `Lưu` | editor prefilled with `qa1`; config updated | PASS — prefill `qa1`, config `QA two` | `qa/evidence/UI-36.txt` |
+| UI-37 | macro delete | after UI-36 | row `…` → `Xoá` | row and config entry disappear | PASS | `qa/evidence/UI-37.txt` |
+| UI-38 | macro validation | macro window | submit: trigger with a space; empty trigger; empty content | inline error, dialog stays open, nothing persisted | PASS — all three messages shown, 0 invalid entries saved | `qa/evidence/UI-38.txt` |
+| UI-39 | macro file | 3 macros | `Xuất ra tệp…` → save TSV; delete `ko`; `Nhập từ tệp…` → open the file | export writes `#vkb1` + rows; import restores the deleted row and reports the count | PASS — 4 lines exported, `ko` restored, toast `Đã nhập 3 mục` | `qa/evidence/UI-39.txt` |
+| UI-40 | macro table | 12 macros in config, restart | open `Bảng gõ tắt`; count rendered rows and read the footer | all 12 reachable (or a scrollbar/scroll area); footer reports 12 | **FAIL D-UI-06** — only 8 rows render, no scrollbar; footer says `Đang hiện 8 trong 12` | `qa/evidence/UI-40.txt` |
+| UI-41 | app rules | 0 rules | `Quản lý…`; `Chọn ứng dụng`; add `cua-driver.exe`; return to the list; remove it | empty state, picker lists running apps, add persists and count grows, remove persists and count returns | PASS — add/remove persisted, count `0` restored | `qa/evidence/UI-41.txt` |
+| UI-42 | app rule override | one rule | toggle `Bật tiếng Việt trong <exe>`; choose a `Kiểu gõ` override | rule `enabled` and `method` persist | PASS — `enabled=true`, `method="vni"` | `qa/evidence/UI-42.txt` |
+| UI-43 | error toast | baseline, config held with an exclusive lock | toggle `Đặt dấu kiểu mới`; wait 3 s; release the lock | error toast names the write failure and the UI reverts to the stored value | PASS — toast shown, switch reverted, config unchanged | `qa/evidence/UI-43.txt` |
+| UI-44 | keyboard | baseline | focus `Bật tiếng Việt`; press Tab until the footer; record each focused control | traversal follows visual order; every control shows a visible focus ring | PASS — exact 11-control order; ring CSS `:focus-visible 2px solid --focus` (light `#5844c8`, dark `#b9aeff`); ring contrast not measured visually | `qa/evidence/UI-44.txt` |
+| UI-45 | modal focus | macro window | `Thêm`; check focus; Esc | focus enters the dialog; Esc closes it; focus returns to `Thêm` | PASS — focus on the dialog close button, Esc closes, focus returns | `qa/evidence/UI-45.txt` |
+| UI-46 | persistence | baseline | set method VNI, modern style off, `Ctrl+Alt+K`, add macro `zz`; restart | all four values identical after restart, no Save involved | PASS — all four survived; UI shows VNI / Off | `qa/evidence/UI-46.txt` |
 
 ---
 

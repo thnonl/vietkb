@@ -1,0 +1,4 @@
+﻿mainAfterClose=False
+processAlive=True
+trayIcon=VietKB · Đã tắt tiếng Việt
+reopenedFromTray=True

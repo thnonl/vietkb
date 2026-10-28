@@ -1,0 +1,3 @@
+﻿configMacros=12
+renderedRows=8
+footer=Đang hiện  8  trong  12  mục · gõ vào ô tìm để lọc

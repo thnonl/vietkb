@@ -142,8 +142,8 @@ version = 1
 
 [input]
 enabled = true
-method = "telex"          # telex | vni | viqr
-charset = "unicode"       # unicode | unicode_nfd | tcvn3 | vni_windows | viqr | viscii | bk_hcm1 | vps | utf8
+method = "telex"          # telex | vni
+charset = "unicode"       # unicode | unicode_nfd  (NFC is the only value the UI exposes)
 mechanism = "hook"        # hook | ime
 
 [typing]
@@ -169,7 +169,6 @@ toggle = "Ctrl+Shift"           # single-key switch; Ctrl+Shift matches the appr
 toggle_mode = "release"         # release | press — "Khi nhả phím" / "Khi nhấn phím"
 restore_word = "Ctrl+Shift+Z"   # also Redo in many apps: the UI shows a conflict warning, allowed
 app_exclude = "F11"
-convert_tool = "F6"
 macro_panel = "F8"
 macro_toggle = "F9"
 open_settings = "Ctrl+Alt+S"
@@ -226,7 +225,6 @@ Config path: `%APPDATA%\VietKB\config.toml`. Legacy migration: if absent and
 #[tauri::command] fn get_status() -> StatusView;
 #[tauri::command] fn toggle_enabled() -> StatusView;
 #[tauri::command] fn set_method(method: String) -> Result<StatusView, String>;
-#[tauri::command] fn set_charset(charset: String) -> Result<StatusView, String>;
 
 #[tauri::command] fn list_macros(query: String) -> Vec<MacroRow>;
 #[tauri::command] fn upsert_macro(trigger: String, expansion: String) -> Result<(), String>;
@@ -242,7 +240,6 @@ Config path: `%APPDATA%\VietKB\config.toml`. Legacy migration: if absent and
 #[tauri::command] fn parse_hotkey(input: String) -> Result<String, String>; // canonical form or error
 #[tauri::command] fn check_hotkey_conflict(input: String, ignore_field: String) -> Option<String>;
 
-#[tauri::command] fn convert_text(input: String, from: String, to: String) -> Result<String, String>;
 #[tauri::command] fn open_config_folder() -> Result<(), String>;
 #[tauri::command] fn app_info() -> AppInfoView; // version, arch, hook state, config path
 ```

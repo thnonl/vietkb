@@ -129,6 +129,8 @@ class Store {
   private unlisten: UnlistenFn | null = null;
   private themeUnlisten: UnlistenFn | null = null;
   private themeChannel: BroadcastChannel | null = null;
+  private settingsUnlisten: UnlistenFn | null = null;
+  private settingsChannel: BroadcastChannel | null = null;
 
   get lang(): Lang {
     const value = this.settings?.system.language;
@@ -196,6 +198,10 @@ class Store {
     this.themeUnlisten = null;
     this.themeChannel?.close();
     this.themeChannel = null;
+    this.settingsUnlisten?.();
+    this.settingsUnlisten = null;
+    this.settingsChannel?.close();
+    this.settingsChannel = null;
     if (this.timer !== undefined) clearTimeout(this.timer);
   }
 
@@ -220,6 +226,7 @@ class Store {
     if (patch.input?.method && this.status) this.status.method = patch.input.method;
 
     this.pending = mergePatch(this.pending, patch);
+    this.broadcastSettings(patch);
     this.schedule();
   }
 
@@ -311,6 +318,9 @@ class Store {
       const channel = new BroadcastChannel("vkb:theme");
       channel.onmessage = (event: MessageEvent) => this.receiveTheme(event.data);
       this.themeChannel = channel;
+      const settings = new BroadcastChannel("vkb:settings");
+      settings.onmessage = (event: MessageEvent) => this.receiveSettings(event.data);
+      this.settingsChannel = settings;
     }
     if (this.previewMode) return;
     void listen<string>("vkb:theme", (event) => this.receiveTheme(event.payload))
@@ -320,6 +330,44 @@ class Store {
       .catch(() => {
         // Event bus unavailable: the BroadcastChannel path still covers windows.
       });
+    void listen<SettingsPatch>("vkb:settings", (event) => this.receiveSettings(event.payload))
+      .then((unlisten) => {
+        this.settingsUnlisten = unlisten;
+      })
+      .catch(() => {
+        // Event bus unavailable: the BroadcastChannel path still covers windows.
+      });
+  }
+
+  /** Push a control change to the other windows so derived rows (for example
+   *  `Tự động khôi phục từ gõ sai` behind `Kiểm tra chính tả`) are live. */
+  private broadcastSettings(patch: SettingsPatch): void {
+    if (this.previewMode) return;
+    try {
+      this.settingsChannel?.postMessage(patch);
+    } catch {
+      // Non-cloneable payload: the Tauri event below still carries it.
+    }
+    void emit("vkb:settings", patch).catch(() => {});
+  }
+
+  /** Apply another window's change without echoing it back. */
+  private receiveSettings(value: unknown): void {
+    if (!value || typeof value !== "object") return;
+    const patch = value as SettingsPatch;
+    const settings = this.settings;
+    if (!settings) return;
+    if (patch.input) Object.assign(settings.input, patch.input);
+    if (patch.typing) Object.assign(settings.typing, patch.typing);
+    if (patch.hotkeys) Object.assign(settings.hotkeys, patch.hotkeys);
+    if (patch.system) Object.assign(settings.system, patch.system);
+    if (patch.ui) Object.assign(settings.ui, patch.ui);
+    if (patch.apps) Object.assign(settings.apps, patch.apps);
+    if (patch.system?.theme) this.applyTheme(patch.system.theme, false);
+    if (patch.input?.enabled !== undefined && this.status) {
+      this.status.enabled = patch.input.enabled;
+    }
+    if (patch.input?.method && this.status) this.status.method = patch.input.method;
   }
 
   private receiveTheme(value: unknown): void {

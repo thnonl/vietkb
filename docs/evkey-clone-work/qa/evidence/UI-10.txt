@@ -1,0 +1,4 @@
+﻿options=Telex | VNI
+before=Telex
+persisted=True
+VIQR absent from UI (catalog has Telex, VNI only)

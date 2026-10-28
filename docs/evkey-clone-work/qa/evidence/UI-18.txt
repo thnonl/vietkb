@@ -1,0 +1,6 @@
+﻿logical=520x460
+cap-toggle=Bật/tắt tiếng Việt — phím tắt hiện tại Ctrl+Shift
+cap-cycleMethod=Đổi kiểu gõ — phím tắt hiện tại chưa đặt
+cap-restoreWord=Khôi phục từ gõ sai — phím tắt hiện tại Ctrl+Shift+Z
+cap-openSettings=Mở cài đặt — phím tắt hiện tại Ctrl+Alt+S
+segmented=1

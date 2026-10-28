@@ -1,0 +1,4 @@
+﻿focusInside=True
+focusedName=
+dialogClosedByEsc=True
+focusBackOnThêm=True

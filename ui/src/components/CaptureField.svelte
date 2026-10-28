@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import Keycap from "./Keycap.svelte";
-  import { canonicalize, comboFromEvent, hotkeyHazard, isModifierKey, keyToken, modifiersFrom } from "../lib/hotkey";
+  import { canonicalize, comboFromEvent, hotkeyHazard, keyToken } from "../lib/hotkey";
   import type { HotkeyActionField } from "../lib/catalog";
 
   // The capture well: focus, press a chord, Enter commits, Esc cancels,
@@ -15,6 +15,7 @@
     onreset,
     checkConflict,
     onproblem,
+    conflictText = null,
     width = 276,
   }: {
     field: HotkeyActionField;
@@ -25,6 +26,8 @@
     onreset?: () => void;
     checkConflict?: (canonical: string) => Promise<string | null>;
     onproblem?: (problem: { kind: "conflict" | "error" | "warn"; text: string } | null) => void;
+    /** Conflict already present in the stored config, detected on mount. */
+    conflictText?: string | null;
     width?: number;
   } = $props();
 
@@ -36,9 +39,34 @@
   let warning = $state<string | null>(null);
   let seq = 0;
 
+  // Physical modifiers held since the capture began. A chord made only of
+  // modifiers commits when the last one is released, so `Ctrl+Shift` — the
+  // toggle default — can be entered like any other chord.
+  const MODIFIER_TOKENS: Record<string, string> = {
+    Control: "Ctrl",
+    Alt: "Alt",
+    Shift: "Shift",
+    Meta: "Win",
+    OS: "Win",
+    AltGraph: "Alt",
+  };
+  const MODIFIER_ORDER = ["Ctrl", "Alt", "Shift", "Win"];
+  /** Modifiers physically down right now (live display + when the run ends). */
+  let pressed = new Set<string>();
+  /** Every modifier pressed during this run; survives earlier releases. */
+  let run: string[] = [];
+  /** A real key already completed the chord: later modifier keyups must not
+   *  overwrite it. Cleared by begin/reset/Backspace. */
+  let latched = false;
+  const order = (tokens: string[]) =>
+    MODIFIER_ORDER.filter((mod) => tokens.includes(mod)).join("+");
+  const chordOf = () => order([...pressed]);
+  const runChord = () => order(run);
+
   const shown = $derived(editing ? held || draft : value ?? "");
   const keys = $derived(shown ? shown.split("+") : []);
   const modified = $derived((value ?? "") !== defaultValue);
+  const clash = $derived(conflict ?? conflictText);
 
   const setProblem = () => {
     onproblem?.(
@@ -56,6 +84,9 @@
     editing = false;
     draft = "";
     held = "";
+    pressed = new Set();
+    run = [];
+    latched = false;
     error = null;
     conflict = null;
     warning = null;
@@ -67,6 +98,9 @@
     editing = true;
     draft = value ?? "";
     held = "";
+    pressed = new Set();
+    run = [];
+    latched = false;
     error = null;
     conflict = null;
     warning = null;
@@ -133,6 +167,13 @@
     }
   };
 
+  /** Commit a chord the moment it is complete (modifier-only release). */
+  const settle = async (candidate: string) => {
+    await validate(candidate);
+    if (!draft.trim() || error || conflict) return;
+    await commit();
+  };
+
   const onkeydown = (event: KeyboardEvent) => {
     if (!editing) return;
     const key = event.key;
@@ -151,6 +192,9 @@
       event.preventDefault();
       draft = "";
       held = "";
+      pressed = new Set();
+      run = [];
+      latched = false;
       error = null;
       conflict = null;
       warning = null;
@@ -161,13 +205,22 @@
       reset();
       return;
     }
-    if (isModifierKey(key)) {
-      held = modifiersFrom(event);
+    const token = MODIFIER_TOKENS[key];
+    if (token) {
+      if (latched) return;
+      event.preventDefault();
+      pressed.add(token);
+      if (!run.includes(token)) run = [...run, token];
+      held = chordOf();
       if (held) draft = held;
       return;
     }
     if (!keyToken(event)) return;
     event.preventDefault();
+    // A real key ends the modifier run: later keyups must not commit it.
+    latched = true;
+    pressed = new Set();
+    run = [];
     held = "";
     const combo = comboFromEvent(event);
     if (!combo) return;
@@ -176,11 +229,27 @@
   };
 
   const onkeyup = (event: KeyboardEvent) => {
-    if (!editing || !isModifierKey(event.key)) return;
-    const next = modifiersFrom(event);
-    held = next;
-    if (next) draft = next;
-    else draft = value ?? "";
+    if (!editing || latched) return;
+    const token = MODIFIER_TOKENS[event.key];
+    if (!token) return;
+    pressed.delete(token);
+    held = chordOf();
+    if (pressed.size > 0) {
+      draft = held;
+      return;
+    }
+    // Last modifier released: the whole run is the chord.
+    const candidate = runChord();
+    run = [];
+    if (!candidate.includes("+")) {
+      // A lone modifier is not a shortcut; keep the stored value visible.
+      draft = value ?? "";
+      held = "";
+      return;
+    }
+    held = "";
+    draft = candidate;
+    void settle(candidate);
   };
 </script>
 
@@ -188,13 +257,13 @@
   class="cap"
   style={`width:${width}px`}
   class:rec={editing}
-  class:warn={conflict !== null || warning !== null}
+  class:warn={clash !== null || warning !== null}
   class:empty={!editing && !value}>
   <button
     type="button"
     class="capa"
     id={`cap-${field}`}
-    aria-label={`${label} — phím tắt hiện tại ${value ?? "chưa đặt"}`}
+    aria-label={`${label} — phím tắt hiện tại ${(editing ? shown : value) || "chưa đặt"}`}
     onfocus={begin}
     onblur={reset}
     onkeydown={onkeydown}
@@ -214,7 +283,7 @@
       {#each keys as key (key)}
         <Keycap text={key} />
       {/each}
-      {#if conflict}
+      {#if clash}
         <span class="end"><span class="tag warn"><Icon name="warning" small />Trùng</span></span>
       {:else if warning}
         <span class="end"><span class="tag warn"><Icon name="warning" small />Dễ trùng</span></span>

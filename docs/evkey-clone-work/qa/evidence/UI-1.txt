@@ -1,0 +1,6 @@
+﻿uia=980,480,600,480
+scale=1.25
+logical=480x384
+client=600x480
+style=0x14CA0000
+thick=False max=False framePx=False

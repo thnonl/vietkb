@@ -1,0 +1,4 @@
+﻿cap class=cap-bar
+logical height=36 (expected 36)
+drag handler: TitleBar.svelte onmousedown -> win.startDragging()
+NOT exercised: window must not move

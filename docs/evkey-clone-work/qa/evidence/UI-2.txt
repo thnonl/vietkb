@@ -1,0 +1,4 @@
+﻿cap=True
+names=VietKB | VietKB | Giao diện: Theo Windows. Bấm để đổi | Thu nhỏ | Đóng, VietKB vẫn chạy
+x=1000,1030,1430,1470,1525
+ordered=True

@@ -1,0 +1,4 @@
+﻿Giao diện: Sáng. Bấm để đổi|light
+Giao diện: Tối. Bấm để đổi|dark
+Giao diện: Theo Windows. Bấm để đổi|system
+config=system

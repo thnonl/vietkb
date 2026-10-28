@@ -197,7 +197,6 @@
   };
 
   const selectedRows = $derived(rows.filter((row) => selected.includes(row.trigger)));
-  const visible = $derived(rows.slice(0, 8));
 
   // ------------------------------------------------------------ file transfer
   const importFile = async () => {
@@ -400,62 +399,67 @@
     </div>
   {/if}
 
-  {#each visible as row (row.trigger)}
-    <div class="tr" class:on={selected.includes(row.trigger)}>
-      <span class="c0">
-        <button
-          type="button"
-          class="cb"
-          class:on={selected.includes(row.trigger)}
-          aria-label={`Chọn ${row.trigger}`}
-          aria-pressed={selected.includes(row.trigger)}
-          onclick={() => toggleSelect(row.trigger)}>
-          {#if selected.includes(row.trigger)}
-            <svg viewBox="0 0 12 12"><path d="M2.5 6.25 5 8.75l4.5-4.5" /></svg>
+  {#if !loading && !loadError && rows.length > 0}
+    <div class="tblbody">
+      {#each rows as row (row.trigger)}
+        <div class="tr" class:on={selected.includes(row.trigger)}>
+          <span class="c0">
+            <button
+              type="button"
+              class="cb"
+              class:on={selected.includes(row.trigger)}
+              aria-label={`Chọn ${row.trigger}`}
+              aria-pressed={selected.includes(row.trigger)}
+              onclick={() => toggleSelect(row.trigger)}>
+              {#if selected.includes(row.trigger)}
+                <svg viewBox="0 0 12 12"><path d="M2.5 6.25 5 8.75l4.5-4.5" /></svg>
+              {/if}
+            </button>
+          </span>
+          <span class="c1"><Keycap text={row.trigger} mono /></span>
+          <span class="ex">
+            <em>{row.expansion}</em>
+            {#if row.expansion.includes("\n")}<span class="tag n">+1 dòng</span>{/if}
+          </span>
+          <span class="acts">
+            <button
+              type="button"
+              class="btn ghost icon sm"
+              aria-label={`Sửa ${row.trigger}`}
+              title="Sửa"
+              onclick={() => openEdit(row)}>
+              <Icon name="edit" />
+            </button>
+            <button
+              type="button"
+              class="btn ghost icon sm"
+              aria-label={`Tuỳ chọn khác cho ${row.trigger}`}
+              title="Tuỳ chọn khác"
+              onclick={() => (menuFor = menuFor === row.trigger ? null : row.trigger)}>
+              <Icon name="more" />
+            </button>
+          </span>
+          {#if menuFor === row.trigger}
+            <div class="rowmenu" role="menu">
+              <button type="button" role="menuitem" onclick={() => duplicate(row)}>Nhân bản</button>
+              <button type="button" role="menuitem" class="danger" onclick={() => doDelete([row])}>Xoá</button>
+            </div>
           {/if}
-        </button>
-      </span>
-      <span class="c1"><Keycap text={row.trigger} mono /></span>
-      <span class="ex">
-        <em>{row.expansion}</em>
-        {#if row.expansion.includes("\n")}<span class="tag n">+1 dòng</span>{/if}
-      </span>
-      <span class="acts">
-        <button
-          type="button"
-          class="btn ghost icon sm"
-          aria-label={`Sửa ${row.trigger}`}
-          title="Sửa"
-          onclick={() => openEdit(row)}>
-          <Icon name="edit" />
-        </button>
-        <button
-          type="button"
-          class="btn ghost icon sm"
-          aria-label={`Tuỳ chọn khác cho ${row.trigger}`}
-          title="Tuỳ chọn khác"
-          onclick={() => (menuFor = menuFor === row.trigger ? null : row.trigger)}>
-          <Icon name="more" />
-        </button>
-      </span>
-      {#if menuFor === row.trigger}
-        <div class="rowmenu" role="menu">
-          <button type="button" role="menuitem" onclick={() => duplicate(row)}>Nhân bản</button>
-          <button type="button" role="menuitem" class="danger" onclick={() => doDelete([row])}>Xoá</button>
         </div>
-      {/if}
+      {/each}
     </div>
-  {/each}
+  {/if}
 </div>
 
 <div class="mfoot">
   <span>
     {#if total === 1 && !query.trim()}
       Có 1 mục
+    {:else if query.trim()}
+      <span class="num">{formatNumber(rows.length)}</span> kết quả trong
+      <span class="num">{formatNumber(total)}</span> mục · cuộn để xem hết
     {:else}
-      Đang hiện <span class="num">{formatNumber(visible.length)}</span> trong
-      <span class="num">{formatNumber(query.trim() ? rows.length : total)}</span> mục ·
-      gõ vào ô tìm để lọc
+      <span class="num">{formatNumber(total)}</span> mục · cuộn để xem hết
     {/if}
   </span>
   <button
@@ -569,6 +573,38 @@
   }
   .tr {
     position: relative;
+  }
+  /* The table keeps its header pinned and scrolls the body, so all 12 rows
+   * are reachable at 720 × 560 with the scrollbar always visible. */
+  .tbl {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .tblbody {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+  }
+  .tblbody::-webkit-scrollbar {
+    width: 10px;
+  }
+  .tblbody::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .tblbody::-webkit-scrollbar-thumb {
+    background: var(--line-3);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 6px;
+  }
+  .tblbody::-webkit-scrollbar-thumb:hover {
+    background: var(--t3);
+    background-clip: padding-box;
   }
   .rowmenu {
     position: absolute;

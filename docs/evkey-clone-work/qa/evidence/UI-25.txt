@@ -1,0 +1,4 @@
+﻿telexState=16
+config=vni
+mainCombo=VNI
+tooltip=VietKB · Đã tắt tiếng Việt VietKB · Tiếng Việt · VNI

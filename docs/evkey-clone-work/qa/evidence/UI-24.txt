@@ -1,0 +1,4 @@
+﻿before=false
+after=true
+uiToggle=On
+tooltip=VietKB · Đã tắt tiếng Việt VietKB · Tiếng Việt · Telex

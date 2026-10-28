@@ -1,0 +1,3 @@
+﻿toggleFound=True
+enabledInRule=true (rule starts disabled; one click enables)
+methodInRule=vni

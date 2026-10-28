@@ -1,0 +1,3 @@
+﻿enabledWhileSpellOn=True
+disabledLive=False
+disabledAfterReopen=True

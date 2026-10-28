@@ -1,0 +1,3 @@
+﻿mainReopened=True
+advancedWasOpen=True
+advancedReopened=True

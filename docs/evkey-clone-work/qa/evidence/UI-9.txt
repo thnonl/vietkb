@@ -1,0 +1,4 @@
+﻿hotkeyLabel=Ctrl + Shift
+before=Off
+after=On
+persisted=True
