@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "VietKB settings window: no filesystem or shell access beyond the dialogs it asks for.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default",
+    "updater:default",
+    "autostart:default"
+  ]
+}

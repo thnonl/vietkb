@@ -1,0 +1,71 @@
+/* Design tokens — placeholder values. The chosen direction from
+   docs/evkey-clone-work/40-design-review.md replaces this file wholesale.
+   Every colour must be re-checked for WCAG AA against the surface it sits on. */
+
+:root {
+  color-scheme: light dark;
+
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-num: "Segoe UI Variable Text", system-ui, sans-serif;
+
+  --step--1: 12px;
+  --step-0: 13px;
+  --step-1: 15px;
+  --step-2: 18px;
+  --step-3: 22px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --surface: #ffffff;
+  --surface-alt: #f7f7f8;
+  --text: #1a1a1c;
+  --text-muted: #5c5c66;
+  --border: #e3e3e8;
+  --accent: #2f6bff;
+  --accent-contrast: #ffffff;
+  --success: #107c41;
+  --warning: #b25e09;
+  --danger: #c02b2b;
+
+  --ease: cubic-bezier(0.2, 0, 0.1, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1b1b1f;
+    --surface-alt: #232329;
+    --text: #f2f2f5;
+    --text-muted: #a6a6b2;
+    --border: #33333c;
+    --accent: #6f9bff;
+    --accent-contrast: #10131a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--step-0);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}

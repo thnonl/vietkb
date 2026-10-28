@@ -1,19 +1,14 @@
-# Rust build artifacts
-/target/
-
-# CodeGraph local index/cache
-/.codegraph/
-
-# Generated binaries/debug symbols outside release dist
-*.exe
-*.dll
-*.so
-*.dylib
-*.rlib
-*.pdb
-
-# Temporary files
+/target
+/dist
+/tmp
+/ui/node_modules
+/ui/dist
+/ui/.vite
 *.tmp
-*.temp
+*.toml.tmp
+*.log
+.DS_Store
+Thumbs.db
 
-dist
+# Local inspection artifacts (EVKey binary, screenshots) stay out of history.
+/reference/evkey-binary/

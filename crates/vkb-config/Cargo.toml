@@ -1,0 +1,18 @@
+[package]
+name = "vkb-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+vkb-core = { path = "../vkb-core" }
+serde.workspace = true
+toml.workspace = true
+thiserror.workspace = true
+dirs = "5"
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+serde_json = { workspace = true }

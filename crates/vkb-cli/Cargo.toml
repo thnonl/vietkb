@@ -1,0 +1,16 @@
+[package]
+name = "vkb-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "vkb"
+path = "src/main.rs"
+
+[dependencies]
+vkb-core = { path = "../vkb-core" }
+vkb-config = { path = "../vkb-config" }
+clap = { version = "4", features = ["derive"] }
+anyhow.workspace = true

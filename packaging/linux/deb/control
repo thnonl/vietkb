@@ -1,9 +1,0 @@
-Package: vietkb
-Version: 0.1.0
-Section: utils
-Priority: optional
-Architecture: amd64
-Maintainer: vietkb contributors
-Depends: ibus | fcitx5
-Description: Vietnamese keyboard input engine
- Direct-commit Vietnamese input engine for Linux input-method frameworks.

@@ -1,0 +1,76 @@
+//! Shared OS-backend contract. No OS code lives here.
+
+#![forbid(unsafe_code)]
+
+use std::path::PathBuf;
+use std::sync::Arc;
+
+pub use vkb_core::{EngineAction, KeyInput, Modifiers};
+
+pub type SharedConfig = Arc<parking_lot::RwLock<vkb_config::AppConfig>>;
+
+/// Which program owns the caret right now.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AppInfo {
+    /// Lowercased executable file name, e.g. `chrome.exe`.
+    pub process_name: String,
+    pub exe_path: Option<PathBuf>,
+    pub window_title: Option<String>,
+}
+
+impl AppInfo {
+    pub fn matches(&self, rule: &vkb_config::AppRule) -> bool {
+        self.process_name.eq_ignore_ascii_case(&rule.process)
+    }
+}
+
+/// The backend calls this for every engine decision.
+pub trait EngineSink: Send {
+    /// Apply an action to the live target window.
+    fn emit(&mut self, action: EngineAction) -> anyhow::Result<()>;
+    fn active_app(&self) -> Option<AppInfo>;
+}
+
+/// A platform input backend (Windows hook, macOS event tap, ...).
+pub trait PlatformBackend: Send {
+    fn start(&mut self, sink: Box<dyn EngineSink>) -> anyhow::Result<()>;
+    fn stop(&mut self) -> anyhow::Result<()>;
+    /// Replace the config the hook consults on every keystroke.
+    fn set_config(&mut self, config: SharedConfig);
+    fn is_running(&self) -> bool;
+}
+
+/// Called on the hotkey thread; must not block.
+pub type HotkeyCallback = Box<dyn Fn(Hotkey) + Send + 'static>;
+
+/// Hotkeys a backend can fire.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hotkey {
+    Enable,
+    Disable,
+    Toggle,
+    RestoreWord,
+    AppExclude,
+    ConvertTool,
+    MacroPanel,
+    MacroToggle,
+    OpenSettings,
+}
+
+/// Everything the app must be told about, pulled from the backend by callback.
+pub type EnabledCallback = Box<dyn Fn(bool) + Send + 'static>;
+pub type CommandCallback = Box<dyn Fn(BackendCommand) + Send + 'static>;
+
+/// Commands the hook raises that only the app can service (windows, tray, files).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BackendCommand {
+    Enable(bool),
+    SetMethod(vkb_core::InputMethod),
+    SetCharset(vkb_core::Charset),
+    RestoreWord,
+    ToggleAppExclude,
+    OpenConvertTool,
+    OpenMacroPanel,
+    ToggleMacro,
+    OpenSettings,
+}

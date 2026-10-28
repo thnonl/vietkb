@@ -122,8 +122,10 @@ pub fn set_enabled_callback(cb: impl Fn(bool) + Send + 'static);
 
 ## 5. Config schema (`vkb-config`)
 
-TOML, `version = 1`. Unknown keys are preserved on write (round-trip via
-`toml::Value` merge), so a newer build's config is not destroyed by an older one.
+TOML, `version = 1`. `crates/vkb-config/src/schema.rs` is the authority; this sample
+mirrors its `Default` impl. Unknown keys are preserved on write (`AppConfig::extra`), so a
+newer build's config is not destroyed by an older one. An empty string removes a hotkey;
+a missing key means "use the default".
 
 ```toml
 version = 1
@@ -131,79 +133,74 @@ version = 1
 [input]
 enabled = true
 method = "telex"          # telex | vni | viqr
-charset = "unicode"       # unicode | unicode_nfd | tcvn3 | vni_windows | viqr | viscii | utf8
+charset = "unicode"       # unicode | unicode_nfd | tcvn3 | vni_windows | viqr | viscii | bk_hcm1 | vps | utf8
+mechanism = "hook"        # hook | ime
 
 [typing]
-old_tone_style = false     # gõ dấu kiểu cũ (oà / uý)
-spell_check = false        # kiểm tra chính tả
-restore_wrong_word = true  # tự động khôi phục từ gõ sai
-jfwz_as_consonant = false  # dùng j, f, w, z làm phụ âm
-auto_capitalize = false    # tự động viết hoa sau dấu câu
-macro_enabled = true       # gõ tắt
+modern_tone = true              # "Đặt dấu kiểu mới" (hòa) — false = hoà
+free_tone = true                # "Đặt dấu tự do"
+jfwz_as_consonant = true        # "Cho phép 'f j w z' làm phụ âm"
+auto_capitalize = false         # "Tự động viết hoa sau Enter . ! ?"
+spell_check = true              # "Bật kiểm tra chính tả"
+restore_wrong_word = false      # "Tự động khôi phục phím với từ sai"
+disable_on_non_us_layout = true # "Tắt TV khi Layout bàn phím khác US"
+suggestion_fix_1 = true         # "Sửa lỗi dấu của Gợi ý 1"
+suggestion_fix_2 = false        # "Sửa lỗi dấu của Gợi ý 2"
+metro_fix = false               # "Hỗ trợ ứng dụng Metro"
+send_standard = false           # "Gửi phím kiểu chuẩn"
+use_clipboard = false           # "Sử dụng Clipboard để gửi phím"
+macro_enabled = true            # "Cho phép gõ tắt"
+macro_when_disabled = false     # "Vẫn cho phép gõ tắt khi tắt gõ Tiếng Việt"
 
 [hotkeys]
-toggle = "Ctrl+Shift"
-restore_word = "Ctrl+Shift+Z"
-charset_next = ""
-method_next = ""
+enable = "F1"
+disable = "F2"
+toggle = ""                     # optional single-key switch
+restore_word = ""
+app_exclude = "F11"
+convert_tool = "F6"
+macro_panel = "F8"
+macro_toggle = "F9"
 open_settings = ""
 
 [system]
 start_with_windows = true
+run_as_admin = false
+notification_sound = true
 start_minimized = true
-notification_sound = false
-language = "vi"            # vi | en
-theme = "system"           # system | light | dark
+language = "vi"                 # vi | en
+theme = "system"                # system | light | dark
+check_updates = true
 
 [ui]
-window_width = 980
-window_height = 680
-last_tab = "typing"
+window_width = 1040
+window_height = 720
+last_tab = "overview"
+compact_rows = false
+
+[apps]
+remember_per_app = false        # "Loại trừ ứng dụng tự động"
 
 [[apps.rules]]
 process = "game.exe"
 enabled = false
+charset = "unicode"
+method = "telex"
+macro_enabled = false
 
 [macros]
 "btw" = "by the way"
 "vn" = "Việt Nam"
 ```
 
-Rust shape (field names and TOML keys differ only via `#[serde(rename_all = "snake_case")]`):
+Rules the code enforces and tests pin:
 
-```rust
-pub const SCHEMA_VERSION: u32 = 1;
+- `Hotkey::parse` accepts `Ctrl+Shift` (modifier-only combo), `Ctrl+Alt+V`, `F1`, `Alt+Space`,
+  case- and order-insensitive; canonical output order is `Ctrl+Alt+Shift+Win+Key`.
+- A bare letter with no modifier is rejected; the UI must show the error inline.
+- `Charset`/`InputMethod` serialize as the snake_case slugs above; `as_str`/`from_str`
+  are the only conversions.
 
-pub struct AppConfig {
-    pub version: u32,
-    pub input: InputConfig,
-    pub typing: TypingConfig,
-    pub hotkeys: HotkeySet,
-    pub system: SystemConfig,
-    pub ui: UiConfig,
-    pub apps: AppRules,
-    pub macros: BTreeMap<String, String>, // trigger -> expansion
-    #[serde(flatten)]
-    pub extra: toml::Table,               // unknown keys, preserved verbatim
-}
-
-pub struct HotkeySet {
-    pub toggle: Hotkey,
-    pub restore_word: Option<Hotkey>,
-    pub charset_next: Option<Hotkey>,
-    pub method_next: Option<Hotkey>,
-    pub open_settings: Option<Hotkey>,
-}
-
-/// `Hotkey` parses "Ctrl+Shift+Space" into modifiers + a key, and re-serializes
-/// canonically. Order-insensitive parse; `Ctrl+Shift` alone means "left Ctrl + left Shift"
-/// and is treated as a keyboard-combo trigger, not a char.
-pub struct Hotkey { /* modifiers: Modifiers, key: HotkeyKey */ }
-impl Hotkey {
-    pub fn parse(s: &str) -> Result<Self, HotkeyError>;
-    pub fn as_str(&self) -> String;
-}
-```
 
 Config path: `%APPDATA%\VietKB\config.toml`. Legacy migration: if absent and
 `settings.ini` next to the exe exists, import it once into schema v1.
