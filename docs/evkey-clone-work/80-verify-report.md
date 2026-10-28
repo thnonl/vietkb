@@ -304,3 +304,80 @@ P1 holds with a wide margin; the `Noop` path is allocation-free and ~1 ns as the
 5. **`free_tone=false` beyond the engine** — `engine_rulings_28::d7_free_tone_is_honoured` covers the
    option in `vkb-core`; the UI path from the checkbox to `TypingConfig` is still GUI half.
 6. **Method-specific performance** for VIQR (bench covers Telex + VNI only).
+
+---
+
+# 80 — Verification report, part 2: performance + runtime
+
+**Date:** 2026-10-28 / 2026-10-29 · **Owner:** Lead · **Scope:** `40-perf-budget.md`
+P1–P7, measured on the **release build**. Part 1's §6 numbers were the headless,
+non-isolated run and are superseded by P1 below (they agree, but this is the gate).
+
+## 9. Method
+
+* Release build with `--features custom-protocol` (the packaged configuration, not `cargo run`).
+* Second monitor, **WebView2 155**, **Windows 11 26H2**, **125 % scale** on the launch monitor —
+  i.e. the DPI and WebView2 version this build actually ships against.
+* Numbers are per-budget single runs unless a cycle count is stated; P6 is the only repeated one.
+* **P2** measures **hook entry → `SendInput` return**, i.e. everything the app controls: hook
+  decoding, engine, and the injection call. The target application's own paint time is outside our
+  control and is **not** included — so P2 is an app-side latency budget, not a perceived-latency
+  claim.
+* Process/RSS figures are summed over the process tree (app + WebView2 children) as reported by the
+  OS; CPU is process-tree CPU time over the window.
+
+## 10. Gate result — 7 / 7 PASS
+
+| Budget | Target | Measured | Verdict |
+|---|---|---|---|
+| P1 engine `process_key` | p99 ≤ 50 µs | p50 0.20 µs, p95 0.70 µs, **p99 0.80 µs**, 3.4–3.5 M keys/s | PASS |
+| P2 hook → injected character | p95 ≤ 8 ms, p99 ≤ 15 ms | 1 008 keys typed, 191 injection samples: p50 **71 µs**, p95 **165 µs**, p99 **450 µs**, max 511 µs, **0 dropped** | PASS |
+| P3 idle, GUI closed | ≤ 20 MB total | **14.0 MB** across 1 process, 0 WebView2, after 20 s idle (was **356.6 MB** before the window-destroy fix) | PASS |
+| P4 window open | app ≤ 40 MB, total ≤ 400 MB | app **29.1 MB**, total **344.2 MB** across 7 processes (6 WebView2); falls to **2.1 MB** within 3 s of closing | PASS |
+| P5 idle CPU, 60 s | ≤ 0.1 % | **0 ms** CPU (0 %) over the 60 s window | PASS |
+| P6 cold start / reopen | ≤ 400 ms | process → window **93–183 ms**; close → reopen **294 / 312 / 313 ms** over 3 cycles | PASS |
+| P7 installer | ≤ 10 MB | **2.01 MB** NSIS, **unsigned** (no code-signing certificate available) | PASS |
+
+Margins worth noting:
+
+* **P1** — p99 is 62× under budget; the measured percentiles are identical to the part-1 headless
+  run, so the UI integration adds nothing measurable to the key path (the hook marshals to a worker
+  thread, not into the UI thread).
+* **P2** — p99 450 µs is ~33× under the 15 ms budget, and `max` 511 µs is still 29× under it. 0 of
+  191 injection attempts dropped.
+* **P3** — 14.0 MB is the payoff of the window-destroy fix; the pre-fix figure (356.6 MB) was an
+  idle leak, not a measurement artefact.
+* **P4** — total 344.2 MB is 86 % of the 400 MB budget, the tightest ratio in the set. It is
+  dominated by 6 WebView2 helper processes, i.e. it is a WebView2 floor, not app memory.
+* **P6** — cold start has ≥ 2× headroom; reopen (294–313 ms) is the tighter number and is stable
+  across all three cycles (±10 ms).
+
+## 11. Functional end-to-end (verified independently of the numbers above)
+
+Typed into a real target window through the installed hook, not the test harness:
+
+* `tieengs` → `tiếng`
+* `dduwowngf` → `đường`
+* `hoaf binhf` → `hòa bình`
+* **Focus-change reset** — `tiếng` in window A, then `đường` in window B, then `tiếng xin chào` in
+  one window: the word buffer resets on each top-level focus change.
+
+## 12. Known open item
+
+* **Focused-control changes *inside* one top-level window do not reset the word buffer.** Moving
+  between two text fields of the same window therefore continues the previous word. Fixing it needs
+  `GetGUIThreadInfo` on every key, i.e. a per-keystroke syscall on the hot path measured by P2 —
+  **deferred deliberately** this cycle, not an oversight. It is a behavioural gap, not a budget
+  failure.
+
+## 13. Still unverified
+
+1. **§3 GUI tests** from `50-test-cases.md` (48 UI/UX rows) — not run in this pass.
+2. **5 legacy charsets** — `tcvn3`, `vni_windows`, `bk_hcm1`, `vps` (no authoritative byte table
+   available) and `viscii` beyond the 14 letters + `ờ`/`ề` (only those are verified). Same status as
+   part 1 §5/§8.3.
+3. **macOS backend** — not built and not measured on this platform; no perf or functional claim.
+4. **Code signing** — the P7 installer is unsigned (no certificate); SmartScreen/AV behaviour is
+   untested.
+5. **Installer install/uninstall round-trip** — only the artefact size (2.01 MB) is verified; it has
+   not been installed and removed on a clean machine.
