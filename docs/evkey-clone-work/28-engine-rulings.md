@@ -29,3 +29,12 @@ Source: `80-verify-report.md` part 1 and the QA report. 522/551 rows pass; 7 def
 
 `25-contract.md` §3 still carries the pre-correction tone-style examples. Correct them to
 `modern_tone = true → hòa`, `false → hoà`.
+
+## Accepted nuance (QA, 2026-10-28)
+
+`COMPAT_RESTORE_RAW` — the fallback that emits raw keystrokes when a transform cannot apply
+(`of`, `aww`, …) — runs **before** the spell-check gate, so it restores even with
+`spell_check = false`. That is correct and is not the `restore_wrong_word` feature: it is the
+"no valid transform, so type what was typed" path, which must never depend on the spell
+checker. `E-RW-005` / `E-RW-007` therefore stay as they are.
+

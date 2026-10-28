@@ -630,22 +630,31 @@ Macro table used by every row in this block (exactly these 7 entries):
 | E-SC-014 | telex | `chuwax` | `chữa` | spell-check | valid ưa + ngã |
 | E-SC-015 | telex | `ngieengs` | `ngieengs` | spell-check | `ngi` before a vowel is invalid (see OQ-9) |
 
-### 1.16 restore-word — 12 rows (`restore_wrong_word=true`)
+### 1.16 restore-word — 16 rows (`restore_wrong_word=true`; E-RW-013…016 also `spell_check=true`)
+
+`restore_wrong_word` is **not** an independent option: as in EVKey, it only restores when the
+spell checker is on (the UI greys it out otherwise, `Cần bật Kiểm tra chính tả`). `E-RW-002/004/006/012`
+therefore pin the inert case with `spell_check=false` (the transform stays), and `E-RW-013/014/015/016`
+pin the same keystrokes with `spell_check=true` (the raw word comes back). See `28-engine-rulings.md` D4.
 
 | id | method | input (raw keystrokes) | expected output | category | why it matters |
 |---|---|---|---|---|---|
 | E-RW-001 | telex | `qwerty<sp>` | `qwerty<sp>` | restore-word | invalid word is restored to its raw keystrokes at the boundary |
-| E-RW-002 | telex | `asdf<sp>` | `asdf<sp>` | restore-word | raw restore keeps the tone keys as letters |
+| E-RW-002 | telex | `asdf<sp>` | `àd<sp>` | restore-word | `spell_check=false`: restore is inert, so the transform stays (`asdf` → `àd`); pair of E-RW-013 |
 | E-RW-003 | telex | `tieengs<sp>` | `tiếng<sp>` | restore-word | a valid word must NOT be restored |
-| E-RW-004 | telex | `nghieengxq<sp>` | `nghieengxq<sp>` | restore-word | restore applies to the whole raw word, including trailing junk |
+| E-RW-004 | telex | `nghieengxq<sp>` | `nghiễngq<sp>` | restore-word | `spell_check=false`: restore is inert, only the transform shows (`iee`→`iê`, `ng`→`ng`); pair of E-RW-014 |
 | E-RW-005 | telex | `hwllo<sp>` | `hwllo<sp>` | restore-word | restore must undo a produced ư |
-| E-RW-006 | telex | `vieetjq<sp>` | `vieetjq<sp>` | restore-word | invalid suffix forces restore of the whole word |
+| E-RW-006 | telex | `vieetjq<sp>` | `việtq<sp>` | restore-word | `spell_check=false`: the invalid `q` suffix cannot trigger restore (`ee`→`ê`, `j`→`ệ`); pair of E-RW-015 |
 | E-RW-007 | telex | `of<sp>` | `of<sp>` | restore-word | jfwz off: `of` was toned to `ò`, restore returns `of` |
 | E-RW-008 | telex | `12ab<sp>` | `12ab<sp>` | restore-word | digits break the word before restore can fire |
 | E-RW-009 | telex | `dduwowngf<sp>` | `đường<sp>` | restore-word | valid đ word must not be restored |
 | E-RW-010 | telex | `quyeets<sp>` | `quyết<sp>` | restore-word | valid qu word must not be restored |
 | E-RW-011 | telex | `hello<sp>` | `hello<sp>` | restore-word | English word unaffected |
-| E-RW-012 | telex | `tieengsq<sp>` | `tieengsq<sp>` | restore-word | extra invalid letter reverts the valid prefix too |
+| E-RW-012 | telex | `tieengsq<sp>` | `tiếngq<sp>` | restore-word | `spell_check=false`: restore is inert, so the valid prefix stays transformed and `q` is literal; pair of E-RW-016 |
+| E-RW-013 | telex | `asdf<sp>` | `asdf<sp>` | restore-word | `spell_check=true` + restore: invalid word returns as raw keystrokes, tone keys stay letters |
+| E-RW-014 | telex | `nghieengxq<sp>` | `nghieengxq<sp>` | restore-word | `spell_check=true` + restore: trailing junk makes the word invalid, whole raw word returns |
+| E-RW-015 | telex | `vieetjq<sp>` | `vieetjq<sp>` | restore-word | `spell_check=true` + restore: invalid suffix restores the whole raw word |
+| E-RW-016 | telex | `tieengsq<sp>` | `tieengsq<sp>` | restore-word | `spell_check=true` + restore: extra invalid letter reverts even the valid prefix |
 
 ### 1.17 english-passthrough — 26 rows (`spell_check=true`)
 

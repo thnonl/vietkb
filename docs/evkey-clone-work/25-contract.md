@@ -73,7 +73,7 @@ pub type MacroTable = std::sync::Arc<std::collections::BTreeMap<String, String>>
 pub struct EngineOptions {
     pub method: InputMethod,
     pub charset: Charset,
-    /// true = kiểu mới (`hoà`, `thuý`) · false = kiểu cũ (`hòa`, `thúy`).
+    /// true = kiểu mới (`hòa`, `thúy`) · false = kiểu cũ (`hoà`, `thuý`).
     pub modern_tone: bool,
     pub spell_check: bool,
     pub restore_wrong_word: bool,

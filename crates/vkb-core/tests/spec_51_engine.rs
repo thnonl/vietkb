@@ -1,5 +1,5 @@
 //! Executable form of `docs/evkey-clone-work/50-test-cases.md` §1 (engine corpus,
-//! 551 rows) and §2 (charset round-trips).
+//! 555 rows) and §2 (charset round-trips).
 //!
 //! The markdown table is the single source of truth: this test parses §1 at run
 //! time, so a correction made to the table is picked up without touching Rust
@@ -12,11 +12,12 @@
 //! | `restore-word` | `restore_wrong_word = true` |
 //! | `tone-old-style` | `modern_tone = false` |
 //!
-//! Two rows override their category baseline and are handled by id:
-//! `E-TT-061` (`jfwz_as_consonant = true`, stated in its own row) and
-//! `E-MC-016` (`macro_enabled = false`, idem).
+//! Rows that override their category baseline are handled by id:
+//! `E-TT-061` (`jfwz_as_consonant = true`, stated in its own row),
+//! `E-MC-016` (`macro_enabled = false`, idem) and `E-RW-013…016`
+//! (`spell_check = true`: `restore_wrong_word` needs the spell checker, D4).
 //!
-//! The test always checks its own integrity (551 rows, unique ids, per-category
+//! The test always checks its own integrity (555 rows, unique ids, per-category
 //! counts from the `### … — N rows` headings) and writes
 //! `target/qa/spec51-results.tsv`. Behavioural mismatches are reported, and the
 //! test only turns red for them when `VKB_SPEC_STRICT=1` is set:
@@ -43,7 +44,7 @@ fn spec_path() -> PathBuf {
         .join("../../docs/evkey-clone-work/50-test-cases.md")
 }
 
-const EXPECTED_ROWS: usize = 551;
+const EXPECTED_ROWS: usize = 555;
 
 // ---------------------------------------------------------------------------
 // Row model + parser
@@ -201,6 +202,8 @@ fn spec_options(method: &str, category: &str, id: &str) -> EngineOptions {
     match id {
         "E-TT-061" => options.jfwz_as_consonant = true,
         "E-MC-016" => options.macro_enabled = false,
+        // D4: `restore_wrong_word` only restores together with `spell_check`.
+        "E-RW-013" | "E-RW-014" | "E-RW-015" | "E-RW-016" => options.spell_check = true,
         _ => {}
     }
     options
