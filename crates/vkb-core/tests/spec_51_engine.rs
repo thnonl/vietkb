@@ -188,6 +188,7 @@ fn spec_options(method: &str, category: &str, id: &str) -> EngineOptions {
         jfwz_as_consonant: false,
         macro_enabled: false,
         auto_capitalize: false,
+        free_tone: true,
     };
     match category {
         "spell-check" | "english-passthrough" => options.spell_check = true,

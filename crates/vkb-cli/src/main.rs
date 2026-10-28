@@ -36,6 +36,9 @@ enum Command {
         /// Disable `Kiểm tra chính tả`.
         #[arg(long)]
         no_spell_check: bool,
+        /// Disable `Đặt dấu tự do` (the tone sticks to the vowel it hit).
+        #[arg(long)]
+        no_free_tone: bool,
         /// Print every EngineAction instead of the produced text.
         #[arg(long)]
         actions: bool,
@@ -63,6 +66,7 @@ fn main() -> Result<()> {
             charset,
             old_tone_style,
             no_spell_check,
+            no_free_tone,
             actions,
             text,
         } => {
@@ -70,6 +74,7 @@ fn main() -> Result<()> {
                 // `EngineOptions::modern_tone` is the inverse of the old flag name.
                 modern_tone: !old_tone_style,
                 spell_check: !no_spell_check,
+                free_tone: !no_free_tone,
                 ..options_for(&method)?
             };
             if actions {

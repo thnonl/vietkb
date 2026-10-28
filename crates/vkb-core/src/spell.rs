@@ -9,12 +9,18 @@
 //!
 //! The onset is matched longest-first and backtracked (`gi` + `ương` must parse
 //! as onset `gi` + nucleus `ương`, not `g` + `iương`), and a vowel run is only
-//! accepted when a trailing coda is legal.
+//! accepted when a trailing coda is legal. The onset must also agree with the
+//! nucleus (`ngi`, `ce`, `ka` are impossible), per A9.
+//!
+//! One English shape *is* a well-formed Vietnamese syllable: `test` composes to
+//! `tét`. [`english_stop_cluster`] rejects the typing shape (a tone key stranded
+//! inside a stop-coda cluster) so such words pass through raw, which is the
+//! dictionary-free half of the English passthrough.
 //!
 //! Known gap (see `70-impl-notes-engine.md`): no dictionary, so no `hỏi`/`ngã`
 //! word-sense check, which EVKey has.
 
-use crate::letters::Letter;
+use crate::letters::{Letter, Mark};
 
 /// Vietnamese onsets, longest first.
 const ONSETS: &[&str] = &[
@@ -65,7 +71,7 @@ pub fn is_valid_syllable(letters: &[Letter], allow_jfwz: bool) -> bool {
 
     for onset in ONSETS {
         if let Some(rest) = word.strip_prefix(onset) {
-            if parse_nucleus_and_coda(rest) {
+            if onset_takes_nucleus(onset, rest) && parse_nucleus_and_coda(rest) {
                 return true;
             }
         }
@@ -80,6 +86,87 @@ pub fn is_valid_syllable(letters: &[Letter], allow_jfwz: bool) -> bool {
         }
     }
     parse_nucleus_and_coda(word)
+}
+
+/// `true` when `letters` is a legal onset (C1) — the "only onset letters typed"
+/// state the Telex `w` rule needs (`tw` → `tư`, but `btw` keeps its `w`).
+pub fn is_onset(letters: &[Letter]) -> bool {
+    let mut buf = [0u8; 3];
+    let mut len = 0usize;
+    for letter in letters {
+        if !letter.ch.is_ascii_alphabetic() || len == buf.len() {
+            return false;
+        }
+        buf[len] = letter.base() as u8;
+        len += 1;
+    }
+    if len == 0 {
+        return true;
+    }
+    let word = as_str(&buf[..len]);
+    // `q` on its own is not an onset: only `qu` is (and that ends in a vowel).
+    word != "q" && ONSETS.iter().any(|onset| onset.starts_with(word))
+}
+
+/// Orthographic agreement between an onset and the nucleus that follows it
+/// (A9): `k`, `gh`, `ngh` only before `i e ê y`; `c`, `g`, `ng` not before
+/// them (`gi` is matched as its own onset, so a bare `g` + `i` is `gì`, `gìn`);
+/// `q` is only legal as `qu`.
+fn onset_takes_nucleus(onset: &str, rest: &str) -> bool {
+    let Some(first) = rest.chars().next() else {
+        // Still inside the onset: every prefix is allowed.
+        return true;
+    };
+    if !first.is_ascii() || !is_vowel(first as u8) {
+        return true;
+    }
+    let front = matches!(first, 'i' | 'e' | 'y');
+    match onset {
+        "k" | "gh" | "ngh" => front,
+        "c" | "ng" => !front,
+        "g" => first != 'e',
+        "q" => false,
+        _ => true,
+    }
+}
+
+/// `true` when `raw` is an English consonant cluster a tone key was typed into:
+/// a *plain* vowel, the tone key, then a stop coda (`test` = t-e-**s**-t). A
+/// Vietnamese syllable types such a tone after the coda (`tét` = `tets`) or
+/// carries a modification mark (`việc` = `vieejc`), so this shape is rejected
+/// and the word passes through as raw text.
+///
+/// This is the dictionary-free half of the English passthrough: the structural
+/// test above already rejects `chrome`, `github` and `select`; `test` is a
+/// well-formed Vietnamese syllable (`tét`), and this catches its typing shape.
+pub fn english_stop_cluster(raw: &[char], letters: &[Letter]) -> bool {
+    if letters.iter().any(|letter| letter.mark != Mark::None) {
+        return false;
+    }
+    let Some(pos) = raw.iter().rposition(|ch| {
+        matches!(ch.to_ascii_lowercase(), 's' | 'f' | 'r' | 'x' | 'j')
+    }) else {
+        return false;
+    };
+    let tail = &raw[pos + 1..];
+    if tail.is_empty() || tail.len() > 2 {
+        return false;
+    }
+    if !raw[..pos].iter().any(|ch| {
+        let lower = ch.to_ascii_lowercase();
+        lower.is_ascii() && is_vowel(lower as u8)
+    }) {
+        return false;
+    }
+    let mut coda = [0u8; 2];
+    for (idx, ch) in tail.iter().enumerate() {
+        let lower = ch.to_ascii_lowercase();
+        if !lower.is_ascii_alphabetic() || is_vowel(lower as u8) {
+            return false;
+        }
+        coda[idx] = lower as u8;
+    }
+    matches!(&coda[..tail.len()], b"c" | b"ch" | b"p" | b"t")
 }
 
 /// `rest` starts where the onset ended. An empty `rest` means the user is still

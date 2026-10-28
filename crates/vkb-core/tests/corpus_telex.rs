@@ -148,11 +148,10 @@ fn tone_key_typed_twice_becomes_literal() {
 }
 
 #[test]
-fn repeated_mark_key_keeps_the_mark_and_types_the_key() {
-    check(
-        telex(),
-        &[("aww", "ăw"), ("aaa", "âa"), ("ddd", "đd")],
-    );
+fn repeated_mark_key_escapes_to_the_literal_keystrokes() {
+    // A1's escape rule: the key that produced a mark, typed again, reverts the
+    // whole word to the raw keys without that trigger (`aww` → `aw`).
+    check(telex(), &[("aww", "aw"), ("aaa", "aa"), ("ddd", "dd")]);
 }
 
 #[test]

@@ -419,6 +419,7 @@ impl HookRuntime {
             jfwz_as_consonant: typing.as_ref().map_or(false, |t| t.jfwz_as_consonant),
             macro_enabled: effective.macro_enabled,
             auto_capitalize: typing.as_ref().map_or(false, |t| t.auto_capitalize),
+            free_tone: typing.as_ref().map_or(true, |t| t.free_tone),
         };
         if options != self.options {
             self.options = options;

@@ -94,7 +94,7 @@ impl Engine {
         self.literal_from = 0;
         method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
         let mut next = TextBuf::new();
-        self.render_into(&self.composed.letters, self.composed.tone, &mut next);
+        self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
         let action = if next.as_slice() == self.text.as_slice() {
             EngineAction::Swallow
         } else {
@@ -115,9 +115,19 @@ impl Engine {
     }
 
     /// Compose `letters` with the word tone placed per the tone rules.
-    fn render_into(&self, letters: &[Letter], tone: Tone, out: &mut TextBuf) {
+    ///
+    /// `tone_slot` pins the tone to one letter (`free_tone = false`); `None`
+    /// re-places it per A4 on every render.
+    fn render_into(
+        &self,
+        letters: &[Letter],
+        tone: Tone,
+        tone_slot: Option<usize>,
+        out: &mut TextBuf,
+    ) {
         out.clear();
-        let target = place::target(letters, self.options.modern_tone);
+        let target =
+            tone_slot.or_else(|| place::target(letters, self.options.modern_tone));
         for (idx, letter) in letters.iter().enumerate() {
             let letter_tone = if Some(idx) == target { tone } else { Tone::None };
             let composed =
@@ -170,7 +180,7 @@ impl Engine {
         self.raw.push(ch);
         method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
         let mut next = TextBuf::new();
-        self.render_into(&self.composed.letters, self.composed.tone, &mut next);
+        self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
         let action = self.diff(&next, Some(ch), false);
         self.text = next;
         action
@@ -187,7 +197,7 @@ impl Engine {
         }
         method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
         let mut next = TextBuf::new();
-        self.render_into(&self.composed.letters, self.composed.tone, &mut next);
+        self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
         let action = self.diff(&next, None, true);
         self.text = next;
         action

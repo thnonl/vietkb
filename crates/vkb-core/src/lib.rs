@@ -228,6 +228,11 @@ pub struct EngineOptions {
     pub jfwz_as_consonant: bool,
     pub macro_enabled: bool,
     pub auto_capitalize: bool,
+    /// `Đặt dấu tự do`. `true`: the tone may be typed after the vowel run or at
+    /// the end of the word, and it re-places itself as the syllable grows
+    /// (`hoaf` + `n` → `hoàn`). `false`: the tone sticks to the vowel it hit
+    /// when the key was typed (`hoafn` → `hòan`).
+    pub free_tone: bool,
 }
 
 impl Default for EngineOptions {
@@ -241,6 +246,7 @@ impl Default for EngineOptions {
             jfwz_as_consonant: true,
             macro_enabled: true,
             auto_capitalize: false,
+            free_tone: true,
         }
     }
 }
@@ -352,6 +358,7 @@ mod tests {
         assert!(!d.restore_wrong_word);
         assert!(d.jfwz_as_consonant);
         assert!(d.macro_enabled);
+        assert!(d.free_tone, "`Đặt dấu tự do` defaults on");
     }
 
     #[test]

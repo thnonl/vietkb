@@ -21,9 +21,19 @@ pub struct Composed {
     pub literal: bool,
     /// VIQR: a `\` is waiting for the character it protects.
     pub escape_pending: bool,
-    /// A modifier keystroke had to become literal (`ass`, `aww`, `aaa`). The
-    /// word is no longer a candidate for the spell check's raw rewrite.
+    /// A keystroke escaped to the literal raw text (`ass`, `await`, `aaa`). The
+    /// rest of the word stays literal too.
     pub escaped: bool,
+    /// Raw index of the keystroke that produced [`Composed::tone`]
+    /// (`usize::MAX` = no tone).
+    pub tone_at: usize,
+    /// Raw index of the keystroke that applied the last mark (`usize::MAX` = the
+    /// mark came from something else, e.g. the inserted `ư` of a lone `w`).
+    pub mark_at: usize,
+    /// Letter index the tone is pinned to. `None` = re-place it per A4 on every
+    /// render (`free_tone = true`); `Some` = `free_tone = false`, the tone stays
+    /// on the vowel it hit when the key was typed.
+    pub tone_slot: Option<usize>,
 }
 
 impl Composed {
@@ -33,6 +43,9 @@ impl Composed {
         self.literal = false;
         self.escape_pending = false;
         self.escaped = false;
+        self.tone_at = usize::MAX;
+        self.mark_at = usize::MAX;
+        self.tone_slot = None;
     }
 }
 
@@ -61,9 +74,8 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
             out.letters.push(Letter::literal(ch));
             continue;
         }
-        // A modifier keystroke that had to become literal (`ass`, `aww`): the
-        // rest of the word stays literal too, so `docker` cannot turn into
-        // `dỏcke` at the `r`.
+        // A keystroke that escaped to the raw text (`ass`, `await`): the rest of
+        // the word stays literal too, so `docker` cannot turn into `dỏcke`.
         if out.escaped {
             out.letters.push(Letter::literal(ch));
             continue;
@@ -83,15 +95,15 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
             step_digit(out, raw, i, options);
         } else if !ch.is_ascii_alphabetic() {
             if options.method == InputMethod::Viqr {
-                step_viqr_symbol(out, ch, options);
+                step_viqr_symbol(out, raw, i, options);
             } else {
                 out.letters.push(Letter::literal(ch));
             }
         } else {
             match options.method {
-                InputMethod::Telex => step_telex(out, ch, options),
-                InputMethod::Vni => step_vni(out, ch),
-                InputMethod::Viqr => step_viqr(out, ch),
+                InputMethod::Telex => step_telex(out, raw, i, options),
+                InputMethod::Vni => out.letters.push(Letter::literal(ch)),
+                InputMethod::Viqr => step_viqr(out, raw, i),
             }
         }
 
@@ -101,7 +113,9 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
         if options.spell_check
             && !out.literal
             && !out.escaped
-            && !crate::spell::is_valid_syllable(&out.letters, options.jfwz_as_consonant)
+            && (!crate::spell::is_valid_syllable(&out.letters, options.jfwz_as_consonant)
+                || (options.method == InputMethod::Telex
+                    && crate::spell::english_stop_cluster(&raw[..=i], &out.letters)))
         {
             literalize(out, raw, i);
         }
@@ -147,15 +161,18 @@ fn step_digit(out: &mut Composed, raw: &[char], i: usize, options: &EngineOption
                 letter.mark = Mark::None;
             }
             out.tone = Tone::None;
+            out.tone_at = usize::MAX;
+            out.mark_at = usize::MAX;
+            out.tone_slot = None;
         }
         '1' | '2' | '3' | '4' | '5' => {
             let tone = tone_of(digit);
-            apply_tone(out, tone, digit, options);
+            apply_tone(out, raw, i, tone, digit, options);
         }
-        '6' => mark_last(out, &['a', 'e', 'o'], Mark::Circumflex, digit),
-        '7' => mark_last(out, &['o', 'u'], Mark::Horn, digit),
-        '8' => mark_last(out, &['a'], Mark::Breve, digit),
-        '9' => mark_last(out, &['d'], Mark::Bar, digit),
+        '6' => mark_last(out, raw, i, &['a', 'e', 'o'], Mark::Circumflex, digit),
+        '7' => mark_last(out, raw, i, &['o', 'u'], Mark::Horn, digit),
+        '8' => mark_last(out, raw, i, &['a'], Mark::Breve, digit),
+        '9' => mark_last(out, raw, i, &['d'], Mark::Bar, digit),
         _ => out.letters.push(Letter::literal(digit)),
     }
 }
@@ -188,8 +205,49 @@ fn literalize(out: &mut Composed, raw: &[char], upto: usize) {
     out.letters.clear();
     out.tone = Tone::None;
     out.literal = true;
+    out.tone_at = usize::MAX;
+    out.mark_at = usize::MAX;
+    out.tone_slot = None;
     for &ch in &raw[..=upto] {
         out.letters.push(Letter::literal(ch));
+    }
+}
+
+/// The keystroke cannot complete a transform: the word falls back to the
+/// literal keystrokes, never to a half-transformed prefix (`await` stays
+/// `await`, `ass` shows `as`, `a^^` shows `a^`).
+///
+/// `drop` is the raw index of the trigger keystroke that produced the transform
+/// being escaped; the literal text is the raw keystrokes without it (the first
+/// press consumed the character, the second one is the text).
+fn escape_to_raw(out: &mut Composed, raw: &[char], upto: usize, drop: Option<usize>) {
+    out.letters.clear();
+    out.tone = Tone::None;
+    out.tone_at = usize::MAX;
+    out.mark_at = usize::MAX;
+    out.tone_slot = None;
+    out.escaped = true;
+    for (idx, &ch) in raw[..=upto].iter().enumerate() {
+        if Some(idx) == drop {
+            continue;
+        }
+        out.letters.push(Letter::literal(ch));
+    }
+}
+
+/// Raw index of the most recent `key` typed before `upto`.
+fn previous_trigger(raw: &[char], upto: usize, key: char) -> Option<usize> {
+    raw[..upto]
+        .iter()
+        .rposition(|ch| ch.eq_ignore_ascii_case(&key))
+}
+
+/// The raw index to drop when a transform is escaped by repeating its trigger.
+fn drop_for(raw: &[char], i: usize, key: char, at: usize) -> Option<usize> {
+    if at != usize::MAX && at < i && raw[at].eq_ignore_ascii_case(&key) {
+        Some(at)
+    } else {
+        None
     }
 }
 
@@ -197,7 +255,8 @@ fn literalize(out: &mut Composed, raw: &[char], upto: usize) {
 // Telex
 // ---------------------------------------------------------------------------
 
-fn step_telex(out: &mut Composed, ch: char, options: &EngineOptions) {
+fn step_telex(out: &mut Composed, raw: &[char], i: usize, options: &EngineOptions) {
+    let ch = raw[i];
     let lower = ch.to_ascii_lowercase();
 
     // `f j w z` as consonants: only in the onset.
@@ -207,68 +266,108 @@ fn step_telex(out: &mut Composed, ch: char, options: &EngineOptions) {
     }
 
     match lower {
-        's' | 'f' | 'r' | 'x' | 'j' => apply_tone(out, tone_of(lower), ch, options),
-        'w' => apply_w(out, ch),
-        'a' | 'e' | 'o' => {
-            let doubled = out
-                .letters
-                .last()
-                .is_some_and(|last| last.base() == lower && last.mark == Mark::None);
-            if doubled {
-                if let Some(last) = out.letters.last_mut() {
-                    last.mark = Mark::Circumflex;
-                }
-            } else {
-                // A doubled key that could not modify: `aaa` keeps both letters.
-                if out.letters.last().is_some_and(|last| last.base() == lower) {
-                    out.escaped = true;
-                }
-                out.letters.push(Letter::literal(ch));
-            }
-        }
-        'd' => {
-            let doubled = out
-                .letters
-                .last()
-                .is_some_and(|last| last.base() == 'd' && last.mark == Mark::None);
-            if doubled {
-                if let Some(last) = out.letters.last_mut() {
-                    last.mark = Mark::Bar;
-                }
-            } else {
-                if out.letters.last().is_some_and(|last| last.base() == 'd') {
-                    out.escaped = true;
-                }
-                out.letters.push(Letter::literal(ch));
-            }
-        }
+        's' | 'f' | 'r' | 'x' | 'j' => apply_tone(out, raw, i, tone_of(lower), ch, options),
+        'w' => apply_w(out, raw, i, ch, options),
+        'a' | 'e' | 'o' => double_letter(out, raw, i, lower, Mark::Circumflex),
+        'd' => double_letter(out, raw, i, 'd', Mark::Bar),
         _ => out.letters.push(Letter::literal(ch)),
     }
 }
 
-/// Telex `w`: `aw` → `ă`, `ow` → `ơ`, `uw` → `ư`, `uow` → `ươ`.
-fn apply_w(out: &mut Composed, key: char) {
+/// `aa`/`ee`/`oo` → `â ê ô`, `dd` → `đ`. A third press escapes to the raw text.
+fn double_letter(out: &mut Composed, raw: &[char], i: usize, base: char, mark: Mark) {
+    let ch = raw[i];
+    let doubled = out
+        .letters
+        .last()
+        .is_some_and(|last| last.base() == base && last.mark == Mark::None);
+    if doubled {
+        if let Some(last) = out.letters.last_mut() {
+            last.mark = mark;
+        }
+        out.mark_at = i;
+        return;
+    }
+    if out.letters.last().is_some_and(|last| last.base() == base) {
+        // The same key again: escape the whole word to its literal keystrokes.
+        let drop = drop_for(raw, i, base, out.mark_at);
+        escape_to_raw(out, raw, i, drop);
+        return;
+    }
+    out.letters.push(Letter::literal(ch));
+}
+
+/// Telex `w`: `aw` → `ă`, `ow` → `ơ`, `uw` → `ư`, `uow` → `ươ`, and a lone `w`
+/// at a syllable start → `ư` (A1 W-rules 1–7).
+fn apply_w(out: &mut Composed, raw: &[char], i: usize, key: char, options: &EngineOptions) {
     if let Some(idx) = w_target(&out.letters) {
+        // Rule 1: `uo` → `ươ`.
         if out.letters[idx].base() == 'o' {
             if let Some(u) = out.letters[..idx]
                 .iter()
                 .rposition(|letter| letter.base() == 'u')
             {
+                if out.letters[u].mark == Mark::Horn && out.letters[idx].mark == Mark::Horn {
+                    let drop = drop_for(raw, i, key, out.mark_at);
+                    escape_to_raw(out, raw, i, drop);
+                    return;
+                }
                 out.letters[u].mark = Mark::Horn;
                 out.letters[idx].mark = Mark::Horn;
+                out.mark_at = i;
                 return;
             }
         }
-        if out.letters[idx].mark == Mark::None {
-            out.letters[idx].mark = match out.letters[idx].base() {
-                'a' => Mark::Breve,
-                _ => Mark::Horn,
-            };
-            return;
+        match out.letters[idx].mark {
+            Mark::None => {
+                out.letters[idx].mark = if out.letters[idx].base() == 'a' {
+                    Mark::Breve
+                } else {
+                    Mark::Horn
+                };
+                out.mark_at = i;
+                return;
+            }
+            // Rule 3: `aaw` → `ă`, the breve replaces the circumflex.
+            Mark::Circumflex if out.letters[idx].base() == 'a' => {
+                out.letters[idx].mark = Mark::Breve;
+                out.mark_at = i;
+                return;
+            }
+            // Already transformed by a previous `w`: escape.
+            _ => {
+                let drop = drop_for(raw, i, key, out.mark_at);
+                escape_to_raw(out, raw, i, drop);
+                return;
+            }
         }
     }
+    // Rule 6: V is empty → insert `ư` (`w` → `ư`, `tw` → `tư`, `nhw` → `như`).
+    if !options.jfwz_as_consonant
+        && !has_vowel(out)
+        && crate::spell::is_onset(&out.letters)
+        && w_is_the_whole_tail(raw, i)
+    {
+        out.letters.push(Letter::new(
+            if key.is_uppercase() { 'U' } else { 'u' },
+            Mark::Horn,
+        ));
+        out.mark_at = i;
+        return;
+    }
+    // Rule 7: otherwise `w` is literal and the word stops transforming
+    // (`hwllo`, `qwerty`, `btw`).
     out.escaped = true;
     out.letters.push(Letter::literal(key));
+}
+
+/// A lone `w` is only `ư` when nothing else has been typed after it yet: with
+/// a plain letter following (`hwllo`, `qwerty`) the `w` is a letter, and a
+/// following `w` is its own escape (`ww` → `w`).
+fn w_is_the_whole_tail(raw: &[char], i: usize) -> bool {
+    raw[i + 1..]
+        .iter()
+        .all(|ch| matches!(ch.to_ascii_lowercase(), 'w' | 's' | 'f' | 'r' | 'x' | 'j'))
 }
 
 fn w_target(letters: &[Letter]) -> Option<usize> {
@@ -287,36 +386,27 @@ fn w_target(letters: &[Letter]) -> Option<usize> {
 }
 
 // ---------------------------------------------------------------------------
-// VNI and VIQR
+// VIQR
 // ---------------------------------------------------------------------------
 
-fn step_vni(out: &mut Composed, ch: char) {
-    out.letters.push(Letter::literal(ch));
-}
-
-fn step_viqr(out: &mut Composed, ch: char) {
-    let doubled = ch.eq_ignore_ascii_case(&'d')
-        && out
-            .letters
-            .last()
-            .is_some_and(|last| last.base() == 'd' && last.mark == Mark::None);
-    if doubled {
-        if let Some(last) = out.letters.last_mut() {
-            last.mark = Mark::Bar;
-        }
-        return;
+fn step_viqr(out: &mut Composed, raw: &[char], i: usize) {
+    let ch = raw[i];
+    if ch.eq_ignore_ascii_case(&'d') {
+        double_letter(out, raw, i, 'd', Mark::Bar);
+    } else {
+        out.letters.push(Letter::literal(ch));
     }
-    out.letters.push(Letter::literal(ch));
 }
 
 /// VIQR punctuation: tone marks, `^ ( + -` modifiers.
-fn step_viqr_symbol(out: &mut Composed, ch: char, options: &EngineOptions) {
+fn step_viqr_symbol(out: &mut Composed, raw: &[char], i: usize, options: &EngineOptions) {
+    let ch = raw[i];
     match ch {
-        '\'' | '`' | '?' | '~' | '.' => apply_tone(out, tone_of(ch), ch, options),
-        '^' => mark_last(out, &['a', 'e', 'o'], Mark::Circumflex, ch),
-        '(' => mark_last(out, &['a'], Mark::Breve, ch),
-        '+' => mark_last(out, &['o', 'u'], Mark::Horn, ch),
-        '-' => mark_last(out, &['d'], Mark::Bar, ch),
+        '\'' | '`' | '?' | '~' | '.' => apply_tone(out, raw, i, tone_of(ch), ch, options),
+        '^' => mark_last(out, raw, i, &['a', 'e', 'o'], Mark::Circumflex, ch),
+        '(' => mark_last(out, raw, i, &['a'], Mark::Breve, ch),
+        '+' => mark_last(out, raw, i, &['o', 'u'], Mark::Horn, ch),
+        '-' => mark_last(out, raw, i, &['d'], Mark::Bar, ch),
         _ => out.letters.push(Letter::literal(ch)),
     }
 }
@@ -340,37 +430,42 @@ fn has_vowel(out: &Composed) -> bool {
     out.letters.iter().any(|letter| letter.is_vowel())
 }
 
-fn apply_tone(out: &mut Composed, tone: Tone, key: char, options: &EngineOptions) {
+fn apply_tone(out: &mut Composed, raw: &[char], i: usize, tone: Tone, key: char, options: &EngineOptions) {
     if tone == Tone::None {
         out.letters.push(Letter::literal(key));
         return;
     }
-    match place::target(&out.letters, options.modern_tone) {
-        None => out.letters.push(Letter::literal(key)),
-        Some(_) => {
-            if out.tone == tone {
-                // Same tone typed twice: the keystroke wins, the accent drops.
-                out.tone = Tone::None;
-                out.escaped = true;
-                out.letters.push(Letter::literal(key));
-            } else {
-                out.tone = tone;
-            }
-        }
+    let Some(slot) = place::target(&out.letters, options.modern_tone) else {
+        // No vowel to carry it (`s`, `str`): the key is a letter.
+        out.letters.push(Letter::literal(key));
+        return;
+    };
+    if out.tone == tone {
+        // The same trigger again: the word reverts to the literal keystrokes.
+        let drop = drop_for(raw, i, key, out.tone_at).or_else(|| previous_trigger(raw, i, key));
+        escape_to_raw(out, raw, i, drop);
+        return;
     }
+    out.tone = tone;
+    out.tone_at = i;
+    // `Đặt dấu tự do` off: the tone stays on the vowel it hit right now.
+    out.tone_slot = if options.free_tone { None } else { Some(slot) };
 }
 
-fn mark_last(out: &mut Composed, bases: &[char], mark: Mark, key: char) {
+fn mark_last(out: &mut Composed, raw: &[char], i: usize, bases: &[char], mark: Mark, key: char) {
     if let Some(idx) = out
         .letters
         .iter()
         .rposition(|letter| bases.contains(&letter.base()) && letter.mark == Mark::None)
     {
         out.letters[idx].mark = mark;
-    } else {
-        out.escaped = true;
-        out.letters.push(Letter::literal(key));
+        out.mark_at = i;
+        return;
     }
+    // No letter can take it: escape to the raw keystrokes, never a half
+    // transform (`a^^` → `a^`, `await` → `await`).
+    let drop = drop_for(raw, i, key, out.mark_at);
+    escape_to_raw(out, raw, i, drop);
 }
 
 #[cfg(test)]

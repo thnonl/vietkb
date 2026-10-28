@@ -119,7 +119,9 @@ impl Letter {
     }
 
     pub fn is_vowel(self) -> bool {
-        vowel_kind(self.base(), self.mark).is_some()
+        // `đ` is a consonant: the bar is a modification mark but the letter can
+        // never carry a tone (A5), so it is never a tone target either.
+        vowel_kind(self.base(), self.mark).is_some_and(|kind| kind != D_KIND)
     }
 
     /// `true` when this letter can carry the given mark.
@@ -321,6 +323,8 @@ mod tests {
         assert!(Letter::literal('a').is_vowel());
         assert!(Letter::new('ư', Mark::Horn).is_vowel());
         assert!(!Letter::literal('d').is_vowel());
+        // `đ` carries a mark but is never a vowel, so it never takes a tone.
+        assert!(!Letter::new('d', Mark::Bar).is_vowel());
         assert!(!Letter::literal('n').is_vowel());
         assert!(Letter::new('A', Mark::Breve).is_upper());
         assert!(Letter::literal('a').accepts(Mark::Breve));
