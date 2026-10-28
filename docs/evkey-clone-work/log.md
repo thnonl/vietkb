@@ -1,4 +1,4 @@
-# Log
+﻿# Log
 
 - 2026-10-28 Sprint 0 start. Charter written (`00-charter.md`). Legacy code declared reference-only; owner authorized full deletion.
 - 2026-10-28 Dispatched background scouts: legacy repo survey, EVKey capability research, toolchain check.
@@ -27,3 +27,8 @@
   5 charsets remain UNVERIFIED (`tcvn3`, `vni_windows`, `viscii`, `bk_hcm1`, `vps`).
 
 
+- 2026-10-28 wt-windows: pure layer done in `vkb-platform` (injection planning, hotkey matcher,
+  per-app rule resolution) + `vkb-windows` backend (WH_KEYBOARD_LL on a dedicated thread with
+  install timeout and watchdog, batched `SendInput`, in-hook hotkeys, foreground cache, HKCU
+  autostart, opt-in clipboard). Tests green; details in `70-impl-notes-windows.md`. No full
+  build run, so no BUILD slot claimed.
