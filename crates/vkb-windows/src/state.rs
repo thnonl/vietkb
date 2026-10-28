@@ -21,11 +21,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
     KBDLLHOOKSTRUCT, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
+use crate::debuglog;
 use crate::foreground::{self, AppKey};
 use crate::globals;
 use crate::hotkeys as hotkey_map;
 use crate::ime;
-use crate::input::{self, SendMode};
+use crate::input::{self, SendMode, SendResult};
 use crate::keys::{self, ModifierState};
 use crate::sound;
 
@@ -56,6 +57,30 @@ pub fn next_method(current: InputMethod) -> InputMethod {
     }
 }
 
+/// The context a half-typed word belongs to.
+///
+/// Both fields are read from the already-refreshed foreground cache, so
+/// building one costs nothing beyond two register moves.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct WordContext {
+    /// Foreground window the word was started in.
+    pub hwnd: isize,
+    /// Whether Vietnamese input was active there (exclusion/override state).
+    pub enabled: bool,
+}
+
+/// `true` when the pending word must be dropped before this key is processed.
+///
+/// `None` means no word has been started yet, so there is nothing to flush.
+/// Staying in the same window with the same enablement never resets, which is
+/// what keeps a normal sentence in one word buffer.
+pub(crate) fn context_changed(prev: Option<WordContext>, next: WordContext) -> bool {
+    match prev {
+        Some(prev) => prev.hwnd != next.hwnd || prev.enabled != next.enabled,
+        None => false,
+    }
+}
+
 pub struct HookRuntime {
     engine: Box<dyn VietnameseEngine>,
     engine_failed: bool,
@@ -68,6 +93,9 @@ pub struct HookRuntime {
     base: BaseSettings,
     rule: Option<vkb_config::AppRule>,
     app: AppKey,
+    /// Context of the word currently in the engine, if any. Compared against
+    /// the refreshed foreground cache on every keystroke.
+    word_context: Option<WordContext>,
     app_name: String,
     app_checked: Instant,
     us_layout: bool,
@@ -100,6 +128,7 @@ impl HookRuntime {
             base: BaseSettings::default(),
             rule: None,
             app: AppKey::default(),
+            word_context: None,
             app_name: String::new(),
             app_checked: Instant::now() - APP_TTL,
             us_layout: true,
@@ -119,6 +148,19 @@ impl HookRuntime {
         match cfg {
             Some(cfg) => runtime.apply_config(cfg),
             None => runtime.apply_engine_options(),
+        }
+        if debuglog::enabled() {
+            debuglog::note(&format!(
+                "runtime-start enabled={} method={:?} charset={:?} spell_check={} jfwz_as_consonant={} send_mode={:?} clipboard={} hotkeys={}",
+                runtime.effective_enabled(),
+                runtime.base.method,
+                runtime.base.charset,
+                runtime.options.spell_check,
+                runtime.options.jfwz_as_consonant,
+                runtime.send_mode,
+                runtime.use_clipboard,
+                runtime.hotkeys.len(),
+            ));
         }
         runtime
     }
@@ -152,19 +194,44 @@ impl HookRuntime {
 
         self.cfg = Some(cfg);
         self.app = AppKey::default();
+        self.word_context = None;
         self.app_name.clear();
         self.resolved = None;
         self.rule = None;
         self.apply_engine_options();
         self.reset_engine();
         self.hotkeys.discard_latches();
+        if debuglog::enabled() {
+            debuglog::note(&format!(
+                "config-applied global_enabled={} base_enabled={} app_rules={} hotkeys={} ime={} us_layout={}",
+                globals::enabled(),
+                self.base.enabled,
+                self.cfg.as_ref().map_or(0, |cfg| cfg.apps.rules.len()),
+                self.hotkeys.len(),
+                self.ime_active,
+                self.us_layout,
+            ));
+        }
     }
 
     /// Feed one hook event. Returns whether the key must be swallowed.
     pub fn on_event(&mut self, message: u32, info: &KBDLLHOOKSTRUCT) -> Decision {
+        let mut trace = debuglog::Trace::new(message, info);
+        let decision = self.route(message, info, &mut trace);
+        trace.finish(&decision);
+        decision
+    }
+
+    fn route(
+        &mut self,
+        message: u32,
+        info: &KBDLLHOOKSTRUCT,
+        trace: &mut debuglog::Trace,
+    ) -> Decision {
         let down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
         let released = message == WM_KEYUP || message == WM_SYSKEYUP;
         if !down && !released {
+            trace.stage("non-key");
             return Decision::PASS;
         }
 
@@ -172,10 +239,12 @@ impl HookRuntime {
 
         // Our own injections re-enter the hook; never feed them back.
         if info.dwExtraInfo == input::INJECTED_MAGIC {
+            trace.stage("own-injection");
             return Decision::PASS;
         }
         // Unicode packets come from an IME: leave the composition alone.
         if vk == keys::VK_PACKET {
+            trace.stage("ime-packet");
             return Decision::PASS;
         }
 
@@ -184,11 +253,13 @@ impl HookRuntime {
         self.set_down(vk, down);
         self.mods.apply(vk, down);
         let modifiers = self.mods.modifiers();
+        trace.mods(modifiers, self.mods.caps_lock);
         let repeat = down && was_down;
         self.sync_global_toggle();
 
         // 1. Hotkeys before anything else: the trigger must never reach the app.
         if let Some(hotkey) = self.hotkeys.on_key(vk, down, modifiers, is_modifier) {
+            trace.stage("hotkey");
             self.on_hotkey(hotkey);
             if down && !is_modifier {
                 return Decision::SWALLOW;
@@ -198,34 +269,49 @@ impl HookRuntime {
         }
 
         if !down {
+            trace.stage("key-up");
             return Decision::PASS;
         }
 
         // 2. Shortcut chords are never text.
         if self.mods.has_shortcut_modifier() {
+            trace.stage("shortcut");
             self.reset_engine();
             return Decision::PASS;
         }
 
         // 3. Per-app enablement, IME composition, non-US layout.
         self.refresh_app();
-        if !self.effective_enabled()
-            || self.ime_active
-            || (self.disable_on_non_us && !self.us_layout)
-        {
+        // A different foreground window (or a changed exclusion/override) must
+        // not inherit the half-typed word. `refresh_app` just refreshed the
+        // cache, so this is only an integer + flag comparison on the common path.
+        self.sync_word_context();
+        let enabled = self.effective_enabled();
+        if !enabled || self.ime_active || (self.disable_on_non_us && !self.us_layout) {
+            trace.inactive(if !enabled {
+                "disabled"
+            } else if self.ime_active {
+                "ime-composition"
+            } else {
+                "non-us-layout"
+            });
+            trace.stage("inactive");
             self.reset_engine();
             return Decision::PASS;
         }
 
         // 4. Caret movement and other commands end the current word.
         if keys::is_caret_mover(vk) {
+            trace.stage("caret-mover");
             self.reset_engine();
             return Decision::PASS;
         }
 
         // 5. Text keys plus the boundary keys the engine cares about.
         let ch = self.char_for(vk, info.scanCode as u16);
+        trace.ch(ch);
         if ch.is_none() && !keys::is_word_boundary(vk) {
+            trace.stage("non-text");
             self.reset_engine();
             return Decision::PASS;
         }
@@ -239,14 +325,21 @@ impl HookRuntime {
             repeat,
         };
         let action = self.process(key);
+        trace.action(&action);
 
         if action == EngineAction::ToggleEnabled {
+            trace.stage("engine-toggle");
             let next = !self.effective_enabled();
             self.set_enabled(next);
             return Decision::SWALLOW;
         }
 
         let decision = decide(&action, ch);
+        trace.stage(if decision.swallow {
+            "engine-swallow"
+        } else {
+            "engine-pass"
+        });
         if decision.swallow {
             let has_sink = self.sink.is_some();
             if has_sink {
@@ -256,7 +349,8 @@ impl HookRuntime {
                     }
                 }
             } else {
-                self.execute(&decision);
+                let sent = self.execute(&decision);
+                trace.send(sent);
             }
         }
         decision
@@ -349,21 +443,22 @@ impl HookRuntime {
         }
     }
 
-    fn execute(&mut self, decision: &Decision) {
+    fn execute(&mut self, decision: &Decision) -> Option<SendResult> {
         match &decision.injection {
-            Injection::None => {}
+            Injection::None => None,
             Injection::Beep => {
                 if self.sound_on {
                     sound::play_notification_sound();
                 }
+                None
             }
-            Injection::Type(text) => self.deliver(text, 0),
-            Injection::Replace { deletes, insert } => self.deliver(insert, *deletes),
+            Injection::Type(text) => Some(self.deliver(text, 0)),
+            Injection::Replace { deletes, insert } => Some(self.deliver(insert, *deletes)),
         }
     }
 
     /// Batched delivery: deletes and text go out in one `SendInput` call.
-    fn deliver(&mut self, text: &str, deletes: u32) {
+    fn deliver(&mut self, text: &str, deletes: u32) -> SendResult {
         if self.use_clipboard {
             if deletes > 0 {
                 let inputs = input::build_segment(deletes, "", self.send_mode);
@@ -372,10 +467,10 @@ impl HookRuntime {
             if !text.is_empty() {
                 crate::clipboard::paste_async(text.to_string());
             }
-            return;
+            return SendResult::default();
         }
         let inputs = input::build_segment(deletes, text, self.send_mode);
-        input::send(&inputs);
+        input::send_detailed(&inputs)
     }
 
     fn reset_engine(&mut self) {
@@ -417,6 +512,28 @@ impl HookRuntime {
         if now.saturating_duration_since(self.ime_checked) >= IME_TTL {
             self.ime_active = ime::composition_active(hwnd);
             self.ime_checked = now;
+        }
+    }
+
+    /// Flush a word that belongs to a previous context.
+    ///
+    /// Reads what [`Self::refresh_app`] just cached, so it adds no Win32 call
+    /// and no allocation to the keystroke path. Entering an excluded app or
+    /// leaving one also lands here through `effective_enabled`.
+    fn sync_word_context(&mut self) {
+        let next = WordContext {
+            hwnd: self.app.hwnd,
+            enabled: self.effective_enabled(),
+        };
+        if context_changed(self.word_context, next) {
+            self.boundary_engine();
+        }
+        self.word_context = Some(next);
+    }
+
+    fn boundary_engine(&mut self) {
+        if !self.engine_failed {
+            self.engine.boundary();
         }
     }
 
@@ -585,5 +702,32 @@ mod tests {
         // High virtual keys must not go out of bounds.
         rt.set_down(0xE7, true);
         assert!(rt.is_down(0xE7));
+    }
+
+    /// Regression: a half-typed word must not survive a foreground change.
+    #[test]
+    fn context_change_flushes_the_pending_word() {
+        let in_a = WordContext {
+            hwnd: 0x00A1,
+            enabled: true,
+        };
+        let in_b = WordContext {
+            hwnd: 0x00B2,
+            enabled: true,
+        };
+        // First key after start: nothing to flush yet.
+        assert!(!context_changed(None, in_a));
+        // Same window, same enablement: the word keeps growing.
+        assert!(!context_changed(Some(in_a), in_a));
+        // A different foreground window ends the word.
+        assert!(context_changed(Some(in_a), in_b));
+        // Return trip flushes again rather than reviving the old buffer.
+        assert!(context_changed(Some(in_b), in_a));
+        // Entering (or leaving) an excluded/overridden app ends it too.
+        assert!(context_changed(Some(in_a), WordContext { enabled: false, ..in_a }));
+        assert!(context_changed(
+            Some(WordContext { enabled: false, ..in_a }),
+            in_a
+        ));
     }
 }
