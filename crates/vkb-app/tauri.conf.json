@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "vn.vietkb.app",
   "build": {
-    "beforeDevCommand": "npm.cmd --prefix ../../ui run dev",
+    "beforeDevCommand": "npm.cmd --prefix ../ui run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm.cmd --prefix ../../ui run build",
+    "beforeBuildCommand": "npm.cmd --prefix ../ui run build",
     "frontendDist": "../../ui/dist"
   },
   "app": {
