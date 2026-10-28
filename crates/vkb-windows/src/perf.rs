@@ -24,15 +24,25 @@
 //!
 //! ## Output
 //!
-//! [`finish`] writes `%APPDATA%\VietKB\perf-<timestamp>.tsv` (one microsecond
+//! [`flush`] writes `%APPDATA%\VietKB\perf-<timestamp>.tsv` (one microsecond
 //! value per row, `#` header) and logs count/p50/p95/p99/max plus a verdict, so
 //! a run answers the budget without extra tooling. The procedure that consumes
 //! this file is `docs/evkey-clone-work/81-p2-procedure.md`.
+//!
+//! ## When the file is written
+//!
+//! A measurement session must never lose its samples to a window that is only
+//! hidden (close = hide to tray) or to a force-kill, so [`flush`] is called on
+//! **every** such boundary: the real quit, the window hiding to the tray, and a
+//! 60 s timer in the app's backend worker while the probe is armed. Each call
+//! rewrites the run's one file with the newest stats (never appends), so the
+//! last flush before the kill is the report. All of them run off the hook
+//! thread.
 
 use std::cell::Cell;
 use std::fmt::Write as _;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -61,7 +71,9 @@ static ENABLED: AtomicBool = AtomicBool::new(false);
 static INIT: OnceLock<()> = OnceLock::new();
 static RING: OnceLock<Mutex<Ring>> = OnceLock::new();
 static META: OnceLock<Meta> = OnceLock::new();
-static FLUSHED: AtomicBool = AtomicBool::new(false);
+/// Sample count of the last flush that logged a verdict, so repeated flushes of
+/// an unchanged report stay at `debug` instead of repeating the same line.
+static LOGGED_COUNT: AtomicU64 = AtomicU64::new(u64::MAX);
 
 thread_local! {
     /// Start tick of the keystroke currently inside the hook callback. Only the
@@ -224,23 +236,29 @@ fn percentile(sorted: &[u32], pct: u32) -> u32 {
     sorted[index]
 }
 
-/// Write the TSV and log the verdict. Safe to call more than once; only the
-/// first call in a process writes a file. No-op when the probe is off.
-pub fn finish() -> Option<PathBuf> {
+/// Write the report with the newest stats, **overwriting** this run's file.
+///
+/// Safe to call often and from any thread except the hook thread: the quit
+/// path, the window hiding to the tray, and the backend worker's 60 s timer all
+/// land here, so a long session or a force-kill never loses the samples. One run
+/// keeps one file because the name comes from the probe's start time. No-op when
+/// the probe is off.
+pub fn flush() -> Option<PathBuf> {
     if !ENABLED.load(Ordering::Acquire) {
-        return None;
-    }
-    if FLUSHED.swap(true, Ordering::SeqCst) {
         return None;
     }
     match write_report() {
         Ok(path) => Some(path),
         Err(err) => {
-            FLUSHED.store(false, Ordering::SeqCst);
             tracing::warn!(target: "vkb_windows::perf", error = %err, "cannot write the perf report");
             None
         }
     }
+}
+
+/// Name used by the exit paths; same thing as [`flush`].
+pub fn finish() -> Option<PathBuf> {
+    flush()
 }
 
 fn write_report() -> Result<PathBuf> {
@@ -279,6 +297,17 @@ fn write_report() -> Result<PathBuf> {
         std::fs::create_dir_all(dir)?;
     }
     std::fs::write(&path, body)?;
+
+    // The periodic flush rewrites the same numbers between keystrokes; log the
+    // verdict only when they actually moved, so a long session stays readable.
+    if LOGGED_COUNT.swap(summary.count as u64, Ordering::Relaxed) == summary.count as u64 {
+        tracing::debug!(
+            target: "vkb_windows::perf",
+            path = %path.display(),
+            "perf report re-flushed (unchanged)"
+        );
+        return Ok(path);
+    }
 
     if summary.count < MIN_SAMPLES_FOR_VERDICT {
         tracing::warn!(

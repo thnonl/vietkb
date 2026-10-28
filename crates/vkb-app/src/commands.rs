@@ -6,7 +6,7 @@
 //! 150 ms debounce on the UI side already coalesces typing bursts.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
@@ -15,26 +15,48 @@ use vkb_core::{Charset, InputMethod};
 
 use crate::charset_convert;
 
-static CONFIG: OnceLock<parking_lot::RwLock<AppConfig>> = OnceLock::new();
+/// The one config cell. It is an `Arc` so the very same cell can be handed to
+/// the Windows backend (`vkb_platform::SharedConfig`), which is what makes a
+/// config change reach the hook without a restart.
+static CONFIG: OnceLock<vkb_platform::SharedConfig> = OnceLock::new();
 static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
 
-/// Set by the platform backend once the keyboard hook is installed. The Windows
-/// backend lives in another stream this sprint, so it stays `false` and the UI
-/// says so instead of pretending.
-static HOOK_READY: AtomicBool = AtomicBool::new(false);
 static AUTOSTART_SYNCED: AtomicBool = AtomicBool::new(false);
 static AUTOSTART_STATE: AtomicBool = AtomicBool::new(false);
 
+fn shared() -> &'static vkb_platform::SharedConfig {
+    CONFIG.get_or_init(|| Arc::new(parking_lot::RwLock::new(vkb_config::load())))
+}
+
+/// The config cell as the backend expects it; cloning the `Arc` is the whole
+/// hand-off.
+pub fn shared_config() -> vkb_platform::SharedConfig {
+    shared().clone()
+}
+
 pub fn config_cell() -> &'static parking_lot::RwLock<AppConfig> {
-    CONFIG.get_or_init(|| parking_lot::RwLock::new(vkb_config::load()))
+    shared().as_ref()
 }
 
 pub fn set_app_handle(handle: tauri::AppHandle) {
     let _ = APP_HANDLE.set(handle);
 }
 
-fn app_handle() -> Option<&'static tauri::AppHandle> {
+pub(crate) fn app_handle() -> Option<&'static tauri::AppHandle> {
     APP_HANDLE.get()
+}
+
+/// Whether the keyboard hook is installed and pumping. Never a constant: it is
+/// the backend's own liveness flag, so a hook that died reads `false`.
+pub fn hook_ready_now() -> bool {
+    #[cfg(windows)]
+    {
+        vkb_windows::is_hook_ready()
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +281,7 @@ pub fn status_view(cfg: &AppConfig) -> StatusView {
             vkb_config::Mechanism::Hook => "hook".into(),
             vkb_config::Mechanism::Ime => "ime".into(),
         },
-        hook_ready: HOOK_READY.load(Ordering::Relaxed),
+        hook_ready: hook_ready_now(),
         version: env!("CARGO_PKG_VERSION").to_string(),
     }
 }
@@ -276,6 +298,11 @@ fn after_change() {
         (status_view(&cfg), cfg.system.start_with_windows)
     };
     sync_autostart(autostart);
+
+    // Hand the new config to the hook: one `Arc` swap plus a wake-up, never a
+    // reinstall, and the enabled flag rides along inside the config.
+    #[cfg(windows)]
+    crate::windows_backend::push_config();
 
     if let Some(app) = app_handle() {
         crate::tray::refresh(app, &status);
@@ -310,7 +337,7 @@ pub fn sync_autostart_now(enabled: bool) {
     sync_autostart(enabled);
 }
 
-fn save_and_publish(next: AppConfig) -> Result<SettingsView, String> {
+pub(crate) fn save_and_publish(next: AppConfig) -> Result<SettingsView, String> {
     vkb_config::save(&next).map_err(|error| error.to_string())?;
     let view = {
         let mut cfg = config_cell().write();
@@ -606,8 +633,13 @@ pub fn toggle_enabled() -> StatusView {
     let mut draft = config_cell().read().clone();
     draft.input.enabled = !draft.input.enabled;
     let play_sound = draft.system.notification_sound;
+    let enabled = draft.input.enabled;
     match save_and_publish(draft) {
         Ok(view) => {
+            // `after_change` already pushed the config; the flag itself is set
+            // here too so the very next keystroke sees it, not the next tick.
+            #[cfg(windows)]
+            vkb_windows::set_enabled(enabled);
             if play_sound {
                 play_notification();
             }
@@ -631,7 +663,7 @@ fn status_view_from_view(view: &SettingsView) -> StatusView {
         method: view.input.method.clone(),
         charset: view.input.charset.clone(),
         mechanism: view.input.mechanism.clone(),
-        hook_ready: HOOK_READY.load(Ordering::Relaxed),
+        hook_ready: hook_ready_now(),
         version: env!("CARGO_PKG_VERSION").to_string(),
     }
 }
@@ -1000,12 +1032,25 @@ pub fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }
 
+/// Presentation-only window management: the frozen §6 commands are untouched.
+/// Async so WebView2 creation is posted to the UI thread instead of blocking
+/// the IPC handler that called us.
+#[tauri::command]
+pub async fn open_window(app: tauri::AppHandle, kind: String) -> Result<(), String> {
+    crate::show_aux(&app, &kind)
+}
+
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    crate::quit(&app);
+}
+
 #[tauri::command]
 pub fn app_info() -> AppInfoView {    AppInfoView {
         version: env!("CARGO_PKG_VERSION").to_string(),
         arch: std::env::consts::ARCH.to_string(),
         config_path: vkb_config::paths::config_file().display().to_string(),
-        hook_ready: HOOK_READY.load(Ordering::Relaxed),
+        hook_ready: hook_ready_now(),
     }
 }
 

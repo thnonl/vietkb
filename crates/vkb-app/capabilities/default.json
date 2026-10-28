@@ -2,9 +2,17 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "VietKB settings window: no filesystem or shell access beyond the dialogs it asks for.",
-  "windows": ["main"],
+  "windows": ["main", "hotkeys", "advanced", "macros"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-is-minimized",
+    "core:event:allow-listen",
     "dialog:default",
     "opener:default",
     "autostart:default"

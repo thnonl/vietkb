@@ -2,6 +2,7 @@ import { mount } from "svelte";
 import App from "./App.svelte";
 import "./styles/tokens.css";
 import "./styles/kit.css";
+import "./styles/v4.css";
 
 // Theme before first paint: honour the OS until settings arrive (state.svelte.ts
 // overwrites this with the saved override).

@@ -4,6 +4,7 @@
   import Modal from "../components/Modal.svelte";
   import { app, errorText } from "../lib/state.svelte";
   import * as api from "../lib/api";
+  import { closeCurrent } from "../lib/window.svelte";
   import { formatNumber } from "../lib/hotkey";
   import type { MacroRow } from "../lib/bindings";
 
@@ -459,11 +460,10 @@
   </span>
   <button
     type="button"
-    class="link"
-    title="Bảng gõ tắt mở ở cửa sổ riêng (C10)"
-    onclick={() => app.toast("info", "Bảng gõ tắt sẽ mở ở cửa sổ riêng — chưa có trong bản này.")}>
-    Mở bảng gõ tắt
-    <Icon name="arrow-right" small />
+    class="btn ghost sm"
+    title="Đóng, VietKB vẫn chạy"
+    onclick={closeCurrent}>
+    Đóng
   </button>
 </div>
 

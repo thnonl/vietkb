@@ -1,6 +1,5 @@
-/* Structural kit — ported from design/light|dark/*.html (same stylesheet for
- * all four tabs). Colour/type values live in tokens.css; this file is layout,
- * control anatomy and state. Components stay thin wrappers over these classes. */
+/* Structural kit — shared control anatomy for the v4 windows. Layout lives in
+ * v4.css; colour/type values live in tokens.css. */
 
 .win {
   display: flex;
@@ -370,7 +369,7 @@
   box-shadow: none;
 }
 .tg.on::after {
-  transform: translateX(20px);
+  transform: translateX(16px);
 }
 .tg.bad.on {
   background: var(--bad);
@@ -879,7 +878,9 @@
 .cap.empty {
   background: transparent;
   box-shadow: none;
-  border: 1px dashed var(--line-3);
+  border: 0;
+  outline: 1px dashed var(--line-3);
+  outline-offset: -1px;
   padding: 0 10px;
   font: 400 13px/20px var(--ui);
   color: var(--t3);

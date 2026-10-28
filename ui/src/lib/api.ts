@@ -60,3 +60,8 @@ export const convertText = (input: string, from: string, to: string) =>
 export const openConfigFolder = () => invoke<void>("open_config_folder");
 export const restartApp = () => invoke<void>("restart_app");
 export const appInfo = () => invoke<AppInfoView>("app_info");
+
+/** Window management is presentation only; contract §6 commands are untouched. */
+export const openWindow = (kind: "hotkeys" | "advanced" | "macros") =>
+  invoke<void>("open_window", { kind });
+export const quitApp = () => invoke<void>("quit_app");

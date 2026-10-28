@@ -15,6 +15,7 @@
     onreset,
     checkConflict,
     onproblem,
+    width = 276,
   }: {
     field: HotkeyActionField;
     value: string | null;
@@ -24,6 +25,7 @@
     onreset?: () => void;
     checkConflict?: (canonical: string) => Promise<string | null>;
     onproblem?: (problem: { kind: "conflict" | "error" | "warn"; text: string } | null) => void;
+    width?: number;
   } = $props();
 
   let editing = $state(false);
@@ -184,6 +186,7 @@
 
 <div
   class="cap"
+  style={`width:${width}px`}
   class:rec={editing}
   class:warn={conflict !== null || warning !== null}
   class:empty={!editing && !value}>

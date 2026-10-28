@@ -1,0 +1,279 @@
+/* v4 window kit — one 480 × 384 main window, two secondary windows.
+ * Mirrors design/{light,dark}/{quick,hotkeys,advanced}.html exactly. */
+
+.v4win {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---- caption (36 px, drag surface, 44 × 36 window buttons) ---------------- */
+.cap-bar {
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-left: 16px;
+  gap: 8px;
+}
+.cap-bar .ttl {
+  font: 600 13px/20px var(--ui);
+  color: var(--t1);
+  white-space: nowrap;
+}
+.cap-bar .ttl small {
+  font: 400 13px/20px var(--ui);
+  color: var(--t3);
+  margin-left: 4px;
+}
+.cap-bar .drag {
+  flex: 1;
+  align-self: stretch;
+}
+.cap-bar .wc {
+  display: flex;
+  align-self: stretch;
+}
+.cap-bar .wbtn {
+  width: 44px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: var(--t2);
+}
+.cap-bar .wbtn:hover {
+  background: var(--hover-plane);
+  color: var(--t1);
+}
+.cap-bar .wbtn.x:hover {
+  background: var(--bad);
+  color: #fff;
+}
+.cap-bar .wbtn svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+/* ---- sheet ---------------------------------------------------------------- */
+.v4sheet {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--line-2);
+  padding: 0 20px;
+  overflow: hidden;
+}
+.v4pad {
+  height: 4px;
+  flex: none;
+}
+
+/* ---- rows ----------------------------------------------------------------- */
+.v4row {
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+.v4row + .v4row {
+  box-shadow: inset 0 1px 0 var(--line-1);
+}
+.v4row.noline {
+  box-shadow: none;
+}
+.v4row .l {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+.v4row .l b {
+  font: 500 14px/20px var(--ui);
+  color: var(--t1);
+}
+.v4row.main .l b {
+  font-weight: 600;
+}
+.v4row .h {
+  font: 400 13px/20px var(--ui);
+  color: var(--t3);
+}
+.v4row .h.serif {
+  font: 400 15px/20px var(--serif);
+  color: var(--t2);
+}
+.v4row .hk {
+  font: 400 13px/20px var(--ui);
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+}
+.v4row .c {
+  flex: none;
+  display: grid;
+  grid-auto-flow: column;
+  align-items: center;
+  justify-items: end;
+  gap: 10px;
+}
+.v4row.pair {
+  gap: 24px;
+}
+.v4row.pair .grp {
+  display: grid;
+  grid-template-columns: max-content auto;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.v4row.pair .grp + .grp {
+  justify-content: end;
+}
+.v4row.hkrow {
+  display: grid;
+  grid-template-columns: 1fr 248px;
+  align-items: center;
+}
+.v4sheet .sel {
+  height: 32px;
+}
+.v4row.pair .lb {
+  font: 400 13px/20px var(--ui);
+  color: var(--t2);
+  white-space: nowrap;
+}
+.v4sep {
+  height: 1px;
+  flex: none;
+  background: var(--line-2);
+  margin: 4px 0;
+}
+
+/* ---- footer --------------------------------------------------------------- */
+.v4foot {
+  height: 56px;
+  flex: none;
+  margin: auto -20px 0;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-top: 1px solid var(--line-2);
+}
+.v4foot .sp {
+  flex: 1;
+}
+.v4lk {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font: 500 13px/20px var(--ui);
+  color: var(--t2);
+  white-space: nowrap;
+}
+.v4lk:first-child {
+  margin-left: -8px;
+}
+.v4lk:hover {
+  background: var(--hover);
+  color: var(--t1);
+}
+.v4lk .i {
+  color: var(--t3);
+}
+
+/* ---- hotkeys window ------------------------------------------------------- */
+.v4intro {
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font: 400 13px/20px var(--ui);
+  color: var(--t2);
+  white-space: nowrap;
+}
+
+/* ---- advanced window (EVKey-style checkbox grid) -------------------------- */
+.v4sh {
+  font: 600 13px/20px var(--ui);
+  color: var(--t1);
+  padding: 10px 0 2px;
+  border-bottom: 1px solid var(--line-2);
+  flex: none;
+}
+.v4grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 20px;
+  flex: none;
+}
+.v4ck {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 13px/20px var(--ui);
+  color: var(--t1);
+  white-space: nowrap;
+  min-width: 0;
+}
+.v4ck.dis {
+  color: var(--t3);
+  opacity: 0.55;
+}
+.v4sr {
+  height: 36px;
+  display: grid;
+  grid-template-columns: max-content max-content 1fr max-content max-content;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.v4sr .lb {
+  font: 400 13px/20px var(--ui);
+  color: var(--t1);
+  white-space: nowrap;
+}
+.v4sr .sp {
+  flex: 1;
+}
+.v4num {
+  width: 84px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: var(--e1), inset 0 0 0 1px var(--line-2);
+  font: 400 13px/20px var(--ui);
+}
+.v4num input {
+  width: 100%;
+  height: 32px;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font: 400 13px/20px var(--ui);
+  color: var(--t1);
+  font-variant-numeric: tabular-nums;
+}
+.v4num small {
+  font: 400 12px/18px var(--sm);
+  color: var(--t3);
+  margin-left: 4px;
+}

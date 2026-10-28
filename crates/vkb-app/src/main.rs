@@ -9,7 +9,7 @@ mod windows_backend;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Emitter, Manager, PhysicalPosition, RunEvent, WindowEvent};
+use tauri::{Manager, PhysicalPosition, RunEvent, WindowEvent};
 
 /// Set only by the tray's quit item. Everything else is "hide to tray".
 static QUITTING: AtomicBool = AtomicBool::new(false);
@@ -25,23 +25,31 @@ const MAIN_LABEL: &str = "main";
 /// the WebView2 stack down (charter P3) instead of hiding it, so this is also
 /// where it comes back.
 pub fn show_settings(app: &tauri::AppHandle) {
-    open_settings(app, None);
+    open_settings(app);
 }
 
-/// Like [`show_settings`], but a freshly built window opens on `tab` through
-/// the `?tab=` deep link the UI already reads at startup. An already open
-/// window gets the usual `vkb:navigate` event.
+/// Keep old callers (hotkeys, tray) working after the tab strip was removed:
+/// the three screens that used to be tabs are now real windows of their own.
 pub fn show_settings_tab(app: &tauri::AppHandle, tab: &str) {
-    let existing = app.get_webview_window(MAIN_LABEL).is_some();
-    open_settings(app, (!existing).then_some(tab));
-    if existing {
-        if let Err(error) = app.emit("vkb:navigate", tab) {
-            tracing::warn!(%error, tab, "could not request a tab");
+    match tab {
+        "hotkeys" => {
+            let _ = show_aux(app, "hotkeys");
         }
+        "advanced" | "system" | "go" => {
+            if tab == "go" {
+                show_settings(app);
+            } else {
+                let _ = show_aux(app, "advanced");
+            }
+        }
+        "macros" => {
+            let _ = show_aux(app, "macros");
+        }
+        _ => show_settings(app),
     }
 }
 
-fn open_settings(app: &tauri::AppHandle, tab: Option<&str>) {
+fn open_settings(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_LABEL) {
         let _ = window.show();
         let _ = window.unminimize();
@@ -49,7 +57,7 @@ fn open_settings(app: &tauri::AppHandle, tab: Option<&str>) {
         return;
     }
 
-    if let Err(error) = build_settings_window(app, tab) {
+    if let Err(error) = build_settings_window(app) {
         tracing::warn!(%error, "could not create the settings window");
         // A window whose destruction is still in flight refuses the label. It
         // is the same window the user asked for, so surface it instead of
@@ -61,31 +69,63 @@ fn open_settings(app: &tauri::AppHandle, tab: Option<&str>) {
     }
 }
 
-/// Build the settings window from scratch: same label, same fixed 720x560
-/// frameless shell, centred on the launch monitor as it appears.
-fn build_settings_window(
-    app: &tauri::AppHandle,
-    tab: Option<&str>,
-) -> tauri::Result<tauri::WebviewWindow> {
-    let url = match tab {
-        Some(tab) => tauri::WebviewUrl::App(format!("index.html?tab={tab}").into()),
-        None => tauri::WebviewUrl::App("index.html".into()),
+/// Open one of the two secondary windows (or the macro table). They share the
+/// frontend bundle and select their screen from `?win=`.
+pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
+    let (label, title, width, height) = match kind {
+        "hotkeys" => ("hotkeys", "Phím tắt — VietKB", 520.0, 460.0),
+        "advanced" => ("advanced", "Nâng cao — VietKB", 560.0, 496.0),
+        "macros" => ("macros", "Bảng gõ tắt — VietKB", 720.0, 560.0),
+        other => return Err(format!("cửa sổ không hợp lệ: {other}")),
     };
-    let started = std::time::Instant::now();
 
-    let window = tauri::WebviewWindowBuilder::new(app, MAIN_LABEL, url)
-        .title("VietKB")
-        .inner_size(720.0, 560.0)
-        .min_inner_size(680.0, 520.0)
-        .max_inner_size(900.0, 760.0)
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    let url = tauri::WebviewUrl::App(format!("index.html?win={kind}").into());
+    let window = tauri::WebviewWindowBuilder::new(app, label, url)
+        .title(title)
+        .inner_size(width, height)
         .resizable(false)
         .maximizable(false)
         .decorations(false)
-        .shadow(true)
+        .shadow(false)
         .transparent(false)
-        // Hidden at build time; placed and shown below in one go.
         .visible(false)
-        .build()?;
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    window.show().map_err(|error| error.to_string())?;
+    centre_on_anchor_monitor(&window, app);
+    centre_on_anchor_monitor(&window, app);
+    window.set_focus().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Build the settings window from scratch: same label, same fixed 480x384
+/// frameless shell, centred on the launch monitor as it appears.
+fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    let started = std::time::Instant::now();
+
+    let window = tauri::WebviewWindowBuilder::new(
+        app,
+        MAIN_LABEL,
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("Cài đặt VietKB")
+    .inner_size(480.0, 384.0)
+    .resizable(false)
+    .maximizable(false)
+    .decorations(false)
+    .shadow(false)
+    .transparent(false)
+    // Hidden at build time; placed and shown below in one go.
+    .visible(false)
+    .build()?;
 
     // Show first: a window that has never been shown has not had its DWM frame
     // applied yet, so `outer_size()` lies (measured 918x710 for a 720x560
@@ -103,10 +143,37 @@ fn build_settings_window(
 
     tracing::info!(
         elapsed_ms = started.elapsed().as_millis() as u64,
-        tab,
         "settings window built"
     );
     Ok(window)
+}
+
+/// Place a secondary window on the monitor that currently hosts the main
+/// window, so a 125 % main display does not hand its dialogs to a 100 % one.
+/// Falls back to the cursor's monitor, then primary/current.
+fn centre_on_anchor_monitor(window: &tauri::WebviewWindow, app: &tauri::AppHandle) {
+    let monitor = app
+        .get_webview_window(MAIN_LABEL)
+        .and_then(|main| main.current_monitor().ok().flatten())
+        .or_else(|| {
+            window
+                .cursor_position()
+                .ok()
+                .and_then(|cursor| window.monitor_from_point(cursor.x, cursor.y).ok().flatten())
+        })
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .or_else(|| window.current_monitor().ok().flatten());
+    let Some(monitor) = monitor else { return };
+    let Ok(win) = window.outer_size() else { return };
+
+    let mon_pos = monitor.position();
+    let mon_size = monitor.size();
+    let x = centred_axis(mon_pos.x, mon_size.width, win.width);
+    let y = centred_axis(mon_pos.y, mon_size.height, win.height);
+
+    if let Err(error) = window.set_position(PhysicalPosition::new(x, y)) {
+        tracing::warn!(%error, "could not position secondary window");
+    }
 }
 
 /// Centre `win_len` inside the monitor span `[mon_start, mon_start + mon_len)`,
@@ -314,6 +381,8 @@ fn main() {
             commands::convert_text,
             commands::open_config_folder,
             commands::restart_app,
+            commands::open_window,
+            commands::quit_app,
             commands::app_info,
         ])
         .build(tauri::generate_context!())
