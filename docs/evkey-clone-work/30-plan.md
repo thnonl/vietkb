@@ -26,7 +26,7 @@ Owner sees progress in this file and `log.md`.
 |---|---|
 | `wt-engine` | `vkb-core` full: Telex/VNI/VIQR, tone placement, charsets, macro, spell, restore-word. Golden corpus ≥ 800 cases. Criterion bench meeting P1. `vkb-cli simulate`. |
 | `wt-windows` | `vkb-windows`: low-level hook, `SendInput` injector with batched replacement, hotkeys, active-app probe, per-app rules, autostart. Crash-safe shutdown of the hook. |
-| `wt-ui` | `vkb-app` + `ui/`: Tauri 2 shell, tray, single instance, settings screens (Gõ, Bảng mã, Gõ tắt, Loại trừ, Phím tắt, Giới thiệu), typed command surface, live-apply config, hotkey capture field. |
+| `wt-ui` | `vkb-app` + `ui/`: Tauri 2 shell, tray, single instance, a **720 × 560 four-tab quick-settings panel** — `Gõ` · `Gõ tắt` · `Phím tắt` · `Hệ thống` — typed command surface, live-apply config, hotkey capture field. No sidebar, no dashboard, no scrolling (charter C9/C10). |
 
 **Gate 1:** typing works in Notepad / Chrome / VS Code / Excel / Zalo; P1–P6 measured;
 QA verification round on the real build.

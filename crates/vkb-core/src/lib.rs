@@ -75,8 +75,12 @@ pub enum EngineAction {
     Noop,
     /// Hook swallows the key and the backend types `text` once.
     Commit(String),
-    /// Hook swallows the key; delete `delete_graphemes` chars backwards, then type `insert`.
-    Replace { delete_graphemes: u32, insert: String },
+    /// Hook swallows the key; delete `delete_units` backwards, then type `insert`.
+    /// One unit = one Backspace in the target app = one UTF-16 code unit on Windows.
+    Replace { delete_units: u32, insert: String },
+    /// Same as [`EngineAction::Replace`], then the original key also reaches the app.
+    /// Macros committed with Enter/Tab need this: expansion typed, key still acts.
+    ReplaceThenPass { delete_units: u32, insert: String },
     /// Swallow the key and type nothing (a pure modifier trigger).
     Swallow,
     /// Toggle Vietnamese on/off; handled by the app, not by the engine.
@@ -158,8 +162,8 @@ string_enum!(
 pub struct EngineOptions {
     pub method: InputMethod,
     pub charset: Charset,
-    /// `true` = kiểu cũ (`hoà`), `false` = kiểu mới (`hòa`).
-    pub old_tone_style: bool,
+    /// `true` = kiểu mới (`hoà`, `thuý`) · `false` = kiểu cũ (`hòa`, `thúy`).
+    pub modern_tone: bool,
     pub spell_check: bool,
     pub restore_wrong_word: bool,
     pub jfwz_as_consonant: bool,
@@ -172,7 +176,7 @@ impl Default for EngineOptions {
         Self {
             method: InputMethod::Telex,
             charset: Charset::Unicode,
-            old_tone_style: false,
+            modern_tone: true,
             spell_check: false,
             restore_wrong_word: true,
             jfwz_as_consonant: false,
@@ -186,9 +190,14 @@ impl Default for EngineOptions {
 // Engine
 // ---------------------------------------------------------------------------
 
+/// Shared immutable macro table: swapped with one `Arc` store, never copied per keystroke.
+pub type MacroTable = std::sync::Arc<std::collections::BTreeMap<String, String>>;
+
 pub trait VietnameseEngine: Send {
     fn reset(&mut self);
     fn set_options(&mut self, options: EngineOptions);
+    /// Swap the macro table. One `Arc` store; valid from the next keystroke.
+    fn set_macros(&mut self, macros: MacroTable);
     /// Pure and allocation-free on the `Noop` path. O(1) in word length up to [`MAX_WORD`].
     fn process_key(&mut self, key: KeyInput) -> EngineAction;
     /// The caret moved / focus changed: flush history but emit nothing.
@@ -198,6 +207,7 @@ pub trait VietnameseEngine: Send {
 /// Default engine. Sprint 1 fills the state machine; the shape is frozen.
 pub struct Engine {
     options: EngineOptions,
+    macros: MacroTable,
     word: smallvec::SmallVec<[char; MAX_WORD]>,
 }
 
@@ -205,6 +215,7 @@ impl Engine {
     pub fn new(options: EngineOptions) -> Self {
         Self {
             options,
+            macros: MacroTable::default(),
             word: smallvec::SmallVec::new(),
         }
     }
@@ -229,6 +240,10 @@ impl VietnameseEngine for Engine {
             self.word.clear();
         }
         self.options = options;
+    }
+
+    fn set_macros(&mut self, macros: MacroTable) {
+        self.macros = macros;
     }
 
     fn process_key(&mut self, _key: KeyInput) -> EngineAction {
@@ -263,7 +278,7 @@ mod tests {
         let d = EngineOptions::default();
         assert_eq!(d.method, InputMethod::Telex);
         assert_eq!(d.charset, Charset::Unicode);
-        assert!(!d.old_tone_style);
+        assert!(d.modern_tone, "kiểu mới is the EVKey default");
         assert!(d.restore_wrong_word);
     }
 }

@@ -52,8 +52,12 @@ pub enum EngineAction {
     Noop,
     /// Hook swallows the key and the backend types `text` once.
     Commit(String),
-    /// Hook swallows the key; backend deletes `delete_graphemes` chars backwards, then types `insert`.
-    Replace { delete_graphemes: u32, insert: String },
+    /// Hook swallows the key; delete `delete_units` backwards, then type `insert`.
+    /// One unit = one Backspace in the target app = one UTF-16 code unit on Windows.
+    Replace { delete_units: u32, insert: String },
+    /// Same as `Replace`, then the original key is passed through to the app.
+    /// Macros committed with Enter/Tab need this: the expansion is typed and the key still acts.
+    ReplaceThenPass { delete_units: u32, insert: String },
     /// The key itself must be swallowed and nothing typed (e.g. a modifier trigger).
     Swallow,
     /// Toggle Vietnamese on/off (handled by the app, not the engine).
@@ -62,11 +66,15 @@ pub enum EngineAction {
     Reject,
 }
 
+/// Shared immutable macro table: swapped with one `Arc` store, never copied per keystroke.
+pub type MacroTable = std::sync::Arc<std::collections::BTreeMap<String, String>>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EngineOptions {
     pub method: InputMethod,
     pub charset: Charset,
-    pub old_tone_style: bool,
+    /// true = kiểu mới (`hoà`, `thuý`) · false = kiểu cũ (`hòa`, `thúy`).
+    pub modern_tone: bool,
     pub spell_check: bool,
     pub restore_wrong_word: bool,
     pub jfwz_as_consonant: bool,
@@ -77,6 +85,8 @@ pub struct EngineOptions {
 pub trait VietnameseEngine: Send {
     fn reset(&mut self);
     fn set_options(&mut self, options: EngineOptions);
+    /// Swap the macro table. One `Arc` store; valid from the next keystroke.
+    fn set_macros(&mut self, macros: MacroTable);
     /// Pure: no I/O, no allocation on the `Noop` path.
     fn process_key(&mut self, key: KeyInput) -> EngineAction;
     /// Called when the app loses focus or the user moves the caret.
@@ -137,7 +147,7 @@ charset = "unicode"       # unicode | unicode_nfd | tcvn3 | vni_windows | viqr |
 mechanism = "hook"        # hook | ime
 
 [typing]
-modern_tone = true              # "Đặt dấu kiểu mới" (hòa) — false = hoà
+modern_tone = true              # true = kiểu mới (hoà, thuý) · false = kiểu cũ (hòa, thúy)
 free_tone = true                # "Đặt dấu tự do"
 jfwz_as_consonant = true        # "Cho phép 'f j w z' làm phụ âm"
 auto_capitalize = false         # "Tự động viết hoa sau Enter . ! ?"

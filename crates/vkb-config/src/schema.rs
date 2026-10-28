@@ -77,7 +77,8 @@ impl Default for InputConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TypingConfig {
-    /// `Đặt dấu kiểu mới` — `hòa` (true) vs `hoà` (false).
+    /// `Đặt dấu kiểu mới` — **true** = kiểu mới: `hoà`, `thuý`, `khoẻ` (tone on the second
+    /// vowel of an open `oa`/`oe`/`uy` syllable). **false** = kiểu cũ: `hòa`, `thúy`, `khỏe`.
     pub modern_tone: bool,
     /// `Đặt dấu tự do` — allow the mark to be typed after the vowel run or at word end.
     pub free_tone: bool,
