@@ -48,7 +48,8 @@ fn main() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // No updater plugin: update checking is Sprint 4. Registering it without a
+        // `plugins.updater` block in tauri.conf.json fails plugin init at startup.
         .setup(|app| {
             let handle = app.handle().clone();
             commands::set_app_handle(handle.clone());

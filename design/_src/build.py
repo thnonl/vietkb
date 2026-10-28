@@ -237,8 +237,8 @@ ON, OFF = '<span class="tg on"></span>', '<span class="tg"></span>'
 
 # ---------------------------------------------------------------- tab Gõ
 TONE = ('<span class="seg tone">'
-        '<span class="on">Kiểu mới <i>·</i> <em>hoà, thuý</em></span>'
-        '<span>Kiểu cũ <i>·</i> <em>hòa, thúy</em></span></span>')
+        '<span class="on">Kiểu mới <i>·</i> <em>hòa, thúy</em></span>'
+        '<span>Kiểu cũ <i>·</i> <em>hoà, thuý</em></span></span>')
 
 def go():
     rows = [

@@ -27,7 +27,7 @@ Decisions:
   46 × 40, 1 px 10 × 10 glyphs matching the OS.
 - **State is always visible** (20-spec C.0): on tab Gõ in the status row (where it is editable); on the
   other three tabs as a compact chip in the strip, `● Tiếng Việt · Telex · Unicode`, which toggles on click.
-- Tone style default **kiểu mới** (`hoà, thuý`). Kiểm tra chính tả is off in the mock, which is why
+- Tone style default **kiểu mới** (`hòa, thúy`). Kiểm tra chính tả is off in the mock, which is why
   `Tự động khôi phục` shows its disabled state.
 - Mock e-mail is `ha.nth@dongduong.com.vn` (no diacritics in a local part). No uppercase anywhere (§7).
 
@@ -334,7 +334,7 @@ on = `bad`, disabled = opacity .4 with the reason in the note line + an inline a
 (`Cần bật Kiểm tra chính tả · Bật`); the label drops to t3.
 
 **Tone pills** (Kiểu đặt dấu) — one segmented control, two single-line pills
-`Kiểu mới · hoà, thuý` / `Kiểu cũ · hòa, thúy`: name 13/500 sans (t3; `acc-text` when selected), a t4 `·`,
+`Kiểu mới · hòa, thúy` / `Kiểu cũ · hoà, thuý`: name 13/500 sans (t3; `acc-text` when selected), a t4 `·`,
 example 15/20 Sitka (t2; t1 selected). Track 32 h, pills 28 h. The *name* is what the eye reads; the example
 is the proof. Default selected: Kiểu mới.
 
@@ -452,5 +452,5 @@ Earlier wording decisions still in force:
 |---|---|---|
 | `nhấn–nhả` → `Nhả để chuyển` (tag in the well) | option `Kiểu chuyển bật/tắt`: `Khi nhả phím` / `Khi nhấn phím` in Nâng cao (round 5) | a two-word tag beside keycaps was unreadable out of context; a labelled option says what it controls |
 | `Trả lại đúng các phím đã gõ cho từ vừa xong` | `Đưa từ vừa gõ về đúng các phím đã bấm` | sentence, not calque |
-| bare `hòa, thúy` / `hoà, thuý` | `Kiểu cũ · hòa, thúy` / `Kiểu mới · hoà, thuý` | named choices |
+| bare `hoà, thuý` / `hòa, thúy` | `Kiểu cũ · hoà, thuý` / `Kiểu mới · hòa, thúy` | named choices |
 | `Âm thanh và giao diện` (section) | `Giao diện` | fits the 120 px label column on one line |

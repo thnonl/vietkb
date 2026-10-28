@@ -129,3 +129,25 @@ Fit, measured on the built dist:
   fixed at 720 × 560 with `resizable:false`, so this size is unreachable in the
   shipped app; if the minimum must be usable, the design needs a compact-row
   variant.
+
+## 2026-10-28 runtime fix after the merge: updater plugin removed (dev)
+
+The merged app panicked at startup: PluginInitialization("updater", "Error
+deserializing 'plugins.updater' ... invalid type: null, expected struct Config")
+— the plugin was registered in main.rs with no `plugins.updater` block in
+`tauri.conf.json`. Update checking is Sprint 4 (charter §1), so the registration
+was dropped instead of shipping a fake endpoint/pubkey:
+
+- `crates/vkb-app/src/main.rs`: removed `.plugin(tauri_plugin_updater::Builder::new().build())`.
+- `crates/vkb-app/Cargo.toml`: removed the `tauri-plugin-updater = "2"` dependency
+  (`Cargo.lock` follows on build).
+- `crates/vkb-app/capabilities/default.json`: removed the `updater:default` permission.
+
+No command, schema field or UI change: `system.check_updates` stays in the config and
+the System tab keeps its "chưa hỗ trợ" behaviour (`Kiểm tra ngay` shows the offline
+message), so the flag is harmless until Sprint 4 wires it up.
+
+Verified: `cargo build -p vkb-app` pass; `target\debug\vietkb.exe` stays alive 8 s
+with `MainWindowTitle = VietKB` and an empty stderr. Tray icons checked:
+`icons/tray-on.png` and `icons/tray-off.png` both exist, are valid 32×32 PNGs;
+`tray-on.png` is byte-identical to `icons/32x32.png` (same hash) — cosmetic only.

@@ -28,7 +28,7 @@ Chuỗi có tham số được đếm với **giá trị mẫu dài nhất hợp
 | Telex / VNI / VIQR | **kiểu gõ** | `phương thức nhập`, `kiểu nhập`, `input method` | Từ EVKey/UniKey ai cũng biết. |
 | Charset | **bảng mã** | `kiểu mã hoá`, `mã hoá`, `charset`, `encoding`, chữ `mã` đứng một mình | Từ EVKey/UniKey. Chữ `mã` đứng riêng bị hiểu thành "mã lệnh", "mã số" → không bao giờ viết `mã` thay cho `bảng mã`. |
 | Tên các bảng mã | **Unicode dựng sẵn**, **Unicode tổ hợp**, **TCVN3 (ABC)**, **VNI Windows**, **VIQR**, **VISCII**, **BK HCM1**, **VPS**, **UTF-8 Literal** | `Unicode NFC/NFD`, `UTF-8` trơn | Tên UniKey/EVKey. `UTF-8` trơn bị hiểu là "Unicode bình thường", trong khi spec A11 là kiểu gửi từng byte → dùng tên UniKey `UTF-8 Literal` (CẦN CHỐT, xem §8). |
-| òa/oà, úy/uý | **kiểu đặt dấu**: **Kiểu mới** (hoà, thuý) · **Kiểu cũ** (hòa, thúy) | `vị trí dấu thanh`, `dấu kiểu cũ (oà/uý)`, `old tone style` | Người Việt nói "bỏ dấu kiểu cũ/kiểu mới"; ví dụ trong nút là bằng chứng. |
+| òa/oà, úy/uý | **kiểu đặt dấu**: **Kiểu mới** (hòa, thúy) · **Kiểu cũ** (hoà, thuý) | `vị trí dấu thanh`, `dấu kiểu cũ (oà/uý)`, `old tone style` | Người Việt nói "bỏ dấu kiểu cũ/kiểu mới"; ví dụ trong nút là bằng chứng. |
 | Hành động nhấn phím dấu | **gõ dấu** | `bỏ dấu`, `thêm dấu` (khi nói về thao tác) | `bỏ dấu` hai nghĩa: "đặt dấu" và "xoá dấu" (văn bản bỏ dấu). `đặt dấu` dành riêng cho *chỗ dấu nằm* (kiểu đặt dấu). |
 | Dấu tiếng Việt nói chung | **dấu** | `dấu thanh`, `dấu phụ`, `diacritic` | Người dùng gọi chung mũ, móc, trăng, sắc, huyền… là "dấu". |
 | Macro | **gõ tắt** (tính năng) · **từ tắt** (chữ gõ vào) · **nội dung** (chữ hiện ra) · **mục** (một cặp) | `macro`, `viết tắt`, `từ khoá`, `trigger`, `phím tắt` (cho từ tắt), `thay thế bởi`, `dòng`, `bản ghi` | `Gõ tắt` là từ EVKey/UniKey. `dòng` dành cho số dòng của nội dung (`+1 dòng`), không dùng để đếm mục. |
@@ -115,8 +115,8 @@ không dấu `…` ở cuối mô tả (cắt chữ là lỗi, viết lại cho 
 | **Nhóm Dấu** | | | |
 | Kiểu đặt dấu — nhãn | `Kiểu đặt dấu` | 12/30 | giữ |
 | Kiểu đặt dấu — mô tả | `Hai kiểu chỉ khác nhau ở vần oa, oe, uy` | 39/64 | nói hậu quả (khác ít) thay vì thuật ngữ "dấu thanh" |
-| Kiểu đặt dấu — nút 1 | `Kiểu mới · hoà, thuý` | 20/30 | giữ; mặc định |
-| Kiểu đặt dấu — nút 2 | `Kiểu cũ · hòa, thúy` | 19/30 | giữ |
+| Kiểu đặt dấu — nút 1 | `Kiểu mới · hòa, thúy` | 20/30 | giữ; mặc định |
+| Kiểu đặt dấu — nút 2 | `Kiểu cũ · hoà, thuý` | 19/30 | giữ |
 | Gõ dấu ở cuối từ — nhãn | `Gõ dấu ở cuối từ` | 16/30 | thay `Bỏ dấu…` (§1) |
 | Gõ dấu ở cuối từ — mô tả | `hoangf → hoàng: gõ dấu sau cả từ cũng được` | 42/64 | `hoangf` dạng phím (mono) |
 | Tự sửa ưo — nhãn | `Tự sửa ưo thành ươ` | 18/30 | giữ |
@@ -391,8 +391,8 @@ Từ lần mở thứ hai: chỉ có biểu tượng, không mở cửa sổ (sp
 | 11 | `Unicode dựng sẵn` | giữ | | |
 | 12 | `Kiểu đặt dấu` | giữ | | |
 | 13 | `Vị trí dấu thanh trong vần oa, oe, uy` | sửa | `Hai kiểu chỉ khác nhau ở vần oa, oe, uy` | "vị trí dấu thanh" là từ ngữ pháp; nói điều quan trọng: chỉ khác 3 vần |
-| 14 | `Kiểu mới · hoà, thuý` | giữ | | |
-| 15 | `Kiểu cũ · hòa, thúy` | giữ | | |
+| 14 | `Kiểu mới · hòa, thúy` | giữ | | |
+| 15 | `Kiểu cũ · hoà, thuý` | giữ | | |
 | 16 | `Bỏ dấu ở cuối từ` | sửa | `Gõ dấu ở cuối từ` | `bỏ dấu` còn nghĩa "xoá dấu" |
 | 17 | `hoangf → hoàng: gõ dấu sau cả từ` | sửa | `hoangf → hoàng: gõ dấu sau cả từ cũng được` | câu cũ đọc như *bắt buộc*; tuỳ chọn này là *cho phép* |
 | 18 | `Tự sửa ưo thành ươ` | giữ | | |

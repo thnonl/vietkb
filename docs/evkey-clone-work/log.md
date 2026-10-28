@@ -25,6 +25,14 @@
   renders them with headless Edge at 1040×720 for visual review.
 - 2026-10-28 QA delivered `50-test-cases.md`: 551 engine rows, 48 UI tests, P1–P7 protocol.
   5 charsets remain UNVERIFIED (`tcvn3`, `vni_windows`, `viscii`, `bk_hcm1`, `vps`).
+- 2026-10-28 Owner rejected Lead hand-editing product code during integration; charter now forbids it
+  (Lead writes docs only, dev children own `crates/` and `ui/`).
+- 2026-10-28 Three streams merged: `cargo test --workspace` = 151 tests green. Tone-style semantics
+  corrected twice — final: `modern_tone = true` → `hòa`/`hóa` (tone on the first vowel), old →
+  `hoà`/`hoá`. Design pills and COPY.md updated to match.
+- 2026-10-28 Runtime smoke: app panicked at startup (`plugins.updater` missing in tauri.conf) and was
+  handed to a dev child. UI build: 131 KB JS / 24.6 KB CSS gzipped to 46 KB / 5.5 KB.
+
 
 
 - 2026-10-28 wt-windows: pure layer done in `vkb-platform` (injection planning, hotkey matcher,

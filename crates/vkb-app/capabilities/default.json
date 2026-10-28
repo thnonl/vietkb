@@ -7,7 +7,6 @@
     "core:default",
     "dialog:default",
     "opener:default",
-    "updater:default",
     "autostart:default"
   ]
 }
