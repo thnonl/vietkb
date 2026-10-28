@@ -180,13 +180,6 @@ pub struct HotkeySet {
         deserialize_with = "crate::hotkey::opt::deserialize"
     )]
     pub app_exclude: Option<Hotkey>,
-    /// `F6` — công cụ chuyển mã.
-    #[serde(
-        default = "hk_convert_tool",
-        serialize_with = "crate::hotkey::opt::serialize",
-        deserialize_with = "crate::hotkey::opt::deserialize"
-    )]
-    pub convert_tool: Option<Hotkey>,
     /// `F8` — bảng gõ tắt.
     #[serde(
         default = "hk_macro_panel",
@@ -208,14 +201,7 @@ pub struct HotkeySet {
         deserialize_with = "crate::hotkey::opt::deserialize"
     )]
     pub open_settings: Option<Hotkey>,
-    /// `Đổi bảng mã` — cycles Unicode → TCVN3 → VNI Windows → Unicode tổ hợp.
-    #[serde(
-        default = "hk_unbound",
-        serialize_with = "crate::hotkey::opt::serialize",
-        deserialize_with = "crate::hotkey::opt::deserialize"
-    )]
-    pub cycle_charset: Option<Hotkey>,
-    /// `Đổi kiểu gõ` — cycles Telex → VNI → VIQR.
+    /// `Đổi kiểu gõ` — cycles Telex ↔ VNI.
     #[serde(
         default = "hk_unbound",
         serialize_with = "crate::hotkey::opt::serialize",
@@ -245,9 +231,6 @@ fn hk_disable() -> Option<Hotkey> {
 fn hk_app_exclude() -> Option<Hotkey> {
     Hotkey::parse("F11").ok()
 }
-fn hk_convert_tool() -> Option<Hotkey> {
-    Hotkey::parse("F6").ok()
-}
 fn hk_macro_panel() -> Option<Hotkey> {
     Hotkey::parse("F8").ok()
 }
@@ -275,11 +258,9 @@ impl Default for HotkeySet {
             toggle: Hotkey::parse("Ctrl+Shift").ok(),
             restore_word: Hotkey::parse("Ctrl+Shift+Z").ok(),
             app_exclude: Hotkey::parse("F11").ok(),
-            convert_tool: Hotkey::parse("F6").ok(),
             macro_panel: Hotkey::parse("F8").ok(),
             macro_toggle: Hotkey::parse("F9").ok(),
             open_settings: Hotkey::parse("Ctrl+Alt+S").ok(),
-            cycle_charset: None,
             cycle_method: None,
             toggle_mode: ToggleMode::Release,
         }

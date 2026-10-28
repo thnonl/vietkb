@@ -173,7 +173,6 @@ fn apply_command(command: BackendCommand) {
             update(|cfg| cfg.input.enabled = enabled);
         }
         BackendCommand::SetMethod(method) => update(|cfg| cfg.input.method = method),
-        BackendCommand::SetCharset(charset) => update(|cfg| cfg.input.charset = charset),
         BackendCommand::RestoreWord => {
             // The word buffer lives on the hook thread and no config applies;
             // nothing to persist here.
@@ -183,7 +182,6 @@ fn apply_command(command: BackendCommand) {
         BackendCommand::ToggleMacro => {
             update(|cfg| cfg.typing.macro_enabled = !cfg.typing.macro_enabled)
         }
-        BackendCommand::OpenConvertTool => navigate("go"),
         BackendCommand::OpenMacroPanel => navigate("macros"),
         BackendCommand::OpenSettings => {
             if let Some(app) = commands::app_handle() {

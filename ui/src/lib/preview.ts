@@ -1,6 +1,6 @@
 // Live preview approximator for the overview screen.
 //
-// IMPORTANT: this is NOT the engine. `vkb-core` owns Telex/VNI/VIQR semantics
+// IMPORTANT: this is NOT the engine. `vkb-core` owns Telex/VNI semantics
 // (owned by another stream in Sprint 1). This small renderer exists so the
 // overview field can show something truthful while the real engine lands, and
 // its limits are stated in the UI. It handles: aa/ee/oo doubling, aw/ow/uw,

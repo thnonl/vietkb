@@ -31,14 +31,7 @@ fn tone_key(method: InputMethod, tone: Tone) -> char {
             Tone::Dot => '5',
             Tone::None => unreachable!(),
         },
-        InputMethod::Viqr => match tone {
-            Tone::Acute => '\'',
-            Tone::Grave => '`',
-            Tone::Hook => '?',
-            Tone::Tilde => '~',
-            Tone::Dot => '.',
-            Tone::None => unreachable!(),
-        },
+        InputMethod::Legacy => unreachable!("the removed-slug sentinel is never simulated"),
     }
 }
 
@@ -70,10 +63,7 @@ fn encode_word(word: &str, method: InputMethod) -> String {
             (InputMethod::Vni, Mark::Circumflex) => out.push('6'),
             (InputMethod::Vni, Mark::Horn) => out.push('7'),
             (InputMethod::Vni, Mark::Bar) => out.push('9'),
-            (InputMethod::Viqr, Mark::Breve) => out.push('('),
-            (InputMethod::Viqr, Mark::Circumflex) => out.push('^'),
-            (InputMethod::Viqr, Mark::Horn) => out.push('+'),
-            (InputMethod::Viqr, Mark::Bar) => out.push(if upper { 'D' } else { 'd' }),
+            (InputMethod::Legacy, _) => unreachable!("the removed-slug sentinel is never simulated"),
         }
         if tone == Tone::None {
             tone = letter_tone;

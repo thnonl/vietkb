@@ -13,17 +13,15 @@ use crate::keys;
 /// One row per configurable action; the order is irrelevant to behaviour.
 pub fn compile(set: &HotkeySet) -> Matcher {
     let mut matcher = Matcher::new();
-    let rows: [(Action, Option<&ConfigHotkey>); 11] = [
+    let rows: [(Action, Option<&ConfigHotkey>); 9] = [
         (Action::Enable, set.enable.as_ref()),
         (Action::Disable, set.disable.as_ref()),
         (Action::Toggle, set.toggle.as_ref()),
         (Action::RestoreWord, set.restore_word.as_ref()),
         (Action::AppExclude, set.app_exclude.as_ref()),
-        (Action::ConvertTool, set.convert_tool.as_ref()),
         (Action::MacroPanel, set.macro_panel.as_ref()),
         (Action::MacroToggle, set.macro_toggle.as_ref()),
         (Action::OpenSettings, set.open_settings.as_ref()),
-        (Action::CycleCharset, set.cycle_charset.as_ref()),
         (Action::CycleMethod, set.cycle_method.as_ref()),
     ];
     for (action, hotkey) in rows {
@@ -121,10 +119,14 @@ mod tests {
     #[test]
     fn default_hotkeys_compile_and_fire() {
         let mut matcher = compile(&HotkeySet::default());
-        // F1 F2 F11 F6 F8 F9 plus the design defaults `Ctrl+Shift` (toggle),
+        // F1 F2 F11 F8 F9 plus the design defaults `Ctrl+Shift` (toggle),
         // `Ctrl+Shift+Z` (restore_word), `Ctrl+Alt+S` (open_settings) — see
         // `design/HANDOVER.md` and `70-impl-notes-ui.md`.
-        assert_eq!(matcher.len(), 9, "F1 F2 F11 F6 F8 F9 + Ctrl+Shift + Ctrl+Shift+Z + Ctrl+Alt+S");
+        assert_eq!(
+            matcher.len(),
+            8,
+            "F1 F2 F11 F8 F9 + Ctrl+Shift + Ctrl+Shift+Z + Ctrl+Alt+S"
+        );
 
         // F1 with no modifiers enables Vietnamese.
         assert_eq!(
@@ -139,13 +141,12 @@ mod tests {
     }
 
     #[test]
-    fn cycle_hotkeys_compile_and_fire() {
-        // The `Đổi bảng mã` / `Đổi kiểu gõ` rows: unbound by default, bound here.
+    fn cycle_hotkey_compiles_and_fires() {
+        // The `Đổi kiểu gõ` row: unbound by default, bound here.
         let mut set = HotkeySet::default();
-        set.cycle_charset = vkb_config::Hotkey::parse("Ctrl+Alt+C").ok();
         set.cycle_method = vkb_config::Hotkey::parse("Ctrl+Alt+M").ok();
         let mut matcher = compile(&set);
-        assert_eq!(matcher.len(), 11, "9 defaults + the two cycling actions");
+        assert_eq!(matcher.len(), 9, "8 defaults + the cycling action");
 
         let mods = Modifiers {
             shift: false,
@@ -153,11 +154,6 @@ mod tests {
             alt: true,
             win: false,
         };
-        assert_eq!(
-            matcher.on_key(0x43, true, mods, false),
-            Some(Action::CycleCharset)
-        );
-        matcher.on_key(0x43, false, mods, false);
         assert_eq!(
             matcher.on_key(0x4D, true, mods, false),
             Some(Action::CycleMethod)
@@ -173,7 +169,7 @@ mod tests {
         set.restore_word = None;
         set.open_settings = None;
         let matcher = compile(&set);
-        assert_eq!(matcher.len(), 6);
+        assert_eq!(matcher.len(), 5);
     }
 
     #[test]

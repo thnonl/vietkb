@@ -19,8 +19,6 @@ pub struct Composed {
     pub tone: Tone,
     /// The word is raw text from here on (numeric bypass, failed spell check).
     pub literal: bool,
-    /// VIQR: a `\` is waiting for the character it protects.
-    pub escape_pending: bool,
     /// A keystroke escaped to the literal raw text (`ass`, `await`, `aaa`). The
     /// rest of the word stays literal too.
     pub escaped: bool,
@@ -41,7 +39,6 @@ impl Composed {
         self.letters.clear();
         self.tone = Tone::None;
         self.literal = false;
-        self.escape_pending = false;
         self.escaped = false;
         self.tone_at = usize::MAX;
         self.mark_at = usize::MAX;
@@ -55,20 +52,8 @@ impl Composed {
 /// (the "phục hồi từ" hotkey); `usize::MAX` disables it.
 pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: &mut Composed) {
     out.clear();
-    let mut escape = false;
 
     for (i, &ch) in raw.iter().enumerate() {
-        if escape {
-            escape = false;
-            out.letters.push(Letter::literal(ch));
-            continue;
-        }
-        // VIQR `\` protects the next character and is never part of the text,
-        // even inside a literal (raw) word: `how are you\?`.
-        if options.method == InputMethod::Viqr && ch == '\\' {
-            escape = true;
-            continue;
-        }
         if out.literal || i >= literal_from {
             out.literal = true;
             out.letters.push(Letter::literal(ch));
@@ -83,7 +68,7 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
 
         // Compat shim, ported from the reference implementation: with
         // `f j w z` allowed as consonants these shapes stay raw.
-        if options.method == InputMethod::Telex
+        if matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
             && options.jfwz_as_consonant
             && compat_telex_literal(&raw[..=i])
         {
@@ -94,16 +79,11 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
         if ch.is_ascii_digit() {
             step_digit(out, raw, i, options);
         } else if !ch.is_ascii_alphabetic() {
-            if options.method == InputMethod::Viqr {
-                step_viqr_symbol(out, raw, i, options);
-            } else {
-                out.letters.push(Letter::literal(ch));
-            }
+            out.letters.push(Letter::literal(ch));
         } else {
             match options.method {
-                InputMethod::Telex => step_telex(out, raw, i, options),
+                InputMethod::Telex | InputMethod::Legacy => step_telex(out, raw, i, options),
                 InputMethod::Vni => out.letters.push(Letter::literal(ch)),
-                InputMethod::Viqr => step_viqr(out, raw, i),
             }
         }
 
@@ -114,13 +94,12 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
             && !out.literal
             && !out.escaped
             && (!crate::spell::is_valid_syllable(&out.letters, options.jfwz_as_consonant)
-                || (options.method == InputMethod::Telex
+                || (matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
                     && crate::spell::english_stop_cluster(&raw[..=i], &out.letters)))
         {
             literalize(out, raw, i);
         }
     }
-    out.escape_pending = escape;
 }
 
 /// `true` when a digit typed now joins the word instead of ending it.
@@ -386,42 +365,16 @@ fn w_target(letters: &[Letter]) -> Option<usize> {
 }
 
 // ---------------------------------------------------------------------------
-// VIQR
-// ---------------------------------------------------------------------------
-
-fn step_viqr(out: &mut Composed, raw: &[char], i: usize) {
-    let ch = raw[i];
-    if ch.eq_ignore_ascii_case(&'d') {
-        double_letter(out, raw, i, 'd', Mark::Bar);
-    } else {
-        out.letters.push(Letter::literal(ch));
-    }
-}
-
-/// VIQR punctuation: tone marks, `^ ( + -` modifiers.
-fn step_viqr_symbol(out: &mut Composed, raw: &[char], i: usize, options: &EngineOptions) {
-    let ch = raw[i];
-    match ch {
-        '\'' | '`' | '?' | '~' | '.' => apply_tone(out, raw, i, tone_of(ch), ch, options),
-        '^' => mark_last(out, raw, i, &['a', 'e', 'o'], Mark::Circumflex, ch),
-        '(' => mark_last(out, raw, i, &['a'], Mark::Breve, ch),
-        '+' => mark_last(out, raw, i, &['o', 'u'], Mark::Horn, ch),
-        '-' => mark_last(out, raw, i, &['d'], Mark::Bar, ch),
-        _ => out.letters.push(Letter::literal(ch)),
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
 
 fn tone_of(ch: char) -> Tone {
     match ch.to_ascii_lowercase() {
-        's' | '\'' | '1' => Tone::Acute,
-        'f' | '`' | '2' => Tone::Grave,
-        'r' | '?' | '3' => Tone::Hook,
-        'x' | '~' | '4' => Tone::Tilde,
-        'j' | '.' | '5' => Tone::Dot,
+        's' | '1' => Tone::Acute,
+        'f' | '2' => Tone::Grave,
+        'r' | '3' => Tone::Hook,
+        'x' | '4' => Tone::Tilde,
+        'j' | '5' => Tone::Dot,
         _ => Tone::None,
     }
 }

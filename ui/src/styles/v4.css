@@ -33,6 +33,7 @@
 .cap-bar .wc {
   display: flex;
   align-self: stretch;
+  align-items: center;
 }
 .cap-bar .wbtn {
   width: 44px;
@@ -46,7 +47,7 @@
   color: var(--t1);
 }
 .cap-bar .wbtn.x:hover {
-  background: var(--bad);
+  background: var(--bad-fill);
   color: #fff;
 }
 .cap-bar .wbtn svg {
@@ -55,6 +56,38 @@
   fill: none;
   stroke: currentColor;
   stroke-width: 1;
+}
+
+/* Theme cycle button — a fixed 24 × 24 slot with a fixed 8 px gap, so the
+ * minimize/close buttons never move when the icon changes. */
+.cap-bar .tslot {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin-right: 8px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--t2);
+}
+.cap-bar .tslot:hover {
+  background: var(--hover-plane);
+  color: var(--t1);
+}
+.cap-bar .tslot svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cap-bar .tslot svg .solid {
+  fill: currentColor;
+  stroke: none;
 }
 
 /* ---- sheet ---------------------------------------------------------------- */

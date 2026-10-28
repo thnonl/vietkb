@@ -1,5 +1,5 @@
 //! Executable form of `docs/evkey-clone-work/50-test-cases.md` §1 (engine corpus,
-//! 555 rows) and §2 (charset round-trips).
+//! 503 rows) and §2 (charset round-trips).
 //!
 //! The markdown table is the single source of truth: this test parses §1 at run
 //! time, so a correction made to the table is picked up without touching Rust
@@ -17,7 +17,7 @@
 //! `E-MC-016` (`macro_enabled = false`, idem) and `E-RW-013…016`
 //! (`spell_check = true`: `restore_wrong_word` needs the spell checker, D4).
 //!
-//! The test always checks its own integrity (555 rows, unique ids, per-category
+//! The test always checks its own integrity (503 rows, unique ids, per-category
 //! counts from the `### … — N rows` headings) and writes
 //! `target/qa/spec51-results.tsv`. Behavioural mismatches are reported, and the
 //! test only turns red for them when `VKB_SPEC_STRICT=1` is set:
@@ -44,7 +44,7 @@ fn spec_path() -> PathBuf {
         .join("../../docs/evkey-clone-work/50-test-cases.md")
 }
 
-const EXPECTED_ROWS: usize = 555;
+const EXPECTED_ROWS: usize = 503;
 
 // ---------------------------------------------------------------------------
 // Row model + parser
@@ -386,34 +386,6 @@ const LETTERS: [char; 14] = [
 
 const S1: &str = "Đường về quê hương";
 
-fn assert_encode(charset: Charset, expected: &[&[u8]]) {
-    let mut bad = Vec::new();
-    for (letter, want) in LETTERS.iter().zip(expected) {
-        let got = charset.encode(&letter.to_string());
-        if got != *want {
-            bad.push(format!(
-                "  {letter} → got {} want {}",
-                hex(&got),
-                hex(want)
-            ));
-        }
-    }
-    assert!(
-        bad.is_empty(),
-        "{} letter table mismatches:\n{}",
-        charset.as_str(),
-        bad.join("\n")
-    );
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .map(|byte| format!("{byte:02X}"))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 #[test]
 fn spec_section2_unicode_codepoints() {
     // CS-UN-01..14, plus the S1 code points from §2.1.
@@ -481,59 +453,8 @@ fn spec_section2_nfd_decomposition() {
     assert_eq!(nfd, "Đu\u{31B}o\u{31B}\u{300}ng ve\u{302}\u{300} que\u{302} hu\u{31B}o\u{31B}ng".as_bytes());
 }
 
-#[test]
-fn spec_section2_utf8_bytes() {
-    // CS-U8-01..14 — UTF-8 transport of the same scalars.
-    let expected: [&[u8]; 14] = [
-        &[0xC4, 0x83],
-        &[0xC3, 0xA2],
-        &[0xC3, 0xAA],
-        &[0xC3, 0xB4],
-        &[0xC6, 0xA1],
-        &[0xC6, 0xB0],
-        &[0xC4, 0x91],
-        &[0xC4, 0x82],
-        &[0xC3, 0x82],
-        &[0xC3, 0x8A],
-        &[0xC3, 0x94],
-        &[0xC6, 0xA0],
-        &[0xC6, 0xAF],
-        &[0xC4, 0x90],
-    ];
-    assert_encode(Charset::Utf8, &expected);
-    assert_eq!(Charset::Utf8.encode(S1), S1.as_bytes());
-}
-
-#[test]
-fn spec_section2_viqr() {
-    // CS-VQ-01..14. `đ` is `dd`, not `d-`: RFC 1456 Table 2 ("d bar | dd |
-    // (repeated d)"). §2.4 of the spec was corrected accordingly.
-    let expected: [&[u8]; 14] = [
-        b"a(",
-        b"a^",
-        b"e^",
-        b"o^",
-        b"o+",
-        b"u+",
-        b"dd",
-        b"A(",
-        b"A^",
-        b"E^",
-        b"O^",
-        b"O+",
-        b"U+",
-        b"DD",
-    ];
-    assert_encode(Charset::Viqr, &expected);
-    assert_eq!(
-        Charset::Viqr.encode(S1),
-        b"DDu+o+`ng ve^` que^ hu+o+ng".to_vec()
-    );
-}
-
-/// R3: a charset that cannot represent a letter must not silently drop it.
-/// `Charset::encode` reports an unmapped letter as `?`, so `?` in the output of
-/// text that contains none is a no-loss failure.
+/// R3: a charset that cannot represent a letter must not silently drop it or
+/// substitute `?` for text that contains none.
 #[test]
 fn spec_section2_no_silent_loss_on_s1() {
     for charset in Charset::ALL {
@@ -541,70 +462,10 @@ fn spec_section2_no_silent_loss_on_s1() {
         assert!(!bytes.is_empty(), "{}: empty output", charset.as_str());
         assert!(
             !bytes.contains(&b'?'),
-            "{}: S1 lost a letter to `?`: {}",
+            "{}: S1 lost a letter to `?`: {:?}",
             charset.as_str(),
-            hex(&bytes)
+            bytes
         );
     }
 }
 
-/// The publishable evidence for the five charsets §2 marks UNVERIFIED: what the
-/// engine actually emits for the 14 letters and for S1. Values are printed, not
-/// asserted — there is no authoritative table in the repo to assert against.
-#[test]
-fn spec_section2_evidence_for_unverified_charsets() {
-    let unverified = [
-        Charset::Tcvn3,
-        Charset::VniWindows,
-        Charset::Viscii,
-        Charset::BkHcm1,
-        Charset::Vps,
-    ];
-    println!("\n§2 evidence — 14 letters and S1, lower-case hex\n");
-    for charset in unverified {
-        let letters: Vec<String> = LETTERS
-            .iter()
-            .map(|letter| format!("{letter}={}", hex(&charset.encode(&letter.to_string()))))
-            .collect();
-        println!("[{}] {}", charset.as_str(), charset.status_note());
-        println!("  {}", letters.join(" "));
-        let s1 = charset.encode(S1);
-        println!(
-            "  S1: {} ({} bytes for {} chars)",
-            hex(&s1),
-            s1.len(),
-            S1.chars().count()
-        );
-    }
-
-    // Structural checks that do not depend on the (unverified) values:
-    // TCVN3 / VISCII / VPS are single-byte per letter.
-    for charset in [Charset::Tcvn3, Charset::Viscii, Charset::Vps] {
-        for letter in LETTERS {
-            assert_eq!(
-                charset.encode(&letter.to_string()).len(),
-                1,
-                "{}: {letter} must be one byte",
-                charset.as_str()
-            );
-        }
-        assert_eq!(
-            charset.encode(S1).len(),
-            S1.chars().count(),
-            "{}: S1 must be one byte per character",
-            charset.as_str()
-        );
-    }
-    // VNI Windows and BK HCM1 are base + combining mark (2 bytes for a toned
-    // vowel), so S1 is longer than its 17 characters.
-    for charset in [Charset::VniWindows, Charset::BkHcm1] {
-        assert!(
-            charset.encode(S1).len() > S1.chars().count(),
-            "{}: combining layout must be longer than the character count",
-            charset.as_str()
-        );
-    }
-    // BK HCM1 is currently defined as the VNI Windows layout (documented
-    // assumption, `TableStatus::Unverified`).
-    assert_eq!(Charset::BkHcm1.encode(S1), Charset::VniWindows.encode(S1));
-}

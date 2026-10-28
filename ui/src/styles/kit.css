@@ -99,7 +99,7 @@
   color: var(--t1);
 }
 .wc .wbtn.close:hover {
-  background: var(--bad);
+  background: var(--bad-fill);
   color: #fff;
 }
 .wc svg {
@@ -299,7 +299,7 @@
   padding: 0 12px;
   border-radius: 8px;
   background: var(--sunken);
-  box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.06), inset 0 0 0 1px var(--line-1);
+  box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.06), inset 0 0 0 1px var(--inset-edge);
 }
 .try:focus-within {
   background: var(--raised);
@@ -388,7 +388,7 @@
   width: 16px;
   height: 16px;
   border-radius: 4.5px;
-  background: var(--raised);
+  background: var(--ctl-bg);
   box-shadow: inset 0 0 0 1px var(--ctl-line);
   display: inline-grid;
   place-items: center;
@@ -408,6 +408,7 @@
 .cb.on,
 .cb.mix {
   background: var(--acc);
+  color: var(--on-acc);
   box-shadow: none;
 }
 
@@ -420,8 +421,8 @@
   border-radius: 8px;
   font: 500 13px/20px var(--ui);
   color: var(--t1);
-  background: var(--raised);
-  box-shadow: var(--e1), inset 0 0 0 1px var(--line-2);
+  background: var(--ctl-bg);
+  box-shadow: var(--e1), inset 0 0 0 1px var(--ctl-edge);
   white-space: nowrap;
   flex: none;
 }
@@ -488,8 +489,8 @@
   gap: 8px;
   padding: 0 6px 0 10px;
   border-radius: 8px;
-  background: var(--raised);
-  box-shadow: var(--e1), inset 0 0 0 1px var(--line-2);
+  background: var(--ctl-bg);
+  box-shadow: var(--e1), inset 0 0 0 1px var(--ctl-edge);
   font: 400 13px/20px var(--ui);
   color: var(--t1);
   white-space: nowrap;
@@ -521,7 +522,7 @@
   padding: 2px;
   border-radius: 9px;
   background: var(--sunken);
-  box-shadow: inset 0 0 0 1px var(--line-1);
+  box-shadow: inset 0 0 0 1px var(--inset-edge);
   flex: none;
 }
 .seg > button {
@@ -625,8 +626,8 @@
   gap: 8px;
   padding: 0 6px 0 10px;
   border-radius: 8px;
-  background: var(--raised);
-  box-shadow: inset 0 0 0 1px var(--line-2);
+  background: var(--ctl-bg);
+  box-shadow: inset 0 0 0 1px var(--ctl-edge);
   font: 400 13px/20px var(--ui);
   color: var(--t3);
 }

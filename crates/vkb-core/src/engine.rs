@@ -160,13 +160,6 @@ impl Engine {
     }
 
     fn word_key(&mut self, ch: char) -> EngineAction {
-        // VIQR `\x`: the protected character is typed and the word ends.
-        if self.composed.escape_pending {
-            let mut out = TextBuf::new();
-            push_encoded(ch, self.options.charset, &mut out);
-            self.reset_word();
-            return EngineAction::Commit(out.iter().collect());
-        }
         if self.raw.len() >= MAX_WORD {
             // Beyond the cap: commit what is on screen and start over.
             self.reset_word();
@@ -212,7 +205,7 @@ impl Engine {
         }
         let old_len = self.text.len();
 
-        if self.options.macro_enabled && !self.composed.escape_pending {
+        if self.options.macro_enabled {
             if let Some(expansion) = self.macros.lookup_chars(&self.raw).map(str::to_owned) {
                 let mut insert = TextBuf::new();
                 self.push_expansion(&mut insert, &expansion);
@@ -339,12 +332,8 @@ fn is_word_key(method: InputMethod, ch: char) -> bool {
         return true;
     }
     match method {
-        InputMethod::Telex => false,
+        InputMethod::Telex | InputMethod::Legacy => false,
         InputMethod::Vni => ch.is_ascii_digit(),
-        InputMethod::Viqr => matches!(
-            ch,
-            '\\' | '\'' | '`' | '?' | '~' | '.' | '^' | '(' | ')' | '+' | '-'
-        ),
     }
 }
 

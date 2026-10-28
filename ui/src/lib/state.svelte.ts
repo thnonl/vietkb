@@ -5,7 +5,7 @@
 // `patch_settings` after 150 ms. A failed flush reloads the authoritative
 // settings and surfaces a toast — no Save button anywhere in the app.
 
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as api from "./api";
 import type {
   AppInfoView,
@@ -85,11 +85,9 @@ const demoSettings: SettingsView = {
     toggle: "Ctrl+Shift",
     restoreWord: "Ctrl+Shift+Z",
     appExclude: "F11",
-    convertTool: "F6",
     macroPanel: "F8",
     macroToggle: "F9",
     openSettings: "Ctrl+Alt+S",
-    cycleCharset: null,
     cycleMethod: null,
     toggleMode: "release",
   },
@@ -129,6 +127,8 @@ class Store {
   private seq = 0;
   private toastSeq = 0;
   private unlisten: UnlistenFn | null = null;
+  private themeUnlisten: UnlistenFn | null = null;
+  private themeChannel: BroadcastChannel | null = null;
 
   get lang(): Lang {
     const value = this.settings?.system.language;
@@ -147,16 +147,13 @@ class Store {
     return this.settings?.input.method ?? "telex";
   }
 
-  get charset(): string {
-    return this.settings?.input.charset ?? "unicode";
-  }
-
   get modernTone(): boolean {
     return this.settings?.typing.modernTone ?? true;
   }
 
   async init(): Promise<void> {
     this.previewMode = !api.isTauri();
+    this.startThemeBus();
     try {
       if (this.previewMode) {
         this.settings = demoSettings;
@@ -195,6 +192,10 @@ class Store {
   dispose(): void {
     this.unlisten?.();
     this.unlisten = null;
+    this.themeUnlisten?.();
+    this.themeUnlisten = null;
+    this.themeChannel?.close();
+    this.themeChannel = null;
     if (this.timer !== undefined) clearTimeout(this.timer);
   }
 
@@ -217,7 +218,6 @@ class Store {
       this.status.enabled = patch.input.enabled;
     }
     if (patch.input?.method && this.status) this.status.method = patch.input.method;
-    if (patch.input?.charset && this.status) this.status.charset = patch.input.charset;
 
     this.pending = mergePatch(this.pending, patch);
     this.schedule();
@@ -263,10 +263,6 @@ class Store {
     this.patch({ input: { method } });
   }
 
-  async setCharset(charset: string): Promise<void> {
-    this.patch({ input: { charset } });
-  }
-
   async setTab(tab: NavId): Promise<void> {
     if (this.settings?.ui.lastTab === tab) return;
     this.patch({ ui: { lastTab: tab } });
@@ -299,9 +295,40 @@ class Store {
     }
   }
 
-  applyTheme(theme: string): void {
+  applyTheme(theme: string, broadcast = true): void {
     const next = theme === "light" || theme === "dark" ? theme : "system";
     document.documentElement.dataset.theme = next;
+    if (!broadcast) return;
+    // Every open window (main panel + secondary) follows immediately.
+    this.themeChannel?.postMessage(next);
+    if (!this.previewMode) void emit("vkb:theme", next).catch(() => {});
+  }
+
+  /** Theme fan-out: one BroadcastChannel for same-origin webviews, one Tauri
+   *  event for the whole app. Receivers never re-broadcast. */
+  private startThemeBus(): void {
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel("vkb:theme");
+      channel.onmessage = (event: MessageEvent) => this.receiveTheme(event.data);
+      this.themeChannel = channel;
+    }
+    if (this.previewMode) return;
+    void listen<string>("vkb:theme", (event) => this.receiveTheme(event.payload))
+      .then((unlisten) => {
+        this.themeUnlisten = unlisten;
+      })
+      .catch(() => {
+        // Event bus unavailable: the BroadcastChannel path still covers windows.
+      });
+  }
+
+  private receiveTheme(value: unknown): void {
+    if (typeof value !== "string") return;
+    const next = value === "light" || value === "dark" ? value : "system";
+    if (this.settings && this.settings.system.theme !== next) {
+      this.settings.system.theme = next;
+    }
+    this.applyTheme(next, false);
   }
 
   // ------------------------------------------------------------------ toasts

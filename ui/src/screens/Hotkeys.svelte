@@ -12,15 +12,13 @@
   const settings = $derived(app.settings);
   const native = api.isTauri();
 
-  // The six actions that earned a row in v4. Everything else stays in
+  // The four actions that earned a row in v4. Everything else stays in
   // config.toml or on the main window; the file is not a feature list.
   const rows: { field: HotkeyActionField; label: string }[] = [
     { field: "toggle", label: "Bật/tắt tiếng Việt" },
-    { field: "cycleCharset", label: "Đổi bảng mã" },
     { field: "cycleMethod", label: "Đổi kiểu gõ" },
     { field: "restoreWord", label: "Khôi phục từ gõ sai" },
     { field: "openSettings", label: "Mở cài đặt" },
-    { field: "convertTool", label: "Chuyển mã chữ đã chép" },
   ];
 
   const save = (field: HotkeyActionField, next: string) => {

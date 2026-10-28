@@ -150,11 +150,11 @@ mod tests {
     #[test]
     fn rule_overrides_charset_method_and_macro() {
         let mut rule = AppRule::new("excel.exe");
-        rule.charset = Some(Charset::Tcvn3);
+        rule.charset = Some(Charset::UnicodeNfd);
         rule.method = Some(InputMethod::Vni);
         rule.macro_enabled = Some(false);
         let eff = resolve(base(), Some(&rule), None, false);
-        assert_eq!(eff.charset, Charset::Tcvn3);
+        assert_eq!(eff.charset, Charset::UnicodeNfd);
         assert_eq!(eff.method, InputMethod::Vni);
         assert!(!eff.macro_enabled);
         assert!(eff.enabled, "unspecified enabled inherits");

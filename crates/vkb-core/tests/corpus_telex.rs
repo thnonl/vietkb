@@ -1,7 +1,7 @@
 //! Telex corpus: the reference implementation's cases (adapted to the frozen
 //! API) plus the cases sprint 1 added.
 
-use vkb_core::{simulate, Charset, EngineOptions, InputMethod, KeyInput};
+use vkb_core::{simulate, EngineOptions, InputMethod, KeyInput};
 
 fn telex() -> EngineOptions {
     EngineOptions::default()
@@ -240,15 +240,6 @@ fn spell_check_off_transforms_english_looking_words() {
     };
     assert_ne!(simulate(options, "windows"), "windows");
     assert_ne!(simulate(options, "google"), "google");
-}
-
-#[test]
-fn charset_tcvn3_matches_the_reference_table() {
-    let options = EngineOptions {
-        charset: Charset::Tcvn3,
-        ..EngineOptions::default()
-    };
-    assert_eq!(simulate(options, "tieengs"), "tiÕng");
 }
 
 #[test]

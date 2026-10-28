@@ -27,7 +27,6 @@ export const resetSettings = (section: string) =>
 export const getStatus = () => invoke<StatusView>("get_status");
 export const toggleEnabled = () => invoke<StatusView>("toggle_enabled");
 export const setMethod = (method: string) => invoke<StatusView>("set_method", { method });
-export const setCharset = (charset: string) => invoke<StatusView>("set_charset", { charset });
 
 export const listMacros = (query = "") => invoke<MacroRow[]>("list_macros", { query });
 export const upsertMacro = (trigger: string, expansion: string) =>
@@ -43,7 +42,7 @@ export const setAppRule = (process: string, enabled: boolean) =>
 export const deleteAppRule = (process: string) => invoke<void>("delete_app_rule", { process });
 export const listRunningApps = () => invoke<RunningApp[]>("list_running_apps");
 
-/** Additive command: per-app charset/method overrides (contract §6 gap, see impl notes). */
+/** Additive command: per-app method overrides (contract §6 gap, see impl notes). */
 export const setAppRuleOverrides = (
   process: string,
   charset: string | null,
@@ -53,9 +52,6 @@ export const setAppRuleOverrides = (
 export const parseHotkey = (input: string) => invoke<string>("parse_hotkey", { input });
 export const checkHotkeyConflict = (input: string, ignoreField: string) =>
   invoke<string | null>("check_hotkey_conflict", { input, ignoreField });
-
-export const convertText = (input: string, from: string, to: string) =>
-  invoke<string>("convert_text", { input, from, to });
 
 export const openConfigFolder = () => invoke<void>("open_config_folder");
 export const restartApp = () => invoke<void>("restart_app");

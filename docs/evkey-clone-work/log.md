@@ -1,5 +1,19 @@
 ﻿# Log
 
+- 2026-10-29 **Owner decision: drop the legacy charsets and VIQR.** Shipped input
+  methods are now Telex and VNI only; shipped charsets are `unicode` (NFC, the only
+  value the UI exposes) and `unicode_nfd` (config-file only). Deleted: the TCVN3,
+  VNI Windows, VISCII, VIQR, BK HCM1, VPS and UTF-8 tables and encoders; the VIQR
+  engine path and corpus; `hotkeys.cycle_charset`; the tray `Bảng mã ▸` submenu; the
+  clipboard `convert_text` tool and its F6 hotkey. Old `config.toml` files still load:
+  a removed `charset`/`method` slug deserialises to a sentinel that
+  `AppConfig::migrated()` rewrites to `unicode`/`telex`, keeping `extra` and macros.
+  `50-test-cases.md` §1 is now 503 rows and §2 keeps the two Unicode forms; the main
+  window has 11 panel controls. Older sections of `00-charter`, `20-spec`,
+  `25-contract`, `27-copy-decisions`, `30-plan`, `50-test-cases`, `70-impl-notes-*`,
+  `80-verify-report` that describe the removed charsets/VIQR are superseded by this
+  entry.
+
 - 2026-10-28 Sprint 0 start. Charter written (`00-charter.md`). Legacy code declared reference-only; owner authorized full deletion.
 - 2026-10-28 Dispatched background scouts: legacy repo survey, EVKey capability research, toolchain check.
 - 2026-10-28 Env facts recorded (charter §10): Rust 1.98.1 MSVC, Node 24.22.1, WebView2 155,

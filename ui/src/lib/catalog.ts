@@ -1,112 +1,5 @@
-// Product catalogues: charsets, input methods, hotkey actions.
+// Product catalogues: input methods and hotkey actions.
 // Vietnamese product terminology is kept verbatim from EVKey (contract C7).
-
-export interface CharsetInfo {
-  slug: string;
-  label: string;
-  /** Short name for the strip chip and the Thử gõ hint. */
-  short: string;
-  hint: string;
-  tone: string;
-  /** Offered in the panel pickers (decision 27 C#5/#6: six verified charsets). */
-  picker: boolean;
-  /** Convertible by `convert_text` in Sprint 1. */
-  convertible: boolean;
-}
-
-export const CHARSETS: CharsetInfo[] = [
-  {
-    slug: "unicode",
-    label: "Unicode dựng sẵn",
-    short: "Unicode",
-    hint: "Dùng cho hầu hết ứng dụng: Word, Zalo, trình duyệt",
-    tone: "Tiếng Việt",
-    picker: true,
-    convertible: true,
-  },
-  {
-    slug: "unicode_nfd",
-    label: "Unicode tổ hợp",
-    short: "Unicode tổ hợp",
-    hint: "Chỉ chọn khi phần mềm yêu cầu",
-    tone: "Tiếng Việt",
-    picker: true,
-    convertible: true,
-  },
-  {
-    slug: "tcvn3",
-    label: "TCVN3 (ABC)",
-    short: "TCVN3",
-    hint: "Văn bản cũ dùng phông .VnTime, .VnArial",
-    tone: "TiÕng ViÖt",
-    picker: true,
-    convertible: true,
-  },
-  {
-    slug: "vni_windows",
-    label: "VNI Windows",
-    short: "VNI Windows",
-    hint: "Văn bản cũ dùng phông VNI-Times",
-    tone: "Tieáng Vieät",
-    picker: true,
-    convertible: true,
-  },
-  {
-    slug: "viqr",
-    label: "VIQR",
-    short: "VIQR",
-    hint: "Dấu viết bằng ký hiệu: việt thành vie^.t",
-    tone: "Tieengs Vieetj",
-    picker: true,
-    convertible: true,
-  },
-  {
-    slug: "viscii",
-    label: "VISCII",
-    short: "VISCII",
-    hint: "Văn bản cũ dùng phông VISCII",
-    tone: "Tiếng Việt",
-    picker: true,
-    convertible: false,
-  },
-  {
-    // Hidden from every picker (27 C#5): kept for config compatibility only.
-    slug: "utf8",
-    label: "UTF-8",
-    short: "UTF-8",
-    hint: "Chỉ dành cho tệp UTF-8",
-    tone: "Tiếng Việt",
-    picker: false,
-    convertible: true,
-  },
-  {
-    // Hidden until byte tables are verified (27 C#6).
-    slug: "bk_hcm1",
-    label: "BK HCM1",
-    short: "BK HCM1",
-    hint: "Chưa hỗ trợ trong bản này",
-    tone: "Tiếng Việt",
-    picker: false,
-    convertible: false,
-  },
-  {
-    slug: "vps",
-    label: "VPS",
-    short: "VPS",
-    hint: "Chưa hỗ trợ trong bản này",
-    tone: "Tiếng Việt",
-    picker: false,
-    convertible: false,
-  },
-];
-
-export const PICKER_CHARSETS = CHARSETS.filter((charset) => charset.picker);
-
-export const charsetLabel = (slug: string): string =>
-  CHARSETS.find((c) => c.slug === slug)?.label ?? slug;
-
-export const charsetShort = (slug: string): string =>
-  CHARSETS.find((c) => c.slug === slug)?.short ?? slug;
 
 export interface MethodInfo {
   slug: string;
@@ -127,12 +20,6 @@ export const METHODS: MethodInfo[] = [
     label: "VNI",
     hint: "Gõ số để thêm dấu: a1 → á, a6 → â, o7 → ơ.",
     example: "vie6t5 → việt",
-  },
-  {
-    slug: "viqr",
-    label: "VIQR",
-    hint: "Gõ dấu bằng ký tự: a? → ả, a( → ă, dd → đ.",
-    example: "vie^.t5 → việt",
   },
 ];
 
@@ -164,11 +51,9 @@ export type HotkeyActionField =
   | "toggle"
   | "restoreWord"
   | "appExclude"
-  | "convertTool"
   | "macroPanel"
   | "macroToggle"
   | "openSettings"
-  | "cycleCharset"
   | "cycleMethod";
 
 /** Mirrors `HotkeySet::default()` in crates/vkb-config/src/schema.rs. */
@@ -178,11 +63,9 @@ export const DEFAULT_HOTKEYS: Record<HotkeyActionField, string> = {
   toggle: "Ctrl+Shift",
   restoreWord: "Ctrl+Shift+Z",
   appExclude: "F11",
-  convertTool: "F6",
   macroPanel: "F8",
   macroToggle: "F9",
   openSettings: "Ctrl+Alt+S",
-  cycleCharset: "",
   cycleMethod: "",
 };
 
@@ -223,13 +106,6 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     fallback: "F11",
   },
   {
-    field: "convertTool",
-    label: "Công cụ chuyển mã",
-    hint: "Mở hộp thoại chuyển bảng mã cho văn bản đang bôi đen.",
-    group: "tools",
-    fallback: "F6",
-  },
-  {
     field: "macroPanel",
     label: "Bảng gõ tắt",
     hint: "Mở nhanh danh sách gõ tắt để tra hoặc sửa.",
@@ -251,16 +127,9 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     fallback: "Ctrl+Alt+S",
   },
   {
-    field: "cycleCharset",
-    label: "Đổi bảng mã",
-    hint: "Chuyển vòng Unicode → TCVN3 → VNI Windows → Unicode tổ hợp.",
-    group: "tools",
-    fallback: "",
-  },
-  {
     field: "cycleMethod",
     label: "Đổi kiểu gõ",
-    hint: "Chuyển vòng Telex → VNI → VIQR.",
+    hint: "Chuyển qua lại Telex ↔ VNI.",
     group: "tools",
     fallback: "",
   },

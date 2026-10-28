@@ -13,8 +13,6 @@ use tauri::Emitter;
 use vkb_config::{AppConfig, Hotkey};
 use vkb_core::{Charset, InputMethod};
 
-use crate::charset_convert;
-
 /// The one config cell. It is an `Arc` so the very same cell can be handed to
 /// the Windows backend (`vkb_platform::SharedConfig`), which is what makes a
 /// config change reach the hook without a restart.
@@ -114,11 +112,9 @@ pub struct HotkeyView {
     pub toggle: Option<String>,
     pub restore_word: Option<String>,
     pub app_exclude: Option<String>,
-    pub convert_tool: Option<String>,
     pub macro_panel: Option<String>,
     pub macro_toggle: Option<String>,
     pub open_settings: Option<String>,
-    pub cycle_charset: Option<String>,
     pub cycle_method: Option<String>,
     pub toggle_mode: String,
 }
@@ -234,11 +230,9 @@ pub fn to_view(cfg: &AppConfig) -> SettingsView {
             toggle: cfg.hotkeys.toggle.as_ref().map(Hotkey::as_str),
             restore_word: cfg.hotkeys.restore_word.as_ref().map(Hotkey::as_str),
             app_exclude: cfg.hotkeys.app_exclude.as_ref().map(Hotkey::as_str),
-            convert_tool: cfg.hotkeys.convert_tool.as_ref().map(Hotkey::as_str),
             macro_panel: cfg.hotkeys.macro_panel.as_ref().map(Hotkey::as_str),
             macro_toggle: cfg.hotkeys.macro_toggle.as_ref().map(Hotkey::as_str),
             open_settings: cfg.hotkeys.open_settings.as_ref().map(Hotkey::as_str),
-            cycle_charset: cfg.hotkeys.cycle_charset.as_ref().map(Hotkey::as_str),
             cycle_method: cfg.hotkeys.cycle_method.as_ref().map(Hotkey::as_str),
             toggle_mode: match cfg.hotkeys.toggle_mode {
                 vkb_config::ToggleMode::Release => "release".into(),
@@ -454,14 +448,10 @@ fn patch_hotkeys(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), S
             "toggle" => cfg.hotkeys.toggle = patch_hotkey(item, "hotkeys.toggle")?,
             "restoreWord" => cfg.hotkeys.restore_word = patch_hotkey(item, "hotkeys.restoreWord")?,
             "appExclude" => cfg.hotkeys.app_exclude = patch_hotkey(item, "hotkeys.appExclude")?,
-            "convertTool" => cfg.hotkeys.convert_tool = patch_hotkey(item, "hotkeys.convertTool")?,
             "macroPanel" => cfg.hotkeys.macro_panel = patch_hotkey(item, "hotkeys.macroPanel")?,
             "macroToggle" => cfg.hotkeys.macro_toggle = patch_hotkey(item, "hotkeys.macroToggle")?,
             "openSettings" => {
                 cfg.hotkeys.open_settings = patch_hotkey(item, "hotkeys.openSettings")?
-            }
-            "cycleCharset" => {
-                cfg.hotkeys.cycle_charset = patch_hotkey(item, "hotkeys.cycleCharset")?
             }
             "cycleMethod" => {
                 cfg.hotkeys.cycle_method = patch_hotkey(item, "hotkeys.cycleMethod")?
@@ -673,15 +663,6 @@ pub fn set_method(method: String) -> Result<StatusView, String> {
     let parsed = InputMethod::from_str(&method).ok_or("kiểu gõ không hợp lệ")?;
     let mut draft = config_cell().read().clone();
     draft.input.method = parsed;
-    let view = save_and_publish(draft)?;
-    Ok(status_view_from_view(&view))
-}
-
-#[tauri::command]
-pub fn set_charset(charset: String) -> Result<StatusView, String> {
-    let parsed = Charset::from_str(&charset).ok_or("bảng mã không hợp lệ")?;
-    let mut draft = config_cell().read().clone();
-    draft.input.charset = parsed;
     let view = save_and_publish(draft)?;
     Ok(status_view_from_view(&view))
 }
@@ -972,28 +953,21 @@ pub fn parse_hotkey(input: String) -> Result<String, String> {
 pub fn check_hotkey_conflict(input: String, ignore_field: String) -> Option<String> {
     let target = Hotkey::parse(&input).ok()?;
     let cfg = config_cell().read();
-    let fields: [(&str, &Option<Hotkey>); 11] = [
+    let fields: [(&str, &Option<Hotkey>); 9] = [
         ("enable", &cfg.hotkeys.enable),
         ("disable", &cfg.hotkeys.disable),
         ("toggle", &cfg.hotkeys.toggle),
         ("restore_word", &cfg.hotkeys.restore_word),
         ("app_exclude", &cfg.hotkeys.app_exclude),
-        ("convert_tool", &cfg.hotkeys.convert_tool),
         ("macro_panel", &cfg.hotkeys.macro_panel),
         ("macro_toggle", &cfg.hotkeys.macro_toggle),
         ("open_settings", &cfg.hotkeys.open_settings),
-        ("cycle_charset", &cfg.hotkeys.cycle_charset),
         ("cycle_method", &cfg.hotkeys.cycle_method),
     ];
     fields
         .iter()
         .find(|(name, hotkey)| *name != ignore_field && hotkey.as_ref() == Some(&target))
         .map(|(name, _)| (*name).to_string())
-}
-
-#[tauri::command]
-pub fn convert_text(input: String, from: String, to: String) -> Result<String, String> {
-    charset_convert::convert(&input, &from, &to)
 }
 
 #[tauri::command]

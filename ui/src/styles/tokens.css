@@ -45,7 +45,14 @@
   --bad-tint: #fcedeb;
   --bad-line: #f0c8c2;
 
-  /* Controls */
+  /* Controls.
+   * --ctl-bg / --ctl-edge / --bad-fill exist so the dark theme can raise the
+   * control fill and its boundary without touching this light ramp: every value
+   * here equals the token it replaced, so light renders identically. */
+  --ctl-bg: #ffffff;
+  --ctl-edge: #e0dbd2;
+  --inset-edge: #ece8e1;
+  --bad-fill: #b42318;
   --tg-off: #e2ddd4;
   --key-top: #ffffff;
   --key-bot: #f6f4f0;
@@ -77,110 +84,163 @@
 }
 
 :root[data-theme="dark"] {
-  --plane: #111015;
-  --surface: #17161c;
-  --raised: #1f1e25;
-  --float: #26252d;
-  --sunken: #0f0e13;
-  --line-1: #232229;
-  --line-2: #2e2d36;
-  --line-3: #403e4a;
-  --ctl-line: #77748a;
-  --t1: #eeecf3;
-  --t2: #adaab8;
-  --t3: #8f8c9c;
-  --t4: #5f5c6a;
-  --hover: #1d1c23;
-  --hover-plane: #1a1920;
-  --press: #25242c;
+  /* Windows 11 Settings neutral ramp: page #202020, raised surface #272727,
+   * control fill #333333, hover #3A3A3A, divider #3A3A3A. */
+  --plane: #202020;
+  --surface: #202020;
+  --raised: #272727;
+  --float: #2c2c2c;
+  --sunken: #1b1b1b;
+  --line-1: #2e2e2e;
+  --line-2: #3a3a3a;
+  --line-3: #4a4a4a;
+  --ctl-line: #838383;
+  --t1: #ffffff;
+  --t2: #c5c5c5;
+  --t3: #b4b4b4;
+  --t4: #8a8a8a;
+  --hover: #3a3a3a;
+  --hover-plane: #333333;
+  --press: #414141;
 
-  --acc: #6b57d8;
-  --acc-hover: #7864df;
-  --acc-text: #b4a8f4;
-  --acc-tint: #28224a;
-  --acc-tint-2: #342c5e;
-  --acc-line: #5a4d9e;
-  --acc-a: rgba(150, 130, 245, 0.26);
-  --on-acc: #ffffff;
-  --focus: #8e7bea;
-  --rail: #8e7bea;
+  --acc: #8b7bff;
+  --acc-hover: #9d8fff;
+  --acc-text: #b9aeff;
+  --acc-tint: #2a2540;
+  --acc-tint-2: #322c50;
+  --acc-line: #6c5fc0;
+  --acc-a: rgba(139, 123, 255, 0.3);
+  /* Dark ink on the accent fill (5.64:1); white on #8b7bff would be 3.1:1. */
+  --on-acc: #14121a;
+  --focus: #b9aeff;
+  --rail: #8b7bff;
 
   --ok: #5dcb9b;
-  --ok-tint: #13261d;
+  --ok-tint: #14251c;
   --warn: #e9b34f;
-  --warn-tint: #251e11;
-  --warn-line: #4a3a1b;
+  --warn-tint: #2a2011;
+  --warn-line: #55431b;
   --warn-dot: #e9b34f;
-  --bad: #e35c4a;
-  --bad-tint: #2a1615;
+  --bad: #f2705f;
+  --bad-tint: #33110d;
   --bad-line: #5a2c28;
 
-  --tg-off: #2a2931;
-  --key-top: #2c2b33;
-  --key-bot: #26252d;
-  --key-line: #3d3b46;
-  --key-lip: #0a090d;
-  --tile: #26252d;
-  --e1: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.45);
-  --e2: 0 0 0 1px #34333d, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.35),
-    0 18px 44px -8px rgba(0, 0, 0, 0.65);
+  --ctl-bg: #333333;
+  --ctl-edge: #838383;
+  --inset-edge: #838383;
+  --bad-fill: #c42b1c;
+  --tg-off: #333333;
+  --key-top: #3a3a3a;
+  --key-bot: #333333;
+  --key-line: #4a4a4a;
+  --key-lip: #1a1a1a;
+  --tile: #333333;
+  --e1: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 1px 2px rgba(0, 0, 0, 0.45);
+  --e2: 0 0 0 1px #3a3a3a, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.4),
+    0 18px 44px -8px rgba(0, 0, 0, 0.7);
   --knob: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --pri-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --pri-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 
   color-scheme: dark;
+
+  /* ---- dark contrast table (WCAG 2.x relative luminance, measured) --------
+   * Text pairs — all ≥ 4.5:1
+   *   #ffffff --t1 on --plane #202020 ......... 16.29
+   *   #ffffff --t1 on --raised #272727 ........ 14.94
+   *   #ffffff --t1 on --ctl-bg #333333 ........ 12.63
+   *   #ffffff --t1 on --hover #3a3a3a ......... 11.37
+   *   #ffffff --t1 on --sunken #1b1b1b ........ 17.22
+   *   #ffffff --t1 on --acc-tint #2a2540 ...... 14.61
+   *   #c5c5c5 --t2 on --plane #202020 .........  9.44
+   *   #c5c5c5 --t2 on --raised #272727 ........  8.65
+   *   #c5c5c5 --t2 on --ctl-bg #333333 ........  7.32
+   *   #c5c5c5 --t2 on --hover #3a3a3a .........  6.59
+   *   #b4b4b4 --t3 on --plane #202020 .........  7.86
+   *   #b4b4b4 --t3 on --raised #272727 ........  7.20
+   *   #b4b4b4 --t3 on --ctl-bg #333333 ........  6.09
+   *   #b4b4b4 --t3 on --hover #3a3a3a .........  5.49
+   *   #b4b4b4 --t3 on --sunken #1b1b1b ........  8.31
+   *   #14121a --on-acc on --acc #8b7bff .......  5.64
+   *   #14121a --on-acc on --acc-hover #9d8fff .  6.90
+   *   #b9aeff --acc-text on --plane #202020 ...  8.19
+   *   #b9aeff --acc-text on --raised #272727 ..  7.51
+   *   #b9aeff --acc-text on --acc-tint-2 #322c50  6.55
+   *   #5dcb9b --ok on --raised #272727 ........  7.46
+   *   #e9b34f --warn on --raised #272727 ......  7.84
+   *   #e9b34f --warn on --warn-tint #2a2011 ...  8.40
+   *   #f2705f --bad on --raised #272727 .......  5.16
+   *   #f2705f --bad on --bad-tint #33110d .....  5.92
+   *   #ffffff on --bad-fill #c42b1c (close hover) 5.66
+   *   #b9aeff --focus ring on --plane/#202020 ..  8.19
+   *
+   * Non-text (boundaries / graphics — all ≥ 3:1)
+   *   #838383 --ctl-edge on --ctl-bg #333333 ..  3.33
+   *   #838383 --ctl-edge on --plane #202020 ...  4.30
+   *   #838383 --ctl-line on --tg-off #333333 ..  3.33
+   *   #8b7bff --acc on --ctl-bg #333333 .......  3.84
+   *   #8b7bff --acc on --raised #272727 .......  4.53
+   *   #ffffff toggle knob on --acc #8b7bff .....  3.29
+   *   #8a8a8a --t4 (disabled/ornament) on #272727 4.33 — inactive UI, exempt
+   *   from 1.4.3; still above the 3:1 graphic floor. Not used for body text.
+   * ---------------------------------------------------------------------- */
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --plane: #111015;
-    --surface: #17161c;
-    --raised: #1f1e25;
-    --float: #26252d;
-    --sunken: #0f0e13;
-    --line-1: #232229;
-    --line-2: #2e2d36;
-    --line-3: #403e4a;
-    --ctl-line: #77748a;
-    --t1: #eeecf3;
-    --t2: #adaab8;
-    --t3: #8f8c9c;
-    --t4: #5f5c6a;
-    --hover: #1d1c23;
-    --hover-plane: #1a1920;
-    --press: #25242c;
+    /* Mirrors :root[data-theme="dark"] above (contrast table lives there). */
+    --plane: #202020;
+    --surface: #202020;
+    --raised: #272727;
+    --float: #2c2c2c;
+    --sunken: #1b1b1b;
+    --line-1: #2e2e2e;
+    --line-2: #3a3a3a;
+    --line-3: #4a4a4a;
+    --ctl-line: #838383;
+    --t1: #ffffff;
+    --t2: #c5c5c5;
+    --t3: #b4b4b4;
+    --t4: #8a8a8a;
+    --hover: #3a3a3a;
+    --hover-plane: #333333;
+    --press: #414141;
 
-    --acc: #6b57d8;
-    --acc-hover: #7864df;
-    --acc-text: #b4a8f4;
-    --acc-tint: #28224a;
-    --acc-tint-2: #342c5e;
-    --acc-line: #5a4d9e;
-    --acc-a: rgba(150, 130, 245, 0.26);
-    --on-acc: #ffffff;
-    --focus: #8e7bea;
-    --rail: #8e7bea;
+    --acc: #8b7bff;
+    --acc-hover: #9d8fff;
+    --acc-text: #b9aeff;
+    --acc-tint: #2a2540;
+    --acc-tint-2: #322c50;
+    --acc-line: #6c5fc0;
+    --acc-a: rgba(139, 123, 255, 0.3);
+    --on-acc: #14121a;
+    --focus: #b9aeff;
+    --rail: #8b7bff;
 
     --ok: #5dcb9b;
-    --ok-tint: #13261d;
+    --ok-tint: #14251c;
     --warn: #e9b34f;
-    --warn-tint: #251e11;
-    --warn-line: #4a3a1b;
+    --warn-tint: #2a2011;
+    --warn-line: #55431b;
     --warn-dot: #e9b34f;
-    --bad: #e35c4a;
-    --bad-tint: #2a1615;
+    --bad: #f2705f;
+    --bad-tint: #33110d;
     --bad-line: #5a2c28;
 
-    --tg-off: #2a2931;
-    --key-top: #2c2b33;
-    --key-bot: #26252d;
-    --key-line: #3d3b46;
-    --key-lip: #0a090d;
-    --tile: #26252d;
-    --e1: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.45);
-    --e2: 0 0 0 1px #34333d, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.35),
-      0 18px 44px -8px rgba(0, 0, 0, 0.65);
+    --ctl-bg: #333333;
+    --ctl-edge: #838383;
+    --inset-edge: #838383;
+    --bad-fill: #c42b1c;
+    --tg-off: #333333;
+    --key-top: #3a3a3a;
+    --key-bot: #333333;
+    --key-line: #4a4a4a;
+    --key-lip: #1a1a1a;
+    --tile: #333333;
+    --e1: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 1px 2px rgba(0, 0, 0, 0.45);
+    --e2: 0 0 0 1px #3a3a3a, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.4),
+      0 18px 44px -8px rgba(0, 0, 0, 0.7);
     --knob: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --pri-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    --pri-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 
     color-scheme: dark;
   }

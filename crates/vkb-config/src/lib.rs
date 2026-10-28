@@ -15,6 +15,8 @@ pub use schema::*;
 
 use std::path::Path;
 
+use vkb_core::{Charset, InputMethod};
+
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("cannot read {path}: {source}")]
@@ -45,10 +47,26 @@ impl AppConfig {
         Ok(toml::to_string_pretty(self)?)
     }
 
-    /// Fill in fields added after the file was written.
+    /// Fill in fields added after the file was written, and normalise the
+    /// sentinels a removed slug deserialises to. Everything else — unknown
+    /// keys (`extra`), macros, other sections — is preserved untouched.
     fn migrated(mut self) -> Self {
         if self.version < SCHEMA_VERSION {
             self.version = SCHEMA_VERSION;
+        }
+        if self.input.charset.is_legacy() {
+            self.input.charset = Charset::Unicode;
+        }
+        if self.input.method.is_legacy() {
+            self.input.method = InputMethod::Telex;
+        }
+        for rule in &mut self.apps.rules {
+            if rule.charset.is_some_and(Charset::is_legacy) {
+                rule.charset = Some(Charset::Unicode);
+            }
+            if rule.method.is_some_and(InputMethod::is_legacy) {
+                rule.method = Some(InputMethod::Telex);
+            }
         }
         self
     }
@@ -101,6 +119,7 @@ pub fn save_to(path: &Path, config: &AppConfig) -> Result<(), ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vkb_core::{Charset, InputMethod};
 
     #[test]
     fn default_matches_documented_toml() {
@@ -143,31 +162,66 @@ surprise = "kept"
     }
 
     #[test]
-    fn cycle_charset_hotkey_round_trips() {
-        // Unbound by default: the `Đổi bảng mã` row starts empty.
-        let cfg = AppConfig::default();
-        assert!(cfg.hotkeys.cycle_charset.is_none());
-        assert!(cfg.hotkeys.cycle_method.is_none());
-
-        let cfg = AppConfig::from_toml("version = 1\n[hotkeys]\ncycle_charset = \"Ctrl+Alt+C\"\n")
-            .unwrap();
+    fn legacy_charset_and_method_slugs_migrate() {
+        // A file written before the legacy charsets and VIQR were removed.
+        // Loading must succeed, keep `extra` and the macro table, and rewrite
+        // the two removed slugs as `unicode` / `telex`.
+        let src = r#"
+version = 1
+future_key = "kept"
+[input]
+charset = "tcvn3"
+method = "viqr"
+[macros]
+vn = "Việt Nam"
+dc = "được"
+"#;
+        let cfg = AppConfig::from_toml(src).unwrap();
+        assert_eq!(cfg.input.charset, Charset::Unicode);
+        assert_eq!(cfg.input.method, InputMethod::Telex);
         assert_eq!(
-            cfg.hotkeys.cycle_charset.as_ref().unwrap().as_str(),
-            "Ctrl+Alt+C"
+            cfg.extra.get("future_key").and_then(|value| value.as_str()),
+            Some("kept"),
+            "unknown key must survive"
         );
-        assert!(
-            cfg.hotkeys.cycle_method.is_none(),
-            "the other cycle stays unbound"
-        );
+        assert_eq!(cfg.macros.get("vn").map(String::as_str), Some("Việt Nam"));
+        assert_eq!(cfg.macros.get("dc").map(String::as_str), Some("được"));
 
         let text = cfg.to_toml().unwrap();
-        let back = AppConfig::from_toml(&text).unwrap();
-        assert_eq!(back.hotkeys.cycle_charset, cfg.hotkeys.cycle_charset);
+        assert!(!text.contains("tcvn3"), "removed slug rewritten:\n{text}");
+        assert!(!text.contains("viqr"), "removed slug rewritten:\n{text}");
+        assert!(text.contains("future_key"));
+        assert!(text.contains("\"vn\"") || text.contains("vn ="));
+    }
 
-        // Clearing it must survive too, like every other hotkey.
-        let cleared =
-            AppConfig::from_toml("version = 1\n[hotkeys]\ncycle_charset = \"\"\n").unwrap();
-        assert!(cleared.hotkeys.cycle_charset.is_none());
+    #[test]
+    fn every_removed_charset_slug_migrates() {
+        for slug in [
+            "tcvn3", "vni_windows", "viscii", "viqr", "bk_hcm1", "vps", "utf8",
+        ] {
+            let src = format!("version = 1\n[input]\ncharset = \"{slug}\"\n");
+            let cfg = AppConfig::from_toml(&src).unwrap();
+            assert_eq!(cfg.input.charset, Charset::Unicode, "charset {slug}");
+        }
+        for slug in ["viqr", "VIQR"] {
+            let src = format!("version = 1\n[input]\nmethod = \"{slug}\"\n");
+            let cfg = AppConfig::from_toml(&src).unwrap();
+            assert_eq!(cfg.input.method, InputMethod::Telex, "method {slug}");
+        }
+    }
+
+    #[test]
+    fn legacy_per_app_overrides_migrate() {
+        let src = r#"
+version = 1
+[[apps.rules]]
+process = "excel.exe"
+charset = "tcvn3"
+method = "viqr"
+"#;
+        let cfg = AppConfig::from_toml(src).unwrap();
+        assert_eq!(cfg.apps.rules[0].charset, Some(Charset::Unicode));
+        assert_eq!(cfg.apps.rules[0].method, Some(InputMethod::Telex));
     }
 
     #[test]
@@ -183,9 +237,5 @@ surprise = "kept"
         assert!(text.contains("cycle_method"), "field dropped:\n{text}");
         let back = AppConfig::from_toml(&text).unwrap();
         assert_eq!(back.hotkeys.cycle_method, cfg.hotkeys.cycle_method);
-        assert!(
-            back.hotkeys.cycle_charset.is_none(),
-            "an unbound sibling stays unbound"
-        );
     }
 }

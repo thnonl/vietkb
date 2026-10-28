@@ -29,7 +29,6 @@ fn only_f24() -> HotkeySet {
     set.toggle = None;
     set.restore_word = None;
     set.app_exclude = None;
-    set.convert_tool = None;
     set.macro_panel = Hotkey::parse("F24").ok();
     set.macro_toggle = None;
     set.open_settings = None;

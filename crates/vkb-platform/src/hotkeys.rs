@@ -52,9 +52,8 @@ impl Combo {
     }
 }
 
-/// One slot per configurable action (`enable` … `cycle_method`), including the
-/// two cycling actions.
-pub const MAX_COMBOS: usize = 11;
+/// One slot per configurable action (`enable` … `cycle_method`).
+pub const MAX_COMBOS: usize = 9;
 
 /// Fixed-capacity table of combos with a per-combo "already fired" latch.
 #[derive(Clone, Copy, Debug, Default)]
@@ -280,14 +279,14 @@ mod tests {
     #[test]
     fn ctrl_f1_combo_does_not_match_plain_f1() {
         let mut m = matcher_with(&[Combo::new(
-            Hotkey::ConvertTool,
+            Hotkey::MacroPanel,
             mods(true, false, false, false),
             Some(VK_F1),
         )]);
         assert_eq!(m.on_key(VK_F1, true, Modifiers::NONE, false), None);
         assert_eq!(
             m.on_key(VK_F1, true, mods(true, false, false, false), false),
-            Some(Hotkey::ConvertTool)
+            Some(Hotkey::MacroPanel)
         );
     }
 

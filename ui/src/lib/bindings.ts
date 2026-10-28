@@ -38,11 +38,9 @@ export interface HotkeyView {
   toggle: string | null;
   restoreWord: string | null;
   appExclude: string | null;
-  convertTool: string | null;
   macroPanel: string | null;
   macroToggle: string | null;
   openSettings: string | null;
-  cycleCharset: string | null;
   cycleMethod: string | null;
   toggleMode: string;
 }

@@ -1,5 +1,5 @@
-//! Tray icon: state, method and charset submenus with checkmarks, and an icon
-//! that reflects whether Vietnamese input is on.
+//! Tray icon: state and method submenus with checkmarks, and an icon that
+//! reflects whether Vietnamese input is on.
 
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
@@ -9,28 +9,7 @@ use crate::commands::{self, StatusView};
 
 pub const TRAY_ID: &str = "vietkb-tray";
 
-const METHODS: [(&str, &str); 3] = [("telex", "Telex"), ("vni", "VNI"), ("viqr", "VIQR")];
-
-const CHARSETS: [(&str, &str); 6] = [
-    ("unicode", "Unicode dựng sẵn"),
-    ("unicode_nfd", "Unicode tổ hợp"),
-    ("tcvn3", "TCVN3 (ABC)"),
-    ("vni_windows", "VNI Windows"),
-    ("viqr", "VIQR"),
-    ("viscii", "VISCII"),
-];
-
-fn charset_short(slug: &str) -> &str {
-    match slug {
-        "unicode" => "Unicode",
-        "unicode_nfd" => "Unicode tổ hợp",
-        "tcvn3" => "TCVN3",
-        "vni_windows" => "VNI Windows",
-        "viqr" => "VIQR",
-        "viscii" => "VISCII",
-        _ => "Unicode",
-    }
-}
+const METHODS: [(&str, &str); 2] = [("telex", "Telex"), ("vni", "VNI")];
 
 fn icon_for(status: &StatusView) -> tauri::Result<tauri::image::Image<'static>> {
     let bytes: &'static [u8] = if status.enabled {
@@ -43,11 +22,7 @@ fn icon_for(status: &StatusView) -> tauri::Result<tauri::image::Image<'static>> 
 
 fn tooltip(status: &StatusView) -> String {
     if status.enabled {
-        format!(
-            "VietKB · Tiếng Việt · {} · {}",
-            method_label(&status.method),
-            charset_short(&status.charset)
-        )
+        format!("VietKB · Tiếng Việt · {}", method_label(&status.method))
     } else {
         "VietKB · Đã tắt tiếng Việt".to_string()
     }
@@ -88,23 +63,6 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
         .collect();
     let method_menu = Submenu::with_items(app, "Kiểu gõ", true, &method_refs)?;
 
-    let mut charset_items = Vec::with_capacity(CHARSETS.len());
-    for (slug, label) in CHARSETS {
-        charset_items.push(CheckMenuItem::with_id(
-            app,
-            format!("charset:{slug}"),
-            label,
-            true,
-            status.charset == slug,
-            None::<&str>,
-        )?);
-    }
-    let charset_refs: Vec<&dyn IsMenuItem<Wry>> = charset_items
-        .iter()
-        .map(|item| item as &dyn IsMenuItem<Wry>)
-        .collect();
-    let charset_menu = Submenu::with_items(app, "Bảng mã", true, &charset_refs)?;
-
     let settings = MenuItem::with_id(app, "settings", "Mở cài đặt…", true, None::<&str>)?;
     let hotkeys = MenuItem::with_id(app, "hotkeys", "Phím tắt…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Thoát VietKB", true, None::<&str>)?;
@@ -116,7 +74,6 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
         &toggle,
         &sep_top,
         &method_menu,
-        &charset_menu,
         &sep_open,
         &settings,
         &hotkeys,
@@ -177,10 +134,6 @@ fn handle_event(app: &AppHandle, id: &str) {
             if let Some(slug) = id.strip_prefix("method:") {
                 if let Err(error) = commands::set_method(slug.to_string()) {
                     tracing::warn!(%error, "tray: set method failed");
-                }
-            } else if let Some(slug) = id.strip_prefix("charset:") {
-                if let Err(error) = commands::set_charset(slug.to_string()) {
-                    tracing::warn!(%error, "tray: set charset failed");
                 }
             }
         }

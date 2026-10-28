@@ -57,12 +57,9 @@ pub enum Hotkey {
     Toggle,
     RestoreWord,
     AppExclude,
-    ConvertTool,
     MacroPanel,
     MacroToggle,
     OpenSettings,
-    /// `Đổi bảng mã` — cycle the active charset.
-    CycleCharset,
     /// `Đổi kiểu gõ` — cycle the active input method.
     CycleMethod,
 }
@@ -76,10 +73,8 @@ pub type CommandCallback = Box<dyn Fn(BackendCommand) + Send + 'static>;
 pub enum BackendCommand {
     Enable(bool),
     SetMethod(vkb_core::InputMethod),
-    SetCharset(vkb_core::Charset),
     RestoreWord,
     ToggleAppExclude,
-    OpenConvertTool,
     OpenMacroPanel,
     ToggleMacro,
     OpenSettings,

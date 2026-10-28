@@ -1,6 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod charset_convert;
 mod commands;
 mod running_apps;
 mod tray;
@@ -365,7 +364,6 @@ fn main() {
             commands::get_status,
             commands::toggle_enabled,
             commands::set_method,
-            commands::set_charset,
             commands::list_macros,
             commands::upsert_macro,
             commands::delete_macros,
@@ -378,7 +376,6 @@ fn main() {
             commands::list_running_apps,
             commands::parse_hotkey,
             commands::check_hotkey_conflict,
-            commands::convert_text,
             commands::open_config_folder,
             commands::restart_app,
             commands::open_window,

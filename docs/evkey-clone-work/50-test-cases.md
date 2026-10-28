@@ -293,51 +293,6 @@ Row ids are stable — quote them in defect reports.
 | E-VN-059 | vni | `ta6t1` | `tất` | vni | â + t + sắc |
 | E-VN-060 | vni | `vie6t5` | `việt` | vni | ê + t + nặng |
 
-### 1.6 viqr — 40 rows (punctuation keys, `\` escapes)
-
-| id | method | input (raw keystrokes) | expected output | category | why it matters |
-|---|---|---|---|---|---|
-| E-VQ-001 | viqr | `a^` | `â` | viqr | ^ = circumflex |
-| E-VQ-002 | viqr | `a(` | `ă` | viqr | ( = breve |
-| E-VQ-003 | viqr | `e^` | `ê` | viqr | ^ on e |
-| E-VQ-004 | viqr | `o^` | `ô` | viqr | ^ on o |
-| E-VQ-005 | viqr | `o+` | `ơ` | viqr | + on o |
-| E-VQ-006 | viqr | `u+` | `ư` | viqr | + on u |
-| E-VQ-007 | viqr | `d-` | `đ` | viqr | - on d |
-| E-VQ-008 | viqr | `a'` | `á` | viqr | ' = sắc |
-| E-VQ-009 | viqr | `a<bt>` | `à` | viqr | backtick = huyền |
-| E-VQ-010 | viqr | `a?` | `ả` | viqr | ? = hỏi |
-| E-VQ-011 | viqr | `a~` | `ã` | viqr | ~ = ngã |
-| E-VQ-012 | viqr | `a.` | `ạ` | viqr | . = nặng |
-| E-VQ-013 | viqr | `e'` | `é` | viqr | sắc on e |
-| E-VQ-014 | viqr | `i'` | `í` | viqr | sắc on i |
-| E-VQ-015 | viqr | `o'` | `ó` | viqr | sắc on o |
-| E-VQ-016 | viqr | `u'` | `ú` | viqr | sắc on u |
-| E-VQ-017 | viqr | `y'` | `ý` | viqr | sắc on y |
-| E-VQ-018 | viqr | `a^'` | `ấ` | viqr | circumflex then tone |
-| E-VQ-019 | viqr | `a('` | `ắ` | viqr | breve then tone |
-| E-VQ-020 | viqr | `e^'` | `ế` | viqr | ê then tone |
-| E-VQ-021 | viqr | `o^'` | `ố` | viqr | ô then tone |
-| E-VQ-022 | viqr | `o+'` | `ớ` | viqr | ơ then tone |
-| E-VQ-023 | viqr | `u+'` | `ứ` | viqr | ư then tone |
-| E-VQ-024 | viqr | `Tie^'ng Vie^.t` | `Tiếng Việt` | viqr | the canonical VIQR sample |
-| E-VQ-025 | viqr | `d-u+o+<bt>ng` | `đường` | viqr | đ + ư + ơ + huyền |
-| E-VQ-026 | viqr | `hoa<bt>` | `hòa` | viqr | modern tone style under VIQR |
-| E-VQ-027 | viqr | `thu+o+ng<bt>` | `thường` | viqr | long syllable, tone last |
-| E-VQ-028 | viqr | `ngu+o+<bt>i` | `người` | viqr | ươi with tone before the final i |
-| E-VQ-029 | viqr | `d-u+o+.c` | `được` | viqr | nặng via period, coda after tone key |
-| E-VQ-030 | viqr | `hoa'` | `hóa` | viqr | sắc on o of `oa` (modern) |
-| E-VQ-031 | viqr | `quy'` | `quý` | viqr | qu onset, tone on y |
-| E-VQ-032 | viqr | `TIE^'NG` | `TIẾNG` | viqr | all caps VIQR |
-| E-VQ-033 | viqr | `tu+o+i` | `tươi` | viqr | ươi with no tone |
-| E-VQ-034 | viqr | `tu+o+i'` | `tưới` | viqr | ươi + sắc, tone on ơ |
-| E-VQ-035 | viqr | `a\(` | `a(` | viqr | backslash escapes a mark character |
-| E-VQ-036 | viqr | `a''` | `a'` | viqr | doubled tone char escapes to one literal |
-| E-VQ-037 | viqr | `a^^` | `a^` | viqr | doubled circumflex escapes to one literal |
-| E-VQ-038 | viqr | `d--` | `d-` | viqr | doubled đ mark escapes to literal d- |
-| E-VQ-039 | viqr | `To^i` | `Tôi` | viqr | ô + i, capital preserved |
-| E-VQ-040 | viqr | `vie^.t` | `việt` | viqr | ệ written as ê + nặng |
-
 ### 1.7 tone-placement — 59 rows (which vowel takes the mark)
 
 | id | method | input (raw keystrokes) | expected output | category | why it matters |
@@ -402,7 +357,7 @@ Row ids are stable — quote them in defect reports.
 | E-TP-058 | telex | `ngoawnf` | `ngoằn` | tone-placement | `oă` + coda, tone on ă |
 | E-TP-059 | telex | `loas` | `lóa` | tone-placement | modern partner of E-TO-009 (`loá`) |
 
-### 1.8 tone-old-style — 24 rows (`modern_tone=false`)
+### 1.8 tone-old-style — 20 rows (`modern_tone=false`)
 
 | id | method | input (raw keystrokes) | expected output | category | why it matters |
 |---|---|---|---|---|---|
@@ -426,12 +381,8 @@ Row ids are stable — quote them in defect reports.
 | E-TO-018 | vni | `thuy2` | `thuỳ` | tone-old-style | 2 after uy |
 | E-TO-019 | vni | `thuy3` | `thuỷ` | tone-old-style | 3 after uy |
 | E-TO-020 | vni | `khoa1` | `khoá` | tone-old-style | 1 after oa |
-| E-TO-021 | viqr | `hoa<bt>` | `hoà` | tone-old-style | option is method-independent for VIQR |
-| E-TO-022 | viqr | `thuy<bt>` | `thuỳ` | tone-old-style | huyền on y |
-| E-TO-023 | viqr | `thuy'` | `thuý` | tone-old-style | sắc on y |
-| E-TO-024 | viqr | `khoa'` | `khoá` | tone-old-style | old oa spelling |
 
-### 1.9 modified-letter — 28 rows (the 7 letters, standalone and in words)
+### 1.9 modified-letter — 21 rows (the 7 letters, standalone and in words)
 
 | id | method | input (raw keystrokes) | expected output | category | why it matters |
 |---|---|---|---|---|---|
@@ -456,13 +407,6 @@ Row ids are stable — quote them in defect reports.
 | E-ML-019 | vni | `o7` | `ơ` | modified-letter | 7 on o |
 | E-ML-020 | vni | `u7` | `ư` | modified-letter | 7 on u |
 | E-ML-021 | vni | `d9` | `đ` | modified-letter | 9 on d |
-| E-ML-022 | viqr | `ca^n` | `cân` | modified-letter | ^ inside a syllable |
-| E-ML-023 | viqr | `ca(n` | `căn` | modified-letter | ( inside a syllable |
-| E-ML-024 | viqr | `ve^<bt>` | `về` | modified-letter | ê + huyền |
-| E-ML-025 | viqr | `co^` | `cô` | modified-letter | ô alone |
-| E-ML-026 | viqr | `mo+` | `mơ` | modified-letter | ơ alone |
-| E-ML-027 | viqr | `tu+` | `tư` | modified-letter | ư alone |
-| E-ML-028 | viqr | `d-o` | `đo` | modified-letter | đ + vowel |
 
 ### 1.10 qu-gi — 21 rows (`qu`/`gi` onsets are not tone targets)
 
@@ -521,7 +465,7 @@ Row ids are stable — quote them in defect reports.
 | E-UC-025 | telex | `GIUWAX` | `GIỮA` | uppercase | gi onset in caps |
 | E-UC-026 | telex | `THUWOWNG` | `THƯƠNG` | uppercase | ư + ơ in caps |
 
-### 1.12 backspace — 22 rows (recompute from the raw keystrokes)
+### 1.12 backspace — 21 rows (recompute from the raw keystrokes)
 
 | id | method | input (raw keystrokes) | expected output | category | why it matters |
 |---|---|---|---|---|---|
@@ -546,7 +490,6 @@ Row ids are stable — quote them in defect reports.
 | E-BS-019 | vni | `nghie6ng2<bs>` | `nghiêng` | backspace | VNI: tone digit removal keeps letters (ê included) |
 | E-BS-020 | vni | `To6i1<bs>` | `Tôi` | backspace | VNI capital preserved |
 | E-BS-021 | vni | `d9i<bs>` | `đ` | backspace | VNI: 9 survives, i removed |
-| E-BS-022 | viqr | `d-u+o+<bt>ng<bs>` | `đườn` | backspace | VIQR: g removed, marks intact |
 
 ### 1.13 boundary-commit — 20 rows (space, punctuation, tab, enter, digit)
 
@@ -714,14 +657,17 @@ pin the same keystrokes with `spell_check=true` (the raw word comes back). See `
 
 ## 2. Charset round-trip cases
 
-Sample sentence for every charset (S1): **`Đường về quê hương`**
+Sample sentence (S1): **`Đường về quê hương`**
 Six representative letters plus đ, both cases: `ă â ê ô ơ ư đ` / `Ă Â Ê Ô Ơ Ư Đ`.
 
-Round-trip expectation, defined once:
-- **R1 encode→decode** — `decode(encode(text)) == NFC(text)` for every Vietnamese letter in the table.
-- **R2 decode→encode** — `encode(decode(bytes)) == bytes` (byte-exact, no re-normalisation drift).
-- **R3 no-loss** — encoding must never drop a diacritic silently; a letter that has no code point in
-  the target charset is a **defect**, not a fallback to the base letter.
+Two shipped forms: `unicode` (NFC, the only value the UI exposes) and `unicode_nfd`
+(config-file only, for the rare program that asks for it).
+
+Round-trip expectation:
+- **R1 encode→decode** — `normalize(encode(text)) == NFC(text)` for every Vietnamese letter.
+- **R2 byte-exactness** — encoding is deterministic; no silent re-normalisation drift.
+- **R3 no-loss** — encoding must never drop a diacritic silently; a letter with no code
+  point in the target form is a **defect**, not a fallback to the base letter.
 
 ### 2.1 `unicode` (NFC) — verified by codepoint
 
@@ -767,126 +713,6 @@ Every marked letter is base + combining mark; `đ` has **no** decomposition and 
 
 Tone marks in NFD are also combining (e.g. `ế` = U+0065 U+0302 U+0301), with the **mark before the
 tone**. R1+R2 required. **Status: VERIFIED**; ordering check (`U+0302` before `U+0301`) is part of R2.
-
-### 2.3 `utf8` — verified by byte sequence
-
-Identical characters to `unicode`, different transport (2–3 bytes each).
-
-| id | letter | UTF-8 bytes | notes |
-|---|---|---|---|
-| CS-U8-01 | ă | `C4 83` | |
-| CS-U8-02 | â | `C3 A2` | |
-| CS-U8-03 | ê | `C3 AA` | |
-| CS-U8-04 | ô | `C3 B4` | |
-| CS-U8-05 | ơ | `C6 A1` | |
-| CS-U8-06 | ư | `C6 B0` | |
-| CS-U8-07 | đ | `C4 91` | |
-| CS-U8-08 | Ă | `C4 82` | |
-| CS-U8-09 | Â | `C3 82` | |
-| CS-U8-10 | Ê | `C3 8A` | |
-| CS-U8-11 | Ô | `C3 94` | |
-| CS-U8-12 | Ơ | `C6 A0` | |
-| CS-U8-13 | Ư | `C6 AF` | |
-| CS-U8-14 | Đ | `C4 90` | |
-
-**Status: VERIFIED.** OQ-15 asks what `utf8` means as a *typing output* charset distinct from `unicode`.
-
-### 2.4 `viqr` — verified (ASCII)
-
-| id | letter | encoding | notes |
-|---|---|---|---|
-| CS-VQ-01 | ă | `a(` | |
-| CS-VQ-02 | â | `a^` | |
-| CS-VQ-03 | ê | `e^` | |
-| CS-VQ-04 | ô | `o^` | |
-| CS-VQ-05 | ơ | `o+` | |
-| CS-VQ-06 | ư | `u+` | |
-| CS-VQ-07 | đ | `dd` | RFC 1456 Table 2: "d bar | `dd` | (repeated d)" |
-| CS-VQ-08 | Ă | `A(` | case follows the base letter |
-| CS-VQ-09 | Â | `A^` | |
-| CS-VQ-10 | Ê | `E^` | |
-| CS-VQ-11 | Ô | `O^` | |
-| CS-VQ-12 | Ơ | `O+` | |
-| CS-VQ-13 | Ư | `U+` | |
-| CS-VQ-14 | Đ | `DD` | RFC 1456 Table 2: "D bar | `DD` | (repeated D)" |
-
-S1 in VIQR: `DDu+o+<bt>ng ve^<bt> que^ hu+o+ng`. R1+R2 required, byte-exact ASCII.
-**Status: VERIFIED** for the letter table (RFC 1456 Table 2 — `đ` is `dd`/`DD`, not `d-`/`D-`);
-ambiguity only in escape rules (see OQ on `\`). `d-`/`D-` remain accepted as *input* aliases, which is
-why §1.6/§1.12 VIIQR rows type them.
-
-### 2.5 `tcvn3` (ABC) — **UNVERIFIED**
-
-| id | letter | expected byte | notes |
-|---|---|---|---|
-| CS-TC-01 | ă | `0xA8` | believed TCVN3; **UNVERIFIED** |
-| CS-TC-02 | â | `0xA9` | **UNVERIFIED** |
-| CS-TC-03 | ê | `0xAA` | **UNVERIFIED** |
-| CS-TC-04 | ô | `0xAB` | **UNVERIFIED** |
-| CS-TC-05 | ơ | `0xAC` | **UNVERIFIED** |
-| CS-TC-06 | ư | `0xAD` | **UNVERIFIED** |
-| CS-TC-07 | đ | `0xAE` | **UNVERIFIED** |
-| CS-TC-08 | Ă | `0xA1` | **UNVERIFIED** |
-| CS-TC-09 | Â | `0xA2` | **UNVERIFIED** |
-| CS-TC-10 | Ê | `0xA3` | **UNVERIFIED** |
-| CS-TC-11 | Ô | `0xA4` | **UNVERIFIED** |
-| CS-TC-12 | Ơ | `0xA5` | **UNVERIFIED** |
-| CS-TC-13 | Ư | `0xA6` | **UNVERIFIED** |
-| CS-TC-14 | Đ | `0xA7` | **UNVERIFIED** |
-
-S1 byte string: **UNVERIFIED** — tone-marked vowels live in a separate per-vowel block whose mapping
-QA has not confirmed.
-**Check that settles it:** encode S1 with the reference converter (`Unikey` CLI `unikey.exe /C=1` or
-`iconv -f UTF-8 -t TCVN3` where available), then `Format-Hex` the result; compare byte-for-byte with
-the app's output. Until then this charset is not releasable.
-
-### 2.6 `vni_windows` — **UNVERIFIED**
-
-All 14 letters **UNVERIFIED**. Legacy evidence is unusable: `reference/legacy/core-tests/charset.rs`
-asserted `vni_windows("tieengs") == "tieng"`, i.e. the old implementation silently dropped every
-diacritic — that is a bug, not a mapping.
-**Check that settles it:** encode S1 with an independent VNI-Windows converter and hex-dump; then
-verify R1/R2, and add a **negative** test that `tiếng` never becomes `tieng`.
-
-### 2.7 `viscii` — **letters VERIFIED against RFC 1456, full table not**
-
-All 14 letters and the two S1 tone letters were compared by QA against RFC 1456 Table 1
-(VISCII 1.1) and **match**: `ă E5, â E2, ê EA, ô F4, ơ BD, ư DF, đ F0, Ă C5, Â C2, Ê CA, Ô D4,
-Ơ B4, Ư BF, Đ D0, ờ B6, ề AB`. S1 is 18 bytes for 18 characters (no multi-byte output).
-The remaining 134-letter table is not exhaustively diffed yet.
-**Check that settles the rest:** `iconv -f UTF-8 -t VISCII` (or `VISCII.TXT`) over the full table,
-compared letter by letter with `Charset::Viscii`.
-
-### 2.8 `bk_hcm1` — **UNVERIFIED**
-
-All 14 letters **UNVERIFIED**.
-**Check that settles it:** converter round-trip against a reference implementation, hex dump of S1,
-and a check that the charset is 1 byte per character (BK HCM1 is a single-byte font charset).
-
-### 2.9 `vps` — **UNVERIFIED**
-
-All 14 letters **UNVERIFIED** (VPS = Vietnam PostScript family; several incompatible variants exist).
-**Check that settles it:** confirm with the owner **which** VPS table EVKey ships, then compare hex
-dumps. Do not implement from guesswork.
-
-### 2.10 Round-trip matrix
-
-| charset | S1 encodable | R1 | R2 | 1 byte/char | status |
-|---|---|---|---|---|---|
-| unicode | yes | required | required | no (UTF-16 in memory) | VERIFIED |
-| unicode_nfd | yes | required | required | no | VERIFIED |
-| utf8 | yes | required | required | no (2–3 bytes) | VERIFIED |
-| viqr | yes | required | required | yes (ASCII) | VERIFIED |
-| tcvn3 | **?** | required | required | yes | UNVERIFIED |
-| vni_windows | **?** | required | required | yes | UNVERIFIED |
-| viscii | yes | required | required | yes | letters VERIFIED (RFC 1456) |
-| bk_hcm1 | **?** | required | required | yes | UNVERIFIED |
-| vps | **?** | required | required | yes | UNVERIFIED |
-
-Also required for every charset: `convert_text(input, from, to)` (contract §6) must satisfy
-`convert_text(convert_text(x, A, C), C, A) == x` for A ∈ {unicode, viqr}, C ∈ all nine.
-
----
 
 ## 3. UI/UX acceptance tests
 
@@ -1062,4 +888,3 @@ that contains the fix; corpus gaps found by a defect are added to §1 in the sam
 | OQ-28 | `suggestion_fix_1`, `suggestion_fix_2`, `metro_fix`, `send_standard` exist in the schema but have no defined semantics anywhere in the contract. Ship them as no-ops with a tooltip, or implement? | Gõ screen, UI-6 |
 | OQ-29 | What is the exact escape rule for repeating a *mark* key on an already-marked syllable (`aass` → `aas` assumed), and does it apply uniformly to `aw`/`ow`/`uw`? | §1.3 |
 | OQ-30 | Does `boundary()` clear the word buffer on caret movement only, or also on mouse click inside the same word? Affects every backspace/restore test. | §1.12, §1.16 |
-

@@ -5,7 +5,7 @@
   import Select from "./Select.svelte";
   import Toggle from "./Toggle.svelte";
   import { app, errorText } from "../lib/state.svelte";
-  import { CHARSETS, METHODS } from "../lib/catalog";
+  import { METHODS } from "../lib/catalog";
   import * as api from "../lib/api";
   import type { AppRuleRow, RunningApp } from "../lib/bindings";
 
@@ -96,14 +96,11 @@
     }
   };
 
-  const setOverride = async (rule: AppRuleRow, kind: "charset" | "method", value: string) => {
-    const charset = kind === "charset" ? value || null : rule.charset;
-    const method = kind === "method" ? value || null : rule.method;
-    rule.charset = charset;
-    rule.method = method;
+  const setOverride = async (rule: AppRuleRow, value: string) => {
+    rule.method = value || null;
     if (local) return;
     try {
-      await api.setAppRuleOverrides(rule.process, charset, method);
+      await api.setAppRuleOverrides(rule.process, rule.charset, rule.method);
       onchanged?.();
     } catch (failure) {
       app.fail("Không lưu được ghi đè", failure);
@@ -178,20 +175,12 @@
             </div>
             <div class="overrides">
               <label class="mini">
-                <span>Bảng mã</span>
-                <Select
-                  value={rule.charset ?? ""}
-                  label={`Bảng mã cho ${rule.process}`}
-                  options={[{ value: "", label: "Mặc định" }, ...CHARSETS.map((c) => ({ value: c.slug, label: c.label }))]}
-                  onchange={(value) => setOverride(rule, "charset", value)} />
-              </label>
-              <label class="mini">
                 <span>Kiểu gõ</span>
                 <Select
                   value={rule.method ?? ""}
                   label={`Kiểu gõ cho ${rule.process}`}
                   options={[{ value: "", label: "Mặc định" }, ...METHODS.map((m) => ({ value: m.slug, label: m.label }))]}
-                  onchange={(value) => setOverride(rule, "method", value)} />
+                  onchange={(value) => setOverride(rule, value)} />
               </label>
             </div>
           </li>
@@ -291,7 +280,7 @@
   }
   .overrides {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 220px);
     gap: 8px;
     padding: 4px 0 2px;
   }

@@ -17,7 +17,7 @@
 //! | [`tone`] | tone placement (modern and old style, `qu`/`gi`, coda rules) |
 //! | [`method`] | replaying raw keystrokes into marks and a tone |
 //! | [`spell`] | structural syllable validation |
-//! | [`charset`] | the nine output charsets and their byte tables |
+//! | [`charset`] | the two Unicode output shapes (NFC and NFD) |
 //! | [`macros`] | the `gõ tắt` table |
 //! | [`engine`] | [`Engine`], action diffing, backspace, boundary |
 
@@ -34,7 +34,6 @@ pub mod method;
 pub mod spell;
 pub mod tone;
 
-pub use charset::TableStatus;
 pub use engine::{Engine, VK_BACK, VK_ESCAPE, VK_RETURN, VK_SPACE, VK_TAB};
 pub use macros::MacroTable;
 
@@ -156,20 +155,30 @@ impl EngineAction {
 // ---------------------------------------------------------------------------
 
 macro_rules! string_enum {
-    ($name:ident, $($variant:ident => $slug:literal),+ $(,)?) => {
+    ($name:ident, $sentinel:ident, $fallback:literal, $($variant:ident => $slug:literal),+ $(,)?) => {
+        // The sentinel is a real value, not the non-exhaustive marker: serde
+        // must be able to construct it in another crate.
+        #[allow(clippy::manual_non_exhaustive)]
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-        #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
         pub enum $name {
-            $($variant),+
+            $($variant,)+
+            /// Serde sentinel: a slug a removed variant left in an old config.
+            /// Never offered by the UI or the CLI; `AppConfig::migrated()`
+            /// normalises it to a real value before anything reads it.
+            #[doc(hidden)]
+            $sentinel,
         }
 
         impl $name {
+            /// The values the UI and the CLI offer. The sentinel is not one.
             pub const ALL: &'static [$name] = &[$($name::$variant),+];
 
             pub fn as_str(self) -> &'static str {
                 match self {
-                    $($name::$variant => $slug),+
+                    $($name::$variant => $slug,)+
+                    // Never written to a file after `migrated()`; keep the
+                    // fallback serialisable so a manual construct stays valid.
+                    $name::$sentinel => $fallback,
                 }
             }
 
@@ -179,6 +188,11 @@ macro_rules! string_enum {
                 $(if needle.eq_ignore_ascii_case($slug) { return Some($name::$variant); })+
                 None
             }
+
+            /// `true` when the value came from a removed slug in an old file.
+            pub fn is_legacy(self) -> bool {
+                matches!(self, $name::$sentinel)
+            }
         }
 
         impl std::fmt::Display for $name {
@@ -186,27 +200,38 @@ macro_rules! string_enum {
                 f.write_str(self.as_str())
             }
         }
+
+        #[cfg(feature = "serde")]
+        impl Serialize for $name {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+
+        #[cfg(feature = "serde")]
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let raw = String::deserialize(deserializer)?;
+                Ok(Self::from_str(&raw).unwrap_or(Self::$sentinel))
+            }
+        }
     };
 }
 
 string_enum!(
     InputMethod,
+    Legacy,
+    "telex",
     Telex => "telex",
     Vni => "vni",
-    Viqr => "viqr",
 );
 
 string_enum!(
     Charset,
+    Legacy,
+    "unicode",
     Unicode => "unicode",
     UnicodeNfd => "unicode_nfd",
-    Tcvn3 => "tcvn3",
-    VniWindows => "vni_windows",
-    Viscii => "viscii",
-    Viqr => "viqr",
-    BkHcm1 => "bk_hcm1",
-    Vps => "vps",
-    Utf8 => "utf8",
 );
 
 // ---------------------------------------------------------------------------

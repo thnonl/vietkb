@@ -6,7 +6,7 @@
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { closeCurrent, openWindow } from "../lib/window.svelte";
-  import { METHODS, PICKER_CHARSETS } from "../lib/catalog";
+  import { METHODS } from "../lib/catalog";
   import type { AppRuleRow } from "../lib/bindings";
   import { formatNumber } from "../lib/hotkey";
 
@@ -60,24 +60,15 @@
       </div>
     </div>
 
-    <div class="v4row pair">
-      <div class="grp">
-        <span class="lb">Kiểu gõ</span>
+    <div class="v4row">
+      <div class="l"><b>Kiểu gõ</b></div>
+      <div class="c">
         <Select
           width={96}
           label="Kiểu gõ"
           value={settings?.input.method ?? "telex"}
           options={METHODS.map((method) => ({ value: method.slug, label: method.label }))}
           onchange={(method) => app.patch({ input: { method } })} />
-      </div>
-      <div class="grp">
-        <span class="lb">Bảng mã</span>
-        <Select
-          width={164}
-          label="Bảng mã"
-          value={settings?.input.charset ?? "unicode"}
-          options={PICKER_CHARSETS.map((charset) => ({ value: charset.slug, label: charset.label }))}
-          onchange={(charset) => app.patch({ input: { charset } })} />
       </div>
     </div>
 
