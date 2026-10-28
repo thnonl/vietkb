@@ -147,7 +147,7 @@ charset = "unicode"       # unicode | unicode_nfd | tcvn3 | vni_windows | viqr |
 mechanism = "hook"        # hook | ime
 
 [typing]
-modern_tone = true              # true = kiểu mới (hoà, thuý) · false = kiểu cũ (hòa, thúy)
+modern_tone = true              # true = kiểu mới (hòa, thúy) · false = kiểu cũ (hoà, thuý)
 free_tone = true                # "Đặt dấu tự do"
 jfwz_as_consonant = true        # "Cho phép 'f j w z' làm phụ âm"
 auto_capitalize = false         # "Tự động viết hoa sau Enter . ! ?"
