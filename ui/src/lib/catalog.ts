@@ -140,10 +140,11 @@ export const methodLabel = (slug: string): string =>
   METHODS.find((m) => m.slug === slug)?.label ?? slug;
 
 /** Two-line tone-style control (charter: name above, example below).
- *  `modern_tone = true` is kiểu mới — hoà, thuý — per 20-spec §B.1. */
+ *  `modern_tone = true` is kiểu mới — tone on the first vowel: hòa, thúy — as
+ *  `vkb_core::tone::target` places it. */
 export const TONE_STYLES = [
-  { modern: true, name: "Kiểu mới", example: "hoà, thuý" },
-  { modern: false, name: "Kiểu cũ", example: "hòa, thúy" },
+  { modern: true, name: "Kiểu mới", example: "hòa, thúy" },
+  { modern: false, name: "Kiểu cũ", example: "hoà, thuý" },
 ] as const;
 
 export type HotkeyGroup = "state" | "tools";

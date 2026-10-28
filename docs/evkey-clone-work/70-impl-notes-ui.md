@@ -151,3 +151,27 @@ Verified: `cargo build -p vkb-app` pass; `target\debug\vietkb.exe` stays alive 8
 with `MainWindowTitle = VietKB` and an empty stderr. Tray icons checked:
 `icons/tray-on.png` and `icons/tray-off.png` both exist, are valid 32×32 PNGs;
 `tray-on.png` is byte-identical to `icons/32x32.png` (same hash) — cosmetic only.
+
+## 2026-10-28 release build: assets were never embedded (dev)
+
+crates/vkb-app/Cargo.toml had no Tauri custom-protocol feature, so a release
+build kept pointing at `build.devUrl` and the window showed "localhost refused to
+connect". Added (deliberately **not** a default feature, so `tauri dev` still uses
+`devUrl`):
+
+```toml
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+```
+
+**Working release binary:**
+`cargo build -p vkb-app --release --features custom-protocol`
+→ `target\release\vietkb.exe`. A plain `--release` without the flag still shows the
+devUrl error page, so every release/NSIS build must pass it (the Tauri CLI does this
+automatically via its own `--features custom-protocol`; bare `cargo` does not).
+
+Verified: build exit 0; exe contains the hashed `ui/dist` asset names and
+`tauri://localhost`; process alive 8 s, `MainWindowTitle = VietKB`, stderr empty;
+UI Automation over the window reads the real panel (tabs Gõ / Gõ tắt / Phím tắt /
+Hệ thống, «Bật/tắt tiếng Việt (Ctrl + Shift)», «Kiểu mới · hoà, thuý»), i.e. the
+embedded UI rendered, not an error page.

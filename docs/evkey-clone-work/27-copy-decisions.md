@@ -56,6 +56,7 @@ The toggle mode moved out of the `Phím tắt` row into `Nâng cao` on `Gõ` (ro
 | option (default) | `Khi nhả phím` | 12 |
 | option | `Khi nhấn phím` | 12 |
 | description | `Nhả phím mới chuyển, hoặc đổi ngay khi nhấn.` | 45 |
+| description, `Tự động khôi phục từ gõ sai` (enabled) | `Trả lại đúng các phím bạn đã gõ khi từ bị sai.` | 46 |
 
 It maps to `hotkeys.toggle_mode = "release" | "press"` — a new field, default `release`.
 The reason it is in `Nâng cao`: a bare `Nhả để chuyển` dropdown next to keycaps was unreadable,

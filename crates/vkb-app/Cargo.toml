@@ -9,6 +9,13 @@ license.workspace = true
 name = "vietkb"
 path = "src/main.rs"
 
+# Embeds `frontendDist` (../../ui/dist) into the binary and serves it over the
+# `tauri://localhost` custom protocol. Release/official builds only:
+# `cargo build --release --features custom-protocol`. Deliberately NOT a default
+# feature, so `tauri dev` keeps using `build.devUrl`.
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

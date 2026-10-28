@@ -91,7 +91,7 @@ Row ids are stable — quote them in defect reports.
 | E-TB-037 | telex | `ddaay` | `đây` | telex-basic | â + y, no coda |
 | E-TB-038 | telex | `ddeesn` | `đến` | telex-basic | ê + coda n + sắc |
 | E-TB-039 | telex | `ddepj` | `đẹp` | telex-basic | nặng on e, coda p |
-| E-TB-040 | telex | `lasm` | `làm` | telex-basic | huyền on a, coda m |
+| E-TB-040 | telex | `lafm` | `làm` | telex-basic | huyền on a, coda m (`f`, not `s`: `lasm` would give `lám`) |
 | E-TB-041 | telex | `vieejc` | `việc` | telex-basic | nặng on ê, coda c |
 | E-TB-042 | telex | `hieenj` | `hiện` | telex-basic | nặng on ê, coda n |
 | E-TB-043 | telex | `bieets` | `biết` | telex-basic | sắc on ê, coda t |
@@ -105,7 +105,7 @@ Row ids are stable — quote them in defect reports.
 | E-TB-051 | telex | `giaays` | `giấy` | telex-basic | `gi` + â + y + sắc |
 | E-TB-052 | telex | `gioir` | `giỏi` | telex-basic | hỏi on o in `oi` (no coda → first vowel) |
 | E-TB-053 | telex | `quyeets` | `quyết` | telex-basic | qu + y + ê + t + sắc |
-| E-TB-054 | telex | `quocs` | `quốc` | telex-basic | qu + ô + c + sắc |
+| E-TB-054 | telex | `quoocs` | `quốc` | telex-basic | qu + ô + c + sắc (ô needs the doubled `oo`) |
 | E-TB-055 | telex | `thuwowngf` | `thường` | telex-basic | alternative `uwow` spelling of ươ must equal `uow` |
 | E-TB-056 | telex | `muwa` | `mưa` | telex-basic | ư + a open, no tone, tone target is ư |
 | E-TB-057 | telex | `cuwar` | `cửa` | telex-basic | hỏi on ư in `ưa` |
@@ -355,7 +355,7 @@ Row ids are stable — quote them in defect reports.
 | E-TP-011 | telex | `khuyur` | `khuỷu` | tone-placement | `uyu` → tone on y |
 | E-TP-012 | telex | `chuyeenj` | `chuyện` | tone-placement | ê overrides the cluster |
 | E-TP-013 | telex | `nguyeenx` | `nguyễn` | tone-placement | ngã on ê of `uyê` |
-| E-TP-014 | telex | `tuyets` | `tuyết` | tone-placement | `uyê` + t + sắc on ê |
+| E-TP-014 | telex | `tuyeets` | `tuyết` | tone-placement | `uyê` + t + sắc on ê (ê needs the doubled `ee`) |
 | E-TP-015 | telex | `duyeetj` | `duyệt` | tone-placement | nặng on ê |
 | E-TP-016 | telex | `huyeenj` | `huyện` | tone-placement | nặng on ê, coda n |
 | E-TP-017 | telex | `guwir` | `gửi` | tone-placement | hỏi on ư of `ưi` |
@@ -397,8 +397,8 @@ Row ids are stable — quote them in defect reports.
 | E-TP-053 | telex | `khuychj` | `khuỵch` | tone-placement | `uy` + ch + nặng |
 | E-TP-054 | telex | `huyts` | `huýt` | tone-placement | `uy` + t + sắc |
 | E-TP-055 | telex | `traanj` | `trận` | tone-placement | â + n + nặng |
-| E-TP-056 | telex | `khuays` | `khuấy` | tone-placement | `uây` → tone on â |
-| E-TP-057 | telex | `quays` | `quấy` | tone-placement | qu onset excluded, `ây` + sắc |
+| E-TP-056 | telex | `khuaays` | `khuấy` | tone-placement | `uây` → tone on â (â needs the doubled `aa`) |
+| E-TP-057 | telex | `quaays` | `quấy` | tone-placement | qu onset excluded, `ây` + sắc |
 | E-TP-058 | telex | `ngoawnf` | `ngoằn` | tone-placement | `oă` + coda, tone on ă |
 | E-TP-059 | telex | `loas` | `lóa` | tone-placement | modern partner of E-TO-009 (`loá`) |
 
@@ -479,7 +479,7 @@ Row ids are stable — quote them in defect reports.
 | E-QG-009 | telex | `quanr` | `quản` | qu-gi | qu + a + n + hỏi |
 | E-QG-010 | telex | `quangs` | `quáng` | qu-gi | sắc on a, not on u |
 | E-QG-011 | telex | `quawn` | `quăn` | qu-gi | qu + ă + n |
-| E-QG-012 | telex | `quyens` | `quyến` | qu-gi | sắc on ê |
+| E-QG-012 | telex | `quyeens` | `quyến` | qu-gi | sắc on ê (ê needs the doubled `ee`) |
 | E-QG-013 | telex | `gi` | `gi` | qu-gi | bare gi is a word and must not be rewritten |
 | E-QG-014 | telex | `giar` | `giả` | qu-gi | tone skips the i of gi |
 | E-QG-015 | telex | `giowf` | `giờ` | qu-gi | ơ takes the tone after gi |
@@ -508,7 +508,7 @@ Row ids are stable — quote them in defect reports.
 | E-UC-012 | telex | `BOOS` | `BỐ` | uppercase | tone on Ô |
 | E-UC-013 | telex | `BOWS` | `BỚ` | uppercase | tone on Ơ |
 | E-UC-014 | telex | `BUWS` | `BỨ` | uppercase | tone on Ư |
-| E-UC-015 | telex | `DDUWOWNG` | `ĐƯỜNG` | uppercase | full all-caps đ + ươ |
+| E-UC-015 | telex | `DDUWOWNG` | `ĐƯƠNG` | uppercase | full all-caps đ + ươ, no tone key in the input |
 | E-UC-016 | telex | `TUONGWF` | `TƯỜNG` | uppercase | all-caps with the w-after-uo form |
 | E-UC-017 | telex | `HOAF` | `HÒA` | uppercase | modern tone style in caps |
 | E-UC-018 | telex | `TIEENGS` | `TIẾNG` | uppercase | ô/ê/â stay uppercase after tone |
@@ -531,7 +531,7 @@ Row ids are stable — quote them in defect reports.
 | E-BS-004 | telex | `tieengs<bs><bs><bs><bs>` | `tie` | backspace | backspace past the mark must also drop ê |
 | E-BS-005 | telex | `Hoas<bs>` | `Hoa` | backspace | initial capital is preserved through recompute |
 | E-BS-006 | telex | `dduwowngf<bs>` | `đương` | backspace | đ and ươ survive a tone removal |
-| E-BS-007 | telex | `dduwowngf<bs><bs>` | `đươ` | backspace | two removals drop f and g |
+| E-BS-007 | telex | `dduwowngf<bs><bs>` | `đươn` | backspace | two removals drop f and g (`đươ` would need a third) |
 | E-BS-008 | telex | `vieejt<bs>` | `việ` | backspace | nặng kept, coda removed |
 | E-BS-009 | telex | `aas<bs>` | `â` | backspace | tone removed, circumflex kept |
 | E-BS-010 | telex | `ddi<bs>` | `đ` | backspace | word reduced to the đ onset |
@@ -543,7 +543,7 @@ Row ids are stable — quote them in defect reports.
 | E-BS-016 | telex | `quyeets<bs>` | `quyêt` | backspace | tone removal inside qu + yê |
 | E-BS-017 | telex | `mowr<bs>` | `mơ` | backspace | ơ survives, hỏi removed |
 | E-BS-018 | telex | `<bs>` | `<empty>` | backspace | backspace on an empty word is a no-op, not a crash |
-| E-BS-019 | vni | `nghie6ng2<bs>` | `nghieng` | backspace | VNI: tone digit removal keeps letters |
+| E-BS-019 | vni | `nghie6ng2<bs>` | `nghiêng` | backspace | VNI: tone digit removal keeps letters (ê included) |
 | E-BS-020 | vni | `To6i1<bs>` | `Tôi` | backspace | VNI capital preserved |
 | E-BS-021 | vni | `d9i<bs>` | `đ` | backspace | VNI: 9 survives, i removed |
 | E-BS-022 | viqr | `d-u+o+<bt>ng<bs>` | `đườn` | backspace | VIQR: g removed, marks intact |
@@ -603,7 +603,7 @@ Macro table used by every row in this block (exactly these 7 entries):
 | E-MC-012 | telex | `aa<sp>` | `@@<sp>` | macro | macro wins over the Telex `aa`→â transform |
 | E-MC-013 | telex | `aa` | `â` | macro | without a boundary the transform still applies |
 | E-MC-014 | telex | `vietnam<sp>` | `Việt Nam<sp>` | macro | longest trigger must win over the `vn` prefix |
-| E-MC-015 | telex | `vn<bs><sp>` | `vn<sp>` | macro | backspace before the boundary cancels the trigger |
+| E-MC-015 | telex | `vn<bs><sp>` | `v<sp>` | macro | backspace before the boundary deletes the n and cancels the trigger |
 | E-MC-016 | telex | `vn<sp>` | `vn<sp>` | macro | `macro_enabled=false` disables substitution entirely |
 | E-MC-017 | telex | `btw` | `btw` | macro | no boundary, no expansion |
 | E-MC-018 | telex | `vn<sp>vn<sp>` | `Việt Nam<sp>Việt Nam<sp>` | macro | trigger is reusable immediately after a boundary |
@@ -621,7 +621,7 @@ Macro table used by every row in this block (exactly these 7 entries):
 | E-SC-005 | telex | `f` | `f` | spell-check | lone invalid consonant stays literal |
 | E-SC-006 | telex | `wq` | `wq` | spell-check | invalid cluster stays literal |
 | E-SC-007 | telex | `nghieemj` | `nghiệm` | spell-check | valid ngh onset must still transform |
-| E-SC-008 | telex | `trannj` | `trận` | spell-check | valid closed syllable |
+| E-SC-008 | telex | `traanj` | `trận` | spell-check | valid closed syllable |
 | E-SC-009 | telex | `khoong` | `không` | spell-check | valid, tone-free |
 | E-SC-010 | telex | `dduwowcj` | `được` | spell-check | valid with đ and ươ |
 | E-SC-011 | telex | `test` | `test` | spell-check | English word must not become `tét` |
@@ -792,17 +792,19 @@ Identical characters to `unicode`, different transport (2–3 bytes each).
 | CS-VQ-04 | ô | `o^` | |
 | CS-VQ-05 | ơ | `o+` | |
 | CS-VQ-06 | ư | `u+` | |
-| CS-VQ-07 | đ | `d-` | |
+| CS-VQ-07 | đ | `dd` | RFC 1456 Table 2: "d bar | `dd` | (repeated d)" |
 | CS-VQ-08 | Ă | `A(` | case follows the base letter |
 | CS-VQ-09 | Â | `A^` | |
 | CS-VQ-10 | Ê | `E^` | |
 | CS-VQ-11 | Ô | `O^` | |
 | CS-VQ-12 | Ơ | `O+` | |
 | CS-VQ-13 | Ư | `U+` | |
-| CS-VQ-14 | Đ | `D-` | |
+| CS-VQ-14 | Đ | `DD` | RFC 1456 Table 2: "D bar | `DD` | (repeated D)" |
 
-S1 in VIQR: `D-u+o+<bt>ng ve^<bt> que^ ho+u+o+ng`. R1+R2 required, byte-exact ASCII.
-**Status: VERIFIED** for the letter table; ambiguity only in escape rules (see OQ on `\`).
+S1 in VIQR: `DDu+o+<bt>ng ve^<bt> que^ hu+o+ng`. R1+R2 required, byte-exact ASCII.
+**Status: VERIFIED** for the letter table (RFC 1456 Table 2 — `đ` is `dd`/`DD`, not `d-`/`D-`);
+ambiguity only in escape rules (see OQ on `\`). `d-`/`D-` remain accepted as *input* aliases, which is
+why §1.6/§1.12 VIIQR rows type them.
 
 ### 2.5 `tcvn3` (ABC) — **UNVERIFIED**
 
@@ -837,12 +839,14 @@ diacritic — that is a bug, not a mapping.
 **Check that settles it:** encode S1 with an independent VNI-Windows converter and hex-dump; then
 verify R1/R2, and add a **negative** test that `tiếng` never becomes `tieng`.
 
-### 2.7 `viscii` — **UNVERIFIED**
+### 2.7 `viscii` — **letters VERIFIED against RFC 1456, full table not**
 
-All 14 letters **UNVERIFIED** (VISCII 1.1 assigns many letters to control-range bytes; QA will not
-pin values from memory).
-**Check that settles it:** `iconv -f UTF-8 -t VISCII` (or the Unicode consortium's `VISCII.TXT`
-table) hex-dumped against app output; plus a 1:1 byte-count check on S1 (no multi-byte output).
+All 14 letters and the two S1 tone letters were compared by QA against RFC 1456 Table 1
+(VISCII 1.1) and **match**: `ă E5, â E2, ê EA, ô F4, ơ BD, ư DF, đ F0, Ă C5, Â C2, Ê CA, Ô D4,
+Ơ B4, Ư BF, Đ D0, ờ B6, ề AB`. S1 is 18 bytes for 18 characters (no multi-byte output).
+The remaining 134-letter table is not exhaustively diffed yet.
+**Check that settles the rest:** `iconv -f UTF-8 -t VISCII` (or `VISCII.TXT`) over the full table,
+compared letter by letter with `Charset::Viscii`.
 
 ### 2.8 `bk_hcm1` — **UNVERIFIED**
 
@@ -866,7 +870,7 @@ dumps. Do not implement from guesswork.
 | viqr | yes | required | required | yes (ASCII) | VERIFIED |
 | tcvn3 | **?** | required | required | yes | UNVERIFIED |
 | vni_windows | **?** | required | required | yes | UNVERIFIED |
-| viscii | **?** | required | required | yes | UNVERIFIED |
+| viscii | yes | required | required | yes | letters VERIFIED (RFC 1456) |
 | bk_hcm1 | **?** | required | required | yes | UNVERIFIED |
 | vps | **?** | required | required | yes | UNVERIFIED |
 

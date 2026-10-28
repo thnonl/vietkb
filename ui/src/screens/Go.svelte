@@ -211,8 +211,8 @@
           label="Kiểu đặt dấu"
           onchange={(value) => set({ modernTone: value === "modern" })}
           options={[
-            { value: "modern", label: "Kiểu mới", example: "hoà, thuý" },
-            { value: "classic", label: "Kiểu cũ", example: "hòa, thúy" },
+            { value: "modern", label: "Kiểu mới", example: "hòa, thúy" },
+            { value: "classic", label: "Kiểu cũ", example: "hoà, thuý" },
           ]} />
       {/snippet}
     </Row>
@@ -254,7 +254,7 @@
       onLink={() => set({ spellCheck: true })}>
       {#snippet note()}
         {typing.spellCheck
-          ? "gôgle tự trở về google khi bạn gõ dấu cách"
+          ? "Trả lại đúng các phím bạn đã gõ khi từ bị sai."
           : "Cần bật Kiểm tra chính tả"}
       {/snippet}
       {#snippet control()}

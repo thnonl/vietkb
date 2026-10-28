@@ -49,7 +49,7 @@ y: 0  ┌ strip 40: mark · tabs (Gõ · Gõ tắt · Phím tắt · Hệ thốn
 | Window | 720 × 560, fixed | charter C9 |
 | Strip | 40 | tabs 28 high centred (6 + 28 + 6); plane colour, is the drag region |
 | Sheet | 520 incl. 1 px top hairline | surface colour; 24 side / 16 bottom padding → **672 × 503** usable |
-| Status row (Gõ) | 40 incl. 1 px bottom line | toggle 36 × 20, selects 30 |
+| Status row (Gõ) | 40 incl. 1 px bottom line | toggle 40 × 24, selects 30 |
 | Setting row | **46** = 4 + 20 (label 14/20) + 18 (note 12/18) + 4 | the one rhythm of the product |
 | Short row | 40 | single-line rows (exclusion list) |
 | Disclosure row | 40 | |
@@ -91,7 +91,7 @@ through headless Edge `--dump-dom`; light and dark identical): last element bott
 Phím tắt 544 · Hệ thống 545. Zero text overflow (no ellipsis, no wrap) in all 8 files. No tab scrolls.
 
 **Alignment rules (round 4, verified by `measure.py`):**
-- **One right edge, x = 696**, for every control on every tab: toggles (660–696), selects, segmented,
+- **One right edge, x = 696**, for every control on every tab: toggles (656–696), selects, segmented,
   buttons, capture wells, toolbar, table frame. A row with two controls puts the secondary one on the left
   (`Kiểm tra ngay` before the toggle) so the toggle stays on the axis.
 - **No slot column.** Capture-row actions (✕ huỷ, ↺ đặt lại mặc định, ▾ chọn nhanh) live inside the well as
@@ -320,17 +320,21 @@ against the concave well (`sunken` + `inset 0 1px 1.5px rgba(0,0,0,.06)`). Nowhe
 tabular). `Ctrl+1…4` switch tabs. State chip: 8 px accent dot with 3 px `acc-tint-2` halo, `Tiếng Việt`
 600 t1, `· Telex · Unicode` t2.
 
-**Status row** (Gõ only) — toggle 36 × 20 · `Tiếng Việt` 14/600 · hotkey as small keycaps · right-aligned
-`Kiểu gõ` (12 t3) + 92 px select · `Bảng mã` + 164 px select. Selects 30 h so the row reads as one line of
-state rather than a form.
+**Status row** (Gõ only) — toggle 40 × 24 · `Tiếng Việt` **600 14/16** (the 16 px line box sits level
+with the 20 px keycaps; allowed under §7 rule 1 because it is single-line, unclipped and its only marks are
+on lowercase letters) · hotkey as small keycaps · right-aligned `Kiểu gõ` + 92 px select · `Bảng mã` + 164 px
+select. Sub-labels **400 12/16 `t2`** (7.36 : 1 light, 7.89 : 1 dark), **8 px** to their own select and
+**16 px** (8 margin + 8 gap) from the previous select, so each label groups with its control. Selects 30 h so
+the row reads as one line of state rather than a form.
 
 **Setting row** — 46 h; label 14/20/500 t1 over one-line note 12/18 t3 (ellipsis is a bug: rewrite the
 note). Controls right-aligned, 12 gap. Hover: `hover` fill bleeding 12 px with radius 8, dividers hidden
 around it. Groups are separated by a `line-2` divider instead of a heading (zero height): Dấu (3 rows) ·
 Chính tả và khôi phục (4) · Gõ tắt (1).
 
-**Toggle** — 36 × 20, off = `tg-off` + 1 px `ctl-line` outline (3.34 / 3.98 : 1), on = `acc`, danger
-on = `bad`, disabled = opacity .4 with the reason in the note line + an inline accent fix link
+**Toggle** — **40 × 24, radius 12, knob 16 inset 4, travel 20** (was 36 × 20: the larger track is the
+better hit target and still fits the 46 px row and the 40 px status row on the 4 px grid). Off = `tg-off` +
+1 px `ctl-line` outline (3.34 / 3.98 : 1), on = `acc`, danger on = `bad` with a white knob, disabled = opacity .4 with the reason in the note line + an inline accent fix link
 (`Cần bật Kiểm tra chính tả · Bật`); the label drops to t3.
 
 **Tone pills** (Kiểu đặt dấu) — one segmented control, two single-line pills
@@ -340,11 +344,14 @@ is the proof. Default selected: Kiểu mới.
 
 **Disclosure** (Nâng cao) — 40 h row with `line-2` top: chevron-right 20, `Nâng cao` 14/500, neutral count
 tag `9 tuỳ chọn`, a 12 t3 preview of what is inside. Because the panel cannot grow, opening it **replaces
-the 8 rows in place** with the advanced rows (same 46 rhythm, `‹ Tuỳ chọn chính` back row at the top);
+the 8 rows in place** with the advanced rows (**40 px short rows**, label 14/20 + note 12/18, so that the
+back row + 9 options = 400 px fit between the status row and the Thử gõ strip — 9 × 46 would overflow; the
+`‹ Tuỳ chọn chính` back row carries the `9 tuỳ chọn` tag on the right);
 the status row and Thử gõ strip stay. Contents: f j w z làm phụ âm · gõ tắt khi tắt tiếng Việt · giữ
 hoa/thường theo từ tắt · tắt khi bàn phím không phải US · sửa lỗi dấu khi có gợi ý · hỗ trợ ứng dụng Metro ·
 gửi qua Clipboard · độ trễ giữa các phím (`0` µs) · **Kiểu chuyển bật/tắt** (segmented `Khi nhả phím` /
-`Khi nhấn phím`, default nhả — moved here in round 5 from the hotkey well) = 9.
+`Khi nhấn phím`, default nhả, note `Nhả phím mới chuyển, hoặc đổi ngay khi nhấn.` — moved here in round 5
+from the hotkey well) = 9.
 
 **Thử gõ strip** — 36 h, radius 8, one line: `Thử gõ` 12/500 t3 + 1 px divider · Sitka 16/24 output with
 caret · `Telex · Unicode` 12 t3 (echo of the current method/charset, so the strip proves them). Unfocused:
@@ -371,7 +378,8 @@ is amber 12/18 with ⚠ inline before the text, starting on the label edge. It r
 because the verbatim COPY.md string (79 characters ≈ 470 px) does not fit the 380 px description column.
 The extra 18 px is the only exception to the 46 rhythm on the tab; the gap above the footer took it (14 px).
 **Preset chips** (34 h): `Chọn nhanh:` + `Ctrl+Shift mặc định` (selected: tint + `acc-line`),
-`Alt+Z như UniKey`, ``Ctrl+` ``, `Ctrl phải`.
+`Alt+Z như UniKey`, ``Ctrl+` `` — three, as shipped (`Ctrl phải` dropped: a side-specific lone modifier needs
+CCR-9 in the hotkey grammar first).
 
 **Hanging section** (Hệ thống) — 120 px label column: 13/600 t1 aligned to the first row's label line,
 optional 12 t3 sub-line and a 12/500 accent link (`6 ứng dụng · Quản lý ›`). Both columns start with the
@@ -380,8 +388,20 @@ same `line-2` hairline.
 **Exclusion mini-list** — 3 × 40: 24 px monogram tile · app name 13/500 · mode 12 t3 right-aligned
 (`Tắt tiếng Việt`, `Bảng mã TCVN3`). Full editing is the separate `Quản lý` window.
 
-Toast, tooltip, popover (E2) keep their v2 anatomy; at 720 × 560 a toast sits 16 px from the right/bottom
-over the Thử gõ strip's row, never over a control.
+**Toast** (E2) — as shipped: grid `icon · text · action · ✕`, padding 10 10 10 12, gap 8, radius 10,
+13/20 500, max-width 420, 16 px from the right/bottom. Height grows with the text (error strings may run to
+110 characters per COPY.md, so a fixed 44 px one-line toast is not enough). Enter 200 ms, translateY 8 → 0.
+
+**Window-button hover** — minimise: `hover-plane`; close: `bad` fill with white glyph (Windows convention).
+Hover states on tabs, chip, selects, buttons, presets and table rows use `hover` / `hover-plane`.
+**Disabled button** — opacity .45 + `not-allowed` cursor (disabled controls are exempt from 1.4.3).
+**State chip off** — dot turns `t4` with no halo; text `Đã tắt tiếng Việt`.
+
+**App-rules dialog** (`Quản lý`, the C10 "separate window", shipped as an in-window modal) — 552 wide
+(≤ viewport − 48), radius 12, `raised`, E2, backdrop `rgb(10 9 13 / .5)`; head 44 (title 14/20 600 + close),
+body padding 8 16 12 and scrolls inside itself, foot 56 on `surface` with right-aligned buttons.
+
+Tooltip and popover keep their v2 anatomy.
 
 ## 7. Vietnamese diacritics — rules
 
