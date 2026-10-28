@@ -133,13 +133,59 @@ surprise = "kept"
     }
 
     #[test]
-    fn hotkey_can_be_explicitly_cleared() {
-        let cfg = AppConfig::from_toml("version = 1\n[hotkeys]\ndisable = \"\"\n").unwrap();
+    fn hotkey_can_be_explicitly_cleared() {        let cfg = AppConfig::from_toml("version = 1\n[hotkeys]\ndisable = \"\"\n").unwrap();
         assert!(cfg.hotkeys.disable.is_none(), "empty string must unbind");
 
         let text = cfg.to_toml().unwrap();
         let back = AppConfig::from_toml(&text).unwrap();
         assert!(back.hotkeys.disable.is_none(), "unbinding must survive a round-trip");
         assert!(back.hotkeys.enable.is_some(), "other defaults stay");
+    }
+
+    #[test]
+    fn cycle_charset_hotkey_round_trips() {
+        // Unbound by default: the `Đổi bảng mã` row starts empty.
+        let cfg = AppConfig::default();
+        assert!(cfg.hotkeys.cycle_charset.is_none());
+        assert!(cfg.hotkeys.cycle_method.is_none());
+
+        let cfg = AppConfig::from_toml("version = 1\n[hotkeys]\ncycle_charset = \"Ctrl+Alt+C\"\n")
+            .unwrap();
+        assert_eq!(
+            cfg.hotkeys.cycle_charset.as_ref().unwrap().as_str(),
+            "Ctrl+Alt+C"
+        );
+        assert!(
+            cfg.hotkeys.cycle_method.is_none(),
+            "the other cycle stays unbound"
+        );
+
+        let text = cfg.to_toml().unwrap();
+        let back = AppConfig::from_toml(&text).unwrap();
+        assert_eq!(back.hotkeys.cycle_charset, cfg.hotkeys.cycle_charset);
+
+        // Clearing it must survive too, like every other hotkey.
+        let cleared =
+            AppConfig::from_toml("version = 1\n[hotkeys]\ncycle_charset = \"\"\n").unwrap();
+        assert!(cleared.hotkeys.cycle_charset.is_none());
+    }
+
+    #[test]
+    fn cycle_method_hotkey_round_trips() {
+        let cfg = AppConfig::from_toml("version = 1\n[hotkeys]\ncycle_method = \"Ctrl+Alt+M\"\n")
+            .unwrap();
+        assert_eq!(
+            cfg.hotkeys.cycle_method.as_ref().unwrap().as_str(),
+            "Ctrl+Alt+M"
+        );
+
+        let text = cfg.to_toml().unwrap();
+        assert!(text.contains("cycle_method"), "field dropped:\n{text}");
+        let back = AppConfig::from_toml(&text).unwrap();
+        assert_eq!(back.hotkeys.cycle_method, cfg.hotkeys.cycle_method);
+        assert!(
+            back.hotkeys.cycle_charset.is_none(),
+            "an unbound sibling stays unbound"
+        );
     }
 }

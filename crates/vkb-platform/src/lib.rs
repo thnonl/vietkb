@@ -61,6 +61,10 @@ pub enum Hotkey {
     MacroPanel,
     MacroToggle,
     OpenSettings,
+    /// `Đổi bảng mã` — cycle the active charset.
+    CycleCharset,
+    /// `Đổi kiểu gõ` — cycle the active input method.
+    CycleMethod,
 }
 
 /// Everything the app must be told about, pulled from the backend by callback.

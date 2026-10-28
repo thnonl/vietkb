@@ -109,7 +109,7 @@
     },
   ]);
 
-  /** The three hotkeys that do not earn a row of their own. Not persisted. */
+  /** The five hotkeys that do not earn a row of their own. Not persisted. */
   const extraRows: { field: HotkeyActionField; label: string; note: string }[] = [
     {
       field: "appExclude",
@@ -125,6 +125,16 @@
       field: "macroToggle",
       label: "Bật / tắt gõ tắt",
       note: "Tắt gõ tắt mà không phải vào cài đặt",
+    },
+    {
+      field: "enable",
+      label: "Bật tiếng Việt",
+      note: "Chuyển sang gõ tiếng Việt, giữ nguyên kiểu gõ đang chọn",
+    },
+    {
+      field: "disable",
+      label: "Tắt tiếng Việt",
+      note: "Trả bàn phím về gõ tiếng Anh bình thường",
     },
   ];
 
@@ -204,7 +214,7 @@
       <button type="button" class="link" onclick={() => (extraOpen = false)}>
         ‹ Phím tắt khác
       </button>
-      <span class="tag n" style="margin-left:auto">3 phím</span>
+      <span class="tag n" style="margin-left:auto">5 phím</span>
     </div>
   </div>
 {:else}
@@ -239,7 +249,7 @@
   <button type="button" class="disc" onclick={() => (extraOpen = true)}>
     <Icon name="arrow-right" />
     <b>Phím tắt khác</b>
-    <span class="tag n"><span class="num">3</span>&nbsp;phím</span>
+    <span class="tag n"><span class="num">5</span>&nbsp;phím</span>
   </button>
 {/if}
 

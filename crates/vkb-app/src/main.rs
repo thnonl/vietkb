@@ -4,6 +4,8 @@ mod charset_convert;
 mod commands;
 mod running_apps;
 mod tray;
+#[cfg(windows)]
+mod windows_backend;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -82,6 +84,17 @@ fn centre_on_launch_monitor(window: &tauri::WebviewWindow) {
 /// The real exit. Closing the window never does this.
 pub fn quit(app: &tauri::AppHandle) {
     QUITTING.store(true, Ordering::SeqCst);
+    // No hook may outlive the app: unhook on the way out, then let the probe
+    // write its file. The same pair runs after the event loop returns.
+    #[cfg(windows)]
+    {
+        if let Err(error) = vkb_windows::uninstall_hook() {
+            tracing::warn!(%error, "could not remove the keyboard hook");
+        }
+        // P2 probe: write the TSV and the verdict before the process goes away.
+        // No-op unless the app was started with `VKB_PERF=1`.
+        vkb_windows::perf::finish();
+    }
     app.exit(0);
 }
 
@@ -89,11 +102,17 @@ fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "vkb_app=info,vkb_windows=info".into()),
+                .unwrap_or_else(|_| "vietkb=info,vkb_windows=info".into()),
         )
         .init();
 
-    tauri::Builder::default()
+    // P2 latency probe: reads `VKB_PERF` once, here. Off unless the variable is
+    // `1`, in which case the keystroke path records samples and the exit path
+    // writes `%APPDATA%\VietKB\perf-<timestamp>.tsv`.
+    #[cfg(windows)]
+    vkb_windows::perf::init_from_env();
+
+    let result = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_settings(app);
         }))
@@ -120,6 +139,11 @@ fn main() {
 
             tray::install(&handle)?;
 
+            // Hook, config hand-off and both callbacks. Must run after the tray
+            // exists (a hotkey can flip it) and after the config load.
+            #[cfg(windows)]
+            windows_backend::start();
+
             // Fixed-size window: centre it on the monitor it opens on, before
             // anything can show it (tauri.conf.json no longer says "center").
             if let Some(window) = app.get_webview_window("main") {
@@ -130,12 +154,14 @@ fn main() {
                 enabled = config.input.enabled,
                 method = config.input.method.as_str(),
                 charset = config.input.charset.as_str(),
-                hook_ready = false,
-                "VietKB starting (keyboard hook comes from the Windows stream)"
+                hook_ready = commands::hook_ready_now(),
+                "VietKB starting"
             );
 
+            // A Windows-launched instance always starts hidden — the tray is the
+            // whole window. A manual launch honours `start_minimized`.
             let launched_by_autostart = std::env::args().any(|arg| arg == "--autostart");
-            let should_show = !config.system.start_minimized || !launched_by_autostart;
+            let should_show = !launched_by_autostart && !config.system.start_minimized;
             if should_show {
                 show_settings(&handle);
             }
@@ -179,6 +205,17 @@ fn main() {
             commands::restart_app,
             commands::app_info,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running VietKB");
+        .run(tauri::generate_context!());
+
+    // Exit hook: same unhook and flush as `quit()`, for any path that leaves
+    // the event loop without the tray item. Both are idempotent.
+    #[cfg(windows)]
+    {
+        if let Err(error) = vkb_windows::uninstall_hook() {
+            tracing::warn!(%error, "could not remove the keyboard hook");
+        }
+        vkb_windows::perf::finish();
+    }
+
+    result.expect("error while running VietKB");
 }

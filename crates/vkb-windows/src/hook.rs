@@ -54,6 +54,8 @@ static WATCHDOG: parking_lot::Mutex<Option<thread::JoinHandle<()>>> = parking_lo
 /// Install the hook. Idempotent; fails if the OS does not confirm within
 /// [`INSTALL_TIMEOUT`].
 pub fn install() -> Result<()> {
+    // P2 probe: reads `VKB_PERF` once here (startup), never per keystroke.
+    crate::perf::init_from_env();
     if globals::READY.load(Ordering::SeqCst) && globals::ALIVE.load(Ordering::SeqCst) {
         return Ok(());
     }
@@ -290,6 +292,12 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     }
 
     // A panic must never cross the FFI boundary (or kill the hook thread).
+    // P2 probe: this is the single env-gated check on the hot path. `enabled()`
+    // is a cached relaxed bool; with `VKB_PERF` unset the body is skipped, so no
+    // clock read and no allocation happen for this keystroke.
+    if crate::perf::enabled() {
+        crate::perf::begin();
+    }
     let swallow = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let runtime = unsafe { &mut *runtime_ptr };
         let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };

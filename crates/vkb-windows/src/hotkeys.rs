@@ -13,7 +13,7 @@ use crate::keys;
 /// One row per configurable action; the order is irrelevant to behaviour.
 pub fn compile(set: &HotkeySet) -> Matcher {
     let mut matcher = Matcher::new();
-    let rows: [(Action, Option<&ConfigHotkey>); 9] = [
+    let rows: [(Action, Option<&ConfigHotkey>); 11] = [
         (Action::Enable, set.enable.as_ref()),
         (Action::Disable, set.disable.as_ref()),
         (Action::Toggle, set.toggle.as_ref()),
@@ -23,6 +23,8 @@ pub fn compile(set: &HotkeySet) -> Matcher {
         (Action::MacroPanel, set.macro_panel.as_ref()),
         (Action::MacroToggle, set.macro_toggle.as_ref()),
         (Action::OpenSettings, set.open_settings.as_ref()),
+        (Action::CycleCharset, set.cycle_charset.as_ref()),
+        (Action::CycleMethod, set.cycle_method.as_ref()),
     ];
     for (action, hotkey) in rows {
         if let Some(hotkey) = hotkey {
@@ -133,6 +135,32 @@ mod tests {
         assert_eq!(
             matcher.on_key(keys::VK_F2, true, Modifiers::NONE, false),
             Some(Action::Disable)
+        );
+    }
+
+    #[test]
+    fn cycle_hotkeys_compile_and_fire() {
+        // The `Đổi bảng mã` / `Đổi kiểu gõ` rows: unbound by default, bound here.
+        let mut set = HotkeySet::default();
+        set.cycle_charset = vkb_config::Hotkey::parse("Ctrl+Alt+C").ok();
+        set.cycle_method = vkb_config::Hotkey::parse("Ctrl+Alt+M").ok();
+        let mut matcher = compile(&set);
+        assert_eq!(matcher.len(), 11, "9 defaults + the two cycling actions");
+
+        let mods = Modifiers {
+            shift: false,
+            ctrl: true,
+            alt: true,
+            win: false,
+        };
+        assert_eq!(
+            matcher.on_key(0x43, true, mods, false),
+            Some(Action::CycleCharset)
+        );
+        matcher.on_key(0x43, false, mods, false);
+        assert_eq!(
+            matcher.on_key(0x4D, true, mods, false),
+            Some(Action::CycleMethod)
         );
     }
 

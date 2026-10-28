@@ -52,7 +52,9 @@ impl Combo {
     }
 }
 
-pub const MAX_COMBOS: usize = 9;
+/// One slot per configurable action (`enable` … `cycle_method`), including the
+/// two cycling actions.
+pub const MAX_COMBOS: usize = 11;
 
 /// Fixed-capacity table of combos with a per-combo "already fired" latch.
 #[derive(Clone, Copy, Debug, Default)]

@@ -145,7 +145,11 @@ pub fn send(inputs: &[INPUT]) -> u32 {
     if inputs.is_empty() {
         return 0;
     }
-    unsafe { SendInput(inputs, std::mem::size_of::<INPUT>() as i32) }
+    let sent = unsafe { SendInput(inputs, std::mem::size_of::<INPUT>() as i32) };
+    // P2 probe: closes the sample at the injection return. When the probe is off
+    // the thread-local mark is `None`, so this is a `Cell::take` and nothing more.
+    crate::perf::end();
+    sent
 }
 
 /// `Ctrl+V` with scancodes. Only the opt-in clipboard fallback uses this.

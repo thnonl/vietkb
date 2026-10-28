@@ -24,6 +24,8 @@ pub mod hotkeys;
 pub mod ime;
 pub mod input;
 pub mod keys;
+/// Opt-in P2 latency probe (`VKB_PERF=1`); see `docs/evkey-clone-work/81-p2-procedure.md`.
+pub mod perf;
 pub mod sound;
 pub mod state;
 

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use vkb_config::AppConfig;
 use vkb_core::{
-    Engine, EngineAction, EngineOptions, KeyInput, VietnameseEngine,
+    Charset, Engine, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine,
 };
 use vkb_platform::hotkeys::Matcher;
 use vkb_platform::plan::{decide, Decision, Injection};
@@ -34,6 +34,27 @@ use crate::sound;
 const APP_TTL: Duration = Duration::from_millis(1500);
 /// IMM composition checks are cheap but not free; throttle them.
 const IME_TTL: Duration = Duration::from_millis(60);
+
+/// The `Đổi bảng mã` cycle, exactly as the hotkey row documents it:
+/// Unicode → TCVN3 (ABC) → VNI Windows → Unicode tổ hợp → Unicode. Any other
+/// charset starts the cycle over at Unicode.
+pub fn next_charset(current: Charset) -> Charset {
+    match current {
+        Charset::Unicode => Charset::Tcvn3,
+        Charset::Tcvn3 => Charset::VniWindows,
+        Charset::VniWindows => Charset::UnicodeNfd,
+        _ => Charset::Unicode,
+    }
+}
+
+/// The `Đổi kiểu gõ` cycle: Telex → VNI → VIQR → Telex.
+pub fn next_method(current: InputMethod) -> InputMethod {
+    match current {
+        InputMethod::Telex => InputMethod::Vni,
+        InputMethod::Vni => InputMethod::Viqr,
+        InputMethod::Viqr => InputMethod::Telex,
+    }
+}
 
 pub struct HookRuntime {
     engine: Box<dyn VietnameseEngine>,
@@ -291,6 +312,18 @@ impl HookRuntime {
             Hotkey::MacroPanel => globals::fire_command(BackendCommand::OpenMacroPanel),
             Hotkey::MacroToggle => globals::fire_command(BackendCommand::ToggleMacro),
             Hotkey::OpenSettings => globals::fire_command(BackendCommand::OpenSettings),
+            Hotkey::CycleCharset => {
+                // Move the runtime copy at once, so two quick presses advance two
+                // steps instead of both computing the same "next".
+                let next = next_charset(self.base.charset);
+                self.base.charset = next;
+                globals::fire_command(BackendCommand::SetCharset(next));
+            }
+            Hotkey::CycleMethod => {
+                let next = next_method(self.base.method);
+                self.base.method = next;
+                globals::fire_command(BackendCommand::SetMethod(next));
+            }
         }
         self.reset_engine();
         globals::fire_hotkey(hotkey);
@@ -520,6 +553,24 @@ mod tests {
         rt.app_name = "game.exe".to_string();
         rt.rule = Some(rule);
         assert!(!rt.effective_enabled());
+    }
+
+    #[test]
+    fn charset_cycle_wraps_in_the_documented_order() {
+        // Unicode → TCVN3 → VNI Windows → Unicode tổ hợp → Unicode.
+        assert_eq!(next_charset(Charset::Unicode), Charset::Tcvn3);
+        assert_eq!(next_charset(Charset::Tcvn3), Charset::VniWindows);
+        assert_eq!(next_charset(Charset::VniWindows), Charset::UnicodeNfd);
+        assert_eq!(next_charset(Charset::UnicodeNfd), Charset::Unicode);
+        // A charset outside the cycle re-enters at Unicode.
+        assert_eq!(next_charset(Charset::Viscii), Charset::Unicode);
+    }
+
+    #[test]
+    fn method_cycle_wraps_in_the_documented_order() {
+        assert_eq!(next_method(InputMethod::Telex), InputMethod::Vni);
+        assert_eq!(next_method(InputMethod::Vni), InputMethod::Viqr);
+        assert_eq!(next_method(InputMethod::Viqr), InputMethod::Telex);
     }
 
     #[test]
