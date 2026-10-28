@@ -172,14 +172,13 @@
 <section class="hang">
   <h3>Cập nhật</h3>
   <div class="list">
-    <Row label="Tự kiểm tra cập nhật">
+    <Row label="Tự kiểm tra cập nhật" link="Kiểm tra ngay" onLink={checkUpdates}>
       {#snippet note()}{updateNote}{/snippet}
       {#snippet control()}
         <Toggle
           checked={sys.checkUpdates}
           label="Tự kiểm tra cập nhật"
           onchange={(next) => set({ checkUpdates: next })} />
-        <button type="button" class="btn sm" onclick={checkUpdates}>Kiểm tra ngay</button>
       {/snippet}
     </Row>
     {#if confirmReset}
@@ -191,16 +190,16 @@
         {/snippet}
       </Row>
     {:else}
-      <Row label="Tệp cài đặt">
+      <Row
+        label="Tệp cài đặt"
+        link="Đặt lại tất cả…"
+        linkBad
+        onLink={() => (confirmReset = true)}>
         {#snippet note()}<span class="path">{configPath}</span>{/snippet}
         {#snippet control()}
           <button type="button" class="btn sm" onclick={openFolder}>
             <Icon name="folder" />
             Mở thư mục
-          </button>
-          <button type="button" class="btn sm danger" onclick={() => (confirmReset = true)}>
-            <Icon name="reset" />
-            Đặt lại tất cả…
           </button>
         {/snippet}
       </Row>
