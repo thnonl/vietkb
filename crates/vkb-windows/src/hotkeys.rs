@@ -119,7 +119,10 @@ mod tests {
     #[test]
     fn default_hotkeys_compile_and_fire() {
         let mut matcher = compile(&HotkeySet::default());
-        assert_eq!(matcher.len(), 6, "F1 F2 F11 F6 F8 F9");
+        // F1 F2 F11 F6 F8 F9 plus the design defaults `Ctrl+Shift` (toggle),
+        // `Ctrl+Shift+Z` (restore_word), `Ctrl+Alt+S` (open_settings) — see
+        // `design/HANDOVER.md` and `70-impl-notes-ui.md`.
+        assert_eq!(matcher.len(), 9, "F1 F2 F11 F6 F8 F9 + Ctrl+Shift + Ctrl+Shift+Z + Ctrl+Alt+S");
 
         // F1 with no modifiers enables Vietnamese.
         assert_eq!(
@@ -135,8 +138,12 @@ mod tests {
 
     #[test]
     fn unbound_hotkeys_are_skipped() {
-        let set = HotkeySet::default();
-        assert!(set.toggle.is_none());
+        // The design defaults bind these three, so unbind them here to exercise the
+        // skip path itself.
+        let mut set = HotkeySet::default();
+        set.toggle = None;
+        set.restore_word = None;
+        set.open_settings = None;
         let matcher = compile(&set);
         assert_eq!(matcher.len(), 6);
     }

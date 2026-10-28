@@ -30,7 +30,7 @@ enum Command {
         method: String,
         #[arg(long, default_value = "unicode")]
         charset: String,
-        /// Old tone style: `hoà` instead of `hòa`.
+        /// Old tone style (kiểu cũ): `hoà` instead of `hòa`.
         #[arg(long)]
         old_tone_style: bool,
         /// Disable `Kiểm tra chính tả`.
@@ -67,7 +67,8 @@ fn main() -> Result<()> {
             text,
         } => {
             let options = EngineOptions {
-                old_tone_style,
+                // `EngineOptions::modern_tone` is the inverse of the old flag name.
+                modern_tone: !old_tone_style,
                 spell_check: !no_spell_check,
                 ..options_for(&method)?
             };

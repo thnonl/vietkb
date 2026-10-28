@@ -4,6 +4,8 @@
 /ui/node_modules
 /ui/dist
 /ui/.vite
+.openchamber
+crates/vkb-app/gen
 *.tmp
 *.toml.tmp
 *.log

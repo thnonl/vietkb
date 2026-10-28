@@ -89,6 +89,13 @@ Scrum, simplified: Sprint 0 = charter + inventory + spec + contract freeze.
 Sprint 1+ = 3 parallel dev worktrees, one demo gate per sprint, QA verifies after design
 converges. One `review` pass by `cavecrew-reviewer` before each merge.
 
+**Editing rule (owner, 2026-10-28 — enforced after a violation):** the Lead **never hand-edits
+product code**, not even mechanical merge-conflict resolution, a one-line rename, or a "quick fix".
+Every change under `crates/` and `ui/` goes to a dev child; the Lead writes only `docs/`,
+`design/` and the charter/contract, and runs read-only verification (`git status`, `cargo test`,
+`cargo check`) plus the commit itself. If a dev child is unavailable, the Lead stops and asks
+instead of editing.
+
 Model rule: read the model from the dispatching session's metadata at dispatch time.
 Never hardcode a model string across turns. Children inherit the same rule for their children.
 

@@ -165,13 +165,14 @@ macro_when_disabled = false     # "Vẫn cho phép gõ tắt khi tắt gõ Tiế
 [hotkeys]
 enable = "F1"
 disable = "F2"
-toggle = ""                     # optional single-key switch
-restore_word = ""
+toggle = "Ctrl+Shift"           # single-key switch; Ctrl+Shift matches the approved design
+toggle_mode = "release"         # release | press — "Khi nhả phím" / "Khi nhấn phím"
+restore_word = "Ctrl+Shift+Z"   # also Redo in many apps: the UI shows a conflict warning, allowed
 app_exclude = "F11"
 convert_tool = "F6"
 macro_panel = "F8"
 macro_toggle = "F9"
-open_settings = ""
+open_settings = "Ctrl+Alt+S"
 
 [system]
 start_with_windows = true

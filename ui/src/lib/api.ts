@@ -1,100 +1,21 @@
 // One function per Tauri command. Nothing else in the UI calls `invoke`.
-// Types mirror crates/vkb-app/src/commands.rs (serde camelCase).
+// Command names and payloads are frozen by contract §6; the two commands marked
+// "additive" are proposed additions (reported to the Lead, never renamed).
 
 import { invoke } from "@tauri-apps/api/core";
+import type {
+  AppInfoView,
+  AppRuleRow,
+  MacroRow,
+  RunningApp,
+  SettingsView,
+  StatusView,
+} from "./bindings";
 
-export interface InputView {
-  enabled: boolean;
-  method: string;
-  charset: string;
-  mechanism: string;
-}
+export type * from "./bindings";
 
-export interface TypingView {
-  modernTone: boolean;
-  freeTone: boolean;
-  jfwzAsConsonant: boolean;
-  autoCapitalize: boolean;
-  spellCheck: boolean;
-  restoreWrongWord: boolean;
-  disableOnNonUsLayout: boolean;
-  suggestionFix1: boolean;
-  suggestionFix2: boolean;
-  metroFix: boolean;
-  sendStandard: boolean;
-  useClipboard: boolean;
-  macroEnabled: boolean;
-  macroWhenDisabled: boolean;
-}
-
-export interface HotkeyView {
-  enable: string | null;
-  disable: string | null;
-  toggle: string | null;
-  restoreWord: string | null;
-  appExclude: string | null;
-  convertTool: string | null;
-  macroPanel: string | null;
-  macroToggle: string | null;
-  openSettings: string | null;
-}
-
-export interface SystemView {
-  startWithWindows: boolean;
-  runAsAdmin: boolean;
-  notificationSound: boolean;
-  startMinimized: boolean;
-  language: string;
-  theme: string;
-  checkUpdates: boolean;
-}
-
-export interface UiView {
-  windowWidth: number;
-  windowHeight: number;
-  lastTab: string;
-}
-
-export interface SettingsView {
-  input: InputView;
-  typing: TypingView;
-  hotkeys: HotkeyView;
-  system: SystemView;
-  ui: UiView;
-}
-
-export interface StatusView {
-  enabled: boolean;
-  method: string;
-  charset: string;
-  mechanism: string;
-  hookReady: boolean;
-  version: string;
-}
-
-export interface MacroRow {
-  trigger: string;
-  expansion: string;
-}
-
-export interface AppRuleRow {
-  process: string;
-  enabled: boolean | null;
-  charset: string | null;
-  method: string | null;
-}
-
-export interface RunningApp {
-  process: string;
-  title: string;
-}
-
-export interface AppInfoView {
-  version: string;
-  arch: string;
-  configPath: string;
-  hookReady: boolean;
-}
+export const isTauri = (): boolean =>
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export const getSettings = () => invoke<SettingsView>("get_settings");
 export const setSettings = (next: SettingsView) => invoke<SettingsView>("set_settings", { next });
@@ -119,9 +40,15 @@ export const exportMacros = (path: string) => invoke<number>("export_macros", { 
 export const listAppRules = () => invoke<AppRuleRow[]>("list_app_rules");
 export const setAppRule = (process: string, enabled: boolean) =>
   invoke<void>("set_app_rule", { process, enabled });
-export const deleteAppRule = (process: string) =>
-  invoke<void>("delete_app_rule", { process });
+export const deleteAppRule = (process: string) => invoke<void>("delete_app_rule", { process });
 export const listRunningApps = () => invoke<RunningApp[]>("list_running_apps");
+
+/** Additive command: per-app charset/method overrides (contract §6 gap, see impl notes). */
+export const setAppRuleOverrides = (
+  process: string,
+  charset: string | null,
+  method: string | null,
+) => invoke<void>("set_app_rule_overrides", { process, charset, method });
 
 export const parseHotkey = (input: string) => invoke<string>("parse_hotkey", { input });
 export const checkHotkeyConflict = (input: string, ignoreField: string) =>
@@ -131,4 +58,5 @@ export const convertText = (input: string, from: string, to: string) =>
   invoke<string>("convert_text", { input, from, to });
 
 export const openConfigFolder = () => invoke<void>("open_config_folder");
+export const restartApp = () => invoke<void>("restart_app");
 export const appInfo = () => invoke<AppInfoView>("app_info");

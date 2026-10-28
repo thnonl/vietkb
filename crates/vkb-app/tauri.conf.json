@@ -21,9 +21,11 @@
         "maxWidth": 900,
         "maxHeight": 760,
         "resizable": false,
+        "maximizable": false,
         "center": true,
         "visible": false,
-        "decorations": true,
+        "decorations": false,
+        "shadow": true,
         "transparent": false
       }
     ],
