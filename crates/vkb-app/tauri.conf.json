@@ -10,24 +10,7 @@
     "frontendDist": "../../ui/dist"
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "VietKB",
-        "width": 720,
-        "height": 560,
-        "minWidth": 680,
-        "minHeight": 520,
-        "maxWidth": 900,
-        "maxHeight": 760,
-        "resizable": false,
-        "maximizable": false,
-        "visible": false,
-        "decorations": false,
-        "shadow": true,
-        "transparent": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     }

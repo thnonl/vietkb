@@ -9,18 +9,104 @@ mod windows_backend;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Manager, PhysicalPosition, WindowEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, RunEvent, WindowEvent};
 
 /// Set only by the tray's quit item. Everything else is "hide to tray".
 static QUITTING: AtomicBool = AtomicBool::new(false);
 
-/// Bring the settings window forward from anywhere (tray, hotkey, second launch).
+/// The one label the settings window ever uses. Closing it destroys it; the
+/// next open builds a new window under the same label.
+const MAIN_LABEL: &str = "main";
+
+/// Bring the settings window forward from anywhere (tray, hotkey, second
+/// launch), building it if it is not there yet.
+///
+/// The window does not exist while the app sits in the tray: closing it tears
+/// the WebView2 stack down (charter P3) instead of hiding it, so this is also
+/// where it comes back.
 pub fn show_settings(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
+    open_settings(app, None);
+}
+
+/// Like [`show_settings`], but a freshly built window opens on `tab` through
+/// the `?tab=` deep link the UI already reads at startup. An already open
+/// window gets the usual `vkb:navigate` event.
+pub fn show_settings_tab(app: &tauri::AppHandle, tab: &str) {
+    let existing = app.get_webview_window(MAIN_LABEL).is_some();
+    open_settings(app, (!existing).then_some(tab));
+    if existing {
+        if let Err(error) = app.emit("vkb:navigate", tab) {
+            tracing::warn!(%error, tab, "could not request a tab");
+        }
+    }
+}
+
+fn open_settings(app: &tauri::AppHandle, tab: Option<&str>) {
+    if let Some(window) = app.get_webview_window(MAIN_LABEL) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        return;
     }
+
+    if let Err(error) = build_settings_window(app, tab) {
+        tracing::warn!(%error, "could not create the settings window");
+        // A window whose destruction is still in flight refuses the label. It
+        // is the same window the user asked for, so surface it instead of
+        // leaving nothing on screen.
+        if let Some(window) = app.get_webview_window(MAIN_LABEL) {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
+/// Build the settings window from scratch: same label, same fixed 720x560
+/// frameless shell, centred on the launch monitor as it appears.
+fn build_settings_window(
+    app: &tauri::AppHandle,
+    tab: Option<&str>,
+) -> tauri::Result<tauri::WebviewWindow> {
+    let url = match tab {
+        Some(tab) => tauri::WebviewUrl::App(format!("index.html?tab={tab}").into()),
+        None => tauri::WebviewUrl::App("index.html".into()),
+    };
+    let started = std::time::Instant::now();
+
+    let window = tauri::WebviewWindowBuilder::new(app, MAIN_LABEL, url)
+        .title("VietKB")
+        .inner_size(720.0, 560.0)
+        .min_inner_size(680.0, 520.0)
+        .max_inner_size(900.0, 760.0)
+        .resizable(false)
+        .maximizable(false)
+        .decorations(false)
+        .shadow(true)
+        .transparent(false)
+        // Hidden at build time; placed and shown below in one go.
+        .visible(false)
+        .build()?;
+
+    // Show first: a window that has never been shown has not had its DWM frame
+    // applied yet, so `outer_size()` lies (measured 918x710 for a 720x560
+    // request) and centring would land ~90 px off. Both calls are messages on
+    // the same loop, so the first paint happens after the move.
+    window.show()?;
+    // Two passes: a window that has never been shown sits on the monitor it was
+    // created on, and `outer_size()` answers in that monitor's DPI. Moving it
+    // to the cursor's monitor first, then centring again, measures the size it
+    // actually has there (94 px off on a 125% -> 100% pair otherwise). Both are
+    // window messages on the same loop, so the first paint is after the move.
+    centre_on_launch_monitor(&window);
+    centre_on_launch_monitor(&window);
+    window.set_focus()?;
+
+    tracing::info!(
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        tab,
+        "settings window built"
+    );
+    Ok(window)
 }
 
 /// Centre `win_len` inside the monitor span `[mon_start, mon_start + mon_len)`,
@@ -98,6 +184,25 @@ pub fn quit(app: &tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Hand the pages the window and its WebView2 stack faulted in back to the OS.
+/// The code they belong to stays mapped and faults back in on the next open,
+/// which is what keeps a tray-only idle inside the P3 budget.
+fn release_working_set() {
+    #[cfg(windows)]
+    {
+        use windows::Win32::System::Threading::{GetCurrentProcess, SetProcessWorkingSetSize};
+        // SAFETY: `GetCurrentProcess` is a pseudo-handle to this process and is
+        // always valid; the two `usize::MAX` arguments mean "trim as much as
+        // the OS likes", which is the documented way to empty a working set.
+        unsafe {
+            if let Err(error) = SetProcessWorkingSetSize(GetCurrentProcess(), usize::MAX, usize::MAX)
+            {
+                tracing::warn!(%error, "could not trim the working set");
+            }
+        }
+    }
+}
+
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -112,7 +217,7 @@ fn main() {
     #[cfg(windows)]
     vkb_windows::perf::init_from_env();
 
-    let result = tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_settings(app);
         }))
@@ -144,11 +249,9 @@ fn main() {
             #[cfg(windows)]
             windows_backend::start();
 
-            // Fixed-size window: centre it on the monitor it opens on, before
-            // anything can show it (tauri.conf.json no longer says "center").
-            if let Some(window) = app.get_webview_window("main") {
-                centre_on_launch_monitor(&window);
-            }
+            // No window exists before the first open: `tauri.conf.json` no
+            // longer lists one, so a tray-only start never pays for WebView2.
+            // Every window is centred by `build_settings_window`.
 
             tracing::info!(
                 enabled = config.input.enabled,
@@ -168,15 +271,23 @@ fn main() {
 
             Ok(())
         })
-        // Closing the window only hides it: the tray keeps the app (and the
-        // hook) alive. A real quit is the tray menu's "Thoát VietKB".
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if crate::QUITTING.load(std::sync::atomic::Ordering::SeqCst) {
-                    return;
-                }
-                api.prevent_close();
-                let _ = window.hide();
+        // Closing the window destroys it: the tray keeps the app (and the hook)
+        // alive, and WebView2 tears its processes down with the window instead
+        // of sitting resident behind a hidden one (charter P3). Nothing is
+        // prevented here on purpose — `destroy()` from inside the close
+        // handler can fail on a wedged webview channel and leave a window that
+        // can never be closed again; the default close always destroys. The
+        // run loop's `ExitRequested` guard is what keeps the process alive
+        // after the last window is gone. A real quit is the tray menu's
+        // "Thoát VietKB". A modal (the UI's `<dialog>`, or a native dialog's
+        // own loop) swallows the close, so nothing is torn down under one.
+        .on_window_event(|_window, event| {
+            if let WindowEvent::CloseRequested { .. } = event {
+                // Closed to the tray, not quit: flush the P2 report now so a
+                // force-kill afterwards still leaves the file. No-op without
+                // `VKB_PERF=1`, and it runs on the backend worker.
+                #[cfg(windows)]
+                crate::windows_backend::flush_perf();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -205,17 +316,34 @@ fn main() {
             commands::restart_app,
             commands::app_info,
         ])
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!())
+        .expect("error while building VietKB");
 
-    // Exit hook: same unhook and flush as `quit()`, for any path that leaves
-    // the event loop without the tray item. Both are idempotent.
-    #[cfg(windows)]
-    {
-        if let Err(error) = vkb_windows::uninstall_hook() {
-            tracing::warn!(%error, "could not remove the keyboard hook");
+    app.run(|_handle, event| match event {
+        // Destroying the last window asks for an exit. In tray mode the answer
+        // is no: the tray icon and the keyboard hook are the app, and the
+        // settings window comes back on demand. A requested exit (the tray's
+        // quit item) has a code and is always honoured.
+        RunEvent::ExitRequested { api, code, .. } => {
+            if code.is_none() && !QUITTING.load(Ordering::SeqCst) {
+                api.prevent_exit();
+                // The last window is gone, so the WebView2 stack is too: hand
+                // back the pages hosting it faulted into this process. Without
+                // this the tray idles at ~31 MB instead of ~15 MB (P3).
+                release_working_set();
+            }
         }
-        vkb_windows::perf::finish();
-    }
-
-    result.expect("error while running VietKB");
+        // Exit hook: same unhook and flush as `quit()`, for any path that
+        // leaves the event loop without the tray item. Both are idempotent.
+        RunEvent::Exit => {
+            #[cfg(windows)]
+            {
+                if let Err(error) = vkb_windows::uninstall_hook() {
+                    tracing::warn!(%error, "could not remove the keyboard hook");
+                }
+                vkb_windows::perf::finish();
+            }
+        }
+        _ => {}
+    });
 }

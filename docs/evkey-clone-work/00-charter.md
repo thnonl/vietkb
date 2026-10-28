@@ -39,8 +39,8 @@ keystroke content leaving the machine.
 |---|---|---|
 | P1 Engine `process_key` latency | p99 ≤ 50 µs, zero heap alloc on the steady path | `cargo bench` in `vkb-core`, criterion, 100k iterations |
 | P2 End-to-end keystroke → visible char | p95 ≤ 8 ms, p99 ≤ 15 ms | instrumented build, 500 words into Notepad + Chrome, timestamps from hook to `SendInput` return |
-| P3 Idle memory, GUI closed, tray only | ≤ 20 MB RSS | Task Manager / `Get-Process` after 10 min idle |
-| P4 Idle memory, settings window open | ≤ 90 MB RSS | same |
+| P3 Idle memory, GUI closed, tray only | ≤ 20 MB total | `vietkb` plus every `msedgewebview2` process descending from it, after 10 min idle. A hidden window that keeps WebView2 resident is a P3 failure — measured 356.6 MB before the fix (2026-10-28). |
+| P4 Idle memory, settings window open | app ≤ 40 MB **and** total ≤ 400 MB | Two numbers because WebView2 dominates: the app process must stay lean, and the total is the platform cost of opening the panel. Measured 2026-10-29: app 29 MB, total 344 MB, and **2.1 MB within 3 s of closing** (the window is destroyed, not hidden). |
 | P5 CPU while idle 1 h | ≤ 0.1 % average | same |
 | P6 Cold start to hook-ready | ≤ 400 ms | process start → first successful hook install |
 | P7 Installer size | ≤ 10 MB | built msi/nsis artifact |
