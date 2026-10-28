@@ -17,6 +17,8 @@ use vkb_platform::{BackendCommand, Hotkey, SharedConfig};
 mod backend;
 pub mod autostart;
 pub mod clipboard;
+/// Opt-in keystroke trace (`VKB_DEBUG_KEYS=1`) → `%APPDATA%\VietKB\keys.log`.
+pub mod debuglog;
 pub mod foreground;
 mod globals;
 pub mod hook;

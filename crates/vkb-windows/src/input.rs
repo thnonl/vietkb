@@ -139,17 +139,57 @@ fn push_unicode(out: &mut Vec<INPUT>, unit: u16, up: bool) {
     });
 }
 
-/// Deliver the batch in one call. Returns the number of events the OS accepted
-/// (fewer than `inputs.len()` means the target blocked input).
-pub fn send(inputs: &[INPUT]) -> u32 {
+/// Outcome of one `SendInput` call, for the `VKB_DEBUG_KEYS` trace.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SendResult {
+    /// Events the OS accepted.
+    pub sent: u32,
+    /// Events in the array.
+    pub total: u32,
+    /// `GetLastError` right after the call; only meaningful on a short send.
+    pub error: u32,
+    /// How many `SendInput` calls it took (2 = the retry after a zero send).
+    pub attempts: u32,
+}
+
+/// Deliver the batch in one call, reporting the error as well as the count.
+pub fn send_detailed(inputs: &[INPUT]) -> SendResult {
     if inputs.is_empty() {
-        return 0;
+        return SendResult::default();
     }
-    let sent = unsafe { SendInput(inputs, std::mem::size_of::<INPUT>() as i32) };
+    let size = std::mem::size_of::<INPUT>() as i32;
+    let total = inputs.len() as u32;
+    let mut attempts = 0u32;
+    let mut sent = unsafe { SendInput(inputs, size) };
+    attempts += 1;
+    // `0` means the OS accepted nothing at all — the replacement would vanish
+    // silently (the key was already swallowed). Retry exactly once, and only
+    // when nothing was delivered, so a partial send can never be duplicated.
+    if sent == 0 {
+        sent = unsafe { SendInput(inputs, size) };
+        attempts += 1;
+    }
+    // Read the error while it still belongs to the last `SendInput` call.
+    let error = if sent < total {
+        unsafe { windows::Win32::Foundation::GetLastError().0 }
+    } else {
+        0
+    };
     // P2 probe: closes the sample at the injection return. When the probe is off
     // the thread-local mark is `None`, so this is a `Cell::take` and nothing more.
     crate::perf::end();
-    sent
+    SendResult {
+        sent,
+        total,
+        error,
+        attempts,
+    }
+}
+
+/// Deliver the batch in one call. Returns the number of events the OS accepted
+/// (fewer than `inputs.len()` means the target blocked input).
+pub fn send(inputs: &[INPUT]) -> u32 {
+    send_detailed(inputs).sent
 }
 
 /// `Ctrl+V` with scancodes. Only the opt-in clipboard fallback uses this.

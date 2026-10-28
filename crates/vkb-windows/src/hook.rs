@@ -205,6 +205,9 @@ fn worker_main() {
         return;
     }
     globals::READY.store(true, Ordering::SeqCst);
+    if crate::debuglog::enabled() {
+        crate::debuglog::note("hook-ready");
+    }
 
     let mut last_refresh = Instant::now();
     let mut running = true;
