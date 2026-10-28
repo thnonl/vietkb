@@ -36,7 +36,7 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .tab{height:28px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:7px;font:500 13px/20px var(--ui);color:var(--t2);white-space:nowrap}
 .tab.on{background:var(--raised);color:var(--t1);box-shadow:var(--e1),inset 0 0 0 1px var(--line-2)}
 .tab .c{font:500 12px/18px var(--sm);color:var(--t3);font-variant-numeric:tabular-nums}
-.st{margin-left:auto;display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:7px;font:500 13px/20px var(--ui);color:var(--t2);white-space:nowrap}
+.st{margin-left:auto;width:236px;justify-content:flex-end;display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:7px;font:500 13px/20px var(--ui);color:var(--t2);white-space:nowrap}
 .st b{color:var(--t1)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 3px var(--acc-tint-2);flex:none}
 .wc{display:flex;align-self:stretch;margin-left:auto}
@@ -72,7 +72,7 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .link{color:var(--acc-text);font:500 13px/20px var(--ui);display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
 
 /* disclosure row */
-.disc{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;margin:0 -12px;position:relative;border-top:1px solid var(--line-2)}
+.disc{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 64px 0 12px;margin:0 -12px;position:relative;border-top:1px solid var(--line-2)}
 .disc>.i{color:var(--t2);margin-left:-2px}
 .disc b{font:500 14px/20px var(--ui)}
 .disc .m{font:400 12px/18px var(--sm);color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:4px}
@@ -143,6 +143,7 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .tr.hov .acts{opacity:1}
 .tr.on{background:var(--acc-tint)}
 .tr.on::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--rail)}
+.tr.th{height:36px;display:grid;box-shadow:inset 0 -1px 0 var(--line-2);font:600 12px/18px var(--sm);color:var(--t2)}
 .bulk{height:36px;display:flex;align-items:center;gap:2px;padding:0 6px 0 13px;background:var(--acc-tint);box-shadow:inset 0 -1px 0 var(--acc-line);font:500 13px/20px var(--ui)}
 .bulk .n{display:flex;align-items:center;gap:13px;margin-right:auto;color:var(--t1);font-weight:600}
 .bulk .n small{font:400 12px/18px var(--sm);color:var(--t3)}
@@ -154,9 +155,9 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 
 /* phím tắt tab */
 .intro{font:400 13px/20px var(--ui);color:var(--t2);margin-top:14px;display:flex;align-items:center;gap:4px;flex:none}
-.sh{font:600 13px/20px var(--ui);color:var(--t1);padding:12px 0 6px;flex:none;border-bottom:1px solid var(--line-2)}
+.sh{font:600 13px/20px var(--ui);color:var(--t1);padding:18px 0 6px;flex:none;border-bottom:1px solid var(--line-2)}
 .sh+.list>.row:first-child::before{display:none}
-.cap{width:236px;height:32px;display:flex;align-items:center;gap:3px;padding:0 5px;border-radius:8px;background:var(--sunken);box-shadow:inset 0 1px 1.5px rgba(0,0,0,.06),inset 0 0 0 1px var(--line-1);flex:none}
+.cap{width:276px;height:32px;display:flex;align-items:center;gap:3px;padding:0 5px;border-radius:8px;background:var(--sunken);box-shadow:inset 0 1px 1.5px rgba(0,0,0,.06),inset 0 0 0 1px var(--line-1);flex:none}
 .cap .end{margin-left:auto;display:flex;align-items:center;gap:6px;font:400 12px/18px var(--sm);color:var(--t3);padding-right:3px}
 .cap .split{margin-left:auto;align-self:stretch;width:28px;display:grid;place-items:center;border-left:1px solid var(--line-2);margin-right:-5px;color:var(--t3)}
 .cap.rec{background:var(--raised);animation:pulse 1.6s var(--ease) infinite;box-shadow:inset 0 0 0 1px var(--focus),0 0 0 3px var(--acc-a)}
@@ -164,12 +165,14 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .cap.warn{box-shadow:inset 0 1px 1.5px rgba(0,0,0,.06),inset 0 0 0 1px var(--warn-line)}
 .cap.empty{background:transparent;box-shadow:none;border:1px dashed var(--line-3);padding:0 10px;font:400 13px/20px var(--ui);color:var(--t3)}
 .cap.empty .end{color:var(--acc-text);font:500 13px/20px var(--ui)}
-.slot{width:28px;height:28px;flex:none;display:grid;place-items:center}
+.btn.icon.xs{width:24px;height:24px;padding:0;border-radius:6px;justify-content:center}
+.btn.icon.xs .i{margin:0}
+.cap .end .btn.icon.xs{margin-right:-1px}
 .row.rec{background:var(--acc-tint)}
 .row.rec::before,.row.rec+.row::before{opacity:0}
 .row.tall{height:66px;align-items:flex-start;padding-top:4px}
-.row.tall .cap,.row.tall .slot{margin-top:3px}
-.row .msg{display:flex;align-items:center;gap:6px;font:400 12px/18px var(--sm);color:var(--t2);margin-top:2px;white-space:nowrap}
+.row.tall .cap{margin-top:3px}
+.row .msg{position:absolute;left:12px;right:12px;top:44px;display:flex;align-items:center;gap:6px;font:400 12px/18px var(--sm);color:var(--t2);white-space:nowrap}
 .row .msg .i{color:var(--warn)}
 .presets{display:flex;align-items:center;gap:6px;height:34px;padding-left:0;font:400 12px/18px var(--sm);color:var(--t3);flex:none}
 .pre{display:inline-flex;align-items:center;gap:2px;height:26px;padding:0 6px 0 4px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--line-2);color:var(--t2)}
@@ -180,8 +183,8 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 
 /* hệ thống tab: hanging section labels 120 + 16 + 536 */
 .hang{display:grid;grid-template-columns:120px 1fr;column-gap:16px;flex:none}
-.hang+.hang{margin-top:12px}
-.hang:first-of-type{margin-top:12px}
+.hang+.hang{margin-top:14px}
+.hang:first-of-type{margin-top:16px}
 .hang>h3{font:600 13px/20px var(--ui);color:var(--t1);padding-top:5px;border-top:1px solid var(--line-2)}
 .hang>h3.s{padding-top:10px}
 .hang>h3 small{display:block;font:400 12px/18px var(--sm);color:var(--t3);margin-top:2px}
@@ -198,22 +201,25 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 # ---------------------------------------------------------------- frame
 TABS = [('go', 'Gõ', None), ('macro', 'Gõ tắt', '148'), ('hotkey', 'Phím tắt', None), ('system', 'Hệ thống', None)]
 WC = ('<div class="wc">'
-      '<span><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></span>'
-      '<span><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></span></div>')
+      '<span title="Thu nhỏ"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></span>'
+      '<span title="Đóng, VietKB vẫn chạy"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></span></div>')
 MARK = LOGO.replace('width="20" height="20"', 'width="18" height="18"')
 
 def strip(active):
     tabs = ''.join(f'<span class="tab{" on" if key == active else ""}">{lab}'
                    f'{f"<span class=c>{c}</span>" if c else ""}</span>' for key, lab, c in TABS)
     # State is always visible: tab Gõ shows it in its status row, every other tab in the strip.
-    st = '' if active == 'go' else '<span class="st"><span class="dot"></span><b>Tiếng Việt</b>· Telex · Unicode</span>'
+    # The chip slot has a fixed width on every tab (hidden on Gõ), so nothing in the strip moves.
+    chip = '<span class="dot"></span><b>Tiếng Việt</b>· Telex · Unicode'
+    st = (f'<span class="st" aria-hidden="true" style="visibility:hidden">{chip}</span>' if active == 'go'
+          else f'<span class="st" title="Bấm để tắt tiếng Việt">{chip}</span>')
     return f'<header class="strip"><span class="mark">{MARK}</span><nav class="tabs">{tabs}</nav>{st}{WC}</header>'
 
 def page(theme, title, active, body):
     tokens = LIGHT if theme == 'light' else DARK
     return f'''<!doctype html>
 <html lang="vi" data-theme="{theme}">
-<head><meta charset="utf-8"><title>VietKB — {title} ({'sáng' if theme == 'light' else 'tối'})</title>
+<head><meta charset="utf-8"><title>Cài đặt VietKB</title>
 <meta name="viewport" content="width={W},height={H}">
 <style>:root{{{tokens.strip()}color-scheme:{theme}}}
 {CSS}</style></head>
@@ -235,23 +241,24 @@ TONE = ('<span class="seg tone">'
 
 def go():
     rows = [
-        row('Kiểu đặt dấu', 'Vị trí dấu thanh trong vần oa, oe, uy', TONE),
-        row('Bỏ dấu ở cuối từ', '<span class="kbd">hoangf</span> → hoàng: gõ dấu sau cả từ', ON),
+        row('Kiểu đặt dấu', 'Hai kiểu chỉ khác nhau ở vần oa, oe, uy', TONE),
+        row('Gõ dấu ở cuối từ', '<span class="kbd">hoangf</span> → hoàng: gõ dấu sau cả từ cũng được', ON),
         row('Tự sửa ưo thành ươ', '<span class="kbd">nguwoif</span> → người, chỉ cần một w', ON, 'hov'),
-        row('Kiểm tra chính tả', 'Không đặt dấu vào từ tiếng Anh như “search”, “excel”', OFF, 'gb'),
+        row('Kiểm tra chính tả', 'Chỉ thêm dấu khi ra từ tiếng Việt: search vẫn là search', OFF, 'gb'),
+        # 27-copy-decisions §A: the dependency on Kiểm tra chính tả is real; keep the disabled state.
         row('Tự động khôi phục từ gõ sai', 'Cần bật Kiểm tra chính tả · <span class="lnk">Bật</span>', '<span class="tg dis" aria-disabled="true"></span>', 'dis'),
-        row('Bảo vệ đường dẫn và mã', 'Không thêm dấu khi gõ URL, email, mã lệnh', ON),
-        row('Viết hoa sau dấu câu', 'Tự viết hoa chữ đầu sau . ! ? và khi xuống dòng', OFF),
-        row('Gõ tắt', 'Gõ <span class="kbd">nth</span> rồi Space thành Nguyễn Thu Hà', f'<span class="link">148 mục{ic("chevr","s16")}</span>{ON}', 'gb'),
+        row('Giữ nguyên email, địa chỉ web', 'ten@congty.vn, abc.com/xyz gõ sao ra vậy, không thêm dấu', ON),
+        row('Viết hoa đầu câu', 'chào. tôi → chào. Tôi, cả sau ! ? và khi xuống dòng', OFF),
+        row('Gõ tắt', 'Gõ <span class="kbd">nth</span> rồi dấu cách → Nguyễn Thu Hà', f'<span class="link" title="Mở tab Gõ tắt">148 mục{ic("chevr","s16")}</span>{ON}', 'gb'),
     ]
     return f'''<div class="status">
-  <span class="tg on" role="switch" aria-checked="true"></span><span class="lab">Tiếng Việt</span>
+  <span class="tg on" role="switch" aria-checked="true" title="Bật/tắt tiếng Việt (Ctrl + Shift)"></span><span class="lab">Tiếng Việt</span>
   <span class="hint">{k('Ctrl', 'Shift', cls='sm')}</span>
   <span class="f"><small>Kiểu gõ</small><span class="sel" style="width:92px">Telex{ic('chev','s16')}</span>
   <small>Bảng mã</small><span class="sel" style="width:164px">Unicode dựng sẵn{ic('chev','s16')}</span></span>
 </div>
 <div class="list" style="margin-top:8px">{''.join(rows)}</div>
-<div class="disc">{ic('chevr')}<b>Nâng cao</b><span class="tag n"><span class="num">8</span>&nbsp;tuỳ chọn</span><span class="m">f j w z làm phụ âm, gõ tắt khi tắt tiếng Việt, độ trễ gửi phím…</span></div>
+<div class="disc">{ic('chevr')}<b>Nâng cao</b><span class="tag n"><span class="num">8</span>&nbsp;tuỳ chọn</span><span class="m">f j w z làm phụ âm, sửa lỗi dấu gợi ý, Metro, Clipboard</span></div>
 <div class="try"><span class="lab">Thử gõ</span><span class="out">Nguyễn Thu Hà ở Đường Nguyễn Văn Linh, Quận 7<span class="caret"></span></span><span class="m">Telex · Unicode</span></div>'''
 
 # ---------------------------------------------------------------- tab Gõ tắt
@@ -272,48 +279,52 @@ def macro():
         tag = f'<span class="tag n">{ic("enter","s16")}{x}</span>' if x else ''
         rows.append(f'<div class="tr {st}"><span class="c0">{cb("on" if st == "on" else "")}</span>'
                     f'<span class="c1"><span class="k m">{t}</span></span><span class="ex"><em>{e}</em>{tag}</span>'
-                    f'<span class="acts"><span class="btn ghost icon sm">{ic("edit")}</span><span class="btn ghost icon sm">{ic("more")}</span></span></div>')
+                    f'<span class="acts"><span class="btn ghost icon sm" title="Sửa">{ic("edit")}</span>'
+                    f'<span class="btn ghost icon sm" title="Tuỳ chọn khác">{ic("more")}</span></span></div>')
+    # With a selection the 36 px header row ("Từ tắt · Nội dung") is replaced in place by this 36 px bar.
     bulk = (f'<div class="bulk"><span class="n">{cb("mix")}<span>Đã chọn <span class="num">1</span> <small>trong <span class="num">148</span></small></span></span>'
-            f'<span class="btn ghost sm">{ic("edit")}Sửa</span><span class="btn ghost sm">{ic("export")}Xuất</span>'
+            f'<span class="btn ghost sm">{ic("edit")}Sửa</span><span class="btn ghost sm">{ic("export")}Xuất…</span>'
             f'<span class="btn ghost sm danger">{ic("trash")}Xoá</span><span class="vsep"></span>'
             f'<span class="btn ghost sm" style="gap:6px">Bỏ chọn <span class="k sm">Esc</span></span></div>')
     return f'''<div class="tb"><div class="input">{ic('search')}<span>Tìm từ tắt hoặc nội dung</span><span class="kk">{k('Ctrl','F',cls='sm')}</span></div>
-<span class="btn">{ic('import')}Nhập…</span><span class="btn">{ic('export')}Xuất…</span><span class="btn pri">{ic('plus')}Thêm</span></div>
+<span class="btn">{ic('import')}Nhập từ tệp…</span><span class="btn">{ic('export')}Xuất ra tệp…</span><span class="btn pri">{ic('plus')}Thêm</span></div>
 <div class="tbl">{bulk}{''.join(rows)}</div>
-<div class="mfoot"><span>Hiện <span class="num">8</span> trong <span class="num">148</span> mục · gõ để lọc</span><span class="link">Mở bảng đầy đủ{ic('chevr','s16')}</span></div>'''
+<div class="mfoot"><span>Đang hiện <span class="num">8</span> trong <span class="num">148</span> mục · gõ vào ô tìm để lọc</span><span class="link">Mở bảng gõ tắt{ic('chevr','s16')}</span></div>'''
 
 # ---------------------------------------------------------------- tab Phím tắt
-def hk(label, note, field, slot='', cls='', msg=''):
+def hk(label, note, field, cls='', msg=''):
     return (f'<div class="row {cls}"><div class="lbl"><b>{label}</b><span>{note}</span>{msg}</div>'
-            f'<div class="ctl">{field}<span class="slot">{slot}</span></div></div>')
+            f'<div class="ctl">{field}</div></div>')
 
 def hotkey():
-    f_toggle = f'<div class="cap">{k("Ctrl","Shift")}<span class="tag n" style="margin-left:6px">Nhả để chuyển</span><span class="split">{ic("chev","s16")}</span></div>'
-    f_rec = f'<div class="cap rec">{k("Ctrl","Shift")}<span class="plus">+</span><span class="caret"></span><span class="end"><span class="k sm">Esc</span>huỷ</span></div>'
+    # Every action (✕ cancel, ↺ reset, preset ▾) lives inside the well, so all wells end on x = 696.
+    f_toggle = f'<div class="cap">{k("Ctrl","Shift")}<span class="tag n" style="margin-left:6px">Nhả để chuyển</span><span class="split" title="Chọn nhanh">{ic("chev","s16")}</span></div>'
+    f_rec = (f'<div class="cap rec">{k("Ctrl","Shift")}<span class="plus">+</span><span class="caret"></span>'
+             f'<span class="end"><span class="k sm">Esc</span>huỷ<span class="btn ghost icon xs" title="Huỷ">{ic("x","s16")}</span></span></div>')
     f_method = f'<div class="cap">{k("Ctrl","Alt","V")}</div>'
-    f_restore = f'<div class="cap warn">{k("Ctrl","Shift","Z")}<span class="end"><span class="tag warn">{ic("warn","s16")}Trùng</span></span></div>'
-    f_open = f'<div class="cap">{k("Ctrl","Alt","K")}</div>'
+    f_restore = f'<div class="cap warn">{k("Ctrl","Shift","Z")}<span class="end"><span class="tag warn">{ic("warn","s16")}Dễ trùng</span></span></div>'
+    f_open = f'<div class="cap">{k("Ctrl","Alt","K")}<span class="end"><span class="btn ghost icon xs hov" title="Đặt lại mặc định">{ic("reset","s16")}</span></span></div>'
     f_clip = '<div class="cap empty">Chưa đặt<span class="end">Đặt phím</span></div>'
-    msg = f'<div class="msg">{ic("warn","s16")}Trùng “Làm lại” của Word. Không có từ để khôi phục thì phím vẫn đến ứng dụng.</div>'
-    presets = ''.join(f'<span class="pre{" on" if on else ""}">{k(*ks, cls="sm")}<small>{n}</small></span>'
+    msg = f'<div class="msg">{ic("warn","s16")}Cũng là phím Làm lại ở nhiều ứng dụng; không có từ để khôi phục thì vẫn Làm lại</div>'
+    presets = ''.join(f'<span class="pre{" on" if on else ""}">{k(*ks, cls="sm")}{f"<small>{n}</small>" if n else ""}</span>'
                       for ks, n, on in ((('Ctrl', 'Shift'), 'mặc định', True), (('Alt', 'Z'), 'như UniKey', False),
-                                        (('Ctrl', '`'), '', False), (('Right Ctrl',), '', False)))
-    return f'''<div class="intro">Nhấn vào ô rồi bấm tổ hợp mới. <span class="k sm">Esc</span> huỷ, <span class="k sm">Backspace</span> bỏ trống.</div>
+                                        (('Ctrl', '`'), '', False), (('Ctrl phải',), '', False)))
+    return f'''<div class="intro">Bấm vào ô, nhấn tổ hợp mới. <span class="k sm">Esc</span> để huỷ, <span class="k sm">Backspace</span> để xoá.</div>
 <div class="sh">Chuyển chế độ</div>
 <div class="list">
 {hk('Bật/tắt tiếng Việt', 'Ctrl + Shift + T trong trình duyệt vẫn mở lại tab', f_toggle)}
-{hk('Đổi bảng mã', 'Unicode → TCVN3 → VNI Windows', f_rec, f'<span class="btn ghost icon sm">{ic("x")}</span>', 'rec')}
+{hk('Đổi bảng mã', 'Unicode → TCVN3 → VNI Windows → Unicode tổ hợp', f_rec, 'rec')}
 {hk('Đổi kiểu gõ', 'Telex → VNI → VIQR', f_method)}
 </div>
-<div class="presets">Mẫu cho Bật/tắt:{presets}</div>
+<div class="presets">Chọn nhanh:{presets}</div>
 <div class="sh">Công cụ</div>
 <div class="list">
-{hk('Khôi phục từ gõ sai', 'Đưa từ vừa gõ về đúng các phím đã bấm', f_restore, '', 'tall', msg)}
-{hk('Mở cài đặt', 'Đã đổi từ Ctrl + Alt + S', f_open, f'<span class="btn ghost icon sm hov" title="Về mặc định">{ic("reset")}</span>')}
-{hk('Chuyển mã clipboard', 'Đổi văn bản đã chép sang bảng mã đang dùng', f_clip)}
+{hk('Khôi phục từ gõ sai', 'Đưa từ vừa gõ về đúng phím đã nhấn: gôgle → google', f_restore, 'tall', msg)}
+{hk('Mở cài đặt', 'Mặc định là Ctrl + Alt + S', f_open)}
+{hk('Chuyển mã chữ đã chép', 'Đổi chữ đã chép sang bảng mã đang dùng, rồi dán như thường', f_clip)}
 </div>
-<div class="hkfoot"><span class="btn ghost sm" style="margin-left:-10px">{ic('reset')}Khôi phục tất cả</span>
-<span class="m">Không gán được: {k('Win','L',cls='sm')}&nbsp; {k('Alt','Tab',cls='sm')}&nbsp; {k('Ctrl','Alt','Del',cls='sm')}</span></div>'''
+<div class="hkfoot"><span class="btn ghost sm" style="margin-left:-10px">{ic('reset')}Đặt lại tất cả</span>
+<span class="m">Windows đã dùng: {k('Win','L',cls='sm')}&nbsp; {k('Alt','Tab',cls='sm')}&nbsp; {k('Ctrl','Alt','Del',cls='sm')}</span></div>'''
 
 # ---------------------------------------------------------------- tab Hệ thống
 def system():
@@ -322,17 +333,17 @@ def system():
                    for t, n, m in (('T', 'Windows Terminal', 'Tắt tiếng Việt'), ('C', 'Visual Studio Code', 'Tắt tiếng Việt'),
                                    ('A', 'AutoCAD 2024', 'Bảng mã TCVN3')))
     return f'''<section class="hang"><h3>Khởi động</h3><div class="list">
-{row('Khởi động cùng Windows', 'Chạy ở khay hệ thống, khoảng <span class="num">14</span> MB bộ nhớ', ON)}
-{row(ic('shield','s16') + 'Chạy với quyền Admin', 'Có hiệu lực sau khi khởi động lại · <span class="lnk bad">Khởi động lại ngay</span>', '<span class="tg bad on"></span>')}
+{row('Khởi động cùng Windows', 'Bật máy là gõ được ngay, biểu tượng nằm cạnh đồng hồ', ON)}
+{row(ic('shield','s16') + 'Chạy với quyền Admin', 'Cần mở lại VietKB, Windows sẽ hỏi xác nhận · <span class="lnk bad">Mở lại ngay</span>', '<span class="tg bad on"></span>')}
 </div></section>
 <section class="hang"><h3>Giao diện</h3><div class="list">
-{row('Âm thanh khi bật/tắt', 'Tiếng tách nhỏ mỗi lần chuyển Việt/Anh', OFF)}
-{row('Ngôn ngữ', 'Áp dụng ngay, không cần mở lại', seg('Tiếng Việt', 'English'))}
-{row('Giao diện', 'Sáng, tối hoặc theo Windows', seg('Theo hệ thống', 'Sáng', 'Tối'))}
+{row('Âm thanh khi bật/tắt', 'Kêu “tách” nhỏ mỗi lần bật hoặc tắt tiếng Việt', OFF)}
+{row('Ngôn ngữ hiển thị', 'Chữ trên cửa sổ và menu của VietKB, không đổi cách gõ', seg('Tiếng Việt', 'English'))}
+{row('Màu nền', 'Theo Windows: tự đổi khi Windows chuyển sáng hoặc tối', seg('Theo Windows', 'Sáng', 'Tối'))}
 </div></section>
 <section class="hang"><h3>Cập nhật</h3><div class="list">
-{row('Tự kiểm tra cập nhật', 'Phiên bản <span class="num">0.1.0</span> · chỉ hỏi phiên bản mới, không gửi dữ liệu', OFF + '<span class="btn sm">Kiểm tra ngay</span>')}
-{row('Tệp cấu hình', '<span class="path">%APPDATA%\\VietKB\\config.toml</span>', f'<span class="btn sm">{ic("folder")}Mở thư mục</span><span class="btn sm danger">{ic("reset")}Khôi phục…</span>')}
+{row('Tự kiểm tra cập nhật', 'Đang dùng bản <span class="num">0.1.0</span> · chỉ xem có bản mới, không gửi gì khác', '<span class="btn sm">Kiểm tra ngay</span>' + OFF)}
+{row('Tệp cài đặt', '<span class="path">%APPDATA%\\VietKB\\config.toml</span>', f'<span class="btn sm">{ic("folder")}Mở thư mục</span><span class="btn sm danger">{ic("reset")}Đặt lại tất cả…</span>')}
 </div></section>
 <section class="hang"><h3 class="s">Loại trừ ứng dụng<small><span class="num">6</span> ứng dụng</small><span class="link">Quản lý{ic('chevr','s16')}</span></h3><div class="list">{excl}</div></section>'''
 

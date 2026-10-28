@@ -336,13 +336,13 @@ caret · `Telex · Unicode` 12 t3 (echo of the current method/charset, so the st
 `sunken` well (`inset 0 1px 1.5px` shadow + `line-1`) — the signature again. Focused (mock): `raised` +
 1 px `focus` + 3 px halo. Never persisted, cleared on close (C5).
 
-**Gõ tắt toolbar** — 36: search (flex, 32 h, `Ctrl F` keycaps) · `Nhập…` · `Xuất…` · primary `Thêm`.
+**Gõ tắt toolbar** — 36: search (flex, 32 h, `Ctrl F` keycaps) · `Nhập từ tệp…` · `Xuất ra tệp…` · primary `Thêm`.
 **Table** — 1 px `line-2` frame, radius 10. Header 36 shows column titles; **with a selection it becomes
 the bulk bar in place** (`acc-tint`, `acc-line` bottom): indeterminate checkbox in the checkbox column ·
-`Đã chọn 1 trong 148` · `Sửa` `Xuất` `Xoá` · `Bỏ chọn Esc`. No floating bar, no footer bar, so no row is
+`Đã chọn 1 trong 148` · `Sửa` `Xuất…` `Xoá` · `Bỏ chọn Esc`. No floating bar, no footer bar, so no row is
 ever covered. Rows 46: checkbox · trigger keycap (mono) · expansion 14/20 (multi-line → `↵ +1 dòng` tag) ·
 hover actions (raised 2 px to sit on the trigger legend's optical centre). Selected: `acc-tint` + 2 px
-`rail`. Footnote 12/18: `Hiện 8 trong 148 mục · gõ để lọc` + `Mở bảng đầy đủ ›` (separate window).
+`rail`. Footnote 12/18: `Đang hiện 8 trong 148 mục · gõ vào ô tìm để lọc` + `Mở bảng gõ tắt ›` (separate window).
 
 **Capture well** (Phím tắt) — 236 × 32, `sunken` well, 22 px keycaps, states as v2: capturing (raised,
 pulsing `focus` halo, held keys + `+` + caret, `Esc huỷ`, row tinted, ✕ in the slot, strip chip stays),
@@ -383,8 +383,8 @@ Test string `Ấ Ầ Ẩ Ẫ Ậ Ế Ổ Ở Ữ Ỹ người Đường thuở k
 
 | File | Content | Deliberate states |
 |---|---|---|
-| `go.html` | status row; Kiểu đặt dấu (pills), Bỏ dấu ở cuối từ, Tự sửa ưo thành ươ · Kiểm tra chính tả, Tự động khôi phục, Bảo vệ đường dẫn và mã, Viết hoa sau dấu câu · Gõ tắt (`148 mục ›`); Nâng cao; Thử gõ `Nguyễn Thu Hà ở Đường Nguyễn Văn Linh, Quận 7` | hovered row, disabled row with reason + fix, focused Thử gõ with caret, Kiểu mới selected |
-| `macro.html` | toolbar; 8 alphabetical macros; footnote with `Mở bảng đầy đủ` | header-as-bulk-bar, 1 selected (tint + rail), hovered row with actions, multi-line tag |
+| `go.html` | status row; Kiểu đặt dấu (pills), Gõ dấu ở cuối từ, Tự sửa ưo thành ươ · Kiểm tra chính tả, Tự động khôi phục từ gõ sai, Giữ nguyên email, địa chỉ web, Viết hoa đầu câu · Gõ tắt (`148 mục ›`); Nâng cao; Thử gõ `Nguyễn Thu Hà ở Đường Nguyễn Văn Linh, Quận 7` | hovered row, disabled row with reason + fix, focused Thử gõ with caret, Kiểu mới selected |
+| `macro.html` | toolbar; 8 alphabetical macros; footnote with `Mở bảng gõ tắt` | header-as-bulk-bar, 1 selected (tint + rail), hovered row with actions, multi-line tag |
 | `hotkey.html` | 6 actions in 2 groups + presets + footer | capturing `Ctrl + Shift +` caret, conflict (`Ctrl Shift Z` vs Word's Làm lại), modified with reset, unbound |
 | `system.html` | Khởi động (Windows, Admin) · Giao diện (âm thanh, ngôn ngữ, chủ đề) · Cập nhật (tự kiểm tra, tệp cấu hình) · Loại trừ ứng dụng (3 + `Quản lý ›`) | Admin on in danger colour with `Khởi động lại ngay`, segmented selections |
 
@@ -410,7 +410,21 @@ v2 HTML was removed from `design/light|dark/` as instructed. Note: `design/` is 
 reproduces all 16 v2 screens; delete it to drop v2 for good. `design/_shots/` (v2 renders, not made by this
 pass) is also stale.
 
-## 10. Wording (kept from round 2, still in force)
+## 10. Copy
+
+Round 4: all strings come verbatim from `design/COPY.md`, overridden by
+`docs/evkey-clone-work/27-copy-decisions.md`:
+- `Tự động khôi phục từ gõ sai` **keeps** its disabled state when Kiểm tra chính tả is off; note
+  `Cần bật Kiểm tra chính tả · Bật` (COPY.md #23 rejected).
+- Off state `Đã tắt tiếng Việt`, never `English` (chip, tray).
+- Typing delay default shows `0` (µs); bảng mã pickers list only the 6 verified charsets
+  (no BK HCM1, VPS, UTF-8); `Đổi bảng mã` cycle reads `Unicode → TCVN3 → VNI Windows → Unicode tổ hợp`.
+- Reset is always `Đặt lại…` (`Đặt lại tất cả`, `Đặt lại mặc định`); `khôi phục` only for khôi phục từ gõ sai
+  / khôi phục bộ gõ.
+- Window title `Cài đặt VietKB`; caption tooltips `Thu nhỏ`, `Đóng, VietKB vẫn chạy`.
+No string needed shortening: every one fits its row without wrap or ellipsis at 720 px (measured).
+
+Earlier wording decisions still in force:
 
 | Was | Now | Why |
 |---|---|---|

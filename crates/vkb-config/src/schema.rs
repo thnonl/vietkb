@@ -106,6 +106,8 @@ pub struct TypingConfig {
     pub macro_enabled: bool,
     /// `Vẫn cho phép gõ tắt khi tắt gõ Tiếng Việt`.
     pub macro_when_disabled: bool,
+    /// Delay between synthetic keys, microseconds. `Nâng cao`, default 0, range 0–5000.
+    pub send_delay_us: u32,
 }
 
 impl Default for TypingConfig {
@@ -125,6 +127,7 @@ impl Default for TypingConfig {
             use_clipboard: false,
             macro_enabled: true,
             macro_when_disabled: false,
+            send_delay_us: 0,
         }
     }
 }

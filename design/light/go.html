@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="vi" data-theme="light">
-<head><meta charset="utf-8"><title>VietKB — Gõ (sáng)</title>
+<head><meta charset="utf-8"><title>Cài đặt VietKB</title>
 <meta name="viewport" content="width=720,height=560">
 <style>:root{--plane:#F2F0EB;--surface:#FAF9F6;--raised:#FFFFFF;--float:#FFFFFF;--sunken:#EDEAE4;
 --line-1:#ECE8E1;--line-2:#E0DBD2;--line-3:#CBC5B9;--ctl-line:#8E887E;
@@ -47,7 +47,7 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .tab{height:28px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:7px;font:500 13px/20px var(--ui);color:var(--t2);white-space:nowrap}
 .tab.on{background:var(--raised);color:var(--t1);box-shadow:var(--e1),inset 0 0 0 1px var(--line-2)}
 .tab .c{font:500 12px/18px var(--sm);color:var(--t3);font-variant-numeric:tabular-nums}
-.st{margin-left:auto;display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:7px;font:500 13px/20px var(--ui);color:var(--t2);white-space:nowrap}
+.st{margin-left:auto;width:236px;justify-content:flex-end;display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:7px;font:500 13px/20px var(--ui);color:var(--t2);white-space:nowrap}
 .st b{color:var(--t1)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 3px var(--acc-tint-2);flex:none}
 .wc{display:flex;align-self:stretch;margin-left:auto}
@@ -83,7 +83,7 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .link{color:var(--acc-text);font:500 13px/20px var(--ui);display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
 
 /* disclosure row */
-.disc{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;margin:0 -12px;position:relative;border-top:1px solid var(--line-2)}
+.disc{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 64px 0 12px;margin:0 -12px;position:relative;border-top:1px solid var(--line-2)}
 .disc>.i{color:var(--t2);margin-left:-2px}
 .disc b{font:500 14px/20px var(--ui)}
 .disc .m{font:400 12px/18px var(--sm);color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:4px}
@@ -154,6 +154,7 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .tr.hov .acts{opacity:1}
 .tr.on{background:var(--acc-tint)}
 .tr.on::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--rail)}
+.tr.th{height:36px;display:grid;box-shadow:inset 0 -1px 0 var(--line-2);font:600 12px/18px var(--sm);color:var(--t2)}
 .bulk{height:36px;display:flex;align-items:center;gap:2px;padding:0 6px 0 13px;background:var(--acc-tint);box-shadow:inset 0 -1px 0 var(--acc-line);font:500 13px/20px var(--ui)}
 .bulk .n{display:flex;align-items:center;gap:13px;margin-right:auto;color:var(--t1);font-weight:600}
 .bulk .n small{font:400 12px/18px var(--sm);color:var(--t3)}
@@ -165,9 +166,9 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 
 /* phím tắt tab */
 .intro{font:400 13px/20px var(--ui);color:var(--t2);margin-top:14px;display:flex;align-items:center;gap:4px;flex:none}
-.sh{font:600 13px/20px var(--ui);color:var(--t1);padding:12px 0 6px;flex:none;border-bottom:1px solid var(--line-2)}
+.sh{font:600 13px/20px var(--ui);color:var(--t1);padding:18px 0 6px;flex:none;border-bottom:1px solid var(--line-2)}
 .sh+.list>.row:first-child::before{display:none}
-.cap{width:236px;height:32px;display:flex;align-items:center;gap:3px;padding:0 5px;border-radius:8px;background:var(--sunken);box-shadow:inset 0 1px 1.5px rgba(0,0,0,.06),inset 0 0 0 1px var(--line-1);flex:none}
+.cap{width:276px;height:32px;display:flex;align-items:center;gap:3px;padding:0 5px;border-radius:8px;background:var(--sunken);box-shadow:inset 0 1px 1.5px rgba(0,0,0,.06),inset 0 0 0 1px var(--line-1);flex:none}
 .cap .end{margin-left:auto;display:flex;align-items:center;gap:6px;font:400 12px/18px var(--sm);color:var(--t3);padding-right:3px}
 .cap .split{margin-left:auto;align-self:stretch;width:28px;display:grid;place-items:center;border-left:1px solid var(--line-2);margin-right:-5px;color:var(--t3)}
 .cap.rec{background:var(--raised);animation:pulse 1.6s var(--ease) infinite;box-shadow:inset 0 0 0 1px var(--focus),0 0 0 3px var(--acc-a)}
@@ -175,12 +176,14 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .cap.warn{box-shadow:inset 0 1px 1.5px rgba(0,0,0,.06),inset 0 0 0 1px var(--warn-line)}
 .cap.empty{background:transparent;box-shadow:none;border:1px dashed var(--line-3);padding:0 10px;font:400 13px/20px var(--ui);color:var(--t3)}
 .cap.empty .end{color:var(--acc-text);font:500 13px/20px var(--ui)}
-.slot{width:28px;height:28px;flex:none;display:grid;place-items:center}
+.btn.icon.xs{width:24px;height:24px;padding:0;border-radius:6px;justify-content:center}
+.btn.icon.xs .i{margin:0}
+.cap .end .btn.icon.xs{margin-right:-1px}
 .row.rec{background:var(--acc-tint)}
 .row.rec::before,.row.rec+.row::before{opacity:0}
 .row.tall{height:66px;align-items:flex-start;padding-top:4px}
-.row.tall .cap,.row.tall .slot{margin-top:3px}
-.row .msg{display:flex;align-items:center;gap:6px;font:400 12px/18px var(--sm);color:var(--t2);margin-top:2px;white-space:nowrap}
+.row.tall .cap{margin-top:3px}
+.row .msg{position:absolute;left:12px;right:12px;top:44px;display:flex;align-items:center;gap:6px;font:400 12px/18px var(--sm);color:var(--t2);white-space:nowrap}
 .row .msg .i{color:var(--warn)}
 .presets{display:flex;align-items:center;gap:6px;height:34px;padding-left:0;font:400 12px/18px var(--sm);color:var(--t3);flex:none}
 .pre{display:inline-flex;align-items:center;gap:2px;height:26px;padding:0 6px 0 4px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--line-2);color:var(--t2)}
@@ -191,8 +194,8 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 
 /* hệ thống tab: hanging section labels 120 + 16 + 536 */
 .hang{display:grid;grid-template-columns:120px 1fr;column-gap:16px;flex:none}
-.hang+.hang{margin-top:12px}
-.hang:first-of-type{margin-top:12px}
+.hang+.hang{margin-top:14px}
+.hang:first-of-type{margin-top:16px}
 .hang>h3{font:600 13px/20px var(--ui);color:var(--t1);padding-top:5px;border-top:1px solid var(--line-2)}
 .hang>h3.s{padding-top:10px}
 .hang>h3 small{display:block;font:400 12px/18px var(--sm);color:var(--t3);margin-top:2px}
@@ -206,15 +209,15 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .path{font:400 12px/18px var(--mono);color:var(--t2)}
 </style></head>
 <body><div class="win">
-<header class="strip"><span class="mark"><svg width="18" height="18" viewBox="0 0 16 16" aria-label="VietKB"><rect width="16" height="16" rx="4.5" style="fill:var(--acc)"/><path d="M6.05 5.35c0-1.2.9-2.05 2.05-2.05 1.15 0 2 .8 2 1.85 0 .9-.6 1.4-1.35 1.75-.45.2-.65.5-.65.95v.55" fill="none" stroke="#fff" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.75 11.75h6.5" stroke="#fff" stroke-width="1.45" stroke-linecap="round"/></svg></span><nav class="tabs"><span class="tab on">Gõ</span><span class="tab">Gõ tắt<span class=c>148</span></span><span class="tab">Phím tắt</span><span class="tab">Hệ thống</span></nav><div class="wc"><span><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></span><span><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></span></div></header>
+<header class="strip"><span class="mark"><svg width="18" height="18" viewBox="0 0 16 16" aria-label="VietKB"><rect width="16" height="16" rx="4.5" style="fill:var(--acc)"/><path d="M6.05 5.35c0-1.2.9-2.05 2.05-2.05 1.15 0 2 .8 2 1.85 0 .9-.6 1.4-1.35 1.75-.45.2-.65.5-.65.95v.55" fill="none" stroke="#fff" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.75 11.75h6.5" stroke="#fff" stroke-width="1.45" stroke-linecap="round"/></svg></span><nav class="tabs"><span class="tab on">Gõ</span><span class="tab">Gõ tắt<span class=c>148</span></span><span class="tab">Phím tắt</span><span class="tab">Hệ thống</span></nav><span class="st" aria-hidden="true" style="visibility:hidden"><span class="dot"></span><b>Tiếng Việt</b>· Telex · Unicode</span><div class="wc"><span title="Thu nhỏ"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></span><span title="Đóng, VietKB vẫn chạy"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></span></div></header>
 <main class="sheet">
 <div class="status">
-  <span class="tg on" role="switch" aria-checked="true"></span><span class="lab">Tiếng Việt</span>
+  <span class="tg on" role="switch" aria-checked="true" title="Bật/tắt tiếng Việt (Ctrl + Shift)"></span><span class="lab">Tiếng Việt</span>
   <span class="hint"><span class="k sm">Ctrl</span><span class="plus">+</span><span class="k sm">Shift</span></span>
   <span class="f"><small>Kiểu gõ</small><span class="sel" style="width:92px">Telex<svg class="i s16" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 8.25 10 11.75l3.5-3.5"/></svg></span>
   <small>Bảng mã</small><span class="sel" style="width:164px">Unicode dựng sẵn<svg class="i s16" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 8.25 10 11.75l3.5-3.5"/></svg></span></span>
 </div>
-<div class="list" style="margin-top:8px"><div class="row "><div class="lbl"><b>Kiểu đặt dấu</b><span>Vị trí dấu thanh trong vần oa, oe, uy</span></div><div class="ctl"><span class="seg tone"><span class="on">Kiểu mới <i>·</i> <em>hoà, thuý</em></span><span>Kiểu cũ <i>·</i> <em>hòa, thúy</em></span></span></div></div><div class="row "><div class="lbl"><b>Bỏ dấu ở cuối từ</b><span><span class="kbd">hoangf</span> → hoàng: gõ dấu sau cả từ</span></div><div class="ctl"><span class="tg on"></span></div></div><div class="row hov"><div class="lbl"><b>Tự sửa ưo thành ươ</b><span><span class="kbd">nguwoif</span> → người, chỉ cần một w</span></div><div class="ctl"><span class="tg on"></span></div></div><div class="row gb"><div class="lbl"><b>Kiểm tra chính tả</b><span>Không đặt dấu vào từ tiếng Anh như “search”, “excel”</span></div><div class="ctl"><span class="tg"></span></div></div><div class="row dis"><div class="lbl"><b>Tự động khôi phục từ gõ sai</b><span>Cần bật Kiểm tra chính tả · <span class="lnk">Bật</span></span></div><div class="ctl"><span class="tg dis" aria-disabled="true"></span></div></div><div class="row "><div class="lbl"><b>Bảo vệ đường dẫn và mã</b><span>Không thêm dấu khi gõ URL, email, mã lệnh</span></div><div class="ctl"><span class="tg on"></span></div></div><div class="row "><div class="lbl"><b>Viết hoa sau dấu câu</b><span>Tự viết hoa chữ đầu sau . ! ? và khi xuống dòng</span></div><div class="ctl"><span class="tg"></span></div></div><div class="row gb"><div class="lbl"><b>Gõ tắt</b><span>Gõ <span class="kbd">nth</span> rồi Space thành Nguyễn Thu Hà</span></div><div class="ctl"><span class="link">148 mục<svg class="i s16" viewBox="0 0 20 20" aria-hidden="true"><path d="M8.25 6.5 11.75 10l-3.5 3.5"/></svg></span><span class="tg on"></span></div></div></div>
-<div class="disc"><svg class="i " viewBox="0 0 20 20" aria-hidden="true"><path d="M8.25 6.5 11.75 10l-3.5 3.5"/></svg><b>Nâng cao</b><span class="tag n"><span class="num">8</span>&nbsp;tuỳ chọn</span><span class="m">f j w z làm phụ âm, gõ tắt khi tắt tiếng Việt, độ trễ gửi phím…</span></div>
+<div class="list" style="margin-top:8px"><div class="row "><div class="lbl"><b>Kiểu đặt dấu</b><span>Hai kiểu chỉ khác nhau ở vần oa, oe, uy</span></div><div class="ctl"><span class="seg tone"><span class="on">Kiểu mới <i>·</i> <em>hoà, thuý</em></span><span>Kiểu cũ <i>·</i> <em>hòa, thúy</em></span></span></div></div><div class="row "><div class="lbl"><b>Gõ dấu ở cuối từ</b><span><span class="kbd">hoangf</span> → hoàng: gõ dấu sau cả từ cũng được</span></div><div class="ctl"><span class="tg on"></span></div></div><div class="row hov"><div class="lbl"><b>Tự sửa ưo thành ươ</b><span><span class="kbd">nguwoif</span> → người, chỉ cần một w</span></div><div class="ctl"><span class="tg on"></span></div></div><div class="row gb"><div class="lbl"><b>Kiểm tra chính tả</b><span>Chỉ thêm dấu khi ra từ tiếng Việt: search vẫn là search</span></div><div class="ctl"><span class="tg"></span></div></div><div class="row dis"><div class="lbl"><b>Tự động khôi phục từ gõ sai</b><span>Cần bật Kiểm tra chính tả · <span class="lnk">Bật</span></span></div><div class="ctl"><span class="tg dis" aria-disabled="true"></span></div></div><div class="row "><div class="lbl"><b>Giữ nguyên email, địa chỉ web</b><span>ten@congty.vn, abc.com/xyz gõ sao ra vậy, không thêm dấu</span></div><div class="ctl"><span class="tg on"></span></div></div><div class="row "><div class="lbl"><b>Viết hoa đầu câu</b><span>chào. tôi → chào. Tôi, cả sau ! ? và khi xuống dòng</span></div><div class="ctl"><span class="tg"></span></div></div><div class="row gb"><div class="lbl"><b>Gõ tắt</b><span>Gõ <span class="kbd">nth</span> rồi dấu cách → Nguyễn Thu Hà</span></div><div class="ctl"><span class="link" title="Mở tab Gõ tắt">148 mục<svg class="i s16" viewBox="0 0 20 20" aria-hidden="true"><path d="M8.25 6.5 11.75 10l-3.5 3.5"/></svg></span><span class="tg on"></span></div></div></div>
+<div class="disc"><svg class="i " viewBox="0 0 20 20" aria-hidden="true"><path d="M8.25 6.5 11.75 10l-3.5 3.5"/></svg><b>Nâng cao</b><span class="tag n"><span class="num">8</span>&nbsp;tuỳ chọn</span><span class="m">f j w z làm phụ âm, sửa lỗi dấu gợi ý, Metro, Clipboard</span></div>
 <div class="try"><span class="lab">Thử gõ</span><span class="out">Nguyễn Thu Hà ở Đường Nguyễn Văn Linh, Quận 7<span class="caret"></span></span><span class="m">Telex · Unicode</span></div>
 </main></div></body></html>

@@ -77,7 +77,13 @@ Rules:
 | BA | `general` | `anthropic/claude-opus-5-5#medium` | feature inventory, spec, plan, acceptance criteria | edit product code |
 | Dev | `general` | `opencode-go/deepseek-v4.1-flash#max` | all implementation in its worktree | change the contract, change design values |
 | QA | `general` | `opencode-go/deepseek-v4.1-flash#low` | test cases, defect log, independent verification | edit product code (may add tests) |
-| Design | BA doubles as designer | same as BA | 2–3 UI directions + HTML preview | decide taste alone |
+| Design | `general` | `anthropic/claude-opus-5-5#medium` | visual directions, tokens, screenshot-ready mocks | decide taste alone |
+| Copy | `general` | `anthropic/claude-opus-5-5#medium` | every Vietnamese UI string, terms, states | edit code or layout |
+
+**Reasoning level rule (owner, 2026-10-28):** Opus runs at **`medium`**. `high`/`xhigh` only when
+the owner asks for it by name — the cost is not justified for routine work. DeepSeek devs stay at
+`max` (they are cheap), QA at `low`.
+
 
 Scrum, simplified: Sprint 0 = charter + inventory + spec + contract freeze.
 Sprint 1+ = 3 parallel dev worktrees, one demo gate per sprint, QA verifies after design
