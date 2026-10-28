@@ -7,7 +7,7 @@ mod tray;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, PhysicalPosition, WindowEvent};
 
 /// Set only by the tray's quit item. Everything else is "hide to tray".
 static QUITTING: AtomicBool = AtomicBool::new(false);
@@ -18,6 +18,64 @@ pub fn show_settings(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+/// Centre `win_len` inside the monitor span `[mon_start, mon_start + mon_len)`,
+/// all in physical pixels.
+///
+/// `Monitor::position/size` and `Window::outer_size` already have the scale
+/// factor applied, so nothing here converts or divides by it: under mixed DPI
+/// that would double-apply the scaling and push the window off the monitor.
+fn centred_axis(mon_start: i32, mon_len: u32, win_len: u32) -> i32 {
+    let slack = i64::from(mon_len) - i64::from(win_len);
+    if slack <= 0 {
+        // Not smaller than the monitor: pin to its origin instead of centring
+        // half the window off-screen.
+        mon_start
+    } else {
+        mon_start + (slack / 2) as i32
+    }
+}
+
+/// Place the fixed-size window centred on the monitor it opens on: the one
+/// under the cursor at launch, then the primary, then the current monitor.
+/// Runs before the first `show()`, so the window never flashes elsewhere.
+fn centre_on_launch_monitor(window: &tauri::WebviewWindow) {
+    let monitor = window
+        .cursor_position()
+        .ok()
+        .and_then(|cursor| window.monitor_from_point(cursor.x, cursor.y).ok().flatten())
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .or_else(|| window.current_monitor().ok().flatten());
+    let Some(monitor) = monitor else { return };
+    let Ok(win) = window.outer_size() else { return };
+
+    let mon_pos = monitor.position();
+    let mon_size = monitor.size();
+    let x = centred_axis(mon_pos.x, mon_size.width, win.width);
+    let y = centred_axis(mon_pos.y, mon_size.height, win.height);
+
+    tracing::info!(
+        monitor = ?monitor.name(),
+        mon_x = mon_pos.x,
+        mon_y = mon_pos.y,
+        mon_w = mon_size.width,
+        mon_h = mon_size.height,
+        work_x = monitor.work_area().position.x,
+        work_y = monitor.work_area().position.y,
+        work_w = monitor.work_area().size.width,
+        work_h = monitor.work_area().size.height,
+        scale = monitor.scale_factor(),
+        win_w = win.width,
+        win_h = win.height,
+        x,
+        y,
+        "window placement (physical px)"
+    );
+
+    if let Err(error) = window.set_position(PhysicalPosition::new(x, y)) {
+        tracing::warn!(%error, "could not position window");
     }
 }
 
@@ -61,6 +119,12 @@ fn main() {
             commands::sync_autostart_now(config.system.start_with_windows);
 
             tray::install(&handle)?;
+
+            // Fixed-size window: centre it on the monitor it opens on, before
+            // anything can show it (tauri.conf.json no longer says "center").
+            if let Some(window) = app.get_webview_window("main") {
+                centre_on_launch_monitor(&window);
+            }
 
             tracing::info!(
                 enabled = config.input.enabled,

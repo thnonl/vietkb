@@ -72,6 +72,32 @@
     void app.setTab(next);
   };
 
+  // Frameless window: the tab strip is the title bar. Tauri 2's
+  // `data-tauri-drag-region` only drags when the press lands on the exact
+  // element carrying it, and any child with its own handler swallows it — and
+  // it maximizes on double click. So the strip starts the drag itself, skips
+  // presses that began on a control, and ignores the second click of a pair.
+  const CONTROL = 'button, a, input, select, textarea, label, [role="button"], [data-no-drag]';
+
+  const onStripPointerDown = (event: MouseEvent) => {
+    if (event.button !== 0) return;
+    // detail > 1 is the second press of a double click. The window is fixed
+    // size (charter C9), so a double click on the strip must do nothing —
+    // never maximize or restore.
+    if (event.detail > 1) {
+      event.preventDefault();
+      return;
+    }
+    const target = event.target;
+    // Controls keep their own click: the drag never starts underneath them.
+    if (target instanceof Element && target.closest(CONTROL)) return;
+    if (!win) return;
+    event.preventDefault();
+    void win.startDragging();
+  };
+
+  const onStripDoubleClick = (event: MouseEvent) => event.preventDefault();
+
   const onKey = (event: KeyboardEvent) => {
     if (!event.ctrlKey || event.altKey || event.metaKey) return;
     const index = Number(event.key);
@@ -95,8 +121,14 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="win">
-  <header class="strip" data-tauri-drag-region>
-    <span class="mark" data-tauri-drag-region>
+  <!-- The strip is the frameless window's drag handle; presses that start on a
+       control are ignored, so the header itself stays non-interactive. -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <header
+    class="strip"
+    onmousedown={onStripPointerDown}
+    ondblclick={onStripDoubleClick}>
+    <span class="mark">
       <svg width="18" height="18" viewBox="0 0 16 16" aria-label="VietKB" role="img">
         <rect width="16" height="16" rx="4.5" style="fill:var(--acc)" />
         <path
