@@ -903,3 +903,6 @@ that contains the fix; corpus gaps found by a defect are added to §1 in the sam
 | OQ-28 | `suggestion_fix_1`, `suggestion_fix_2`, `metro_fix`, `send_standard` exist in the schema but have no defined semantics anywhere in the contract. Ship them as no-ops with a tooltip, or implement? | Gõ screen, UI-6 |
 | OQ-29 | What is the exact escape rule for repeating a *mark* key on an already-marked syllable (`aass` → `aas` assumed), and does it apply uniformly to `aw`/`ow`/`uw`? | §1.3 |
 | OQ-30 | Does `boundary()` clear the word buffer on caret movement only, or also on mouse click inside the same word? Affects every backspace/restore test. | §1.12, §1.16 |
+## §3 note — 2026-10-29
+UI-11, UI-23, UI-26 are **N/A**: the charset feature was removed from the product by owner decision
+("bỏ bảng mã cũ"). Recount without them: **43 pass, 3 N/A, 0 fail**.

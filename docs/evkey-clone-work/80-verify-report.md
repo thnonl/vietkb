@@ -374,7 +374,7 @@ Typed into a real target window through the installed hook, not the test harness
 ## 13. Still unverified
 
 1. **§3 GUI tests** from `50-test-cases.md` — **now covered by part 3 below** (rebuilt shell,
-   46 cases, 38 pass / 8 fail, defects `D-UI-01…06`).
+   46 cases, 43 pass / 3 fail — only `D-UI-01`; `D-UI-02…06` re-verified fixed on 2026-10-29).
 2. **5 legacy charsets** — `tcvn3`, `vni_windows`, `bk_hcm1`, `vps` (no authoritative byte table
    available) and `viscii` beyond the 14 letters + `ờ`/`ề` (only those are verified). Same status as
    part 1 §5/§8.3.
@@ -421,18 +421,16 @@ groups B–G from `qa/results-run10.csv`), `qa/evidence/UI-*.txt` (one file per 
 
 ## 16. Result
 
-**46 cases · 38 pass · 8 fail · 0 blocked.** The eight failures reproduce across runs:
+**46 cases · 43 pass · 3 fail · 0 blocked** after the 2026-10-29 re-verification of `D-UI-02…06`
+(38/8 before it — the five failing cases `UI-17`, `UI-32`, `UI-33`, `UI-34`, `UI-40` now pass on
+build SHA-256 `B12F9FCF…5757`; evidence in `60-defects.md` §Re-verification). The three remaining
+failures reproduce across runs:
 
 | case | defect | one line |
 |---|---|---|
 | UI-11 | D-UI-01 | main window has no `Bảng mã` select |
-| UI-17 | D-UI-02 | `Ngôn ngữ hiển thị` persists `en` but no string changes |
 | UI-23 | D-UI-01 | tray menu has no `Bảng mã ▸` submenu |
 | UI-26 | D-UI-01 | charset cannot be changed from the tray either |
-| UI-32 | D-UI-03 | modifier-only chord (`Ctrl+Shift`) is never captured, so no live conflict warning |
-| UI-33 | D-UI-04 | a conflict already stored in `config.toml` is shown without any warning |
-| UI-34 | D-UI-05 | `Tự động khôi phục…` does not disable live when spell check is turned off in another window |
-| UI-40 | D-UI-06 | macro table renders 8 of 12 rows and has no scrollbar |
 
 Everything else passed, including: 480 × 384 frameless shell and the 36 px drag strip;
 theme cycle with cross-window broadcast; minimize / close-to-tray / reopen; 11/12 control
