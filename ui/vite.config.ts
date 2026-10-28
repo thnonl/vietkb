@@ -5,6 +5,9 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 // breaks `tauri dev`.
 export default defineConfig({
   plugins: [svelte()],
+  // Relative asset URLs: keeps `tauri://localhost` happy and lets the built
+  // `ui/dist` be opened directly for a visual review without a dev server.
+  base: "./",
   clearScreen: false,
   server: {
     port: 1420,

@@ -105,6 +105,14 @@ pub struct TypingConfig {
     pub macro_enabled: bool,
     /// `Vẫn cho phép gõ tắt khi tắt gõ Tiếng Việt`.
     pub macro_when_disabled: bool,
+    /// `Tự sửa ưo thành ươ` — auto-horn when `w` follows `uo`/`ưo`.
+    pub auto_horn_uo: bool,
+    /// `Giữ nguyên email, địa chỉ web` — never add marks inside URL/email/code.
+    pub raw_zone: bool,
+    /// `Viết hoa theo từ tắt` — macro output follows the trigger's capitalisation.
+    pub macro_case_follow: bool,
+    /// Delay between injected key events, in microseconds (0 = engine default).
+    pub send_delay_us: u32,
 }
 
 impl Default for TypingConfig {
@@ -124,6 +132,10 @@ impl Default for TypingConfig {
             use_clipboard: false,
             macro_enabled: true,
             macro_when_disabled: false,
+            auto_horn_uo: true,
+            raw_zone: true,
+            macro_case_follow: true,
+            send_delay_us: 0,
         }
     }
 }
@@ -146,14 +158,14 @@ pub struct HotkeySet {
     pub disable: Option<Hotkey>,
     /// Optional single-key toggle (`Ctrl+Shift` in EVKey lineage).
     #[serde(
-        default = "hk_unbound",
+        default = "hk_toggle",
         serialize_with = "crate::hotkey::opt::serialize",
         deserialize_with = "crate::hotkey::opt::deserialize"
     )]
     pub toggle: Option<Hotkey>,
     /// Phục hồi từ gõ sai.
     #[serde(
-        default = "hk_unbound",
+        default = "hk_restore_word",
         serialize_with = "crate::hotkey::opt::serialize",
         deserialize_with = "crate::hotkey::opt::deserialize"
     )]
@@ -188,11 +200,37 @@ pub struct HotkeySet {
     pub macro_toggle: Option<Hotkey>,
     /// Mở cửa sổ cài đặt.
     #[serde(
-        default = "hk_unbound",
+        default = "hk_open_settings",
         serialize_with = "crate::hotkey::opt::serialize",
         deserialize_with = "crate::hotkey::opt::deserialize"
     )]
     pub open_settings: Option<Hotkey>,
+    /// `Đổi bảng mã` — cycles Unicode → TCVN3 → VNI Windows → Unicode tổ hợp.
+    #[serde(
+        default = "hk_unbound",
+        serialize_with = "crate::hotkey::opt::serialize",
+        deserialize_with = "crate::hotkey::opt::deserialize"
+    )]
+    pub cycle_charset: Option<Hotkey>,
+    /// `Đổi kiểu gõ` — cycles Telex → VNI → VIQR.
+    #[serde(
+        default = "hk_unbound",
+        serialize_with = "crate::hotkey::opt::serialize",
+        deserialize_with = "crate::hotkey::opt::deserialize"
+    )]
+    pub cycle_method: Option<Hotkey>,
+    /// `Kiểu chuyển bật/tắt`: switch on release or on press.
+    #[serde(default)]
+    pub toggle_mode: ToggleMode,
+}
+
+/// How the toggle hotkey fires: on key release (EVKey's default) or on press.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ToggleMode {
+    #[default]
+    Release,
+    Press,
 }
 
 fn hk_enable() -> Option<Hotkey> {
@@ -213,6 +251,15 @@ fn hk_macro_panel() -> Option<Hotkey> {
 fn hk_macro_toggle() -> Option<Hotkey> {
     Hotkey::parse("F9").ok()
 }
+fn hk_toggle() -> Option<Hotkey> {
+    Hotkey::parse("Ctrl+Shift").ok()
+}
+fn hk_restore_word() -> Option<Hotkey> {
+    Hotkey::parse("Ctrl+Shift+Z").ok()
+}
+fn hk_open_settings() -> Option<Hotkey> {
+    Hotkey::parse("Ctrl+Alt+S").ok()
+}
 fn hk_unbound() -> Option<Hotkey> {
     None
 }
@@ -222,13 +269,16 @@ impl Default for HotkeySet {
         Self {
             enable: Hotkey::parse("F1").ok(),
             disable: Hotkey::parse("F2").ok(),
-            toggle: None,
-            restore_word: None,
+            toggle: Hotkey::parse("Ctrl+Shift").ok(),
+            restore_word: Hotkey::parse("Ctrl+Shift+Z").ok(),
             app_exclude: Hotkey::parse("F11").ok(),
             convert_tool: Hotkey::parse("F6").ok(),
             macro_panel: Hotkey::parse("F8").ok(),
             macro_toggle: Hotkey::parse("F9").ok(),
-            open_settings: None,
+            open_settings: Hotkey::parse("Ctrl+Alt+S").ok(),
+            cycle_charset: None,
+            cycle_method: None,
+            toggle_mode: ToggleMode::Release,
         }
     }
 }
@@ -290,9 +340,9 @@ pub struct UiConfig {
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
-            window_width: 1040,
-            window_height: 720,
-            last_tab: "overview".to_string(),
+            window_width: 720,
+            window_height: 560,
+            last_tab: "go".to_string(),
             compact_rows: false,
         }
     }

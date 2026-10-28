@@ -24,6 +24,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 parking_lot.workspace = true
 once_cell.workspace = true
+unicode-normalization.workspace = true
 tauri = { version = "2", features = ["tray-icon", "image-png", "common-controls-v6"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
@@ -33,6 +34,12 @@ tauri-plugin-updater = "2"
 
 [target.'cfg(windows)'.dependencies]
 vkb-windows = { path = "../vkb-windows" }
+# Window enumeration for the per-app picker (same version tauri already pulls).
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 vkb-macos = { path = "../vkb-macos" }
