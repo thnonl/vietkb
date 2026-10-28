@@ -7,6 +7,12 @@ use std::sync::Arc;
 
 pub use vkb_core::{EngineAction, KeyInput, Modifiers};
 
+// Pure helpers shared by every backend. Additive: the frozen items above are
+// unchanged (contract §4).
+pub mod hotkeys;
+pub mod plan;
+pub mod rules;
+
 pub type SharedConfig = Arc<parking_lot::RwLock<vkb_config::AppConfig>>;
 
 /// Which program owns the caret right now.

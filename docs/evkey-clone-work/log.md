@@ -5,3 +5,8 @@
 - 2026-10-28 Env facts recorded (charter §10): Rust 1.98.1 MSVC, Node 24.22.1, WebView2 155,
   no Tauri CLI, no NSIS/WiX yet, git needs `safe.directory`, legacy `target/` = 13.4 GB.
   PowerShell blocks `.ps1` shims → use `npm.cmd`/`npx.cmd`.
+- 2026-10-28 wt-windows: pure layer done in `vkb-platform` (injection planning, hotkey matcher,
+  per-app rule resolution) + `vkb-windows` backend (WH_KEYBOARD_LL on a dedicated thread with
+  install timeout and watchdog, batched `SendInput`, in-hook hotkeys, foreground cache, HKCU
+  autostart, opt-in clipboard). Tests green; details in `70-impl-notes-windows.md`. No full
+  build run, so no BUILD slot claimed.
