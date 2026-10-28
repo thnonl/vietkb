@@ -74,12 +74,25 @@ pub fn decide(action: &EngineAction, ch: Option<char>) -> Decision {
             }
         }
         EngineAction::Replace {
-            delete_graphemes,
+            delete_units,
             insert,
         } => Decision {
             swallow: true,
             injection: Injection::Replace {
-                deletes: *delete_graphemes,
+                deletes: *delete_units,
+                insert: insert.clone(),
+            },
+        },
+        // Type the replacement, then let the key through (macro committed with Enter/Tab).
+        // The injector runs synchronously inside the hook callback, so the expansion
+        // reaches the target before the physical key does.
+        EngineAction::ReplaceThenPass {
+            delete_units,
+            insert,
+        } => Decision {
+            swallow: false,
+            injection: Injection::Replace {
+                deletes: *delete_units,
                 insert: insert.clone(),
             },
         },
@@ -148,7 +161,7 @@ mod tests {
     fn replace_is_batched() {
         let d = decide(
             &EngineAction::Replace {
-                delete_graphemes: 4,
+                delete_units: 4,
                 insert: "thái".to_string(),
             },
             Some('s'),
@@ -167,7 +180,7 @@ mod tests {
     fn replace_with_zero_deletes_still_inserts() {
         let d = decide(
             &EngineAction::Replace {
-                delete_graphemes: 0,
+                delete_units: 0,
                 insert: "ă".to_string(),
             },
             Some('a'),

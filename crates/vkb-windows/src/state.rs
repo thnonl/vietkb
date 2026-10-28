@@ -413,7 +413,7 @@ impl HookRuntime {
         let options = EngineOptions {
             method: effective.method,
             charset: effective.charset,
-            old_tone_style: typing.as_ref().map_or(false, |t| !t.modern_tone),
+            modern_tone: typing.as_ref().map_or(true, |t| t.modern_tone),
             spell_check: typing.as_ref().map_or(false, |t| t.spell_check),
             restore_wrong_word: typing.as_ref().map_or(false, |t| t.restore_wrong_word),
             jfwz_as_consonant: typing.as_ref().map_or(false, |t| t.jfwz_as_consonant),
