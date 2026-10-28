@@ -70,7 +70,7 @@ y: 0  ┌ strip 40: mark · tabs (Gõ · Gõ tắt · Phím tắt · Hệ thốn
 | 41 | 40 | status row (on/off · `Ctrl` `Shift` · Kiểu gõ · Bảng mã) |
 | 81 | 8 | gap |
 | 89 | 368 | 8 setting rows × 46 |
-| 457 | 40 | `Nâng cao · 8 tuỳ chọn` disclosure (collapsed) |
+| 457 | 40 | `Nâng cao · 9 tuỳ chọn` disclosure (collapsed) |
 | 497 | 11 | flexible gap (`margin-top: auto` on the strip) |
 | 508 | 36 | Thử gõ strip |
 | 544 | 16 | bottom padding |
@@ -79,20 +79,34 @@ y: 0  ┌ strip 40: mark · tabs (Gõ · Gõ tắt · Phím tắt · Hệ thốn
 **Gõ tắt (`macro.html`)**: 40 strip + 1 + 16 + 36 toolbar + 12 + table (1 + 36 bulk/header + 8 × 46 + 1 =
 406) + 10 + 18 footnote = **540**, 20 px spare at the bottom. 8 rows, never a partial row.
 
-**Phím tắt (`hotkey.html`)**: 40 + 1 + 14 + 20 intro + 39 group head + 3 × 46 rows + 34 presets + 39 group
-head + 66 (row with conflict line) + 2 × 46 = **483**; footer (41) is pinned to the bottom: 503–544, + 16
-padding = **560**. 20 px of air above the footer.
+**Phím tắt (`hotkey.html`)**: 40 + 1 + 14 + 20 intro + 45 group head + 3 × 46 rows + 34 presets + 45 group
+head + 64 (row with warning line) + 2 × 46 = **493**; 14 gap; footer (37) 507–544; 16 padding = **560**.
+(Round 4 moved the old 20 px of air above the footer into the two group heads, padding 18/6.)
 
-**Hệ thống (`system.html`)**: 40 + 1 + 12 + Khởi động 2 × 46 + 12 + Giao diện 3 × 46 + 12 + Cập nhật 2 × 46
-+ 12 + Loại trừ 3 × 40 = **531**, ≈ 29 px spare.
+**Hệ thống (`system.html`)**: 40 + 1 + 16 + Khởi động 2 × 46 + 14 + Giao diện 3 × 46 + 14 + Cập nhật 2 × 46
++ 14 + Loại trừ 3 × 40 = **545**; 15 bottom, matching Gõ's 16.
 
-Measured on the 720 × 560 renders (last non-background pixel): Gõ 546 (the Thử gõ field is 508–543, its
-3 px focus halo reaches 546), Gõ tắt 537, Phím tắt 539, Hệ thống 526. No tab scrolls; no row is cut.
+Measured with `_src/measure.py` (injects a script into a copy of each screen, reads `getBoundingClientRect`
+through headless Edge `--dump-dom`; light and dark identical): last element bottom Gõ 544 · Gõ tắt 539 ·
+Phím tắt 544 · Hệ thống 545. Zero text overflow (no ellipsis, no wrap) in all 8 files. No tab scrolls.
+
+**Alignment rules (round 4, verified by `measure.py`):**
+- **One right edge, x = 696**, for every control on every tab: toggles (660–696), selects, segmented,
+  buttons, capture wells, toolbar, table frame. A row with two controls puts the secondary one on the left
+  (`Kiểm tra ngay` before the toggle) so the toggle stays on the axis.
+- **No slot column.** Capture-row actions (✕ huỷ, ↺ đặt lại mặc định, ▾ chọn nhanh) live inside the well as
+  24 px icon buttons; wells are 276 wide (420–696).
+- Rows without a control leave the axis empty: the Nâng cao preview stops 64 px short of 696.
+- Label + description are centred as one block in each 46 px row (measured offset 0.0 on every row).
+- The strip state chip has a fixed 236 px slot on every tab (hidden on Gõ), so tabs never move:
+  x = 56 / 98.8 / 187.8 / 263.7 on all four tabs.
+- The table header (`Từ tắt · Nội dung`) and the bulk bar that replaces it are both 36 px (measured
+  106–142), so selecting a row never moves the rows.
 
 ### 1.2 Horizontal
 
-Tab Gõ rows: label column flexible, control column right-aligned at x = 696. Phím tắt: label · 236 px capture
-well · 28 px slot. Gõ tắt table: 40 checkbox · 112 trigger · flexible expansion · 68 actions. Hệ thống:
+Tab Gõ rows: label column flexible, control column right-aligned at x = 696. Phím tắt: label · 276 px capture
+well (actions inside). Gõ tắt table: 40 checkbox · 112 trigger · flexible expansion · 68 actions. Hệ thống:
 **hanging section labels** 120 + 16 gutter + 536 rows — headings cost no height.
 
 ## 2. Type (720 × 560 ramp — fewer sizes than v2)
@@ -325,11 +339,12 @@ example 15/20 Sitka (t2; t1 selected). Track 32 h, pills 28 h. The *name* is wha
 is the proof. Default selected: Kiểu mới.
 
 **Disclosure** (Nâng cao) — 40 h row with `line-2` top: chevron-right 20, `Nâng cao` 14/500, neutral count
-tag `8 tuỳ chọn`, a 12 t3 preview of what is inside. Because the panel cannot grow, opening it **replaces
+tag `9 tuỳ chọn`, a 12 t3 preview of what is inside. Because the panel cannot grow, opening it **replaces
 the 8 rows in place** with the advanced rows (same 46 rhythm, `‹ Tuỳ chọn chính` back row at the top);
 the status row and Thử gõ strip stay. Contents: f j w z làm phụ âm · gõ tắt khi tắt tiếng Việt · giữ
 hoa/thường theo từ tắt · tắt khi bàn phím không phải US · sửa lỗi dấu khi có gợi ý · hỗ trợ ứng dụng Metro ·
-gửi qua Clipboard · độ trễ giữa các phím = 8.
+gửi qua Clipboard · độ trễ giữa các phím (`0` µs) · **Kiểu chuyển bật/tắt** (segmented `Khi nhả phím` /
+`Khi nhấn phím`, default nhả — moved here in round 5 from the hotkey well) = 9.
 
 **Thử gõ strip** — 36 h, radius 8, one line: `Thử gõ` 12/500 t3 + 1 px divider · Sitka 16/24 output with
 caret · `Telex · Unicode` 12 t3 (echo of the current method/charset, so the strip proves them). Unfocused:
@@ -344,12 +359,19 @@ ever covered. Rows 46: checkbox · trigger keycap (mono) · expansion 14/20 (mul
 hover actions (raised 2 px to sit on the trigger legend's optical centre). Selected: `acc-tint` + 2 px
 `rail`. Footnote 12/18: `Đang hiện 8 trong 148 mục · gõ vào ô tìm để lọc` + `Mở bảng gõ tắt ›` (separate window).
 
-**Capture well** (Phím tắt) — 236 × 32, `sunken` well, 22 px keycaps, states as v2: capturing (raised,
-pulsing `focus` halo, held keys + `+` + caret, `Esc huỷ`, row tinted, ✕ in the slot, strip chip stays),
-warning (`warn-line` + `Trùng` tag, explanation as a third line in the row → 66 h), modified (reset icon in
-the 28 px slot), empty (dashed `line-3`, `Chưa đặt` / `Đặt phím`), split preset chevron + `Nhả để chuyển`
-tag. **Preset chips** (34 h line): `Mẫu cho Bật/tắt:` + four outlined chips with small keycaps —
-`Ctrl+Shift mặc định` (selected: tint + `acc-line`), `Alt+Z như UniKey`, ``Ctrl+` ``, `Right Ctrl`.
+**Capture well** (Phím tắt) — 276 × 32 (x 420–696), `sunken` well, 22 px keycaps. Every action lives
+inside the well as a 24 px icon button. States: capturing (raised, pulsing `focus` halo, held keys + `+` +
+caret, `Esc huỷ` + ✕ `Huỷ`, row tinted); warning (`warn-line` + `Dễ trùng` tag — `Trùng` is reserved for
+blocking conflicts); modified (↺ `Đặt lại mặc định`); empty (dashed `line-3`, `Chưa đặt` / `Đặt phím`);
+split `Chọn nhanh` chevron on the toggle row. Round 5: the bare `Nhả để chuyển` tag is gone from the well;
+release-vs-press is the labelled option `Kiểu chuyển bật/tắt` (`Khi nhả phím` / `Khi nhấn phím`) in
+Nâng cao on tab Gõ.
+**Warning row** (`Khôi phục từ gõ sai`) — 64 h = 4 + 20 label + 18 description + 18 warning + 4. The warning
+is amber 12/18 with ⚠ inline before the text, starting on the label edge. It runs full width (to 696)
+because the verbatim COPY.md string (79 characters ≈ 470 px) does not fit the 380 px description column.
+The extra 18 px is the only exception to the 46 rhythm on the tab; the gap above the footer took it (14 px).
+**Preset chips** (34 h): `Chọn nhanh:` + `Ctrl+Shift mặc định` (selected: tint + `acc-line`),
+`Alt+Z như UniKey`, ``Ctrl+` ``, `Ctrl phải`.
 
 **Hanging section** (Hệ thống) — 120 px label column: 13/600 t1 aligned to the first row's label line,
 optional 12 t3 sub-line and a 12/500 accent link (`6 ứng dụng · Quản lý ›`). Both columns start with the
@@ -428,7 +450,7 @@ Earlier wording decisions still in force:
 
 | Was | Now | Why |
 |---|---|---|
-| `nhấn–nhả` | `Nhả để chuyển` | natural; the chord fires on release |
+| `nhấn–nhả` → `Nhả để chuyển` (tag in the well) | option `Kiểu chuyển bật/tắt`: `Khi nhả phím` / `Khi nhấn phím` in Nâng cao (round 5) | a two-word tag beside keycaps was unreadable out of context; a labelled option says what it controls |
 | `Trả lại đúng các phím đã gõ cho từ vừa xong` | `Đưa từ vừa gõ về đúng các phím đã bấm` | sentence, not calque |
 | bare `hòa, thúy` / `hoà, thuý` | `Kiểu cũ · hòa, thúy` / `Kiểu mới · hoà, thuý` | named choices |
 | `Âm thanh và giao diện` (section) | `Giao diện` | fits the 120 px label column on one line |

@@ -170,9 +170,10 @@ svg.i.s16{width:16px;height:16px;stroke-width:1.875}
 .cap .end .btn.icon.xs{margin-right:-1px}
 .row.rec{background:var(--acc-tint)}
 .row.rec::before,.row.rec+.row::before{opacity:0}
-.row.tall{height:66px;align-items:flex-start;padding-top:4px}
+.row.tall{height:64px;align-items:flex-start;padding-top:4px}
 .row.tall .cap{margin-top:3px}
-.row .msg{position:absolute;left:12px;right:12px;top:44px;display:flex;align-items:center;gap:6px;font:400 12px/18px var(--sm);color:var(--t2);white-space:nowrap}
+.row .msg{position:absolute;left:12px;right:12px;top:42px;display:block;font:400 12px/18px var(--sm);color:var(--warn);white-space:nowrap}
+.row .msg .i{vertical-align:-3px;margin-right:4px}
 .row .msg .i{color:var(--warn)}
 .presets{display:flex;align-items:center;gap:6px;height:34px;padding-left:0;font:400 12px/18px var(--sm);color:var(--t3);flex:none}
 .pre{display:inline-flex;align-items:center;gap:2px;height:26px;padding:0 6px 0 4px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--line-2);color:var(--t2)}
@@ -258,7 +259,7 @@ def go():
   <small>Bảng mã</small><span class="sel" style="width:164px">Unicode dựng sẵn{ic('chev','s16')}</span></span>
 </div>
 <div class="list" style="margin-top:8px">{''.join(rows)}</div>
-<div class="disc">{ic('chevr')}<b>Nâng cao</b><span class="tag n"><span class="num">8</span>&nbsp;tuỳ chọn</span><span class="m">f j w z làm phụ âm, sửa lỗi dấu gợi ý, Metro, Clipboard</span></div>
+<div class="disc">{ic('chevr')}<b>Nâng cao</b><span class="tag n"><span class="num">9</span>&nbsp;tuỳ chọn</span><span class="m">f j w z làm phụ âm, sửa lỗi dấu gợi ý, Metro, Clipboard</span></div>
 <div class="try"><span class="lab">Thử gõ</span><span class="out">Nguyễn Thu Hà ở Đường Nguyễn Văn Linh, Quận 7<span class="caret"></span></span><span class="m">Telex · Unicode</span></div>'''
 
 # ---------------------------------------------------------------- tab Gõ tắt
@@ -298,7 +299,7 @@ def hk(label, note, field, cls='', msg=''):
 
 def hotkey():
     # Every action (✕ cancel, ↺ reset, preset ▾) lives inside the well, so all wells end on x = 696.
-    f_toggle = f'<div class="cap">{k("Ctrl","Shift")}<span class="tag n" style="margin-left:6px">Nhả để chuyển</span><span class="split" title="Chọn nhanh">{ic("chev","s16")}</span></div>'
+    f_toggle = f'<div class="cap">{k("Ctrl","Shift")}<span class="split" title="Chọn nhanh">{ic("chev","s16")}</span></div>'
     f_rec = (f'<div class="cap rec">{k("Ctrl","Shift")}<span class="plus">+</span><span class="caret"></span>'
              f'<span class="end"><span class="k sm">Esc</span>huỷ<span class="btn ghost icon xs" title="Huỷ">{ic("x","s16")}</span></span></div>')
     f_method = f'<div class="cap">{k("Ctrl","Alt","V")}</div>'

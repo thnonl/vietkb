@@ -46,6 +46,22 @@ state is about Vietnamese input, not about the user's language. Tray icon stays 
 - Macro import/export is TSV per C8; `import_macros` returns the row count, never a partial import.
 - Tray tooltip: `VietKB — đang gõ tiếng Việt` / `VietKB — đã tắt tiếng Việt`.
 
+### D.1 Copy that COPY.md does not cover (written by the Lead)
+
+The toggle mode moved out of the `Phím tắt` row into `Nâng cao` on `Gõ` (round 5, option b):
+
+| Vị trí | Chuỗi | Dài |
+|---|---|---|
+| label | `Kiểu chuyển bật/tắt` | 19 |
+| option (default) | `Khi nhả phím` | 12 |
+| option | `Khi nhấn phím` | 12 |
+| description | `Nhả phím mới chuyển, hoặc đổi ngay khi nhấn.` | 45 |
+
+It maps to `hotkeys.toggle_mode = "release" | "press"` — a new field, default `release`.
+The reason it is in `Nâng cao`: a bare `Nhả để chuyển` dropdown next to keycaps was unreadable,
+and removing it from the shortcut row keeps that row at 46 px.
+
+
 ## E. Copy rules the deck got right, keep enforcing
 
 Label ≤ 30 chars · description ≤ 64 · button ≤ 16 · tab ≤ 12 · toast ≤ 72 · error ≤ 110.
