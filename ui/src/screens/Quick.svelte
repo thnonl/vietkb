@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Toggle from "../components/Toggle.svelte";
   import TitleBar from "../components/TitleBar.svelte";
   import Select from "../components/Select.svelte";
@@ -17,6 +18,47 @@
 
   let rules = $state<AppRuleRow[]>([]);
   let dialogOpen = $state(false);
+
+  // The Run key is the truth, not config.toml: a user who removed the entry in
+  // Windows' own startup settings must see the switch off here too.
+  let autostart = $state(false);
+
+  onMount(() => {
+    if (!native) {
+      autostart = settings?.system.startWithWindows ?? false;
+      return;
+    }
+    void api
+      .autostartState()
+      .then((registry) => {
+        autostart = registry;
+        if (settings && settings.system.startWithWindows !== registry) {
+          app.patch({ system: { startWithWindows: registry } });
+        }
+      })
+      .catch(() => {
+        autostart = settings?.system.startWithWindows ?? false;
+      });
+  });
+
+  const setAutostart = async (next: boolean) => {
+    if (!native) {
+      autostart = next;
+      app.patch({ system: { startWithWindows: next } });
+      return;
+    }
+    try {
+      // The command writes the Run entry and answers with what the registry
+      // now holds, so a failed write leaves the switch showing the truth.
+      autostart = await api.setAutostart(next);
+      if (settings && settings.system.startWithWindows !== autostart) {
+        app.patch({ system: { startWithWindows: autostart } });
+      }
+    } catch (failure) {
+      app.fail("Không đổi được khởi động cùng Windows", failure);
+      autostart = settings?.system.startWithWindows ?? false;
+    }
+  };
 
   const loadRules = async () => {
     if (!native) {
@@ -117,11 +159,39 @@
       </div>
     </div>
 
+    <div class="v4row sys">
+      <div class="l">
+        <b>Khởi động cùng Windows</b>
+        <span class="h">Chạy ngay khi đăng nhập Windows</span>
+      </div>
+      <div class="c">
+        <Toggle checked={autostart} label="Khởi động cùng Windows" onchange={setAutostart} />
+      </div>
+    </div>
+
+    <div class="v4row sys">
+      <div class="l">
+        <b>Chỉ chạy trong tray khi khởi động</b>
+        <span class="h">Áp dụng từ lần khởi động Windows sau</span>
+      </div>
+      <div class="c">
+        <Toggle
+          checked={settings?.system.startMinimized ?? false}
+          label="Chỉ chạy trong tray khi khởi động"
+          onchange={(next) => app.patch({ system: { startMinimized: next } })} />
+      </div>
+    </div>
+
     <footer class="v4foot">
       <button type="button" class="v4lk" onclick={() => openWindow("hotkeys")}>Phím tắt…</button>
       <button type="button" class="v4lk" onclick={() => openWindow("advanced")}>Nâng cao…</button>
       <span class="sp"></span>
-      <button type="button" class="btn ghost" onclick={quit}>Thoát VietKB</button>
+      <button
+        type="button"
+        class="btn ghost"
+        title="Thoát hẳn — đóng cả khay hệ thống"
+        aria-label="Thoát hẳn"
+        onclick={quit}>Thoát hẳn</button>
       <button type="button" class="btn pri" onclick={closeCurrent}>Đóng</button>
     </footer>
   </main>

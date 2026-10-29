@@ -43,7 +43,7 @@
 </script>
 
 <div class="v4win">
-  <TitleBar title="Nâng cao" subtitle="VietKB" />
+  <TitleBar title="Nâng cao" subtitle="VietKB" showMark={false} showMinimize={false} />
 
   <main class="v4sheet">
     <div class="v4sh">Gõ</div>

@@ -57,6 +57,12 @@ export const openConfigFolder = () => invoke<void>("open_config_folder");
 export const restartApp = () => invoke<void>("restart_app");
 export const appInfo = () => invoke<AppInfoView>("app_info");
 
+/** Additive: the `Run` key itself, read back after every write so the switch
+ *  can never claim an autostart Windows does not have. */
+export const autostartState = () => invoke<boolean>("autostart_state");
+export const setAutostart = (enabled: boolean) =>
+  invoke<boolean>("set_autostart", { enabled });
+
 /** Window management is presentation only; contract §6 commands are untouched. */
 export const openWindow = (kind: "hotkeys" | "advanced" | "macros") =>
   invoke<void>("open_window", { kind });

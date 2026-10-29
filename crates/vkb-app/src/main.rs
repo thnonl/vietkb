@@ -68,8 +68,15 @@ fn open_settings(app: &tauri::AppHandle) {
     }
 }
 
-/// Open one of the two secondary windows (or the macro table). They share the
-/// frontend bundle and select their screen from `?win=`.
+/// Open one of the three secondary windows (or the macro table) as a modal of
+/// the main window. They share the frontend bundle and select their screen from
+/// `?win=`.
+///
+/// Tauri 2 has no `modal` window flag, so modality is built from two parts:
+/// the window is *owned* by the main window (`owner`), which keeps it above its
+/// parent and destroys it with it, and the main window is disabled
+/// (`set_enabled(false)`) for as long as the modal lives. The modal is centred
+/// on the main window rather than on the monitor.
 pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     let (label, title, width, height) = match kind {
         "hotkeys" => ("hotkeys", "Phím tắt — VietKB", 520.0, 460.0),
@@ -78,34 +85,100 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         other => return Err(format!("cửa sổ không hợp lệ: {other}")),
     };
 
+    let main = app.get_webview_window(MAIN_LABEL);
+
     if let Some(window) = app.get_webview_window(label) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        if let Some(main) = &main {
+            let _ = main.set_enabled(false);
+        }
         return Ok(());
     }
 
     let url = tauri::WebviewUrl::App(format!("index.html?win={kind}").into());
-    let window = tauri::WebviewWindowBuilder::new(app, label, url)
+    let mut builder = tauri::WebviewWindowBuilder::new(app, label, url)
         .title(title)
         .inner_size(width, height)
         .resizable(false)
         .maximizable(false)
+        .minimizable(false)
         .decorations(false)
         .shadow(false)
         .transparent(false)
-        .visible(false)
-        .build()
-        .map_err(|error| error.to_string())?;
+        .visible(false);
+
+    // Owned by the main window: no orphan in the taskbar, and Windows tears it
+    // down first when the owner goes away.
+    if let Some(main) = &main {
+        builder = builder.owner(main).map_err(|error| error.to_string())?;
+    }
+
+    let window = builder.build().map_err(|error| error.to_string())?;
 
     window.show().map_err(|error| error.to_string())?;
-    centre_on_anchor_monitor(&window, app);
-    centre_on_anchor_monitor(&window, app);
+    centre_on_parent(&window, main.as_ref());
+    // Modal: the parent stops accepting input until this window is gone.
+    if let Some(main) = &main {
+        if let Err(error) = main.set_enabled(false) {
+            tracing::warn!(%error, "could not disable the main window for a modal");
+        }
+    }
     window.set_focus().map_err(|error| error.to_string())?;
     Ok(())
 }
 
-/// Build the settings window from scratch: same label, same fixed 480x384
+/// Centre a modal on the window that owns it, in physical pixels.
+fn centre_on_parent(
+    window: &tauri::WebviewWindow,
+    parent: Option<&tauri::WebviewWindow>,
+) {
+    let Some(parent) = parent else { return };
+    let (Ok(pos), Ok(parent_size), Ok(win)) = (
+        parent.outer_position(),
+        parent.outer_size(),
+        window.outer_size(),
+    ) else {
+        return;
+    };
+
+    // Exact centre of the parent in both axes: a modal wider or taller than the
+    // 480 px main window overhangs both sides by the same amount instead of
+    // hugging its top-left corner.
+    let mut x = pos.x + (parent_size.width as i32 - win.width as i32) / 2;
+    let mut y = pos.y + (parent_size.height as i32 - win.height as i32) / 2;
+
+    // …but never off the monitor the parent sits on.
+    if let Ok(Some(monitor)) = parent.current_monitor() {
+        let area = monitor.work_area();
+        let left = area.position.x;
+        let top = area.position.y;
+        let right = (left + area.size.width as i32 - win.width as i32).max(left);
+        let bottom = (top + area.size.height as i32 - win.height as i32).max(top);
+        x = x.clamp(left, right);
+        y = y.clamp(top, bottom);
+    }
+
+    if let Err(error) = window.set_position(PhysicalPosition::new(x, y)) {
+        tracing::warn!(%error, "could not centre the modal on the main window");
+    }
+}
+
+/// Labels of the modal windows that can be open at once.
+const AUX_LABELS: [&str; 3] = ["hotkeys", "advanced", "macros"];
+
+/// Close every open modal. Used before the main window goes away so no window
+/// outlives its parent.
+fn close_aux(app: &tauri::AppHandle) {
+    for label in AUX_LABELS {
+        if let Some(window) = app.get_webview_window(label) {
+            let _ = window.close();
+        }
+    }
+}
+
+/// Build the settings window from scratch: same label, same fixed 480x460
 /// frameless shell, centred on the launch monitor as it appears.
 fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let started = std::time::Instant::now();
@@ -116,7 +189,7 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title("Cài đặt VietKB")
-    .inner_size(480.0, 384.0)
+    .inner_size(480.0, 460.0)
     .resizable(false)
     .maximizable(false)
     .decorations(false)
@@ -145,34 +218,6 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
         "settings window built"
     );
     Ok(window)
-}
-
-/// Place a secondary window on the monitor that currently hosts the main
-/// window, so a 125 % main display does not hand its dialogs to a 100 % one.
-/// Falls back to the cursor's monitor, then primary/current.
-fn centre_on_anchor_monitor(window: &tauri::WebviewWindow, app: &tauri::AppHandle) {
-    let monitor = app
-        .get_webview_window(MAIN_LABEL)
-        .and_then(|main| main.current_monitor().ok().flatten())
-        .or_else(|| {
-            window
-                .cursor_position()
-                .ok()
-                .and_then(|cursor| window.monitor_from_point(cursor.x, cursor.y).ok().flatten())
-        })
-        .or_else(|| window.primary_monitor().ok().flatten())
-        .or_else(|| window.current_monitor().ok().flatten());
-    let Some(monitor) = monitor else { return };
-    let Ok(win) = window.outer_size() else { return };
-
-    let mon_pos = monitor.position();
-    let mon_size = monitor.size();
-    let x = centred_axis(mon_pos.x, mon_size.width, win.width);
-    let y = centred_axis(mon_pos.y, mon_size.height, win.height);
-
-    if let Err(error) = window.set_position(PhysicalPosition::new(x, y)) {
-        tracing::warn!(%error, "could not position secondary window");
-    }
 }
 
 /// Centre `win_len` inside the monitor span `[mon_start, mon_start + mon_len)`,
@@ -304,9 +349,11 @@ fn main() {
 
             let config = commands::config_cell().read().clone();
 
-            // Make the Run key match the saved config on every start, so a
-            // config copied between machines does not lie about autostart.
-            commands::sync_autostart_now(config.system.start_with_windows);
+            // The `Run` key is the truth for autostart, not the config file: a
+            // user who removed the entry in Windows' own startup settings must
+            // see it off, not get it silently re-created. Adopt it before the
+            // first window is built, so the switch never lies.
+            commands::adopt_autostart_registry(config.system.start_with_windows);
 
             tray::install(&handle)?;
 
@@ -337,24 +384,40 @@ fn main() {
 
             Ok(())
         })
-        // Closing the window destroys it: the tray keeps the app (and the hook)
-        // alive, and WebView2 tears its processes down with the window instead
-        // of sitting resident behind a hidden one (charter P3). Nothing is
-        // prevented here on purpose — `destroy()` from inside the close
+        // Closing the main window destroys it: the tray keeps the app (and the
+        // hook) alive, and WebView2 tears its processes down with the window
+        // instead of sitting resident behind a hidden one (charter P3). Nothing
+        // is prevented here on purpose — `destroy()` from inside the close
         // handler can fail on a wedged webview channel and leave a window that
-        // can never be closed again; the default close always destroys. The
-        // run loop's `ExitRequested` guard is what keeps the process alive
-        // after the last window is gone. A real quit is the tray menu's
-        // "Thoát VietKB". A modal (the UI's `<dialog>`, or a native dialog's
-        // own loop) swallows the close, so nothing is torn down under one.
-        .on_window_event(|_window, event| {
-            if let WindowEvent::CloseRequested { .. } = event {
+        // can never be closed again; the default close always destroys. The run
+        // loop's `ExitRequested` guard is what keeps the process alive after the
+        // last window is gone. A real quit is the tray menu's "Thoát VietKB".
+        //
+        // Modals are owned by the main window and the main window is disabled
+        // while one is open, so this is also where they are taken down: closing
+        // the parent closes its modals first (no orphan window), and closing a
+        // modal hands the main window its input back.
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { .. } => {
+                if window.label() == MAIN_LABEL {
+                    close_aux(window.app_handle());
+                }
                 // Closed to the tray, not quit: flush the P2 report now so a
                 // force-kill afterwards still leaves the file. No-op without
                 // `VKB_PERF=1`, and it runs on the backend worker.
                 #[cfg(windows)]
                 crate::windows_backend::flush_perf();
             }
+            WindowEvent::Destroyed => match window.label() {
+                MAIN_LABEL => close_aux(window.app_handle()),
+                label if AUX_LABELS.contains(&label) => {
+                    if let Some(main) = window.app_handle().get_webview_window(MAIN_LABEL) {
+                        let _ = main.set_enabled(true);
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
@@ -381,6 +444,8 @@ fn main() {
             commands::open_window,
             commands::quit_app,
             commands::app_info,
+            commands::autostart_state,
+            commands::set_autostart,
         ])
         .build(tauri::generate_context!())
         .expect("error while building VietKB");

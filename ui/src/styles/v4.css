@@ -1,5 +1,8 @@
-/* v4 window kit — one 480 × 384 main window, two secondary windows.
- * Mirrors design/{light,dark}/{quick,hotkeys,advanced}.html exactly. */
+/* v4 window kit — one 480 × 460 main window, three secondary modals.
+ * Mirrors design/{light,dark}/{quick,hotkeys,advanced}.html with two added
+ * system rows; the height is the smallest 4 px multiple that fits all eight
+ * 44 px rows, one separator, the 4 px top pad, the 36 px caption and the
+ * 56 px footer without scrolling. */
 
 .v4win {
   display: flex;
@@ -153,6 +156,20 @@
 }
 .v4row.main .l b {
   font-weight: 600;
+}
+/* System rows (autostart, tray-only start): the label sits over its hint
+ * inside the same 44 px row, so two extra rows cost exactly 88 px. */
+.v4row.sys .l {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.v4row.sys .l .h {
+  font: 400 12px/16px var(--sm);
+  color: var(--t3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .v4row .h {
   font: 400 13px/20px var(--ui);

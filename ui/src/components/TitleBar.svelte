@@ -4,13 +4,21 @@
   // Product mark, identical in every window: the keycap `V` (Vietnamese on)
   // from the approved set (design/logo11/keycap/v-20.png). The title bar never
   // switches to `E` — the tray icon carries the on/off state.
-  import mark from "../assets/keycap-v-20.png";
+  import markSrc from "../assets/keycap-v-20.png";
 
   // Frameless caption shared by all three windows. Tauri 2's
   // `data-tauri-drag-region` only drags when the press lands on the exact
   // element and maximises on double click; the fixed windows must never
   // maximise, so the bar starts the drag itself and ignores the second click.
-  let { title, subtitle = "" }: { title: string; subtitle?: string } = $props();
+  //
+  // The modal windows pass `showMark={false}` (the product mark belongs to the
+  // main window only) and `showMinimize={false}` (a modal is not a free window).
+  let {
+    title,
+    subtitle = "",
+    showMark = true,
+    showMinimize = true,
+  }: { title: string; subtitle?: string; showMark?: boolean; showMinimize?: boolean } = $props();
 
   // Theme cycle — same write path as the Advanced screen (`app.patch`), which
   // persists `settings.system.theme` and broadcasts it to every open window.
@@ -53,9 +61,11 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <header class="cap-bar" onmousedown={onPointerDown} ondblclick={(event) => event.preventDefault()}>
-  <span class="mark">
-    <img src={mark} alt="VietKB" width="20" height="20" />
-  </span>
+  {#if showMark}
+    <span class="mark">
+      <img src={markSrc} alt="VietKB" width="20" height="20" />
+    </span>
+  {/if}
   <span class="ttl">{title}{#if subtitle}<small>— {subtitle}</small>{/if}</span>
   <span class="drag"></span>
   <div class="wc">
@@ -82,15 +92,17 @@
         </svg>
       {/if}
     </button>
-    <button
-      type="button"
-      class="wbtn"
-      aria-label="Thu nhỏ"
-      title="Thu nhỏ"
-      disabled={!win}
-      onclick={minimize}>
-      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" /></svg>
-    </button>
+    {#if showMinimize}
+      <button
+        type="button"
+        class="wbtn"
+        aria-label="Thu nhỏ"
+        title="Thu nhỏ"
+        disabled={!win}
+        onclick={minimize}>
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" /></svg>
+      </button>
+    {/if}
     <button
       type="button"
       class="wbtn x"

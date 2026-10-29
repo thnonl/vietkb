@@ -326,9 +326,87 @@ fn sync_autostart(enabled: bool) {    use tauri_plugin_autostart::ManagerExt;
     }
 }
 
-/// Public entry point for `main`'s setup: applies the saved autostart value.
-pub fn sync_autostart_now(enabled: bool) {
-    sync_autostart(enabled);
+/// What the `Run` key says, independent of `config.toml`. `None` when the
+/// platform cannot answer, so callers fall back to the saved value.
+fn autostart_registry_state() -> Option<bool> {
+    #[cfg(windows)]
+    {
+        Some(vkb_windows::is_autostart_enabled())
+    }
+    #[cfg(not(windows))]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        app_handle()?.autolaunch().is_enabled().ok()
+    }
+}
+
+/// Make the saved config agree with the `Run` key before the first window is
+/// built. The registry wins: an entry removed in Windows' own startup settings
+/// must not be re-created by a stale config on the next start.
+pub fn adopt_autostart_registry(fallback: bool) {
+    let Some(actual) = autostart_registry_state() else {
+        sync_autostart(fallback);
+        return;
+    };
+
+    let changed = {
+        let mut cfg = config_cell().write();
+        if cfg.system.start_with_windows == actual {
+            false
+        } else {
+            cfg.system.start_with_windows = actual;
+            true
+        }
+    };
+    if !changed {
+        return;
+    }
+
+    let next = config_cell().read().clone();
+    if let Err(error) = vkb_config::save(&next) {
+        tracing::warn!(%error, "could not persist the adopted autostart value");
+    }
+    tracing::info!(enabled = actual, "autostart adopted from the registry");
+}
+
+/// Registry truth for the main window's switch. Reading it on load is what
+/// makes the toggle show Windows' state instead of echoing the config file.
+#[tauri::command]
+pub fn autostart_state() -> bool {
+    autostart_registry_state().unwrap_or_else(|| config_cell().read().system.start_with_windows)
+}
+
+/// Write the `Run` entry through `vkb_windows::set_autostart`, read it back and
+/// persist what the registry actually holds. Returns that value so the switch
+/// lands on the truth even when the write fails.
+#[tauri::command]
+pub fn set_autostart(enabled: bool) -> Result<bool, String> {
+    #[cfg(windows)]
+    vkb_windows::set_autostart(enabled).map_err(|error| error.to_string())?;
+
+    #[cfg(not(windows))]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        let app = app_handle().ok_or("ứng dụng chưa sẵn sàng")?;
+        let manager = app.autolaunch();
+        let result = if enabled {
+            manager.enable()
+        } else {
+            manager.disable()
+        };
+        result.map_err(|error| error.to_string())?;
+    }
+
+    let actual = autostart_registry_state().unwrap_or(enabled);
+    // The key is already what we meant; keep `after_change` from rewriting it.
+    AUTOSTART_SYNCED.store(true, Ordering::Relaxed);
+    AUTOSTART_STATE.store(actual, Ordering::Relaxed);
+
+    let mut next = config_cell().read().clone();
+    next.system.start_with_windows = actual;
+    save_and_publish(next)?;
+
+    Ok(actual)
 }
 
 pub(crate) fn save_and_publish(next: AppConfig) -> Result<SettingsView, String> {

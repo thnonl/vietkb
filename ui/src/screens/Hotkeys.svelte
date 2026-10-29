@@ -131,7 +131,7 @@
 </script>
 
 <div class="v4win">
-  <TitleBar title="Phím tắt" subtitle="VietKB" />
+  <TitleBar title="Phím tắt" subtitle="VietKB" showMark={false} showMinimize={false} />
 
   <main class="v4sheet">
     <div class="v4intro">

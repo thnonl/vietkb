@@ -7,15 +7,28 @@
   import Advanced from "./screens/Advanced.svelte";
   import Macros from "./screens/Macros.svelte";
   import { app } from "./lib/state.svelte";
+  import { closeCurrent } from "./lib/window.svelte";
 
   const kind = new URLSearchParams(window.location.search).get("win") ?? "main";
+  const modal = kind !== "main";
 
   onMount(() => {
     void app.init().then(() => {
       const theme = new URLSearchParams(window.location.search).get("theme");
       if (theme === "light" || theme === "dark") app.applyTheme(theme);
     });
-    return () => app.dispose();
+    // A modal closes on Esc as well as its `Đóng` button. A field that captured
+    // the key itself (hotkey capture) calls preventDefault, so it keeps Esc.
+    const onKey = (event: KeyboardEvent) => {
+      if (!modal || event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      closeCurrent();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      app.dispose();
+    };
   });
 </script>
 
@@ -25,7 +38,7 @@
   <Advanced />
 {:else if kind === "macros"}
   <div class="v4win">
-    <TitleBar title="Bảng gõ tắt" subtitle="VietKB" />
+    <TitleBar title="Bảng gõ tắt" subtitle="VietKB" showMark={false} showMinimize={false} />
     <main class="sheet">
       {#if app.settings}
         <Macros />
