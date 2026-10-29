@@ -50,7 +50,7 @@ Status vocabulary:
 | Chỉ modifier (`Ctrl+Shift`) | supported, fires on chord completion | covered |
 | F1/F2 cố định bật/tắt | defaults F1/F2, rebindable | covered |
 | Hai binding cho một action | one binding per action | **unverified whether EVKey really has 2** — no code evidence found |
-| Toggle theo press/release | `hotkeys.toggle_mode` stored; matcher latches on key-down | **inert** |
+| Toggle theo press/release | `hotkeys.toggle_mode` chọn lúc nhấn hay lúc nhả | **covered** | `FireMode` trong `vkb-platform`, test `release_mode_*`, `default_config_fires_on_release` |
 | Chín action: enable, disable, toggle, restore word, exclude app, macro panel, macro toggle, settings, cycle method | all nine dispatched | covered, **untested per action** |
 
 ## 3. Macros
@@ -115,7 +115,7 @@ reaches the engine** — it never did, so gõ tắt was dead at runtime; found b
    whitespace/Enter/Backspace, never set by ellipsis or digit-dot.
 7. `macro_when_disabled` — engine needs a macro-only mode; the first attempt was reverted
    because it broke tests, so it must be written test-first.
-8. `hotkeys.toggle_mode` — implement press/release, or drop the control.
+8. `hotkeys.toggle_mode` — done (press/release wired, default release).
 9. Verification debt left: each hotkey action, per-app rules, macro F8/F9.
 
 ## 8. What the resource strings add (found after the first matrix)

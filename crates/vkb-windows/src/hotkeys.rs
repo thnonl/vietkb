@@ -5,7 +5,7 @@
 
 use vkb_config::{Hotkey as ConfigHotkey, HotkeyKey, HotkeySet};
 use vkb_core::Modifiers;
-use vkb_platform::hotkeys::{Combo, Matcher};
+use vkb_platform::hotkeys::{Combo, FireMode, Matcher};
 use vkb_platform::Hotkey as Action;
 
 use crate::keys;
@@ -13,6 +13,10 @@ use crate::keys;
 /// One row per configurable action; the order is irrelevant to behaviour.
 pub fn compile(set: &HotkeySet) -> Matcher {
     let mut matcher = Matcher::new();
+    matcher.set_mode(match set.toggle_mode {
+        vkb_config::ToggleMode::Press => FireMode::Press,
+        vkb_config::ToggleMode::Release => FireMode::Release,
+    });
     let rows: [(Action, Option<&ConfigHotkey>); 9] = [
         (Action::Enable, set.enable.as_ref()),
         (Action::Disable, set.disable.as_ref()),
@@ -118,7 +122,13 @@ mod tests {
 
     #[test]
     fn default_hotkeys_compile_and_fire() {
-        let mut matcher = compile(&HotkeySet::default());
+        // Press mode keeps the historical key-down behaviour for these assertions.
+        let set = HotkeySet {
+            toggle_mode: vkb_config::ToggleMode::Press,
+            ..HotkeySet::default()
+        };
+        let mut matcher = compile(&set);
+
         // F1 F2 F11 F8 F9 plus the design defaults `Ctrl+Shift` (toggle),
         // `Ctrl+Shift+Z` (restore_word), `Ctrl+Alt+S` (open_settings) — see
         // `design/HANDOVER.md` and `70-impl-notes-ui.md`.
@@ -141,10 +151,28 @@ mod tests {
     }
 
     #[test]
+    fn default_config_fires_on_release() {
+        let set = HotkeySet::default();
+        assert_eq!(set.toggle_mode, vkb_config::ToggleMode::Release);
+        let mut matcher = compile(&set);
+        assert_eq!(matcher.mode(), FireMode::Release);
+        assert_eq!(
+            matcher.on_key(keys::VK_F1, true, Modifiers::NONE, false),
+            None
+        );
+        assert_eq!(
+            matcher.on_key(keys::VK_F1, false, Modifiers::NONE, false),
+            Some(Action::Enable),
+            "release mode fires when the key comes up"
+        );
+    }
+
+    #[test]
     fn cycle_hotkey_compiles_and_fires() {
         // The `Đổi kiểu gõ` row: unbound by default, bound here.
         let set = HotkeySet {
             cycle_method: vkb_config::Hotkey::parse("Ctrl+Alt+M").ok(),
+            toggle_mode: vkb_config::ToggleMode::Press,
             ..HotkeySet::default()
         };
         let mut matcher = compile(&set);
@@ -180,6 +208,7 @@ mod tests {
     fn modifier_only_toggle_compiles_without_a_key() {
         let set = HotkeySet {
             toggle: vkb_config::Hotkey::parse("Ctrl+Shift").ok(),
+            toggle_mode: vkb_config::ToggleMode::Press,
             ..HotkeySet::default()
         };
         let mut matcher = compile(&set);
@@ -206,6 +235,7 @@ mod tests {
     fn ctrl_alt_letter_combo_maps_to_the_letter_key() {
         let set = HotkeySet {
             open_settings: vkb_config::Hotkey::parse("Ctrl+Alt+V").ok(),
+            toggle_mode: vkb_config::ToggleMode::Press,
             ..HotkeySet::default()
         };
         let mut matcher = compile(&set);

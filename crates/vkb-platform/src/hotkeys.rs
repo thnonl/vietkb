@@ -52,6 +52,16 @@ impl Combo {
     }
 }
 
+/// When a configured combo fires.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FireMode {
+    /// As soon as the chord is complete (key-down).
+    Press,
+    /// When a key of the chord is released, once per press.
+    #[default]
+    Release,
+}
+
 /// One slot per configurable action (`enable` … `cycle_method`).
 pub const MAX_COMBOS: usize = 9;
 
@@ -60,6 +70,9 @@ pub const MAX_COMBOS: usize = 9;
 pub struct Matcher {
     combos: [Option<Combo>; MAX_COMBOS],
     latched: u16,
+    /// Combo index and action waiting for its release (release mode only).
+    pending: Option<(u8, Hotkey)>,
+    mode: FireMode,
     len: u8,
 }
 
@@ -68,8 +81,20 @@ impl Matcher {
         Self {
             combos: [None; MAX_COMBOS],
             latched: 0,
+            pending: None,
+            mode: FireMode::Press,
             len: 0,
         }
+    }
+
+    /// Choose whether combos fire on key-down or on release.
+    pub fn set_mode(&mut self, mode: FireMode) {
+        self.mode = mode;
+        self.pending = None;
+    }
+
+    pub fn mode(&self) -> FireMode {
+        self.mode
     }
 
     pub fn clear(&mut self) {
@@ -96,6 +121,7 @@ impl Matcher {
 
     pub fn discard_latches(&mut self) {
         self.latched = 0;
+        self.pending = None;
     }
 
     /// Feed one key transition.
@@ -123,12 +149,31 @@ impl Matcher {
             if down {
                 if self.latched & bit == 0 && combo.completes(vk, modifiers, is_modifier_key) {
                     self.latched |= bit;
-                    if fired.is_none() {
-                        fired = Some(combo.hotkey);
+                    match self.mode {
+                        FireMode::Press => {
+                            if fired.is_none() {
+                                fired = Some(combo.hotkey);
+                            }
+                        }
+                        FireMode::Release => {
+                            if self.pending.is_none() {
+                                self.pending = Some((i as u8, combo.hotkey));
+                            }
+                        }
                     }
                 }
             } else if self.latched & bit != 0 && !combo.still_held(vk, modifiers) {
                 self.latched &= !bit;
+                if self.mode == FireMode::Release {
+                    if let Some((index, action)) = self.pending {
+                        if index as usize == i {
+                            self.pending = None;
+                            if fired.is_none() {
+                                fired = Some(action);
+                            }
+                        }
+                    }
+                }
             }
         }
         fired
@@ -308,6 +353,73 @@ mod tests {
             Some(Hotkey::AppExclude),
             "a fresh Alt+F24 must fire again"
         );
+    }
+
+    #[test]
+    fn press_mode_fires_on_key_down() {
+        let mut m = f1_combo();
+        assert_eq!(m.mode(), FireMode::Press);
+        assert_eq!(
+            m.on_key(VK_F1, true, Modifiers::NONE, false),
+            Some(Hotkey::Enable)
+        );
+    }
+
+    #[test]
+    fn release_mode_does_not_fire_on_key_down() {
+        let mut m = f1_combo();
+        m.set_mode(FireMode::Release);
+        assert_eq!(m.on_key(VK_F1, true, Modifiers::NONE, false), None);
+    }
+
+    #[test]
+    fn release_mode_fires_on_key_up() {
+        let mut m = f1_combo();
+        m.set_mode(FireMode::Release);
+        assert_eq!(m.on_key(VK_F1, true, Modifiers::NONE, false), None);
+        assert_eq!(
+            m.on_key(VK_F1, false, Modifiers::NONE, false),
+            Some(Hotkey::Enable)
+        );
+        assert_eq!(
+            m.on_key(VK_F1, false, Modifiers::NONE, false),
+            None,
+            "one fire per press"
+        );
+    }
+
+    #[test]
+    fn modifier_only_chord_respects_the_mode() {
+        let mut m = toggle_combo();
+        m.set_mode(FireMode::Release);
+        assert_eq!(
+            m.on_key(VK_CONTROL, true, mods(true, false, false, false), true),
+            None
+        );
+        assert_eq!(
+            m.on_key(VK_SHIFT, true, mods(true, false, true, false), true),
+            None,
+            "release mode must not fire on completion"
+        );
+        assert_eq!(
+            m.on_key(VK_SHIFT, false, mods(true, false, false, false), true),
+            Some(Hotkey::Toggle)
+        );
+    }
+
+    #[test]
+    fn autorepeat_does_not_fire_twice_in_release_mode() {
+        let mut m = f1_combo();
+        m.set_mode(FireMode::Release);
+        m.on_key(VK_F1, true, Modifiers::NONE, false);
+        for _ in 0..5 {
+            assert_eq!(m.on_key(VK_F1, true, Modifiers::NONE, false), None);
+        }
+        assert_eq!(
+            m.on_key(VK_F1, false, Modifiers::NONE, false),
+            Some(Hotkey::Enable)
+        );
+        assert_eq!(m.on_key(VK_F1, false, Modifiers::NONE, false), None);
     }
 
     #[test]
