@@ -11,11 +11,42 @@ pub const TRAY_ID: &str = "vietkb-tray";
 
 const METHODS: [(&str, &str); 2] = [("telex", "Telex"), ("vni", "VNI")];
 
-fn icon_for(status: &StatusView) -> tauri::Result<tauri::image::Image<'static>> {
-    let bytes: &'static [u8] = if status.enabled {
-        include_bytes!("../icons/tray-on.png")
+// Approved keycap mark (design/logo11/keycap): `V` = Vietnamese on, `E` = off.
+// Windows takes one bitmap per tray icon, so the size is chosen from the
+// monitor scale (16 px @100 %, 20 px @125/150 %, 32 px otherwise) instead of
+// shipping a multi-size ICO.
+const ON_16: &[u8] = include_bytes!("../icons/tray-on-16.png");
+const ON_20: &[u8] = include_bytes!("../icons/tray-on-20.png");
+const ON_32: &[u8] = include_bytes!("../icons/tray-on-32.png");
+const OFF_16: &[u8] = include_bytes!("../icons/tray-off-16.png");
+const OFF_20: &[u8] = include_bytes!("../icons/tray-off-20.png");
+const OFF_32: &[u8] = include_bytes!("../icons/tray-off-32.png");
+
+/// Physical tray size for the primary monitor's scale factor.
+fn tray_px(app: &AppHandle) -> u32 {
+    let scale = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or(1.0);
+    if scale < 1.25 {
+        16
+    } else if scale < 1.75 {
+        20
     } else {
-        include_bytes!("../icons/tray-off.png")
+        32
+    }
+}
+
+fn icon_for(app: &AppHandle, status: &StatusView) -> tauri::Result<tauri::image::Image<'static>> {
+    let bytes: &'static [u8] = match (status.enabled, tray_px(app)) {
+        (true, 16) => ON_16,
+        (true, 20) => ON_20,
+        (false, 16) => OFF_16,
+        (false, 20) => OFF_20,
+        (true, _) => ON_32,
+        (false, _) => OFF_32,
     };
     tauri::image::Image::from_bytes(bytes)
 }
@@ -89,7 +120,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let menu = build_menu(app, &status)?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon_for(&status)?)
+        .icon(icon_for(app, &status)?)
         .tooltip(tooltip(&status))
         .menu(&menu)
         .show_menu_on_left_click(true)
@@ -113,7 +144,7 @@ fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
     };
     let menu = build_menu(app, status)?;
     tray.set_menu(Some(menu))?;
-    tray.set_icon(Some(icon_for(status)?))?;
+    tray.set_icon(Some(icon_for(app, status)?))?;
     tray.set_tooltip(Some(tooltip(status)))?;
     Ok(())
 }

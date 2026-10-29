@@ -14,7 +14,25 @@
   display: flex;
   align-items: center;
   padding-left: 16px;
-  gap: 8px;
+  /* 6 px column gap; the 20 px keycap sits 2 px inside its 24 px slot, so the
+   * visible space to the word is 6 + 2 = 8 px. */
+  gap: 6px;
+}
+/* Product mark slot: 24 × 24 so the 20 px keycap is optically centred (2 px
+ * all round) and the word never shifts. */
+.cap-bar .mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.cap-bar .mark img {
+  width: 20px;
+  height: 20px;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .cap-bar .ttl {
   font: 600 13px/20px var(--ui);

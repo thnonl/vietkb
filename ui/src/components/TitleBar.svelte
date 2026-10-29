@@ -1,6 +1,10 @@
 <script lang="ts">
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { app } from "../lib/state.svelte";
+  // Product mark, identical in every window: the keycap `V` (Vietnamese on)
+  // from the approved set (design/logo11/keycap/v-20.png). The title bar never
+  // switches to `E` — the tray icon carries the on/off state.
+  import mark from "../assets/keycap-v-20.png";
 
   // Frameless caption shared by all three windows. Tauri 2's
   // `data-tauri-drag-region` only drags when the press lands on the exact
@@ -49,18 +53,8 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <header class="cap-bar" onmousedown={onPointerDown} ondblclick={(event) => event.preventDefault()}>
-  <span style="display:flex">
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-label="VietKB" role="img">
-      <rect width="16" height="16" rx="4.5" style="fill:var(--acc)" />
-      <path
-        d="M6.05 5.35c0-1.2.9-2.05 2.05-2.05 1.15 0 2 .8 2 1.85 0 .9-.6 1.4-1.35 1.75-.45.2-.65.5-.65.95v.55"
-        fill="none"
-        stroke="#fff"
-        stroke-width="1.45"
-        stroke-linecap="round"
-        stroke-linejoin="round" />
-      <path d="M4.75 11.75h6.5" stroke="#fff" stroke-width="1.45" stroke-linecap="round" />
-    </svg>
+  <span class="mark">
+    <img src={mark} alt="VietKB" width="20" height="20" />
   </span>
   <span class="ttl">{title}{#if subtitle}<small>— {subtitle}</small>{/if}</span>
   <span class="drag"></span>

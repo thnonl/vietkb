@@ -103,3 +103,9 @@
   pass. `ui/dist` = 162,482 B; 720 × 560 fit on all four tabs plus the 9-row Nâng cao;
   125/150 % scale wrappers show no reflow; 680 × 520 clips the Thử gõ strip (window is
   fixed). Slot released.
+
+## 2026-10-29 — logo landed
+Keycap logo (V = bật / E = tắt) approved after eleven design passes and a Codex (gpt-6-luna) pass.
+Integrated: title-bar mark 20px in every window, tray V/E at 16/20/32 picked by DPI, icon.ico with
+16/24/32/48/64/128/256 for app + NSIS installer/uninstaller, build.rs now emits rerun-if-changed for
+the icons (a stale icon.ico had been baked into the exe). Installer 2.30 MB, SHA256 D508D111…
