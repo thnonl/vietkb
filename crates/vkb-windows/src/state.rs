@@ -225,10 +225,68 @@ impl HookRuntime {
             trace.stage("own-injection");
             return Decision::PASS;
         }
-        // Unicode packets come from an IME: leave the composition alone.
-        if vk == keys::VK_PACKET {
-            trace.stage("ime-packet");
-            return Decision::PASS;
+        let packet_char = if vk == keys::VK_PACKET {
+            let Some(ch) = char::from_u32(u32::from(info.scanCode as u16)) else {
+                trace.stage("invalid-packet");
+                return Decision::PASS;
+            };
+            if ch.is_control() {
+                trace.stage("control-packet");
+                return Decision::PASS;
+            }
+            Some(ch)
+        } else {
+            None
+        };
+
+        if let Some(ch) = packet_char {
+            let modifiers = self.mods.modifiers();
+            trace.mods(modifiers, self.mods.caps_lock);
+            trace.ch(Some(ch));
+            if !down {
+                trace.stage("key-up");
+                return Decision::PASS;
+            }
+            if self.mods.has_shortcut_modifier() {
+                trace.stage("shortcut");
+                self.reset_engine();
+                return Decision::PASS;
+            }
+            self.refresh_app();
+            self.sync_word_context();
+            if !self.effective_enabled() || self.ime_active {
+                trace.stage("inactive");
+                self.reset_engine();
+                return Decision::PASS;
+            }
+            let key = KeyInput {
+                vk,
+                scan: info.scanCode as u16,
+                ch: Some(ch),
+                modifiers,
+                down: true,
+                repeat: false,
+            };
+            let action = self.process(key);
+            trace.action(&action);
+            if action == EngineAction::ToggleEnabled {
+                trace.stage("engine-toggle");
+                self.set_enabled(!self.effective_enabled());
+                return Decision::SWALLOW;
+            }
+            let decision = decide(&action, Some(ch));
+            trace.stage(if decision.swallow { "engine-swallow" } else { "engine-pass" });
+            if decision.swallow {
+                if let Some(sink) = self.sink.as_mut() {
+                    if let Err(err) = sink.emit(action) {
+                        tracing::warn!(error = %err, "engine sink failed");
+                    }
+                } else {
+                    let sent = self.execute(&decision);
+                    trace.send(sent);
+                }
+            }
+            return decision;
         }
 
         let is_modifier = keys::is_modifier(vk);
@@ -634,6 +692,52 @@ mod tests {
     fn runtime() -> HookRuntime {
         globals::store_enabled(true);
         HookRuntime::new(None, None)
+    }
+
+    #[test]
+    fn packet_w_transforms_with_empty_word() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        // Telex `w` becomes `ư` on its own, so a packet carrying `w` must make
+        // the engine act instead of being passed through.
+        let info = KBDLLHOOKSTRUCT {
+            vkCode: u32::from(keys::VK_PACKET),
+            scanCode: u32::from('w'),
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        };
+        let decision = rt.on_event(WM_KEYDOWN, &info);
+        assert!(decision.swallow, "a packet `w` must be processed by the engine");
+    }
+
+    #[test]
+    fn plain_packet_with_empty_word_is_noop() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        let info = KBDLLHOOKSTRUCT {
+            vkCode: u32::from(keys::VK_PACKET),
+            scanCode: u32::from('a'),
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        };
+        let decision = rt.on_event(WM_KEYDOWN, &info);
+        assert!(!decision.swallow);
+    }
+
+    #[test]
+    fn control_packet_is_not_text() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        let info = KBDLLHOOKSTRUCT {
+            vkCode: u32::from(keys::VK_PACKET),
+            scanCode: 0x0008,
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        };
+        assert_eq!(rt.on_event(WM_KEYDOWN, &info), Decision::PASS);
     }
 
     #[test]

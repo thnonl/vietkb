@@ -36,7 +36,7 @@ Status vocabulary:
 | Delay giữa các lần gửi | — | removed by owner | implementation detail, không phải khái niệm người dùng |
 | Gửi bằng scancode (Standard) | `typing.send_standard` | covered | `vkb-windows/src/state.rs:164` |
 | Clipboard fallback | `typing.use_clipboard` | covered | `state.rs:169,441`, test `send_strategy_prefers_clipboard_then_standard_then_unicode` |
-| Bàn phím ảo Windows (`VK_PACKET`) | — | **missing** | `vkb-windows/src/state.rs:227-236` passes `VK_PACKET` through |
+| Bàn phím ảo Windows (`VK_PACKET`) | packet được decode và đưa qua engine | **covered** | unit tests `packet_w_transforms_with_empty_word`, `plain_packet_with_empty_word_is_noop`, `control_packet_is_not_text` |
 | Vẫn gõ khi dùng layout khác (IME Nhật) | toggle removed; gõ được ở mọi layout | **covered** (theo lựa chọn owner) | `disable_on_non_us_layout` đã gỡ |
 | Backspace xoá 1 ký tự hiển thị | same | covered | binary B1, `28-engine-rulings.md` |
 | Mở lại từ sau separator | same | covered | binary B4/D8, test `reopening_covers_separators_but_not_line_breaks` |
