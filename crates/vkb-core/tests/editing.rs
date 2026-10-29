@@ -308,7 +308,7 @@ fn a_keystroke_after_the_boundary_suppresses_reopening() {
 }
 
 #[test]
-fn reopening_is_for_the_space_only() {
+fn reopening_covers_separators_but_not_line_breaks() {
     // Enter ends the line, not just the word: no reopen, so `s` starts a word.
     let mut session = Session::new(EngineOptions::default());
     assert_eq!(session.text("Tha "), "Tha ");
@@ -316,17 +316,18 @@ fn reopening_is_for_the_space_only() {
     assert_eq!(session.backspace(), "Tha ");
     assert_eq!(session.text("s"), "Tha s");
 
-    // Tab and sentence punctuation commit too, and are not re-opened either.
+    // Tab is a separator (EVKey class 1): deleting it brings the word back.
     let mut session = Session::new(EngineOptions::default());
-    assert_eq!(session.text("Tha "), "Tha ");
-    assert_eq!(session.key(KeyInput::key(vkb_core::VK_TAB, Some('\t'))), "Tha \t");
-    assert_eq!(session.backspace(), "Tha ");
-    assert_eq!(session.text("s"), "Tha s");
+    assert_eq!(session.text("Tha"), "Tha");
+    assert_eq!(session.key(KeyInput::key(vkb_core::VK_TAB, Some('\t'))), "Tha\t");
+    assert_eq!(session.backspace(), "Tha");
+    assert_eq!(session.text("s"), "Thá");
 
+    // Sentence punctuation behaves the same way.
     let mut session = Session::new(EngineOptions::default());
     assert_eq!(session.text("Tha."), "Tha.");
     assert_eq!(session.backspace(), "Tha");
-    assert_eq!(session.text("s"), "Thas", "no remembered word to compose onto");
+    assert_eq!(session.text("s"), "Thá");
 }
 
 #[test]

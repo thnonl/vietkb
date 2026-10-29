@@ -380,11 +380,15 @@ impl Engine {
 
         // The word on screen is already correct: let the boundary key through.
         //
-        // A space is the typing separator, so the word it commits is remembered
-        // for exactly one key: a Backspace that removes the space re-opens it
-        // (`Tha` + space + BS + `s` = `Thá`). Enter, Tab and punctuation do not
-        // re-open: they end the line/field/sentence, not just the word.
-        if ch == ' ' {
+        // A separator commits the word but leaves it reachable for exactly one
+        // key: a Backspace that removes the separator re-opens it (`Tha` + space
+        // + BS + `s` = `Thá`). Which keys are separators instead of hard resets
+        // is EVKey's character class 1: `FUN_14003d480` appends a boundary entry
+        // and keeps the word, while class 3 (`0x140039740`) zeroes the word. The
+        // class table initialiser `FUN_140036b10` puts space, Tab and ASCII
+        // punctuation in class 1, and Enter with the other control characters in
+        // class 3 — so Enter ends the line and never re-opens.
+        if is_reopening_separator(ch) && !self.text.is_empty() {
             self.reopen = Some(CommittedWord {
                 raw: std::mem::take(&mut self.raw),
                 composed: std::mem::take(&mut self.composed),
@@ -493,8 +497,17 @@ impl VietnameseEngine for Engine {
         self.reopen = None;
     }
 }
+/// EVKey character class 1: keys that end the word but leave it re-openable
+/// after a Backspace. Taken from the class table initialiser `FUN_140036b10`
+/// (`DAT_1400a28e8` plus the single Tab entry): space, Tab, and every ASCII
+/// punctuation character. Enter and the other control characters are class 3
+/// (`0x140039740`) and hard-reset the word, so they never re-open.
+fn is_reopening_separator(ch: char) -> bool {
+    ch == ' ' || ch == '\t' || ch.is_ascii_punctuation()
+}
 
 fn is_word_key(method: InputMethod, ch: char) -> bool {
+
     if ch.is_ascii_alphabetic() {
         return true;
     }

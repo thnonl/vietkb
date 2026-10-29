@@ -57,36 +57,41 @@ it swallows and injects (8 × `delete count`, then the text buffer) only when
 physical Backspace reach the app. So the app's own Backspace semantics apply, and our
 `Replace { delete_units }` with `delete_units = 1` matches for Unicode output.
 
-**B3 — A word-boundary key resets the word.** `FUN_140039740` (word-break class) sets
-`[+0x1c] = -1`, `[+0x185] = -1`, and — unless the char is CR `0xd` — clears `+0xc44` and
-`[+0x189]` (`0x140039740`:87-94). A Backspace arriving after a word boundary therefore hits
-the `[+0x1c] < 0` early-return in `FUN_14003cb50`.
+**B3 — Only class 3 resets the word.** `FUN_140039740` handles class 3 (Enter and the other
+control characters) by setting `[+0x1c] = -1`, `[+0x185] = -1`, and — unless the char is CR
+`0xd` — clearing `+0xc44` and `[+0x189]` (`0x140039740`:87-94). A Backspace arriving after such
+a key then hits the `[+0x1c] < 0` early return in `FUN_14003cb50`.
 
 Charset branches still present in the engine (`[+8]+4`, `[+8]+0x14` option fields) are not
 modelled: we ship Unicode only.
 
-**B4 — EVKey does *not* reopen the word after a space.** Two independent traces of the
-decompiled tree agree: after a word-break key the engine holds `[+0x1c] = -1`
-(`0x140039740`:84-105), the next Backspace hits the early return in `FUN_14003cb50`
-(`0x14003cb50`:28-33) and the dispatcher passes the key through
-(`0x14000a590`:33-46, 70-89). Nothing in the EVKey layer reads the focused control's text
-back to rebuild the word: the only `GetGUIThreadInfo` use (`0x1400154f0`:21-39) resolves a
-window handle and never retrieves text; `+0xc48` is a remembered character code used for
-punctuation/space classification (`0x14003b5b0`:51-76), not a word cache; and
-`DAT_1400ac468` / `DAT_1400ac46c` / `DAT_1400ab460` are pending delete/output bookkeeping
-for the current keystroke, cleared by the next engine call.
+**B4 — EVKey *does* re-open the word after a separator, and the separator set is class 1.**
+The class table built by `FUN_140036b10` fills `0..32` with class 3, then writes the 33-byte
+list at `DAT_1400a28e8` — which contains space `0x20` together with every ASCII punctuation
+character — as class **1**, and Tab `0x09` as class 1 as well. So space is *not* class 3.
 
-Consequence: `Tha` → space → BS → `s` produces **`Thas`** in EVKey, not `Thá`. The reopen
-behaviour in `vkb-core` (`CommittedWord`, space only) is therefore a **VietKB extra**, not a
-clone requirement — see D8.
+Class 1 goes to `FUN_14003d480`, which appends a boundary entry (`*puVar1 = 1`) to the letter
+array, sets the last-letter index to it, and returns 0 so the app types the character itself
+(`0x14003d480`:46-60, 72-87). The word is not cleared. On Backspace, `FUN_14003cb50` pops that
+boundary entry (`0x14003cb50`:75-79) and the dispatcher lets the physical Backspace delete the
+separator (`0x14000a590`:40-47) — after which the previous word is the tail of the array
+again, so the next key composes onto it. That is the whole reopen mechanism: no text is ever
+read back from the focused control, and no extra "last word" cache exists.
 
-## D8 — Reopen after space: keep or drop
+Measured class-1 set: space, Tab, and `! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ `` { | } ~`.
 
-Our engine reopens the just-committed word when the boundary space is deleted and a letter
-follows (`tiếng…` spec case: `Tha` + space + BS + `s` → `Thá`). EVKey does not do this (B4).
-Options: keep as an intentional VietKB extra (documented, differs from EVKey), or drop it for
-byte-for-byte fidelity. Owner decision pending; until then the implemented behaviour and the
-`editing.rs` cases that assert it stay as they are.
+Consequence: `Tha` + space + BS + `s` = `Thá` in EVKey, and the same holds for Tab and for
+every punctuation character above. Enter (and other control characters) does not reopen.
+
+## D8 — Reopen: required behaviour, now matched to the binary
+
+`vkb-core` reopens the just-committed word through `CommittedWord` + `is_reopening_separator`,
+which uses the class-1 set measured in B4 (space, Tab, ASCII punctuation) and refuses to store
+an empty word. Owner ruling (2026-10-29): keep it — it is EVKey's behaviour, verified with VNI
+tone digits (`Tha` + space + BS + `1` = `Thá`), and it must also hold for VNI modifier digits
+(`6`…`9`) and for Telex letters. An earlier revision of this document claimed EVKey does not
+reopen; that came from reading the `0..32` class fill and missing that the punctuation list is
+written afterwards and reclaims space.
 
 ## Accepted nuance (QA, 2026-10-28)
 
