@@ -1,5 +1,27 @@
 ﻿# Log
 
+- 2026-10-29 **Owner decisions after the parity matrix (`86-feature-parity.md`).**
+  `system.run_as_admin` is removed rather than implemented: no elevation flow is promised.
+  `typing.suggestion_fix_1`, `suggestion_fix_2` and `typing.metro_fix` are removed: the owner
+  toggles them on Chrome and sees no difference, and our spec still marks the mechanism
+  `UNVERIFIED`, so there is nothing honest to wire. Toggle feedback becomes **two distinct
+  sounds** (on/off) instead of one system beep. `typing.disable_on_non_us_layout` is removed:
+  EVKey keeps typing under another keyboard layout (e.g. a Japanese IME) and VietKB must do the
+  same. Each removed field must keep old `config.toml` files loading.
+
+- 2026-10-29 **REA + Ghidra: EVKey engine rules read from the binary.** Ghidra 12.1.4 (+ JDK 21)
+  installed for REA 6.8.0; `analyze` plus `decompile-all` produced ~2,300 decompiled functions in
+  `reference/evkey-decomp/` (kept out of git). Confirmed chain: hook proc `FUN_14002dc90` →
+  per-key dispatcher `FUN_14000a590` → engine backspace `FUN_14003cb50` / process-char
+  `FUN_14003c8a0`; character classes are built at startup by `FUN_140036b10`. Consequences:
+  Backspace pops exactly one letter entry and EVKey lets the physical key through unless it must
+  rewrite (`delete > 1` or new text); a word is hard-reset only by class 3 (Enter and other
+  control characters), while class 1 — space, Tab and every ASCII punctuation character —
+  appends a boundary entry (`FUN_14003d480`) that a Backspace pops, which is the reopen
+  mechanism. `vkb-core` now uses that same class-1 set (`is_reopening_separator`), so
+  `Tha` + separator + BS + `s` / VNI digit composes to `Thá`. Rulings B1–B4 and D8 in
+  `28-engine-rulings.md`; 145 core tests green, workspace and clippy clean.
+
 - 2026-10-29 **Owner decision: drop the legacy charsets and VIQR.** Shipped input
   methods are now Telex and VNI only; shipped charsets are `unicode` (NFC, the only
   value the UI exposes) and `unicode_nfd` (config-file only). Deleted: the TCVN3,
