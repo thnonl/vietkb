@@ -1,9 +1,15 @@
-# VietKB keycap icons — final.
+﻿# VietKB keycap icons — final (approved artwork, tuned).
 #
-# The approved artwork from design/logo11/keycap/*-master.svg with exactly one
-# change: the 1 px outline path is removed (the owner's diagnosis was that the
-# dark outline wrapping the whole logo is what flattened it). Face, side wall,
-# light wedge, shadow and letter paths are untouched.
+# Base art: design/logo11/keycap/*-master.svg with the 1 px outline path removed
+# (owner: the dark outline wrapping the logo is what flattened it).
+# Tuning on top of that:
+#   * the lettered face is pulled in so the side wall is a thick step, and the
+#     wall is a single flat colour (the master's diagonal wedge is dropped);
+#   * light comes from the left, so the wall is darker than the pale face;
+#   * V: pink #F06D95 over #D97A1C, heavy strokes;
+#   * E: #1663B8, heavy strokes to match V;
+#   * stroke weight grows as the raster size shrinks, so 16 px stays readable;
+#   * the drawing is overscanned slightly so the taskbar icon fills its tile.
 
 $ErrorActionPreference = 'Stop'
 $out = $PSScriptRoot
@@ -12,14 +18,29 @@ $edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 $sizes = 16, 20, 24, 32, 48, 64, 128, 256
 
 $variants = @(
-  @{ name = 'v'; master = 'v-master.svg'; border = '#C94810' },
-  @{ name = 'e'; master = 'e-master.svg'; border = '#1E72D2' }
+  @{ name = 'v'; master = 'v-master.svg'; border = '#C94810'
+     wall = '#E8BFA6'; wallDeep = '#C4835A'
+     pairs = @(@('#E4507C', '#F06D95'), @('#A84A00', '#D97A1C')) },
+  @{ name = 'e'; master = 'e-master.svg'; border = '#1E72D2'
+     wall = '#A8C9E2'; wallDeep = '#6E9BC7'
+     pairs = @(@('#1C6CC6', '#1663B8')) }
 )
+
+function StrokeFor([int]$size) {
+  switch ($size) {
+    { $_ -le 20 } { 150 }
+    { $_ -le 24 } { 130 }
+    { $_ -le 32 } { 100 }
+    { $_ -le 48 } { 74 }
+    { $_ -le 64 } { 56 }
+    default { 42 }
+  }
+}
 
 Add-Type -AssemblyName System.Drawing
 
 function Render([string]$svgPath, [int]$size, [string]$pngPath) {
-  $big = Join-Path $env:TEMP "vkb-logo-$size-big.png"
+  $big = Join-Path $env:TEMP "vkb-icon-$size-big.png"
   if (Test-Path $big) { Remove-Item $big -Force }
   $edgeArgs = @(
     '--headless', '--disable-gpu', '--hide-scrollbars', '--no-first-run',
@@ -36,7 +57,9 @@ function Render([string]$svgPath, [int]$size, [string]$pngPath) {
   $g.InterpolationMode = 'HighQualityBicubic'
   $g.PixelOffsetMode = 'HighQuality'
   $g.Clear([System.Drawing.Color]::Transparent)
-  $g.DrawImage($srcImg, 0, 0, $size, $size)
+  $w = [int]($size * 1.12)
+  $off = [int](($size - $w) / 2)
+  $g.DrawImage($srcImg, $off, $off, $w, $w)
   $g.Dispose(); $srcImg.Dispose()
   if (Test-Path $pngPath) { Remove-Item $pngPath -Force }
   $bmp.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
@@ -46,12 +69,32 @@ function Render([string]$svgPath, [int]$size, [string]$pngPath) {
 
 foreach ($v in $variants) {
   $svg = Get-Content (Join-Path $src $v.master) -Raw
+
+  # outline out
   $svg = $svg -replace "<path d=""M130\.0 16\.0[^>]*fill=""$([regex]::Escape($v.border))""/>", ''
-  $svgPath = Join-Path $out "$($v.name).svg"
-  Set-Content $svgPath -Value $svg -Encoding UTF8
-  foreach ($size in $sizes) {
-    Render $svgPath $size (Join-Path $out "$($v.name)-$size.png")
+  # diagonal wedge out: one flat wall
+  $svg = $svg -replace '<g clip-path="url\(#b[ve]\)"><polygon[^>]*/></g>', ''
+  # thicker step + deeper wall
+  $svg = $svg.Replace('width="416" height="416"', 'width="396" height="396"')
+  $svg = $svg.Replace("fill=""$($v.wall)""", "fill=""$($v.wallDeep)""")
+  # letter tuning
+  foreach ($pair in $v.pairs) {
+    $svg = $svg.Replace(
+      "fill=""$($pair[0])""",
+      "fill=""$($pair[1])"" stroke=""$($pair[1])"" stroke-width=""42"" stroke-linejoin=""round"""
+    )
   }
+
+  $svgPath = Join-Path $out "$($v.name).svg"
+  foreach ($size in $sizes) {
+    $stroke = StrokeFor $size
+    $sized = $svg.Replace('stroke-width="42"', "stroke-width=""$stroke""")
+    $sizedPath = Join-Path $out "$($v.name)-$size.svg"
+    Set-Content $sizedPath -Value $sized -Encoding UTF8
+    Render $sizedPath $size (Join-Path $out "$($v.name)-$size.png")
+    Remove-Item $sizedPath -Force
+  }
+  Set-Content $svgPath -Value $svg -Encoding UTF8
 }
 
 # --- icon.ico ---------------------------------------------------------------
@@ -96,3 +139,4 @@ $sheet.Save((Join-Path $out 'compare.png'), [System.Drawing.Imaging.ImageFormat]
 $g.Dispose(); $sheet.Dispose()
 
 Get-ChildItem $out | Sort-Object Name | Select-Object Name, Length | Format-Table -AutoSize
+
