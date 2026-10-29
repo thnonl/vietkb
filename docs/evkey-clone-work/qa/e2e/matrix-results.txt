@@ -1,0 +1,22 @@
+﻿MATRIX-START
+CASE A1-modern-on expected=[hòa] actual=[hòa] PASS
+CASE A2-modern-off expected=[hoà] actual=[hoà] PASS
+CASE A3-free-on expected=[hoàn] actual=[hoàn] PASS
+CASE A4-free-off expected=[hòan] actual=[hòan] PASS
+CASE A5-jfwz-on expected=[w] actual=[w] PASS
+CASE A6-jfwz-off expected=[ư] actual=[ư] PASS
+CASE A7-autocap-on expected=[tiếng. Việt] actual=[tiếng. Việt] PASS
+CASE A8-spell-off expected=[ád] actual=[ád] PASS
+CASE A9-spell-on expected=[asd] actual=[asd] PASS
+CASE A10-macro-on expected=[Việt Nam ] actual=[Việt Nam ] PASS
+CASE A11-macro-off expected=[vn ] actual=[vn ] PASS
+CASE A12-case-on expected=[By the way ] actual=[By the way ] PASS
+CASE A13-case-off expected=[by the way ] actual=[by the way ] PASS
+CASE V1-modern-on expected=[hòa] actual=[hòa] PASS
+CASE V2-modern-off expected=[hoà] actual=[hoà] PASS
+CASE V3-free-on expected=[hoàn] actual=[hoàn] PASS
+CASE V4-free-off expected=[hòan] actual=[hòan] PASS
+CASE V5-spell-off expected=[ád] actual=[ád] PASS
+CASE V6-macro expected=[Việt Nam ] actual=[Việt Nam ] PASS
+CASE V7-case-off expected=[by the way ] actual=[by the way ] PASS
+MATRIX-DONE
