@@ -381,8 +381,8 @@ class Store {
     try {
       const done: DownloadOutcome = await api.downloadUpdate();
       this.updateNote = done.verified
-        ? `Đã tải và xác minh SHA256 — bản ${done.version}`
-        : `Đã tải bản ${done.version} (bản phát hành không kèm SHA256)`;
+        ? `Đã tải và xác minh SHA256 — bản ${done.version}. Đang cập nhật, ứng dụng sẽ tự mở lại.`
+        : `Đã tải bản ${done.version}. Đang cập nhật, ứng dụng sẽ tự mở lại.`;
       this.updateBusy = "installing";
       await api.installUpdate();
     } catch (error) {

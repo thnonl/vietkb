@@ -465,6 +465,28 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
     })
 }
 
+/// Flags handed to the NSIS installer.
+///
+/// `/S` runs it without any page, so `Cập nhật ngay` really does install by
+/// itself. `/UPDATE` is Tauri's in-place mode: the reinstall page skips the
+/// "uninstall before installing" branch, the old uninstaller never runs, and
+/// WebView2/shortcut work is skipped — files are simply overwritten.
+const INSTALLER_ARGS: [&str; 2] = ["/S", "/UPDATE"];
+
+/// The batch the app hands itself to before quitting: run the setup, then bring
+/// VietKB back. The installer kills this process (silent mode, Restart Manager),
+/// so nothing inside the app can do the relaunch itself.
+fn update_script(installer: &std::path::Path, exe: &std::path::Path) -> String {
+    let setup = installer.display();
+    let app = exe.display();
+    format!(
+        "@echo off\r\n\
+         \"{setup}\" {args}\r\n\
+         if exist \"{app}\" start \"\" \"{app}\"\r\n",
+        args = INSTALLER_ARGS.join(" ")
+    )
+}
+
 /// Launch the installer that `download_update` wrote, then leave cleanly.
 #[tauri::command]
 pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
@@ -480,14 +502,28 @@ pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
 
     #[cfg(windows)]
     {
-        std::process::Command::new(&downloaded.path)
+        let exe = std::env::current_exe()
+            .map_err(|error| format!("Không xác định được tệp chạy: {error}"))?;
+        let script_path = download_dir().join("apply-update.cmd");
+        std::fs::write(&script_path, update_script(&downloaded.path, &exe))
+            .map_err(|error| format!("Không ghi được kịch bản cập nhật: {error}"))?;
+
+        // Detached from this process, so it survives the quit below and can
+        // start the new build once the installer is done.
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("cmd.exe")
+            .arg("/C")
+            .arg(&script_path)
             .current_dir(std::env::temp_dir())
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|error| format!("Không chạy được trình cài đặt: {error}"))?;
-        // Let the installer process start before the single-instance lock and
-        // the hook are released; the app then quits through the normal path.
+
+        // Let `cmd` reach the setup before the hook and the single-instance
+        // lock are released; the installer then replaces the files.
         std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(800));
+            std::thread::sleep(Duration::from_millis(300));
             crate::quit(&app);
         });
         Ok(())
@@ -822,6 +858,32 @@ mod tests {
     #[test]
     fn the_missing_installer_message_is_the_promised_one() {
         assert_eq!(NO_INSTALLER, "Bản phát hành không có bộ cài cho Windows x64");
+    }
+
+    #[test]
+    fn the_update_installs_silently_and_in_place() {
+        // `/S` = no pages at all; `/UPDATE` = Tauri's in-place branch, which
+        // never runs the old uninstaller.
+        assert_eq!(INSTALLER_ARGS, ["/S", "/UPDATE"]);
+    }
+
+    #[test]
+    fn the_update_script_runs_the_setup_then_reopens_the_app() {
+        let script = update_script(
+            std::path::Path::new(r"C:\Users\me\AppData\Local\Temp\VietKB-update\VietKB_0.3.0_x64-setup.exe"),
+            std::path::Path::new(r"C:\Users\me\AppData\Local\VietKB\vietkb.exe"),
+        );
+        let setup = script.lines().nth(1).expect("setup line");
+        assert_eq!(
+            setup,
+            r#""C:\Users\me\AppData\Local\Temp\VietKB-update\VietKB_0.3.0_x64-setup.exe" /S /UPDATE"#
+        );
+        let relaunch = script.lines().nth(2).expect("relaunch line");
+        assert_eq!(
+            relaunch,
+            r#"if exist "C:\Users\me\AppData\Local\VietKB\vietkb.exe" start "" "C:\Users\me\AppData\Local\VietKB\vietkb.exe""#
+        );
+        assert!(script.starts_with("@echo off"));
     }
 
     #[test]

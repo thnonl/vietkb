@@ -1,6 +1,6 @@
-[package]
+﻿[package]
 name = "vkb-app"
-version = "0.2.2"
+version = "0.2.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -54,3 +54,4 @@ windows = { version = "0.62", features = [
 
 [target.'cfg(target_os = "macos")'.dependencies]
 vkb-macos = { path = "../vkb-macos" }
+
