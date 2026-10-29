@@ -1,0 +1,1 @@
+Bản đặc tả này mô tả cách engine nhận phím, cập nhật vùng đệm và trả lại chuỗi đã chuyển đổi. Mỗi thao tác phải chạy dưới một phần nghìn giây, kể cả khi người dùng giữ phím lặp liên tục. Ghi chú cho team mobile: phần UI sẽ làm sau, ưu tiên bản desktop trước.

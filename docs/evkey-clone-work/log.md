@@ -1,5 +1,20 @@
 ﻿# Log
 
+- 2026-10-29 **Paragraph-level typing E2E, Telex and VNI.** Ten paragraphs written for
+  different purposes (chat, email, technical doc, news, administrative text, marketing,
+  study notes, place names, a mixed English spec, punctuation-heavy prose) plus 95 edge
+  cases. `qa/e2e/encode-keys.ps1` turns the authored Vietnamese back into keystrokes via
+  Unicode decomposition, so one paragraph is typed in both methods. Headless engine check:
+  20/20 paragraphs, 95/95 edge cases. Desktop E2E through the real hook: 34/34.
+  Windows Sandbox cannot be used as the oracle here — it drops `KEYEVENTF_UNICODE`, so
+  accented text never reaches the target field (7 ASCII cases passed, 18 accented ones
+  failed); the harness therefore runs on the real desktop, and needed three focus fixes
+  (minimize the app panel, click-to-focus fallback, warm-up until the probe form holds the
+  foreground) before the first two cases stopped returning empty text.
+  The `w` question is settled in EVKey's favour without a code change: with `j f w z` as
+  consonants (EVKey's default) `w` stays literal, and with the option off `w → ư`,
+  `tw → tư`, `nhw → như` — `vkb simulate` grew `--no-jfwz-consonant` to test both.
+
 - 2026-10-29 **Update path verified in Windows Sandbox.** `scripts/verify-update.ps1 -Version 0.2.2`
   installed the published `v0.2.0` build, then the `v0.2.2` installer, read back
   `FileVersion 0.2.2`, uninstalled, and confirmed both the install directory and the

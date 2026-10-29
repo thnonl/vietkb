@@ -1,0 +1,96 @@
+id	method	flags	keys	expected	note
+T01	telex		as	á	sắc
+T02	telex		af	à	huyền
+T03	telex		ar	ả	hỏi
+T04	telex		ax	ã	ngã
+T05	telex		aj	ạ	nặng
+T06	telex		aa	â	circumflex
+T07	telex		aw	ă	breve
+T08	telex		ee	ê
+T09	telex		oo	ô
+T10	telex		ow	ơ	horn
+T11	telex		uw	ư	horn
+T12	telex		dd	đ	đ
+T13	telex		awf	ằ	breve + huyền
+T14	telex		awj	ặ	breve + nặng
+T15	telex		uow	ươ	horn cluster
+T16	telex		thuowng	thương	auto horn, one w
+T17	telex		thuwong	thương	auto horn, w on ư
+T18	telex		muwowif	mười	tone after horn cluster
+T19	telex		dduwowngf	đường	đ + ươ + huyền
+T20	telex		VIEETJ	VIỆT	uppercase word
+T21	telex		Vieetj Nam	Việt Nam	mixed case
+T22	telex		quoocs	quốc	qu onset keeps u
+T23	telex		gif	gì	gi onset
+T24	telex		hoaf	hòa	oa, modern tone
+T25	telex		tuyeets	tuyết	uyê + sắc
+T26	telex		huow	hươ	horn at word end
+T27	telex		looix	lỗi	oo + ngã
+T28	telex		booj	bộ	oo + nặng
+T29	telex		deadline	deadline	English passes through
+T30	telex		class	class	English cluster
+T31	telex		test	test	English, t before s
+T32	telex		review	review	English with w
+T33	telex		2024	2024	digits
+T34	telex		100%	100%	percent
+T35	telex		a  b	a  b	double space
+T36	telex		ass	as	second tone key cancels
+T37	telex		of	of	invalid syllable stays literal
+T38	telex		aws	ắ	breve + sắc
+O01	telex	--old-tone-style	hoaf	hoà	kiểu cũ
+O02	telex	--old-tone-style	xoas	xoá	kiểu cũ
+V01	vni		a1	á	sắc
+V02	vni		a2	à	huyền
+V03	vni		a3	ả	hỏi
+V04	vni		a4	ã	ngã
+V05	vni		a5	ạ	nặng
+V06	vni		a6	â	6
+V07	vni		e6	ê	6
+V08	vni		o6	ô	6
+V09	vni		o7	ơ	7
+V10	vni		u7	ư	7
+V11	vni		a8	ă	8
+V12	vni		d9	đ	9
+V13	vni		uo7	ươ	7 on uo
+V14	vni		thu7ong	thương	auto horn, 7 on ư
+V15	vni		thuo7ng	thương	7 after uo
+V16	vni		d9u7o7ng2	đường	đ + ươ + huyền
+V17	vni		nguo7i2	người	ươi + huyền
+V18	vni		TIE6NG1	TIẾNG	uppercase
+V19	vni		quo7	quơ	qu onset
+V20	vni		tie6ng1	tiếng	6 + 1
+V21	vni		2024	2024	digits
+V22	vni		deadline	deadline	English
+V23	vni		a11	a1	second digit stays literal
+V24	vni		d9o6i3	đổi	đ + ô + hỏi
+T39	telex		aas	ấ	circumflex + sắc
+T40	telex		ees	ế	circumflex + sắc
+T41	telex		oos	ố	circumflex + sắc
+T42	telex		ows	ớ	horn + sắc
+T43	telex		uws	ứ	horn + sắc
+T44	telex		AAS	Ấ	uppercase + sắc
+T45	telex		ruwowuj	rượu	ươu, tone on ơ
+T46	telex		cuwowif	cười	ươi, huyền
+T47	telex		nguowif	người	auto horn + huyền
+T48	telex		quyeets	quyết	qu + uyê
+T49	telex		gias	giá	gi onset + sắc
+T50	telex		nghieeng	nghiêng	ngh + iê
+T51	telex		ddi	đi	đ + i
+T52	telex		DDoongf	Đồng	uppercase đ + ô + huyền
+T53	telex		zz	zz	English double letter
+V25	vni		o71	ớ	7 + 1
+V26	vni		u71	ứ	7 + 1
+V27	vni		a61	ấ	6 + 1
+V28	vni		e61	ế	6 + 1
+V29	vni		o61	ố	6 + 1
+V30	vni		a81	ắ	8 + 1
+V31	vni		D9	Đ	uppercase đ
+V32	vni		U7	Ư	uppercase ư
+V33	vni		ru7o7u5	rượu	ươu + nặng
+V34	vni		zz	zz	English double letter
+W01	telex	--no-jfwz-consonant	w	ư	w alone becomes ư (option off)
+W02	telex	--no-jfwz-consonant	tw	tư	after an onset
+W03	telex	--no-jfwz-consonant	nhw	như	after a two-letter onset
+W04	telex	--no-jfwz-consonant	W	Ư	uppercase
+W05	telex		w	w	EVKey default: j f w z are consonants
+W06	telex		tw	tw	default keeps it literal

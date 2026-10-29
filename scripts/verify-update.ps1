@@ -1,5 +1,8 @@
 param(
     [string]$Version,
+    [string]$Previous,
+    [string]$Script = 'in-sandbox.ps1',
+    [string]$ResultName = 'result.txt',
     [bool]$Sandbox = $true,
     [bool]$KeepSandbox = $false
 )
@@ -8,11 +11,12 @@ $root = Split-Path -Parent $PSScriptRoot
 $share = Join-Path $root 'sandbox-share'
 $check = Join-Path $share 'update-check'
 New-Item -ItemType Directory -Force -Path $check | Out-Null
-$result = Join-Path $check 'result.txt'
+$result = Join-Path $check $ResultName
 Remove-Item $result -Force -ErrorAction SilentlyContinue
-$inner = Join-Path $check 'in-sandbox.ps1'
-Copy-Item (Join-Path $PSScriptRoot 'update-check\in-sandbox.ps1') $inner -Force
+$inner = Join-Path $check $Script
+Copy-Item (Join-Path $PSScriptRoot "update-check\$Script") $inner -Force
 if ($Version) { $env:VERSION = $Version } else { Remove-Item Env:\VERSION -ErrorAction SilentlyContinue }
+if ($Previous) { $env:PREVIOUS = $Previous } else { Remove-Item Env:\PREVIOUS -ErrorAction SilentlyContinue }
 if (-not $Sandbox) {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $inner -NoShutdown
 } else {
@@ -26,7 +30,8 @@ if (-not $Sandbox) {
 "@ | Set-Content -Encoding UTF8 $wsb
     $launch = @()
     if ($Version) { $launch += "`$env:VERSION='$Version'" }
-    $launch += 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\share\update-check\in-sandbox.ps1'
+    if ($Previous) { $launch += "`$env:PREVIOUS='$Previous'" }
+    $launch += "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\share\update-check\$Script"
     $launch | Set-Content -Encoding ASCII (Join-Path $check 'launch.ps1')
     Start-Process WindowsSandbox.exe -ArgumentList "`"$wsb`""
 }

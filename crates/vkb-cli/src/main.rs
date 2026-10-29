@@ -39,6 +39,9 @@ enum Command {
         /// Disable `Đặt dấu tự do` (the tone sticks to the vowel it hit).
         #[arg(long)]
         no_free_tone: bool,
+        /// Stop treating `j f w z` as consonants, so `w` alone becomes `ư`.
+        #[arg(long)]
+        no_jfwz_consonant: bool,
         /// Print every EngineAction instead of the produced text.
         #[arg(long)]
         actions: bool,
@@ -67,6 +70,7 @@ fn main() -> Result<()> {
             old_tone_style,
             no_spell_check,
             no_free_tone,
+            no_jfwz_consonant,
             actions,
             text,
         } => {
@@ -75,6 +79,7 @@ fn main() -> Result<()> {
                 modern_tone: !old_tone_style,
                 spell_check: !no_spell_check,
                 free_tone: !no_free_tone,
+                jfwz_as_consonant: !no_jfwz_consonant,
                 ..options_for(&method)?
             };
             if actions {

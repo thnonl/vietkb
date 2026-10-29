@@ -1,0 +1,1 @@
+Sáng nay, tại hội nghị về chuyển đổi số, các chuyên gia cho rằng việc đưa dữ liệu lên môi trường số cần đi kèm với bảo mật ngay từ khâu thiết kế. Theo báo cáo, hơn bảy mươi phần trăm doanh nghiệp nhỏ chưa có quy trình sao lưu định kỳ, trong khi số vụ tấn công vào hệ thống nội bộ vẫn tăng đều qua từng quý.

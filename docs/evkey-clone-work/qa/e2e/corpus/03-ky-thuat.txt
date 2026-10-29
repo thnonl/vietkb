@@ -1,0 +1,1 @@
+﻿Bộ gõ chạy trước tiên ở tầng hook bàn phím, sau đó chuyển từng phím cho engine xử lý rồi mới gửi lại chuỗi đã chuyển đổi. Mỗi lần gõ, ứng dụng giữ một vùng đệm nhỏ để biết chữ nào cần thay thế. Nhờ vậy, khi bạn xóa lùi hoặc bôi đen, kết quả vẫn khớp với những gì đang hiện trên màn hình, không bị lệch dấu.
