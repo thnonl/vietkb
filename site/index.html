@@ -6,8 +6,8 @@
 <title>VietKB — Bộ gõ tiếng Việt cho Windows</title>
 <meta name="description" content="VietKB là bộ gõ tiếng Việt cho Windows: Telex, VNI, gõ tắt và quy tắc theo ứng dụng. Unicode NFC/NFD, nhẹ 14 MB.">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#202020" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ECECF1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101017" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="assets/logo-v.png" type="image/png">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -17,18 +17,18 @@
 <header class="site-header">
   <div class="wrap header-inner">
     <a class="brand" href="index.html">
-      <img src="assets/logo-v.png" alt="" width="26" height="26">
-      <span>VietKB</span>
+      <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+      <span class="brand-name">VietKB</span>
     </a>
-    <div class="header-right">
-      <nav aria-label="Điều hướng chính">
-        <a href="#tinh-nang">Tính năng</a>
-        <a href="#giao-dien">Giao diện</a>
-        <a href="#cai-dat">Cài đặt</a>
-        <a href="#phat-hanh">Bản phát hành</a>
-      </nav>
-      <a class="btn btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Tải về</a>
-    </div>
+
+    <nav class="nav" aria-label="Điều hướng chính">
+      <a href="#tinh-nang">Tính năng</a>
+      <a href="#giao-dien">Giao diện</a>
+      <a href="#cai-dat">Cài đặt</a>
+      <a href="#phat-hanh">Bản phát hành</a>
+    </nav>
+
+    <a class="btn btn-primary btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Tải về</a>
   </div>
 </header>
 
@@ -37,12 +37,8 @@
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow">Bộ gõ tiếng Việt cho Windows</p>
-        <h1 id="hero-title">VietKB</h1>
-        <div class="telex-demo" aria-hidden="true">
-          <span class="telex-raw"></span><span class="telex-final">tiếng</span><span class="telex-caret"></span>
-          <button type="button" aria-label="Tạm dừng hoạt ảnh" aria-pressed="false">Ⅱ</button>
-        </div>
+        <p class="eyebrow">Bộ gõ tiếng Việt · Windows</p>
+        <h1 id="hero-title">Bàn phím của bạn,<br><span class="h1-accent">tiếng Việt</span></h1>
         <p class="pitch">Gõ tiếng Việt bằng Telex hoặc VNI. VietKB chạy gọn trong khay hệ thống, dùng bảng mã Unicode NFC hoặc NFD.</p>
 
         <div class="actions">
@@ -59,25 +55,43 @@
         </div>
 
         <p class="fineprint">
-          <span>Bản phát hành mới nhất: <span data-release="latest">v0.1.1 · 3,1 MB</span></span>
-          <span class="tag">Bản chưa ký số</span>
+          <span>Bản mới nhất: <span data-release="latest">v0.1.1 · 3,1 MB</span></span>
+          <span class="tag">Chưa ký số</span>
+          <span class="tag">Windows 10/11 · x64</span>
         </p>
+
+        <ul class="hero-specs">
+          <li><b>0,8 µs</b><span>mỗi phím, p99</span></li>
+          <li><b>14 MB</b><span>khi nằm trong khay</span></li>
+          <li><b>0,3 s</b><span>từ mở máy tới gõ</span></li>
+        </ul>
 
         <div class="kofi">
           <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'N4X728S6TT');kofiwidget2.draw();</script>
         </div>
       </div>
 
-      <figure class="hero-figure">
-        <div class="shot-frame">
-          <video class="hero-video" autoplay muted loop playsinline preload="metadata"
-                 poster="assets/hero-poster.jpg" width="1280" height="720"
-                 aria-label="Clip 16 giây: VietKB gõ tieengs thành tiếng, bốn tính năng chính, tốc độ 0,8 micro giây mỗi phím, 14 MB khi chạy trong khay, giao diện 13 điều khiển.">
-            <source src="assets/hero-motion.mp4" type="video/mp4">
-          </video>
+      <figure class="board-wrap">
+        <div class="board">
+          <div class="screen">
+            <video class="hero-video" autoplay muted loop playsinline preload="metadata"
+                   poster="assets/hero-poster.jpg" width="1280" height="720"
+                   aria-label="Clip 16 giây: VietKB gõ tieengs thành tiếng, bốn tính năng chính, tốc độ 0,8 micro giây mỗi phím, 14 MB khi chạy trong khay, giao diện 13 điều khiển.">
+              <source src="assets/hero-motion.mp4" type="video/mp4">
+            </video>
+          </div>
+
+          <div class="telex-demo" aria-hidden="true">
+            <span class="telex-raw"></span><span class="telex-final">tiếng</span><span class="telex-caret"></span>
+            <button type="button" aria-label="Tạm dừng hoạt ảnh" aria-pressed="false">Ⅱ</button>
+          </div>
+
+          <div class="keys" aria-hidden="true">
+            <span>t</span><span>i</span><span class="on">ế</span><span>n</span><span>g</span><span class="hot">s</span><span>⇧</span><span class="wide">space</span>
+          </div>
         </div>
-        <figcaption class="shot-caption">
-          Clip 16 giây: gõ <code>tieengs</code> ra <code>tiếng</code>, rồi tới tính năng, tốc độ và giao diện.
+        <figcaption class="board-caption">
+          Cùng một bàn phím: gõ <code>tieengs</code>, ra <code>tiếng</code>. Clip 16 giây ở trên tóm tắt tính năng, tốc độ và giao diện.
         </figcaption>
       </figure>
     </div>
@@ -85,12 +99,17 @@
 
   <section class="section story" id="vi-sao" aria-labelledby="story-title">
     <div class="wrap">
-      <div class="story-inner">
+      <div class="story-panel">
         <h2 id="story-title">Vì sao có VietKB</h2>
         <div class="story-body">
           <p>VietKB tập trung vào việc gõ tiếng Việt trên Windows: Telex, VNI và Unicode.</p>
           <p>Không thu phí, không quảng cáo, không ghi lại nội dung gõ. Mã nguồn mở.</p>
-          <p class="story-facts">14 MB trong khay · bộ cài khoảng 3 MB · mở cửa sổ khoảng 0,3 giây · Unicode NFC và NFD</p>
+          <p class="story-facts">
+            <span>14 MB trong khay</span>
+            <span>bộ cài khoảng 3 MB</span>
+            <span>mở cửa sổ khoảng 0,3 giây</span>
+            <span>Unicode NFC và NFD</span>
+          </p>
         </div>
       </div>
     </div>
@@ -108,88 +127,52 @@
 
       <ul class="cards">
         <li class="card">
-          <span class="icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2.5" y="6" width="19" height="12" rx="2.5"/>
-              <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/>
-            </svg>
-          </span>
+          <span class="key-id" aria-hidden="true">01</span>
           <h3>Telex và VNI</h3>
           <p>Chọn Telex hoặc VNI. Kết quả dùng Unicode NFC hoặc NFD; không hỗ trợ bảng mã khác.</p>
         </li>
-
         <li class="card">
-          <span class="icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="7.5" height="16" rx="2"/>
-              <path d="M14.5 8H21M14.5 12H21M14.5 16h4.5"/>
-            </svg>
-          </span>
+          <span class="key-id" aria-hidden="true">02</span>
           <h3>Gõ tắt</h3>
           <p>Tạo bảng gõ tắt, nhập hoặc xuất để dùng trên máy khác. Có thể bật tắt riêng, chọn theo hoa/thường; vẫn dùng được khi tắt tiếng Việt.</p>
         </li>
-
         <li class="card">
-          <span class="icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="12" height="10" rx="2"/>
-              <path d="M3 8h12"/>
-              <circle cx="17" cy="16" r="4.2"/>
-              <path d="M14.1 18.9l5.8-5.8"/>
-            </svg>
-          </span>
+          <span class="key-id" aria-hidden="true">03</span>
           <h3>Loại trừ ứng dụng</h3>
           <p>Đặt quy tắc theo ứng dụng và nhớ trạng thái bật/tắt riêng khi chuyển cửa sổ.</p>
         </li>
-
         <li class="card">
-          <span class="icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 8h12l-3.2-3.2M20 16H8l3.2 3.2"/>
-            </svg>
-          </span>
+          <span class="key-id" aria-hidden="true">04</span>
           <h3>Phím tắt tự đặt</h3>
           <p>Chín hành động có phím tắt, gồm F1, F2 và Ctrl+Shift. Có thể đổi tổ hợp phím trong cài đặt.</p>
         </li>
-
         <li class="card">
-          <span class="icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20.2 3.8a5.5 5.5 0 0 0-7.8 0L5 11.2V19h7.8l7.4-7.4a5.5 5.5 0 0 0 0-7.8Z"/>
-              <path d="M16.5 7.5 6 18"/>
-            </svg>
-          </span>
+          <span class="key-id" aria-hidden="true">05</span>
           <h3>Gọn nhẹ</h3>
           <p>14 MB khi chạy trong khay; bộ cài <span data-release="installer">3,1 MB</span>. Viết bằng Rust và Tauri 2.</p>
         </li>
-
         <li class="card">
-          <span class="icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v9"/>
-              <path d="M7.5 6.2a7.5 7.5 0 1 0 9 0"/>
-            </svg>
-          </span>
+          <span class="key-id" aria-hidden="true">06</span>
           <h3>Khay hệ thống</h3>
           <p>Nhấp trái biểu tượng V/E để bật hoặc tắt. Có thể khởi động cùng Windows, chạy ẩn và kiểm tra cập nhật trong ứng dụng.</p>
         </li>
         <li class="card">
-          <span class="icon" aria-hidden="true">⌨</span>
+          <span class="key-id" aria-hidden="true">07</span>
           <h3>Gõ chính xác</h3>
           <p>Chọn kiểu cũ hoặc mới, đặt dấu tự do, kiểm tra chính tả và tự khôi phục từ gõ sai. Có viết hoa đầu câu, phụ âm j/f/w/z và tự đổi ưo thành ươ.</p>
         </li>
         <li class="card">
-          <span class="icon" aria-hidden="true">⌁</span>
+          <span class="key-id" aria-hidden="true">08</span>
           <h3>Vùng gõ thô</h3>
           <p>Đánh dấu URL hoặc đoạn mã để VietKB không chuyển đổi nội dung.</p>
         </li>
         <li class="card">
-          <span class="icon" aria-hidden="true">◖</span>
+          <span class="key-id" aria-hidden="true">09</span>
           <h3>Bàn phím ảo</h3>
           <p>Hỗ trợ gõ tiếng Việt trên bàn phím ảo Windows (VK_PACKET).</p>
         </li>
         <li class="card">
-          <span class="icon" aria-hidden="true">♪</span>
+          <span class="key-id" aria-hidden="true">10</span>
           <h3>Âm báo trạng thái</h3>
           <p>Hai âm thanh riêng báo lúc bật và tắt tiếng Việt.</p>
         </li>
@@ -245,17 +228,17 @@
 
       <ol class="steps">
         <li class="step">
-          <span class="num" aria-hidden="true">01</span>
+          <span class="step-num" aria-hidden="true">1</span>
           <h3>Tải bộ cài</h3>
           <p>Nhấn <a href="https://github.com/thnonl/vietkb/releases/latest">Tải cho Windows</a> để lấy tệp <code>.exe</code> mới nhất từ trang phát hành.</p>
         </li>
         <li class="step">
-          <span class="num" aria-hidden="true">02</span>
+          <span class="step-num" aria-hidden="true">2</span>
           <h3>Chạy và mở</h3>
           <p>Mở tệp vừa tải, làm theo hướng dẫn cài đặt. Xong thì VietKB nằm trong khay hệ thống, sẵn sàng gõ.</p>
         </li>
         <li class="step">
-          <span class="num" aria-hidden="true">03</span>
+          <span class="step-num" aria-hidden="true">3</span>
           <h3>Gõ thử</h3>
           <p>Mở bất kỳ ô nhập nào và gõ. Nhấp trái vào biểu tượng trong khay để tắt hoặc bật lại bộ gõ.</p>
         </li>
@@ -323,8 +306,8 @@
   <div class="wrap footer-inner">
     <div class="footer-brand">
       <a class="brand" href="index.html">
-        <img src="assets/logo-v.png" alt="" width="22" height="22">
-        <span>VietKB</span>
+        <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+        <span class="brand-name">VietKB</span>
       </a>
       <p class="footer-note">Bộ gõ tiếng Việt cho Windows. Telex, VNI, Unicode NFC/NFD.</p>
     </div>
