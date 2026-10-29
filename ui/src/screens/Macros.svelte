@@ -491,7 +491,7 @@
       <textarea
         class="input"
         bind:value={editExpansion}
-        placeholder="ví dụ: được · Enter để lưu"
+        placeholder="ví dụ: được · Enter để xuống dòng"
         spellcheck="false"></textarea>
       <span class="hint">{editExpansion.length} ký tự</span>
     </label>

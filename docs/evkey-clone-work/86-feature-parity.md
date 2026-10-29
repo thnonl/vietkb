@@ -58,7 +58,7 @@ Status vocabulary:
 | EVKey | VietKB | Status |
 |---|---|---|
 | `evkmacro.txt` file | TOML `[macros]` table + UI editor, txt/tsv import-export | covered (different storage, on purpose) |
-| Trigger dài, expansion nhiều dòng | trigger ≤ `MAX_WORD` (32); expansion unbounded; core can emit `\n` | **partial** — UI editor Enter does not commit a newline, and typing `\n` into a target app is unverified |
+| Trigger dài, expansion nhiều dòng | trigger ≤ `MAX_WORD` (32); expansion unbounded; `\n`/`\r\n` được gõ thành `Return` | **covered** | test `macro_newline_is_typed_as_return`; UI Enter xuống dòng được |
 | Commit bằng Enter | `VK_RETURN` commits then appends `\r` | covered |
 | Hoa/thường theo trigger | follows the trigger when `macro_case_follow` is on (default), verbatim when off | covered, E2E A12/A13 |
 | Panel F8, bật/tắt F9 | both dispatched | covered, untested |
@@ -110,7 +110,7 @@ reaches the engine** — it never did, so gõ tắt was dead at runtime; found b
 2. Persist per-app remembered on/off to config (EVKey's `blacklist`).
 3. `VK_PACKET` — Windows virtual/touch keyboard events must reach the engine.
 4. Auto-exclusion: when injection fails for an app, fall back per app without a user rule.
-5. Multiline macro typing that really emits newlines into the target app.
+5. Multiline macro typing — done (newline sends Return, UI edits multiline).
 6. `raw_zone` again, tests-first: pending opener decided by the next key, cleared by
    whitespace/Enter/Backspace, never set by ellipsis or digit-dot.
 7. `macro_when_disabled` — engine needs a macro-only mode; the first attempt was reverted

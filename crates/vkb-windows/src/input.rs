@@ -59,40 +59,61 @@ fn push_backspace(out: &mut Vec<INPUT>, mode: SendMode) {
 }
 
 fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode) {
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            // A macro expansion may contain line breaks. A raw `\n` code unit is
+            // not a newline in an edit control, so type Return instead.
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                push_newline(out);
+            }
+            '\n' => push_newline(out),
+            other => push_char(out, other, mode),
+        }
+    }
+}
+
+fn push_newline(out: &mut Vec<INPUT>) {
+    let scan = keys::scan_for_vk(keys::VK_RETURN);
+    push_key(out, keys::VK_RETURN, scan, false);
+    push_key(out, keys::VK_RETURN, scan, true);
+}
+
+fn push_char(out: &mut Vec<INPUT>, ch: char, mode: SendMode) {
     match mode {
         SendMode::Unicode => {
-            for unit in text.encode_utf16() {
+            let mut buf = [0u16; 2];
+            for unit in ch.encode_utf16(&mut buf).iter().copied() {
                 push_unicode(out, unit, false);
                 push_unicode(out, unit, true);
             }
         }
-        SendMode::Standard => {
-            for ch in text.chars() {
-                match keys::us_vk_for_char(ch) {
-                    Some((vk, shift)) => {
-                        if shift {
-                            push_key(out, keys::VK_SHIFT, keys::scan_for_vk(keys::VK_SHIFT), false);
-                        }
-                        let scan = keys::scan_for_vk(vk);
-                        push_key(out, vk, scan, false);
-                        push_key(out, vk, scan, true);
-                        if shift {
-                            push_key(out, keys::VK_SHIFT, keys::scan_for_vk(keys::VK_SHIFT), true);
-                        }
-                    }
-                    // No key produces this character on a US layout (Vietnamese
-                    // diacritics): fall back to the Unicode event so the text is
-                    // never lost.
-                    None => {
-                        let mut buf = [0u16; 2];
-                        for unit in ch.encode_utf16(&mut buf).iter().copied() {
-                            push_unicode(out, unit, false);
-                            push_unicode(out, unit, true);
-                        }
-                    }
+        SendMode::Standard => match keys::us_vk_for_char(ch) {
+            Some((vk, shift)) => {
+                if shift {
+                    push_key(out, keys::VK_SHIFT, keys::scan_for_vk(keys::VK_SHIFT), false);
+                }
+                let scan = keys::scan_for_vk(vk);
+                push_key(out, vk, scan, false);
+                push_key(out, vk, scan, true);
+                if shift {
+                    push_key(out, keys::VK_SHIFT, keys::scan_for_vk(keys::VK_SHIFT), true);
                 }
             }
-        }
+            // No key produces this character on a US layout (Vietnamese
+            // diacritics): fall back to the Unicode event so the text is
+            // never lost.
+            None => {
+                let mut buf = [0u16; 2];
+                for unit in ch.encode_utf16(&mut buf).iter().copied() {
+                    push_unicode(out, unit, false);
+                    push_unicode(out, unit, true);
+                }
+            }
+        },
     }
 }
 
@@ -330,6 +351,21 @@ mod tests {
         );
         assert_eq!(inputs.len(), 2);
         assert_eq!(field(&inputs[0]).1, keys::scan_for_vk(keys::VK_BACK));
+    }
+
+    #[test]
+    fn macro_newline_is_typed_as_return() {
+        let mut out = Vec::new();
+        push_text(&mut out, "a\nb", SendMode::Unicode);
+        assert_eq!(out.len(), 6, "a, Return down/up, b");
+        assert_eq!(field(&out[2]).0, keys::VK_RETURN);
+        assert!(!is_up(&out[2]));
+        assert_eq!(field(&out[3]).0, keys::VK_RETURN);
+        assert!(is_up(&out[3]));
+
+        let mut crlf = Vec::new();
+        push_text(&mut crlf, "a\r\nb", SendMode::Unicode);
+        assert_eq!(crlf.len(), 6, "CRLF must collapse to one newline");
     }
 
     #[test]
