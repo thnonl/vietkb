@@ -112,7 +112,7 @@ const demoSettings: SettingsView = {
     notificationSound: true,
     startMinimized: true,
     language: "vi",
-    theme: "system",
+    theme: "dark",
     checkUpdates: true,
   },
   ui: { windowWidth: 1040, windowHeight: 720, lastTab: "overview" },
@@ -393,7 +393,7 @@ class Store {
   }
 
   applyTheme(theme: string, broadcast = true): void {
-    const next = theme === "light" || theme === "dark" ? theme : "system";
+    const next = theme === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     if (!broadcast) return;
     // Every open window (main panel + secondary) follows immediately.

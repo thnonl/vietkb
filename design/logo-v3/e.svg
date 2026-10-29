@@ -1,0 +1,26 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <solidColor id="ink" color="#1C6CC6"/>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="drop" x="-30%" y="-30%" width="160%" height="170%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
+      <feOffset dx="0" dy="12"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.25"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#drop)">
+    <!-- side wall: the silhouette drawn one wall-thickness down and right -->
+    <rect x="45" y="45" width="197" height="197" rx="30" ry="30" fill="#123F74"/>
+    <!-- face plate -->
+    <rect x="14" y="14" width="197" height="197" rx="30" ry="30" fill="#DCE9F7"/>
+    <!-- convex highlight across the top -->
+    <rect x="14" y="14" width="197" height="35" rx="30" ry="30" fill="url(#gloss)"/>
+    <text x="112.5" y="112.5" text-anchor="middle" dominant-baseline="central"
+          font-family="Segoe UI Semibold, Segoe UI, Arial" font-weight="600"
+          font-size="122" fill="#1C6CC6">E</text>
+  </g>
+</svg>

@@ -36,7 +36,7 @@ fn wav_bytes(pitch_hz: f64, ms: u32) -> Vec<u8> {
         };
         let edge = (samples as f64 * 0.08).max(1.0);
         let envelope = (i as f64 / edge).min(1.0).min(((samples - 1 - i) as f64 / edge).min(1.0));
-        let value = (phase.sin() * envelope * 12_000.0).round() as i16;
+        let value = (phase.sin() * envelope * 5_500.0).round() as i16;
         wav.extend_from_slice(&value.to_le_bytes());
     }
     wav

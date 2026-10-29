@@ -254,9 +254,11 @@ impl Default for HotkeySet {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
-    #[default]
+    /// Legacy value from older files; `AppConfig::migrated` resolves it to
+    /// `Dark` on load and the UI no longer offers it.
     System,
     Light,
+    #[default]
     Dark,
 }
 
@@ -287,7 +289,7 @@ impl Default for SystemConfig {
             notification_sound: true,
             start_minimized: true,
             language: Language::Vi,
-            theme: Theme::System,
+            theme: Theme::Dark,
             check_updates: true,
         }
     }

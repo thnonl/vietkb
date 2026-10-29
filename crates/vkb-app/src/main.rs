@@ -148,7 +148,12 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     let window = builder.build().map_err(|error| error.to_string())?;
 
     window.show().map_err(|error| error.to_string())?;
-    centre_on_parent(&window, main.as_ref());
+    match main.as_ref() {
+        Some(parent) => centre_on_parent(&window, Some(parent)),
+        // Opened from the tray: no parent to centre on, so centre on the screen
+        // the window landed on instead of leaving it at the corner.
+        None => centre_on_monitor(&window, app),
+    }
     // Modal: the parent stops accepting input until this window is gone.
     if let Some(main) = &main {
         if let Err(error) = main.set_enabled(false) {
@@ -157,6 +162,23 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     }
     window.set_focus().map_err(|error| error.to_string())?;
     Ok(())
+}
+
+/// Centre a parentless modal (opened from the tray) on its monitor's work area.
+fn centre_on_monitor(window: &tauri::WebviewWindow, app: &tauri::AppHandle) {
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten());
+    let Some(monitor) = monitor else { return };
+    let Ok(size) = window.outer_size() else { return };
+    let area = monitor.work_area();
+    let x = area.position.x + (area.size.width as i32 - size.width as i32).max(0) / 2;
+    let y = area.position.y + (area.size.height as i32 - size.height as i32).max(0) / 2;
+    if let Err(error) = window.set_position(PhysicalPosition::new(x, y)) {
+        tracing::warn!(%error, "could not centre the modal on its monitor");
+    }
 }
 
 /// Centre a modal on the window that owns it, in physical pixels.

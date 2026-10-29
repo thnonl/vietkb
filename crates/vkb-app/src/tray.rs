@@ -188,7 +188,7 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
 
     let settings = MenuItem::with_id(app, "settings", "Mở cài đặt…", true, None::<&str>)?;
     let hotkeys = MenuItem::with_id(app, "hotkeys", "Phím tắt…", true, None::<&str>)?;
-    let about = MenuItem::with_id(app, "about", "Giới thiệu VietKB…", true, None::<&str>)?;
+    let about = MenuItem::with_id(app, "about", "Giới thiệu", true, None::<&str>)?;
     // Only while a newer release is known: the item is the tray's third
     // affordance, and it must appear without a restart when the 5 s check finds
     // one (`refresh` rebuilds this menu).
@@ -208,6 +208,7 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
     let quit = MenuItem::with_id(app, "quit", "Thoát VietKB", true, None::<&str>)?;
     let sep_top = PredefinedMenuItem::separator(app)?;
     let sep_open = PredefinedMenuItem::separator(app)?;
+    let sep_about = PredefinedMenuItem::separator(app)?;
     let sep_bottom = PredefinedMenuItem::separator(app)?;
 
     let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![
@@ -217,11 +218,12 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
         &sep_open,
         &settings,
         &hotkeys,
-        &about,
+        &sep_about,
     ];
     if let Some(item) = &update_item {
         items.push(item);
     }
+    items.push(&about);
     items.push(&sep_bottom);
     items.push(&quit);
     Menu::with_items(app, &items)

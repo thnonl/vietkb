@@ -103,7 +103,7 @@ export interface AppInfoView {
   hookReady: boolean;
 }
 
-export type Theme = "system" | "light" | "dark";
+export type Theme = "light" | "dark";
 /** The panel has exactly four tabs (charter C9). */
 export type NavId = "go" | "macros" | "hotkeys" | "system";
 

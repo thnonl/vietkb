@@ -68,6 +68,11 @@ impl AppConfig {
                 rule.method = Some(InputMethod::Telex);
             }
         }
+        // The "follow Windows" theme is gone; an old file resolves to Dark once,
+        // and the next save writes the concrete value.
+        if self.system.theme == crate::schema::Theme::System {
+            self.system.theme = crate::schema::Theme::Dark;
+        }
         self
     }
 }
@@ -129,6 +134,8 @@ mod tests {
         assert_eq!(cfg.typing.modern_tone, back.typing.modern_tone);
         assert_eq!(cfg.hotkeys.enable, back.hotkeys.enable);
         assert_eq!(back.version, SCHEMA_VERSION);
+        assert!(text.contains("theme = \"dark\""), "default theme must serialize as dark:\n{text}");
+        assert_eq!(cfg, back, "default config must round-trip");
     }
 
     #[test]
@@ -244,6 +251,22 @@ dc = "được"
             let cfg = AppConfig::from_toml(&src).unwrap();
             assert_eq!(cfg.input.method, InputMethod::Telex, "method {slug}");
         }
+    }
+
+    #[test]
+    fn legacy_system_theme_migrates_to_dark() {
+        let src = r#"version = 1
+[system]
+theme = "system"
+start_with_windows = false
+language = "en"
+"#;
+        let cfg = AppConfig::from_toml(src).unwrap();
+        assert_eq!(cfg.system.theme, crate::schema::Theme::Dark);
+        assert!(!cfg.system.start_with_windows);
+        assert_eq!(cfg.system.language, crate::schema::Language::En);
+        let saved = cfg.to_toml().unwrap();
+        assert!(!saved.contains("theme = \"system\""));
     }
 
     #[test]

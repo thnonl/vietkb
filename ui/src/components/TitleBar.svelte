@@ -23,11 +23,10 @@
 
   // Theme cycle — same write path as the Advanced screen (`app.patch`), which
   // persists `settings.system.theme` and broadcasts it to every open window.
-  const ORDER = ["system", "light", "dark"] as const;
+  const ORDER = ["light", "dark"] as const;
   type Theme = (typeof ORDER)[number];
-  const LABEL: Record<Theme, string> = { system: "Theo Windows", light: "Sáng", dark: "Tối" };
-  const normalize = (value: string | undefined): Theme =>
-    value === "light" || value === "dark" ? value : "system";
+  const LABEL: Record<Theme, string> = { light: "Sáng", dark: "Tối" };
+  const normalize = (value: string | undefined): Theme => (value === "light" ? "light" : "dark");
 
   const theme = $derived(normalize(app.settings?.system.theme));
   const label = $derived(LABEL[theme]);
@@ -99,12 +98,7 @@
       aria-label={`Giao diện: ${label}. Bấm để đổi`}
       title={`Giao diện: ${label} — bấm để đổi`}
       onclick={cycleTheme}>
-      {#if nextTheme === "system"}
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <circle cx="8" cy="8" r="5.4" />
-          <path class="solid" d="M8 2.6a5.4 5.4 0 0 1 0 10.8z" />
-        </svg>
-      {:else if nextTheme === "light"}
+      {#if nextTheme === "light"}
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <circle cx="8" cy="8" r="3.1" />
           <path
