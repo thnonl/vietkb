@@ -227,6 +227,69 @@ fn backspace_reopens_the_word_the_space_committed() {
 }
 
 #[test]
+fn vni_tone_digits_reopen_a_word_after_deleted_space() {
+    let options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    for (digit, expected) in [('1', "Thá"), ('2', "Thà"), ('3', "Thả"), ('4', "Thã"), ('5', "Thạ")] {
+        let mut session = Session::new(options);
+        assert_eq!(session.text("Tha"), "Tha");
+        assert_eq!(session.text(" "), "Tha ");
+        assert_eq!(session.backspace(), "Tha");
+        assert_eq!(session.text(&digit.to_string()), expected, "digit {digit}");
+    }
+}
+
+#[test]
+fn vni_modifiers_reopen_a_word_after_deleted_space() {
+    let options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    for (word, digit, expected) in [("Tha", '6', "Thâ"), ("Thu", '7', "Thư"), ("Tha", '8', "Thă"), ("d", '9', "đ")] {
+        let mut session = Session::new(options);
+        assert_eq!(session.text(word), word);
+        assert_eq!(session.text(" "), format!("{word} "));
+        assert_eq!(session.backspace(), word);
+        assert_eq!(session.text(&digit.to_string()), expected, "{word} + {digit}");
+    }
+}
+
+#[test]
+fn vni_modifier_digit_after_non_deleted_space_is_literal() {
+    let options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    let mut session = Session::new(options);
+    assert_eq!(session.text("Tha "), "Tha ");
+    assert_eq!(session.text("6"), "Tha 6");
+}
+
+#[test]
+fn vni_tone_digit_works_without_deleted_boundary() {
+    let options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    let mut session = Session::new(options);
+    assert_eq!(session.text("Tha"), "Tha");
+    assert_eq!(session.text("1"), "Thá");
+}
+
+#[test]
+fn vni_digit_after_non_deleted_space_is_literal() {
+    let options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    let mut session = Session::new(options);
+    assert_eq!(session.text("Tha "), "Tha ");
+    assert_eq!(session.text("1"), "Tha 1");
+}
+
+#[test]
 fn a_second_backspace_after_reopening_deletes_a_character() {
     let mut session = Session::new(EngineOptions::default());
     session.text("Tha ");
