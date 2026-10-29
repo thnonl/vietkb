@@ -72,6 +72,7 @@ pub type CommandCallback = Box<dyn Fn(BackendCommand) + Send + 'static>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BackendCommand {
     Enable(bool),
+    RememberApp { process: String, enabled: bool },
     SetMethod(vkb_core::InputMethod),
     RestoreWord,
     ToggleAppExclude,

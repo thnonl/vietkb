@@ -172,6 +172,7 @@ fn apply_command(command: BackendCommand) {
             }
             update(|cfg| cfg.input.enabled = enabled);
         }
+        BackendCommand::RememberApp { process, enabled } => remember_app(process, enabled),
         BackendCommand::SetMethod(method) => update(|cfg| cfg.input.method = method),
         BackendCommand::RestoreWord => {
             // The word buffer lives on the hook thread and no config applies;
@@ -198,6 +199,19 @@ fn update(mutate: impl FnOnce(&mut AppConfig)) {
     if let Err(error) = commands::save_and_publish(draft) {
         tracing::warn!(%error, "could not persist a hook-driven change");
     }
+}
+
+/// Update the remembered state for one foreground process.
+fn remember_app(process: String, enabled: bool) {
+    update(|cfg| {
+        if let Some(rule) = cfg.apps.rules.iter_mut().find(|rule| rule.process.eq_ignore_ascii_case(&process)) {
+            rule.enabled = Some(enabled);
+        } else {
+            let mut rule = vkb_config::AppRule::new(process);
+            rule.enabled = Some(enabled);
+            cfg.apps.rules.push(rule);
+        }
+    });
 }
 
 /// "Loại trừ ứng dụng này" for whatever owns the caret right now.

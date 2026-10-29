@@ -4880,6 +4880,7 @@ dependencies = [
  "anyhow",
  "once_cell",
  "parking_lot",
+ "toml 0.8.2",
  "tracing",
  "vkb-config",
  "vkb-core",

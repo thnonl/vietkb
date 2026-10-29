@@ -345,6 +345,10 @@ impl HookRuntime {
             self.last_global = enabled;
             if self.remember_per_app && !self.app_name.is_empty() {
                 self.remembered.insert(self.app_name.clone(), enabled);
+                globals::fire_command(BackendCommand::RememberApp {
+                    process: self.app_name.clone(),
+                    enabled,
+                });
             }
             if self.sound_on {
                 sound::play_toggle(enabled);
@@ -670,6 +674,56 @@ mod tests {
         rt.set_enabled(true);
         rt.app_name = "notepad.exe".to_string();
         assert!(!rt.effective_enabled(), "notepad remembered as off");
+    }
+
+    #[test]
+    fn remembered_app_rule_round_trips_through_config() {
+        let _guard = LOCK.lock().unwrap();
+        let mut cfg = AppConfig::default();
+        cfg.apps.remember_per_app = true;
+        remember_rule(&mut cfg, "notepad.exe", false);
+        let encoded = toml::to_string(&cfg).unwrap();
+        let mut decoded: AppConfig = toml::from_str(&encoded).unwrap();
+        assert_eq!(decoded.apps.rules.len(), 1);
+        assert_eq!(decoded.apps.rules[0].enabled, Some(false));
+        remember_rule(&mut decoded, "Notepad.EXE", true);
+        let decoded: AppConfig = toml::from_str(&toml::to_string(&decoded).unwrap()).unwrap();
+        assert_eq!(decoded.apps.rules.len(), 1);
+        assert_eq!(decoded.apps.rules[0].enabled, Some(true));
+    }
+
+    fn remember_rule(cfg: &mut AppConfig, process: &str, enabled: bool) {
+        if let Some(rule) = cfg.apps.rules.iter_mut().find(|rule| rule.process.eq_ignore_ascii_case(process)) {
+            rule.enabled = Some(enabled);
+        } else {
+            let mut rule = vkb_config::AppRule::new(process);
+            rule.enabled = Some(enabled);
+            cfg.apps.rules.push(rule);
+        }
+    }
+
+    #[test]
+    fn remember_per_app_off_writes_nothing() {
+        let mut cfg = AppConfig::default();
+        cfg.apps.remember_per_app = false;
+        if cfg.apps.remember_per_app {
+            remember_rule(&mut cfg, "notepad.exe", false);
+        }
+        assert!(cfg.apps.rules.is_empty());
+    }
+
+    #[test]
+    fn startup_honours_a_persisted_disabled_rule() {
+        let _guard = LOCK.lock().unwrap();
+        let mut cfg = AppConfig::default();
+        cfg.apps.remember_per_app = true;
+        let mut rule = vkb_config::AppRule::new("notepad.exe");
+        rule.enabled = Some(false);
+        cfg.apps.rules.push(rule);
+        let mut rt = HookRuntime::new(Some(Arc::new(cfg)), None);
+        rt.app_name = "notepad.exe".to_string();
+        rt.rule = rt.cfg.as_ref().and_then(|cfg| cfg.apps.find(&rt.app_name).cloned());
+        assert!(!rt.effective_enabled());
     }
 
     #[test]
