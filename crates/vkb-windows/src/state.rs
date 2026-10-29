@@ -71,6 +71,7 @@ pub(crate) fn context_changed(prev: Option<WordContext>, next: WordContext) -> b
 pub struct HookRuntime {
     engine: Box<dyn VietnameseEngine>,
     engine_failed: bool,
+    macro_fingerprint: u64,
     options: EngineOptions,
     hotkeys: Matcher,
     mods: ModifierState,
@@ -105,6 +106,7 @@ impl HookRuntime {
         let mut runtime = Self {
             engine: Box::new(Engine::new(EngineOptions::default())),
             engine_failed: false,
+            macro_fingerprint: 0,
             options: EngineOptions::default(),
             hotkeys,
             mods: keys::seed_from_os(),
@@ -550,6 +552,31 @@ impl HookRuntime {
         if options != self.options {
             self.options = options;
             self.engine.set_options(options);
+        }
+        // Macros live outside `EngineOptions`; push them when the table
+        // actually changes, never on the keystroke path.
+        let fingerprint = self.cfg.as_ref().map_or(0, |cfg| {
+            let mut hash = 0xcbf29ce484222325u64;
+            for (trigger, expansion) in cfg.macros.iter() {
+                for byte in trigger.bytes().chain(expansion.bytes()) {
+                    hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+                }
+                hash = (hash ^ 0x1f).wrapping_mul(0x100000001b3);
+            }
+            hash
+        });
+        if fingerprint != self.macro_fingerprint {
+            self.macro_fingerprint = fingerprint;
+            let macros = self
+                .cfg
+                .as_ref()
+                .map(|cfg| {
+                    vkb_core::MacroTable::from_pairs(
+                        cfg.macros.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+                    )
+                })
+                .unwrap_or_default();
+            self.engine.set_macros(macros);
         }
     }
 
