@@ -22,17 +22,18 @@ use vkb_platform::Hotkey as Action;
 const VK_F24: u16 = 0x87;
 
 fn only_f24() -> HotkeySet {
-    let mut set = HotkeySet::default();
     // Bind exactly one action so nothing else can fire during the test.
-    set.enable = None;
-    set.disable = None;
-    set.toggle = None;
-    set.restore_word = None;
-    set.app_exclude = None;
-    set.macro_panel = Hotkey::parse("F24").ok();
-    set.macro_toggle = None;
-    set.open_settings = None;
-    set
+    HotkeySet {
+        enable: None,
+        disable: None,
+        toggle: None,
+        restore_word: None,
+        app_exclude: None,
+        macro_panel: Hotkey::parse("F24").ok(),
+        macro_toggle: None,
+        open_settings: None,
+        ..HotkeySet::default()
+    }
 }
 
 #[test]

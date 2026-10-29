@@ -27,17 +27,17 @@ Status vocabulary:
 | Tự khôi phục từ gõ sai | `typing.restore_wrong_word` | covered | `engine.rs` restore path |
 | Viết hoa đầu câu | `typing.auto_capitalize` | covered (default `false`) | `engine.rs:347`, test `auto_capitalize_after_a_sentence_end` |
 | j/f/w/z là phụ âm | `typing.jfwz_as_consonant` | covered | test `jfwz_off_lets_the_tone_keys_win` |
-| `ưo → ươ` tự động (spec A1) | `typing.auto_horn_uo` | **inert** | only `schema.rs:111`, `commands.rs:222` |
-| Vùng gõ thô URL/code (spec A9) | `typing.raw_zone` | **inert** | only `schema.rs:113`, `commands.rs:223` |
+| `ưo → ươ` tự động (spec A1) | `typing.auto_horn_uo` | **covered** | engine + tests `auto_horn_uo_*` |
+| Vùng gõ thô URL/code (spec A9) | `typing.raw_zone` | **reserved, không implement** | field giữ để migrate, UI đã gỡ, engine bỏ qua; làm lại kiểu test-trước |
 | Macro theo hoa/thường của trigger (spec A8) | `typing.macro_case_follow` | **inert**, behaviour is hard-coded | `engine.rs:408` ignores the flag |
 | Gõ tắt khi đã tắt tiếng Việt | `typing.macro_when_disabled` | **inert** | documented as not implementable today, `70-impl-notes-windows.md:176` |
-| Sửa lỗi dấu gợi ý 1/2 (Browsers, Excel) | `typing.suggestion_fix_1/2` | **inert** | spec E3/E4; no consumer outside config |
-| Hỗ trợ ứng dụng Metro | `typing.metro_fix` | **inert** | `schema.rs:101` |
-| Delay giữa các lần gửi | `typing.send_delay_us` | **inert** | no `SendInput` delay wired |
+| Sửa lỗi dấu gợi ý 1/2 (Browsers, Excel) | toggle removed; hành vi sẽ nằm trong bảng app | **removed** | owner: bật/tắt trên Chrome không đổi gì; EVKey áp dụng cho Excel/Sheets |
+| Hỗ trợ ứng dụng Metro | toggle removed | **removed** | không kiểm chứng được; bảng app sẽ xử lý nếu cần |
+| Delay giữa các lần gửi | — | removed by owner | implementation detail, không phải khái niệm người dùng |
 | Gửi bằng scancode (Standard) | `typing.send_standard` | covered | `vkb-windows/src/state.rs:164` |
 | Clipboard fallback | `typing.use_clipboard` | covered | `state.rs:169,441`, test `send_strategy_prefers_clipboard_then_standard_then_unicode` |
 | Bàn phím ảo Windows (`VK_PACKET`) | — | **missing** | `vkb-windows/src/state.rs:227-236` passes `VK_PACKET` through |
-| Vẫn gõ khi dùng layout khác (IME Nhật) | `typing.disable_on_non_us_layout` does the opposite | **different** | `foreground.rs:113-125` |
+| Vẫn gõ khi dùng layout khác (IME Nhật) | toggle removed; gõ được ở mọi layout | **covered** (theo lựa chọn owner) | `disable_on_non_us_layout` đã gỡ |
 | Backspace xoá 1 ký tự hiển thị | same | covered | binary B1, `28-engine-rulings.md` |
 | Mở lại từ sau separator | same | covered | binary B4/D8, test `reopening_covers_separators_but_not_line_breaks` |
 
@@ -71,7 +71,7 @@ Status vocabulary:
 | Nhớ trạng thái theo app | in-memory `HashMap`, lost on restart | **partial** |
 | Thêm loại trừ tự động | — | **missing** |
 | Charset/macro override trong hộp thoại app | rule model has them, dialog does not expose them | partial |
-| App có quyền Admin | `system.run_as_admin` | **inert** (no elevation path) |
+| App có quyền Admin | — | **removed by owner** | không có luồng elevation; toggle đã gỡ |
 
 ## 5. Shell, tray, update
 
@@ -91,18 +91,30 @@ Status vocabulary:
 Legacy charsets (TCVN3, VNI-Windows, VISCII, BK HCM1, VPS, UTF-8), VIQR, clipboard text
 converter, tray charset submenu, Linux/cloud/telemetry. Recorded in `log.md` 2026-10-29.
 
-## 7. Plan
+## 7. Plan (as of 2026-10-29 evening)
 
-**Wave 1 — stop lying: wire or remove every inert toggle.** Order by risk:
-1. `auto_horn_uo` (spec A1) — engine, tests.
-2. `raw_zone` (spec A9) — engine, tests.
-3. `macro_case_follow` (spec A8) — engine, tests, and make the hard-coded behaviour the default.
-4. `send_delay_us` — backend, respects 0 = off.
-5. `metro_fix` — backend compatibility path (needs a definition before code).
-6. `suggestion_fix_1/2` — browser autocomplete dismissal; spec marks the mechanism `UNVERIFIED`, so it needs a real Chrome experiment before code.
-7. `run_as_admin` — elevation relaunch + manifest, or remove the toggle.
-8. `macro_when_disabled` — needs the backend to call the engine while Vietnamese is off.
-9. `hotkeys.toggle_mode` — either implement press/release or drop the control.
+**Done in this wave.** `auto_horn_uo` implemented with tests. `run_as_admin`,
+`suggestion_fix_1/2`, `metro_fix`, `disable_on_non_us_layout` and `send_delay_us` removed from
+config, IPC and UI; old `config.toml` files still load (migration test
+`removed_settings_are_ignored_and_round_trip_without_clobbering_defaults`). `raw_zone` pulled
+back to a reserved, unimplemented field with no UI. About window: missing Tauri capability fixed
+(`about` added, tray item added, test `every_window_has_a_capability`).
+
+**Still to do, in this order.**
+1. `macro_case_follow` (spec A8) — engine + tests; the current hard-coded follow becomes the
+   `true` branch.
+2. Two distinct toggle sounds (on/off), replacing the single system beep.
+3. Built-in application table (invisible): per-exe send strategy and the Excel/Google-Sheets
+   suggestion fix that `CSuggestion`/`CSuggestion2` actually targeted.
+4. Persist per-app remembered on/off to config (EVKey's `blacklist`).
+5. `VK_PACKET` — Windows virtual/touch keyboard events must reach the engine.
+6. Auto-exclusion: when injection fails for an app, fall back per app without a user rule.
+7. Multiline macro typing that really emits newlines into the target app.
+8. `raw_zone` again, tests-first: pending opener decided by the next key, cleared by
+   whitespace/Enter/Backspace, never set by ellipsis or digit-dot.
+9. `macro_when_disabled` — backend must call the engine while Vietnamese is off.
+10. `hotkeys.toggle_mode` — implement press/release, or drop the control.
+11. Verification debt: `modern_tone`, `free_tone`, each hotkey action, per-app rules, F8/F9.
 
 **Wave 2 — EVKey features we simply do not have.**
 1. `VK_PACKET` (Windows virtual keyboard / touch keyboard) — feed those events through the engine.
@@ -114,7 +126,47 @@ converter, tray charset submenu, Linux/cloud/telemetry. Recorded in `log.md` 202
 **Wave 3 — close the verification gaps.** `modern_tone`, `free_tone`, each hotkey action,
 per-app rules, macro F8/F9. Add asserting tests; the audit found none.
 
-## 8. Open questions for the owner
+## 8. What the resource strings add (found after the first matrix)
+
+EVKey's own config vocabulary, read from its resources: `setting`, `blacklist`,
+`user_method_input`, `\setting.ini`, `SGui`, `SInput`, `RAdmin`, `DisFOK`, `CSuggestion`,
+`CSuggestion2`, `ICCharset`, `CUnicode`, `CTIcon`.
+
+| EVKey key | meaning | VietKB |
+|---|---|---|
+| `blacklist` | per-app exclusion list, persisted in `setting.ini` | `apps.rules` exists; remembered on/off is session-only |
+| `user_method_input` | **custom input method**: the user maps keys to transforms, stored as rules | **missing** |
+| `RAdmin` | run as administrator | removed by owner (no elevation flow) |
+| `DisFOK` | disable Vietnamese when another keyboard layout is active | owner chose EVKey's behaviour: keep typing |
+| `CSuggestion`, `CSuggestion2` | the two suggestion fixes | toggles removed; the *behaviour* should be built in per app instead |
+| `ICCharset`, `CUnicode` | charset choice | dropped by design |
+| `CTIcon` | tray icon style | we ship V/E only, on purpose |
+
+Built-in application table (exe names found side by side in the resource area): `misa sme.net`,
+`epic.exe`, `sfive.exe`, `slimjet.exe`, `- microsoft excel`, `safari.exe`, `- google trang tính`,
+`iexplore.exe`, `microsoftedge.exe`, `firefox.exe`, `vivaldi.exe`, `kinza.exe`, `terminal.exe`,
+`viber.exe`, `emeditor.exe`, `mindmanager.exe`, `audition.exe`, `crossfire.dat`,
+`winuapentry.exe`. EVKey ships **invisible per-app fixes** for these — the user never sees a
+toggle. That is why `CSuggestion` exists: it targets Excel and Google Sheets, not Chrome.
+
+Transform vocabulary in the same area (the custom-method editor): `Xoá dấu`,
+`Dấu Sắc/Huyền/Hỏi/Ngã/Nặng`, `Dấu mũ`, `Dấu móc`, `Dấu gạch d`, `Char ă/â/đ/ê/ô/ơ/ư` in both
+cases, `Horn for uo becomes ươ`, `Horn for a, u, o … or Char ư except start of word`.
+So EVKey's engine is not "Telex + VNI": it is a **rule table** the user can edit.
+
+## 9. Owner decisions, second round (2026-10-29)
+
+1. **Custom input method (`user_method_input`): dropped.** Telex and VNI cover the real use;
+   a rule-table editor is a large surface (schema, engine, editor UI, migration) for a feature
+   the owner does not want to maintain. Recorded here so it is not rediscovered as a "gap".
+2. **Built-in application table: to be implemented, invisible.** Per-exe behaviour for the apps
+   in EVKey's list (Excel, Google Sheets, browsers, Viber, EmEditor, MindManager, Audition,
+   terminal, the games, `winuapentry.exe`), with no user-facing toggle. This is where the two
+   "suggestion fixes" belong, which is why removing those toggles loses nothing.
+3. **Per-app remembered state: persist to config**, like EVKey's `blacklist`, instead of dying
+   with the session.
+
+## 10. Open questions for the owner
 
 1. EVKey's `suggestion_fix` mechanism is `UNVERIFIED` in our spec; do we run a real Chrome/Excel
    experiment (real keyboard, since EVKey ignores injected keys) before implementing?

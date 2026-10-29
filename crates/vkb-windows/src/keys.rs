@@ -298,7 +298,6 @@ pub fn scan_for_vk(vk: u16) -> u16 {
         VK_MENU | VK_LMENU => 0x38,
         VK_SPACE => 0x39,
         VK_CAPITAL => 0x3A,
-        VK_F1 => 0x3B,
         VK_F24 => 0x76,
         0x70..=0x7B => 0x3B + (vk - VK_F1), // F1..F12
         VK_F13..=0x87 => 0x64 + (vk - 0x7C), // F13..F24

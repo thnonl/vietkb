@@ -169,10 +169,13 @@ impl Engine {
     }
 
     fn word_key(&mut self, ch: char) -> EngineAction {
-        if self.raw.len() >= MAX_WORD {
-            // Beyond the cap: commit what is on screen and start over.
+        let committed = if self.raw.len() >= MAX_WORD {
+            // Commit the capped word, then start the new word with this key.
             self.reset_word();
-        }
+            true
+        } else {
+            false
+        };
         let ch = if self.caps_pending && ch.is_ascii_alphabetic() {
             ch.to_ascii_uppercase()
         } else {
@@ -185,7 +188,14 @@ impl Engine {
         self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
         let action = self.diff(&next, Some(ch));
         self.text = next;
-        action
+        if committed {
+            EngineAction::ReplaceThenPass {
+                delete_units: 0,
+                insert: self.text.iter().take(self.text.len().saturating_sub(1)).collect(),
+            }
+        } else {
+            action
+        }
     }
 
     /// One displayed character per press: the last composed *letter*, not the
@@ -426,8 +436,7 @@ impl Engine {
         if raw_matches(&self.raw, COMPAT_RESTORE_RAW) {
             return true;
         }
-        self.options.spell_check
-            && !spell::is_valid_syllable(&self.composed.letters, self.options.jfwz_as_consonant)
+        !spell::is_valid_syllable(&self.composed.letters, self.options.jfwz_as_consonant)
     }
 }
 
@@ -645,3 +654,4 @@ mod tests {
         assert_eq!(engine.composed.tone, Tone::Grave);
     }
 }
+

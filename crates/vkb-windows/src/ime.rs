@@ -32,11 +32,10 @@ pub fn composition_active(hwnd: isize) -> bool {
     }
 }
 
-/// Resolve a character with the OS translator (non-US layouts only).
+/// Resolve a character with the OS translator as a general fallback.
 ///
-/// `ToUnicode` consults the *thread's* active layout, so this is used only when
-/// the foreground window's layout is not US; the common path uses the pure
-/// US table in [`crate::keys`].
+/// `ToUnicode` consults the *thread's* active layout; the common path uses the
+/// pure US table in [`crate::keys`].
 pub fn to_unicode(vk: u16, scan: u16, state: &[u8; 256]) -> Option<char> {
     let mut buffer = [0u16; 8];
     let length = unsafe { ToUnicode(vk as u32, scan as u32, Some(state), &mut buffer, 0) };

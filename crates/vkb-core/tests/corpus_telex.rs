@@ -96,6 +96,22 @@ fn w_marks_both_u_and_o_in_uo_compounds() {
 }
 
 #[test]
+fn auto_horn_uo_promotes_after_legal_final_or_vowel_continuation() {
+    check(telex(), &[("thuwong", "thương"), ("muwoi", "mươi"), ("huo", "huo")]);
+}
+
+#[test]
+fn auto_horn_uo_can_be_disabled() {
+    let options = EngineOptions { auto_horn_uo: false, raw_zone: false, ..EngineOptions::default() };
+    check(options, &[("thuwong", "thưong"), ("muwoi", "mưoi")]);
+}
+
+#[test]
+fn uow_transform_and_normal_typing_are_unchanged() {
+    check(telex(), &[("uow", "ươ"), ("thuong", "thuong")]);
+}
+
+#[test]
 fn uppercase_propagation() {
     check(
         telex(),

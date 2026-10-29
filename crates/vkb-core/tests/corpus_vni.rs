@@ -37,6 +37,31 @@ fn basic_words() {
 }
 
 #[test]
+fn auto_horn_uo_promotes_after_legal_final_or_vowel_continuation() {
+    check(vni(), &[("thu7ong", "thương"), ("tu7oi", "tươi")]);
+}
+
+#[test]
+fn auto_horn_uo_can_be_disabled() {
+    let options = EngineOptions {
+        auto_horn_uo: false,
+        ..vni()
+    };
+    check(options, &[("thu7ong", "thưong"), ("tu7oi", "tưoi")]);
+}
+
+#[test]
+fn explicit_vni_horn_cluster_works_with_auto_horn_uo_disabled() {
+    let enabled = vni();
+    let disabled = EngineOptions {
+        auto_horn_uo: false,
+        ..vni()
+    };
+    check(enabled, &[("thuo7ng", "thương"), ("thuo7i", "thươi")]);
+    check(disabled, &[("thuo7ng", "thương"), ("thuo7i", "thươi")]);
+}
+
+#[test]
 fn modifier_keys() {
     check(
         vni(),
@@ -47,6 +72,7 @@ fn modifier_keys() {
             ("a8", "ă"),
             ("o7", "ơ"),
             ("u7", "ư"),
+            ("u7a", "ưa"),
             ("d9", "đ"),
         ],
     );

@@ -33,9 +33,13 @@ pub static STOP: AtomicBool = AtomicBool::new(false);
 /// Thread id of the hook thread, for `PostThreadMessageW`. 0 = not running.
 pub static THREAD_ID: AtomicU32 = AtomicU32::new(0);
 
-pub static HOTKEY_CB: Mutex<Option<Arc<dyn Fn(Hotkey) + Send + Sync>>> = Mutex::new(None);
-pub static ENABLED_CB: Mutex<Option<Arc<dyn Fn(bool) + Send + Sync>>> = Mutex::new(None);
-pub static COMMAND_CB: Mutex<Option<Arc<dyn Fn(BackendCommand) + Send + Sync>>> = Mutex::new(None);
+type HotkeySlot = Mutex<Option<Arc<dyn Fn(Hotkey) + Send + Sync>>>;
+type EnabledSlot = Mutex<Option<Arc<dyn Fn(bool) + Send + Sync>>>;
+type CommandSlot = Mutex<Option<Arc<dyn Fn(BackendCommand) + Send + Sync>>>;
+
+pub static HOTKEY_CB: HotkeySlot = Mutex::new(None);
+pub static ENABLED_CB: EnabledSlot = Mutex::new(None);
+pub static COMMAND_CB: CommandSlot = Mutex::new(None);
 
 /// Config the hook re-reads on demand.
 pub static CONFIG: Mutex<Option<SharedConfig>> = Mutex::new(None);

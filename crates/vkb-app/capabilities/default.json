@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "VietKB settings window: no filesystem or shell access beyond the dialogs it asks for.",
-  "windows": ["main", "hotkeys", "advanced", "macros"],
+  "windows": ["main", "hotkeys", "advanced", "macros", "about"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

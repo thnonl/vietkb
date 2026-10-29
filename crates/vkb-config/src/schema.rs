@@ -91,14 +91,6 @@ pub struct TypingConfig {
     pub spell_check: bool,
     /// `Tự động khôi phục phím với từ sai` (only meaningful with `spell_check`).
     pub restore_wrong_word: bool,
-    /// `Tắt TV khi Layout bàn phím khác US`.
-    pub disable_on_non_us_layout: bool,
-    /// `Sửa lỗi dấu của Gợi ý 1` — browser/Excel autocomplete interference, level 1.
-    pub suggestion_fix_1: bool,
-    /// `Sửa lỗi dấu của Gợi ý 2` — aggressive variant, off by default.
-    pub suggestion_fix_2: bool,
-    /// `Hỗ trợ ứng dụng Metro` — UWP/Mail/OneNote workaround.
-    pub metro_fix: bool,
     /// `Gửi phím kiểu chuẩn` — standard scancode injection instead of the fast path.
     pub send_standard: bool,
     /// `Sử dụng Clipboard để gửi phím` — last-resort delivery for stubborn apps.
@@ -113,9 +105,6 @@ pub struct TypingConfig {
     pub raw_zone: bool,
     /// `Viết hoa theo từ tắt` — macro output follows the trigger's capitalisation.
     pub macro_case_follow: bool,
-    /// Delay between synthetic keys / injected key events, microseconds
-    /// (`Nâng cao`, default 0, range 0–5000; 0 = engine default).
-    pub send_delay_us: u32,
 }
 
 impl Default for TypingConfig {
@@ -127,10 +116,6 @@ impl Default for TypingConfig {
             auto_capitalize: false,
             spell_check: true,
             restore_wrong_word: false,
-            disable_on_non_us_layout: true,
-            suggestion_fix_1: true,
-            suggestion_fix_2: false,
-            metro_fix: false,
             send_standard: false,
             use_clipboard: false,
             macro_enabled: true,
@@ -138,7 +123,6 @@ impl Default for TypingConfig {
             auto_horn_uo: true,
             raw_zone: true,
             macro_case_follow: true,
-            send_delay_us: 0,
         }
     }
 }
@@ -288,7 +272,6 @@ pub enum Language {
 #[serde(default)]
 pub struct SystemConfig {
     pub start_with_windows: bool,
-    pub run_as_admin: bool,
     pub notification_sound: bool,
     /// Start hidden in the tray without showing the window.
     pub start_minimized: bool,
@@ -301,7 +284,6 @@ impl Default for SystemConfig {
     fn default() -> Self {
         Self {
             start_with_windows: true,
-            run_as_admin: false,
             notification_sound: true,
             start_minimized: true,
             language: Language::Vi,

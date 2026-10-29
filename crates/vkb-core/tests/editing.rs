@@ -460,6 +460,29 @@ fn word_cap_commit_and_restart() {
 }
 
 #[test]
+fn word_cap_keeps_the_keystroke_that_starts_the_next_word() {
+    // `a` cannot be used here: the D3 escape rule collapses repeated trigger letters.
+    let telex = "b".repeat(MAX_WORD + 1);
+    assert_eq!(simulate(EngineOptions::default(), &telex), telex);
+
+    let vni_options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    let vni_letters = "b".repeat(MAX_WORD + 1);
+    assert_eq!(simulate(vni_options, &vni_letters), vni_letters);
+    let vni_digit = format!("{}1", "b".repeat(MAX_WORD));
+    assert_eq!(simulate(vni_options, &vni_digit), vni_digit);
+
+    let vni = "1".repeat(MAX_WORD + 1);
+    let options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    assert_eq!(simulate(options, &vni), vni);
+}
+
+#[test]
 fn auto_capitalize_after_a_sentence_end() {
     let options = EngineOptions {
         auto_capitalize: true,

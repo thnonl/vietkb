@@ -1,5 +1,17 @@
 ﻿# Log
 
+- 2026-10-29 **Owner, second parity round.** Custom input methods (`user_method_input`) are
+  dropped: Telex/VNI cover the real use and a rule-table editor is a large surface nobody wants
+  to maintain. EVKey's hidden per-application table (Excel, Google Sheets, browsers, Viber,
+  EmEditor, MindManager, Audition, terminal, games, `winuapentry.exe`) **is** implemented, with
+  no toggle — that is where `CSuggestion`/`CSuggestion2` actually belong. Per-app remembered
+  on/off is persisted to config like EVKey's `blacklist`.
+
+- 2026-10-29 **Owner: two more settings removed.** `typing.send_delay_us` goes away entirely —
+  a per-keystroke delay is an implementation detail, not something a user can reason about, and
+  the field was never wired. The theme picker leaves `Nâng cao`: `system.theme` stays in the
+  config because the title-bar switch owns it, but only one control may exist.
+
 - 2026-10-29 **Owner decisions after the parity matrix (`86-feature-parity.md`).**
   `system.run_as_admin` is removed rather than implemented: no elevation flow is promised.
   `typing.suggestion_fix_1`, `suggestion_fix_2` and `typing.metro_fix` are removed: the owner

@@ -85,7 +85,6 @@ pub struct HookRuntime {
     word_context: Option<WordContext>,
     app_name: String,
     app_checked: Instant,
-    us_layout: bool,
     ime_active: bool,
     ime_checked: Instant,
     resolved: Option<EffectiveSettings>,
@@ -94,7 +93,6 @@ pub struct HookRuntime {
     use_clipboard: bool,
     sound_on: bool,
     remember_per_app: bool,
-    disable_on_non_us: bool,
     last_global: bool,
     config_enabled: Option<bool>,
     sink: Option<Box<dyn EngineSink>>,
@@ -118,7 +116,6 @@ impl HookRuntime {
             word_context: None,
             app_name: String::new(),
             app_checked: Instant::now() - APP_TTL,
-            us_layout: true,
             ime_active: false,
             ime_checked: Instant::now() - IME_TTL,
             resolved: None,
@@ -127,7 +124,6 @@ impl HookRuntime {
             use_clipboard: false,
             sound_on: true,
             remember_per_app: false,
-            disable_on_non_us: false,
             last_global: globals::enabled(),
             config_enabled: None,
             sink,
@@ -169,7 +165,6 @@ impl HookRuntime {
         self.use_clipboard = cfg.typing.use_clipboard;
         self.sound_on = cfg.system.notification_sound;
         self.remember_per_app = cfg.apps.remember_per_app;
-        self.disable_on_non_us = cfg.typing.disable_on_non_us_layout;
 
         // Adopt `input.enabled` only when it actually changed in the file, so a
         // hotkey toggle is not reset by an unrelated settings save.
@@ -190,13 +185,12 @@ impl HookRuntime {
         self.hotkeys.discard_latches();
         if debuglog::enabled() {
             debuglog::note(&format!(
-                "config-applied global_enabled={} base_enabled={} app_rules={} hotkeys={} ime={} us_layout={}",
+                "config-applied global_enabled={} base_enabled={} app_rules={} hotkeys={} ime={}",
                 globals::enabled(),
                 self.base.enabled,
                 self.cfg.as_ref().map_or(0, |cfg| cfg.apps.rules.len()),
                 self.hotkeys.len(),
                 self.ime_active,
-                self.us_layout,
             ));
         }
     }
@@ -267,20 +261,18 @@ impl HookRuntime {
             return Decision::PASS;
         }
 
-        // 3. Per-app enablement, IME composition, non-US layout.
+        // 3. Per-app enablement and IME composition.
         self.refresh_app();
         // A different foreground window (or a changed exclusion/override) must
         // not inherit the half-typed word. `refresh_app` just refreshed the
         // cache, so this is only an integer + flag comparison on the common path.
         self.sync_word_context();
         let enabled = self.effective_enabled();
-        if !enabled || self.ime_active || (self.disable_on_non_us && !self.us_layout) {
+        if !enabled || self.ime_active {
             trace.inactive(if !enabled {
                 "disabled"
-            } else if self.ime_active {
-                "ime-composition"
             } else {
-                "non-us-layout"
+                "ime-composition"
             });
             trace.stage("inactive");
             self.reset_engine();
@@ -477,7 +469,6 @@ impl HookRuntime {
             self.app = AppKey::default();
             return;
         };
-        self.us_layout = foreground::layout_is_us(hwnd);
         self.ime_active = ime::composition_active(hwnd);
         self.ime_checked = now;
         if key != self.app || app.process_name != self.app_name {
@@ -536,6 +527,9 @@ impl HookRuntime {
             .unwrap_or_else(|| EffectiveSettings::from_base(self.base))
     }
 
+    // MSRV is 1.80; `is_none_or` (Rust 1.82) is what this lint asks for, so the
+    // `map_or(true, ..)` calls stay until the MSRV moves.
+    #[allow(clippy::unnecessary_map_or)]
     fn apply_engine_options(&mut self) {
         let effective = self.effective();
         let typing = self.cfg.as_ref().map(|cfg| cfg.typing.clone());
@@ -543,12 +537,14 @@ impl HookRuntime {
             method: effective.method,
             charset: effective.charset,
             modern_tone: typing.as_ref().map_or(true, |t| t.modern_tone),
-            spell_check: typing.as_ref().map_or(false, |t| t.spell_check),
-            restore_wrong_word: typing.as_ref().map_or(false, |t| t.restore_wrong_word),
-            jfwz_as_consonant: typing.as_ref().map_or(false, |t| t.jfwz_as_consonant),
+            spell_check: typing.as_ref().is_some_and(|t| t.spell_check),
+            restore_wrong_word: typing.as_ref().is_some_and(|t| t.restore_wrong_word),
+            jfwz_as_consonant: typing.as_ref().is_some_and(|t| t.jfwz_as_consonant),
             macro_enabled: effective.macro_enabled,
-            auto_capitalize: typing.as_ref().map_or(false, |t| t.auto_capitalize),
+            auto_capitalize: typing.as_ref().is_some_and(|t| t.auto_capitalize),
             free_tone: typing.as_ref().map_or(true, |t| t.free_tone),
+            auto_horn_uo: typing.as_ref().map_or(true, |t| t.auto_horn_uo),
+            raw_zone: typing.as_ref().map_or(true, |t| t.raw_zone),
         };
         if options != self.options {
             self.options = options;
@@ -560,7 +556,9 @@ impl HookRuntime {
         if let Some(ch) = keys::us_char(vk, self.mods.shift, self.mods.caps_lock) {
             return Some(ch);
         }
-        if self.us_layout {
+        // Numpad and non-character system keys must never become text via the
+        // thread layout translator; only ordinary layout-dependent keys fall back.
+        if (0x60..=0x69).contains(&vk) || matches!(vk, 0x5D | 0xAD..=0xB7 | 0xE2) {
             return None;
         }
         let state = ime::keyboard_state(&self.mods);
@@ -604,6 +602,12 @@ mod tests {
     fn runtime() -> HookRuntime {
         globals::store_enabled(true);
         HookRuntime::new(None, None)
+    }
+
+    #[test]
+    fn numpad_stays_non_text() {
+        let mut rt = runtime();
+        assert_eq!(rt.char_for(0x60, 0x52), None);
     }
 
     #[test]

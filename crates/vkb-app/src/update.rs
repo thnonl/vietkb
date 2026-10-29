@@ -610,7 +610,7 @@ fn download_to_temp(
 fn expected_sha256(changelog: &str) -> Option<String> {
     for line in changelog.lines() {
         let trimmed = line.trim().trim_start_matches(['*', '-', '#', ' ']).trim();
-        let without_backticks = trimmed.replace('`', "").replace('*', "");
+        let without_backticks = trimmed.replace(['`', '*'], "");
         let Some((label, value)) = without_backticks.split_once(':') else {
             continue;
         };

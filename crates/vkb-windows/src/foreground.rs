@@ -12,7 +12,6 @@ use windows::Win32::Foundation::{CloseHandle, HWND};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayout;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
 };
@@ -38,11 +37,6 @@ fn hwnd_from(raw: isize) -> HWND {
 /// Raw `HWND` of the foreground window (0 when none).
 pub fn foreground_hwnd() -> isize {
     unsafe { GetForegroundWindow() }.0 as isize
-}
-
-/// Thread that owns `hwnd` — needed for the keyboard layout.
-fn window_thread_id(hwnd: isize) -> u32 {
-    unsafe { GetWindowThreadProcessId(hwnd_from(hwnd), None) }
 }
 
 /// Lowercased executable name + pid + path + title for one window.
@@ -108,20 +102,6 @@ pub fn window_title(hwnd: isize) -> Option<String> {
         return None;
     }
     Some(String::from_utf16_lossy(&buffer[..len as usize]))
-}
-
-/// `true` when the window's keyboard layout is the US English layout.
-///
-/// Read-only on purpose: VietKB must never install or activate a layout (that is
-/// the EVKey bug that added an unwanted US layout to every machine).
-pub fn layout_is_us(hwnd: isize) -> bool {
-    let thread = window_thread_id(hwnd);
-    if thread == 0 {
-        return true;
-    }
-    let raw = unsafe { GetKeyboardLayout(thread) }.0 as usize;
-    // Low word is the language id; 0x0409 = en-US.
-    (raw & 0xFFFF) == 0x0409
 }
 
 /// Uncached probe for API callers (`active_app_name`, `list_running_apps`).

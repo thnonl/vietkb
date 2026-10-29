@@ -54,6 +54,15 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
     out.clear();
 
     for (i, &ch) in raw.iter().enumerate() {
+        // Compat shim, ported from the reference implementation: with
+        // `f j w z` allowed as consonants these shapes stay raw.
+        if matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
+            && options.jfwz_as_consonant
+            && compat_telex_literal(&raw[..=i])
+        {
+            literalize(out, raw, i);
+            continue;
+        }
         if out.literal || i >= literal_from {
             out.literal = true;
             out.letters.push(Letter::literal(ch));
@@ -66,16 +75,6 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
             continue;
         }
 
-        // Compat shim, ported from the reference implementation: with
-        // `f j w z` allowed as consonants these shapes stay raw.
-        if matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
-            && options.jfwz_as_consonant
-            && compat_telex_literal(&raw[..=i])
-        {
-            literalize(out, raw, i);
-            continue;
-        }
-
         if ch.is_ascii_digit() {
             step_digit(out, raw, i, options);
         } else if !ch.is_ascii_alphabetic() {
@@ -84,6 +83,15 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
             match options.method {
                 InputMethod::Telex | InputMethod::Legacy => step_telex(out, raw, i, options),
                 InputMethod::Vni => out.letters.push(Letter::literal(ch)),
+            }
+        }
+
+        // Promote `ưo` only once a legal C2 (or `i`/`u` continuation) follows.
+        if options.auto_horn_uo && !out.literal && i > 0 && matches!(ch.to_ascii_lowercase(), 'i' | 'u' | 'c' | 'h' | 'm' | 'n' | 'p' | 't') {
+            if let Some(o) = out.letters.iter().rposition(|letter| letter.base() == 'o' && letter.mark == Mark::None) {
+                if o > 0 && out.letters[o - 1].base() == 'u' && out.letters[o - 1].mark == Mark::Horn {
+                    out.letters[o].mark = Mark::Horn;
+                }
             }
         }
 
@@ -102,11 +110,6 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
     }
 }
 
-/// `true` when a digit typed now joins the word instead of ending it.
-pub(crate) fn digit_joins_word(raw: &[char]) -> bool {
-    raw.is_empty() || bypass_digit_suffix(raw, raw.len())
-}
-
 /// Raw shapes the reference implementation kept literal when `f j w z` are
 /// allowed as consonants (`"of"`, `"oj"` would otherwise become `ò`, `ọ`).
 fn compat_telex_literal(prefix: &[char]) -> bool {
@@ -120,6 +123,11 @@ fn compat_telex_literal(prefix: &[char]) -> bool {
         len += 1;
     }
     matches!(&buf[..len], [b'o', b'f'] | [b'o', b'j'])
+}
+
+/// `true` when a digit typed now joins the word instead of ending it.
+pub(crate) fn digit_joins_word(raw: &[char]) -> bool {
+    raw.is_empty() || bypass_digit_suffix(raw, raw.len())
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +157,7 @@ fn step_digit(out: &mut Composed, raw: &[char], i: usize, options: &EngineOption
             apply_tone(out, raw, i, tone, digit, options);
         }
         '6' => mark_last(out, raw, i, &['a', 'e', 'o'], Mark::Circumflex, digit),
-        '7' => mark_last(out, raw, i, &['o', 'u'], Mark::Horn, digit),
+        '7' => mark_vni_horn(out, raw, i, digit),
         '8' => mark_last(out, raw, i, &['a'], Mark::Breve, digit),
         '9' => mark_last(out, raw, i, &['d'], Mark::Bar, digit),
         _ => out.letters.push(Letter::literal(digit)),
@@ -238,14 +246,11 @@ fn step_telex(out: &mut Composed, raw: &[char], i: usize, options: &EngineOption
     let ch = raw[i];
     let lower = ch.to_ascii_lowercase();
 
-    // `f j w z` as consonants: only in the onset.
-    if options.jfwz_as_consonant && matches!(lower, 'f' | 'j' | 'w' | 'z') && !has_vowel(out) {
-        out.letters.push(Letter::literal(ch));
-        return;
-    }
-
     match lower {
         's' | 'f' | 'r' | 'x' | 'j' => apply_tone(out, raw, i, tone_of(lower), ch, options),
+        'w' if options.jfwz_as_consonant && !has_vowel(out) => {
+            out.letters.push(Letter::literal(ch));
+        }
         'w' => apply_w(out, raw, i, ch, options),
         'a' | 'e' | 'o' => double_letter(out, raw, i, lower, Mark::Circumflex),
         'd' => double_letter(out, raw, i, 'd', Mark::Bar),
@@ -403,6 +408,24 @@ fn apply_tone(out: &mut Composed, raw: &[char], i: usize, tone: Tone, key: char,
     out.tone_at = i;
     // `Đặt dấu tự do` off: the tone stays on the vowel it hit right now.
     out.tone_slot = if options.free_tone { None } else { Some(slot) };
+}
+
+fn mark_vni_horn(out: &mut Composed, raw: &[char], i: usize, key: char) {
+    // VNI horn applied after an adjacent `uo` cluster marks both letters.
+    // Other sequences retain mark_last behavior (`u7a` must not fuse).
+    let len = out.letters.len();
+    if len >= 2
+        && out.letters[len - 2].base() == 'u'
+        && out.letters[len - 2].mark == Mark::None
+        && out.letters[len - 1].base() == 'o'
+        && out.letters[len - 1].mark == Mark::None
+    {
+        out.letters[len - 2].mark = Mark::Horn;
+        out.letters[len - 1].mark = Mark::Horn;
+        out.mark_at = i;
+        return;
+    }
+    mark_last(out, raw, i, &['o', 'u'], Mark::Horn, key);
 }
 
 fn mark_last(out: &mut Composed, raw: &[char], i: usize, bases: &[char], mark: Mark, key: char) {

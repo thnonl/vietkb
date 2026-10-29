@@ -99,7 +99,7 @@ fn named_vk(name: &str) -> Option<(u16, bool)> {
                     }
                 }
             }
-            return keys::us_vk_for_char(other.chars().next()?).map(|(vk, shift)| (vk, shift));
+            return keys::us_vk_for_char(other.chars().next()?);
         }
     };
     Some((vk, false))
@@ -143,8 +143,10 @@ mod tests {
     #[test]
     fn cycle_hotkey_compiles_and_fires() {
         // The `Đổi kiểu gõ` row: unbound by default, bound here.
-        let mut set = HotkeySet::default();
-        set.cycle_method = vkb_config::Hotkey::parse("Ctrl+Alt+M").ok();
+        let set = HotkeySet {
+            cycle_method: vkb_config::Hotkey::parse("Ctrl+Alt+M").ok(),
+            ..HotkeySet::default()
+        };
         let mut matcher = compile(&set);
         assert_eq!(matcher.len(), 9, "8 defaults + the cycling action");
 
@@ -164,18 +166,22 @@ mod tests {
     fn unbound_hotkeys_are_skipped() {
         // The design defaults bind these three, so unbind them here to exercise the
         // skip path itself.
-        let mut set = HotkeySet::default();
-        set.toggle = None;
-        set.restore_word = None;
-        set.open_settings = None;
+        let set = HotkeySet {
+            toggle: None,
+            restore_word: None,
+            open_settings: None,
+            ..HotkeySet::default()
+        };
         let matcher = compile(&set);
         assert_eq!(matcher.len(), 5);
     }
 
     #[test]
     fn modifier_only_toggle_compiles_without_a_key() {
-        let mut set = HotkeySet::default();
-        set.toggle = vkb_config::Hotkey::parse("Ctrl+Shift").ok();
+        let set = HotkeySet {
+            toggle: vkb_config::Hotkey::parse("Ctrl+Shift").ok(),
+            ..HotkeySet::default()
+        };
         let mut matcher = compile(&set);
         let ctrl = Modifiers {
             shift: false,
@@ -198,8 +204,10 @@ mod tests {
 
     #[test]
     fn ctrl_alt_letter_combo_maps_to_the_letter_key() {
-        let mut set = HotkeySet::default();
-        set.open_settings = vkb_config::Hotkey::parse("Ctrl+Alt+V").ok();
+        let set = HotkeySet {
+            open_settings: vkb_config::Hotkey::parse("Ctrl+Alt+V").ok(),
+            ..HotkeySet::default()
+        };
         let mut matcher = compile(&set);
         let mods = Modifiers {
             shift: false,

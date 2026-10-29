@@ -90,10 +90,6 @@ pub struct TypingView {
     pub auto_capitalize: bool,
     pub spell_check: bool,
     pub restore_wrong_word: bool,
-    pub disable_on_non_us_layout: bool,
-    pub suggestion_fix_1: bool,
-    pub suggestion_fix_2: bool,
-    pub metro_fix: bool,
     pub send_standard: bool,
     pub use_clipboard: bool,
     pub macro_enabled: bool,
@@ -101,7 +97,6 @@ pub struct TypingView {
     pub auto_horn_uo: bool,
     pub raw_zone: bool,
     pub macro_case_follow: bool,
-    pub send_delay_us: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,7 +118,6 @@ pub struct HotkeyView {
 #[serde(rename_all = "camelCase")]
 pub struct SystemView {
     pub start_with_windows: bool,
-    pub run_as_admin: bool,
     pub notification_sound: bool,
     pub start_minimized: bool,
     pub language: String,
@@ -211,10 +205,6 @@ pub fn to_view(cfg: &AppConfig) -> SettingsView {
             auto_capitalize: cfg.typing.auto_capitalize,
             spell_check: cfg.typing.spell_check,
             restore_wrong_word: cfg.typing.restore_wrong_word,
-            disable_on_non_us_layout: cfg.typing.disable_on_non_us_layout,
-            suggestion_fix_1: cfg.typing.suggestion_fix_1,
-            suggestion_fix_2: cfg.typing.suggestion_fix_2,
-            metro_fix: cfg.typing.metro_fix,
             send_standard: cfg.typing.send_standard,
             use_clipboard: cfg.typing.use_clipboard,
             macro_enabled: cfg.typing.macro_enabled,
@@ -222,8 +212,7 @@ pub fn to_view(cfg: &AppConfig) -> SettingsView {
             auto_horn_uo: cfg.typing.auto_horn_uo,
             raw_zone: cfg.typing.raw_zone,
             macro_case_follow: cfg.typing.macro_case_follow,
-            send_delay_us: cfg.typing.send_delay_us,
-        },
+            },
         hotkeys: HotkeyView {
             enable: cfg.hotkeys.enable.as_ref().map(Hotkey::as_str),
             disable: cfg.hotkeys.disable.as_ref().map(Hotkey::as_str),
@@ -241,7 +230,6 @@ pub fn to_view(cfg: &AppConfig) -> SettingsView {
         },
         system: SystemView {
             start_with_windows: cfg.system.start_with_windows,
-            run_as_admin: cfg.system.run_as_admin,
             notification_sound: cfg.system.notification_sound,
             start_minimized: cfg.system.start_minimized,
             language: match cfg.system.language {
@@ -493,14 +481,6 @@ fn patch_input(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), Str
 
 fn patch_typing(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), String> {
     for (key, item) in object(value, "typing")? {
-        if key == "sendDelayUs" {
-            let delay = item
-                .as_u64()
-                .ok_or("typing.sendDelayUs phải là số")?
-                .min(5000);
-            cfg.typing.send_delay_us = delay as u32;
-            continue;
-        }
         let flag = as_bool(item, &format!("typing.{key}"))?;
         match key.as_str() {
             "modernTone" => cfg.typing.modern_tone = flag,
@@ -509,10 +489,6 @@ fn patch_typing(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), St
             "autoCapitalize" => cfg.typing.auto_capitalize = flag,
             "spellCheck" => cfg.typing.spell_check = flag,
             "restoreWrongWord" => cfg.typing.restore_wrong_word = flag,
-            "disableOnNonUsLayout" => cfg.typing.disable_on_non_us_layout = flag,
-            "suggestionFix1" => cfg.typing.suggestion_fix_1 = flag,
-            "suggestionFix2" => cfg.typing.suggestion_fix_2 = flag,
-            "metroFix" => cfg.typing.metro_fix = flag,
             "sendStandard" => cfg.typing.send_standard = flag,
             "useClipboard" => cfg.typing.use_clipboard = flag,
             "macroEnabled" => cfg.typing.macro_enabled = flag,
@@ -572,7 +548,6 @@ fn patch_system(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), St
     for (key, item) in object(value, "system")? {
         match key.as_str() {
             "startWithWindows" => cfg.system.start_with_windows = as_bool(item, "system.startWithWindows")?,
-            "runAsAdmin" => cfg.system.run_as_admin = as_bool(item, "system.runAsAdmin")?,
             "notificationSound" => {
                 cfg.system.notification_sound = as_bool(item, "system.notificationSound")?
             }

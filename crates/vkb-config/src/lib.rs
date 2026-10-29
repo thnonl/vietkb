@@ -132,6 +132,42 @@ mod tests {
     }
 
     #[test]
+    fn removed_settings_are_ignored_and_round_trip_without_clobbering_defaults() {
+        let src = r#"
+version = 1
+[system]
+run_as_admin = true
+start_with_windows = false
+[typing]
+disable_on_non_us_layout = false
+suggestion_fix_1 = true
+suggestion_fix_2 = true
+metro_fix = true
+send_delay_us = 350
+[input]
+method = "vni"
+charset = "unicode"
+"#;
+        let cfg = AppConfig::from_toml(src).unwrap();
+        assert_eq!(cfg.input.method, InputMethod::Vni);
+        assert_eq!(cfg.input.charset, Charset::Unicode);
+        assert!(!cfg.system.start_with_windows);
+        assert!(cfg.typing.spell_check);
+
+        let saved = cfg.to_toml().unwrap();
+        assert!(!saved.contains("run_as_admin"));
+        assert!(!saved.contains("disable_on_non_us_layout"));
+        assert!(!saved.contains("suggestion_fix_1"));
+        assert!(!saved.contains("suggestion_fix_2"));
+        assert!(!saved.contains("metro_fix"));
+        assert!(!saved.contains("send_delay_us"));
+        let back = AppConfig::from_toml(&saved).unwrap();
+        assert_eq!(back.input, cfg.input);
+        assert_eq!(back.typing, cfg.typing);
+        assert_eq!(back.system, cfg.system);
+    }
+
+    #[test]
     fn unknown_keys_survive_roundtrip() {
         let src = r#"
 version = 1

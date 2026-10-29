@@ -188,6 +188,7 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
 
     let settings = MenuItem::with_id(app, "settings", "Mở cài đặt…", true, None::<&str>)?;
     let hotkeys = MenuItem::with_id(app, "hotkeys", "Phím tắt…", true, None::<&str>)?;
+    let about = MenuItem::with_id(app, "about", "Giới thiệu VietKB…", true, None::<&str>)?;
     // Only while a newer release is known: the item is the tray's third
     // affordance, and it must appear without a restart when the 5 s check finds
     // one (`refresh` rebuilds this menu).
@@ -216,6 +217,7 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
         &sep_open,
         &settings,
         &hotkeys,
+        &about,
     ];
     if let Some(item) = &update_item {
         items.push(item);
@@ -301,6 +303,7 @@ fn handle_event(app: &AppHandle, id: &str) {
         "quit" => crate::quit(app),
         "settings" => crate::show_settings(app),
         "update" => crate::show_about(app),
+        "about" => crate::show_about(app),
         "hotkeys" => {
             if let Err(error) = crate::show_aux(app, "hotkeys") {
                 tracing::warn!(%error, "tray: could not open the hotkeys window");
@@ -327,5 +330,25 @@ mod tests {
     #[test]
     fn update_item_label_names_the_version() {
         assert_eq!(update_menu_label("0.9.9"), "Có bản cập nhật v0.9.9");
+    }
+
+    /// Every window the app opens must be in the capability file, or its close
+    /// button and IPC are refused at runtime.
+    #[test]
+    fn every_window_has_a_capability() {
+        let capability = include_str!("../capabilities/default.json");
+        let line = capability
+            .lines()
+            .find(|line| line.trim_start().starts_with("\"windows\""))
+            .expect("capabilities/default.json has no \"windows\" array");
+        let start = line.find('[').expect("no [ in the windows line");
+        let end = line.find(']').expect("no ] in the windows line");
+        let mut labels: Vec<&str> = line[start + 1..end]
+            .split(',')
+            .map(|label| label.trim().trim_matches('"'))
+            .filter(|label| !label.is_empty())
+            .collect();
+        labels.sort_unstable();
+        assert_eq!(labels, ["about", "advanced", "hotkeys", "macros", "main"]);
     }
 }

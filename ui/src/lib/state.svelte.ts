@@ -1,4 +1,4 @@
-﻿// Global UI store (Svelte 5 runes).
+// Global UI store (Svelte 5 runes).
 //
 // Live apply: every `patch` merges into a pending object, updates the local view
 // immediately (so controls never lag behind the mouse) and flushes to
@@ -88,18 +88,12 @@ const demoSettings: SettingsView = {
     autoCapitalize: false,
     spellCheck: true,
     restoreWrongWord: false,
-    disableOnNonUsLayout: true,
-    suggestionFix1: true,
-    suggestionFix2: false,
-    metroFix: false,
     sendStandard: false,
     useClipboard: false,
     macroEnabled: true,
     macroWhenDisabled: false,
     autoHornUo: true,
-    rawZone: true,
     macroCaseFollow: true,
-    sendDelayUs: 0,
   },
   hotkeys: {
     enable: "F1",
@@ -115,7 +109,6 @@ const demoSettings: SettingsView = {
   },
   system: {
     startWithWindows: true,
-    runAsAdmin: false,
     notificationSound: true,
     startMinimized: true,
     language: "vi",

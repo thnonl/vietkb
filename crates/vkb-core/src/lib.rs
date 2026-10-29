@@ -258,6 +258,9 @@ pub struct EngineOptions {
     /// (`hoaf` + `n` → `hoàn`). `false`: the tone sticks to the vowel it hit
     /// when the key was typed (`hoafn` → `hòan`).
     pub free_tone: bool,
+    pub auto_horn_uo: bool,
+    /// Reserved: URL/code raw zone (spec §A9) is not implemented yet; the value is ignored.
+    pub raw_zone: bool,
 }
 
 impl Default for EngineOptions {
@@ -272,6 +275,8 @@ impl Default for EngineOptions {
             macro_enabled: true,
             auto_capitalize: false,
             free_tone: true,
+            auto_horn_uo: true,
+            raw_zone: true,
         }
     }
 }

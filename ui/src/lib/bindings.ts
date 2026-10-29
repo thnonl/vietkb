@@ -16,18 +16,13 @@ export interface TypingView {
   autoCapitalize: boolean;
   spellCheck: boolean;
   restoreWrongWord: boolean;
-  disableOnNonUsLayout: boolean;
-  suggestionFix1: boolean;
-  suggestionFix2: boolean;
-  metroFix: boolean;
   sendStandard: boolean;
   useClipboard: boolean;
   macroEnabled: boolean;
   macroWhenDisabled: boolean;
   autoHornUo: boolean;
-  rawZone: boolean;
   macroCaseFollow: boolean;
-  sendDelayUs: number;
+  rawZone?: boolean; // reserved, not implemented
 }
 
 /** Every field of `HotkeySet`. Values are canonical strings (`Ctrl+Shift`) or
@@ -49,7 +44,6 @@ export type HotkeyField = keyof HotkeyView;
 
 export interface SystemView {
   startWithWindows: boolean;
-  runAsAdmin: boolean;
   notificationSound: boolean;
   startMinimized: boolean;
   language: string;

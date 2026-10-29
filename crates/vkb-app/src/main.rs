@@ -95,8 +95,8 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     // guessed constant — the same rule the main window uses. Each value is
     // measured from the screen it opens:
     //   hotkeys   36 caption + 1 + 44 intro + 5×44 rows + 56 footer = 357 → 360
-    //   advanced  36 caption + 1 + 4 sections (33 head, 28/row grid, 36 field
-    //             row) + 56 footer = 488 → 488
+    //   advanced  36 caption + 1 + content 295 (after removing two 36 px rows
+    //             and one 28 px row: 488 - 72 - 28) + 56 footer = 388 → 388
     //   macros    36 caption + 1 + 16 + 36 toolbar + 12 + 406 table
     //             (36 header + 8×46 rows + 2 border) + 9 + 28 footer
     //             + 16 sheet pad = 560 → 560
@@ -106,7 +106,7 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     //             changelog is clipped.
     let (label, title, width, height) = match kind {
         "hotkeys" => ("hotkeys", "Phím tắt — VietKB", 520.0, 360.0),
-        "advanced" => ("advanced", "Nâng cao — VietKB", 560.0, 488.0),
+        "advanced" => ("advanced", "Nâng cao — VietKB", 560.0, 388.0),
         "macros" => ("macros", "Bảng gõ tắt — VietKB", 720.0, 560.0),
         "about" => ("about", "Giới thiệu — VietKB", 560.0, 556.0),
         other => return Err(format!("cửa sổ không hợp lệ: {other}")),

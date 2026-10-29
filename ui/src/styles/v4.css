@@ -52,6 +52,7 @@
   display: flex;
   align-items: center;
   padding-left: 16px;
+  padding-right: 8px;
   /* 6 px column gap; the 20 px keycap sits 2 px inside its 24 px slot, so the
    * visible space to the word is 6 + 2 = 8 px. */
   gap: 6px;
@@ -366,50 +367,6 @@
 .v4ck.dis {
   color: var(--t3);
   opacity: 0.55;
-}
-.v4sr {
-  height: 36px;
-  display: grid;
-  grid-template-columns: max-content max-content 1fr max-content max-content;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
-.v4sr .lb {
-  font: 400 13px/20px var(--ui);
-  color: var(--t1);
-  white-space: nowrap;
-}
-.v4sr .sp {
-  flex: 1;
-}
-.v4num {
-  width: 84px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--raised);
-  box-shadow: var(--e1), inset 0 0 0 1px var(--line-2);
-  font: 400 13px/20px var(--ui);
-}
-.v4num input {
-  width: 100%;
-  height: 32px;
-  min-width: 0;
-  border: 0;
-  background: none;
-  outline: none;
-  font: 400 13px/20px var(--ui);
-  color: var(--t1);
-  font-variant-numeric: tabular-nums;
-}
-.v4num small {
-  font: 400 12px/18px var(--sm);
-  color: var(--t3);
-  margin-left: 4px;
 }
 
 /* ------------------------------------------------------------- update UI */
