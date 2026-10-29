@@ -29,8 +29,8 @@ Status vocabulary:
 | j/f/w/z là phụ âm | `typing.jfwz_as_consonant` | covered | test `jfwz_off_lets_the_tone_keys_win` |
 | `ưo → ươ` tự động (spec A1) | `typing.auto_horn_uo` | **covered** | engine + tests `auto_horn_uo_*` |
 | Vùng gõ thô URL/code (spec A9) | `typing.raw_zone` | **reserved, không implement** | field giữ để migrate, UI đã gỡ, engine bỏ qua; làm lại kiểu test-trước |
-| Macro theo hoa/thường của trigger (spec A8) | `typing.macro_case_follow` | **inert**, behaviour is hard-coded | `engine.rs:408` ignores the flag |
-| Gõ tắt khi đã tắt tiếng Việt | `typing.macro_when_disabled` | **inert** | documented as not implementable today, `70-impl-notes-windows.md:176` |
+| Macro theo hoa/thường của trigger (spec A8) | `typing.macro_case_follow` | **covered** | engine + E2E A12/A13 |
+| Gõ tắt khi đã tắt tiếng Việt | `typing.macro_when_disabled` | **deferred (inert)** | cần chế độ "macro-only" trong engine; bản thử đã bị rút vì làm hỏng test, sẽ làm lại test-trước |
 | Sửa lỗi dấu gợi ý 1/2 (Browsers, Excel) | toggle removed; hành vi sẽ nằm trong bảng app | **removed** | owner: bật/tắt trên Chrome không đổi gì; EVKey áp dụng cho Excel/Sheets |
 | Hỗ trợ ứng dụng Metro | toggle removed | **removed** | không kiểm chứng được; bảng app sẽ xử lý nếu cần |
 | Delay giữa các lần gửi | — | removed by owner | implementation detail, không phải khái niệm người dùng |
@@ -60,7 +60,7 @@ Status vocabulary:
 | `evkmacro.txt` file | TOML `[macros]` table + UI editor, txt/tsv import-export | covered (different storage, on purpose) |
 | Trigger dài, expansion nhiều dòng | trigger ≤ `MAX_WORD` (32); expansion unbounded; core can emit `\n` | **partial** — UI editor Enter does not commit a newline, and typing `\n` into a target app is unverified |
 | Commit bằng Enter | `VK_RETURN` commits then appends `\r` | covered |
-| Hoa/thường theo trigger | always follows, flag ignored | partial (see `macro_case_follow`) |
+| Hoa/thường theo trigger | follows the trigger when `macro_case_follow` is on (default), verbatim when off | covered, E2E A12/A13 |
 | Panel F8, bật/tắt F9 | both dispatched | covered, untested |
 
 ## 4. Per-app and exclusions
@@ -98,33 +98,25 @@ converter, tray charset submenu, Linux/cloud/telemetry. Recorded in `log.md` 202
 config, IPC and UI; old `config.toml` files still load (migration test
 `removed_settings_are_ignored_and_round_trip_without_clobbering_defaults`). `raw_zone` pulled
 back to a reserved, unimplemented field with no UI. About window: missing Tauri capability fixed
-(`about` added, tray item added, test `every_window_has_a_capability`).
+(`about` added, tray item added, test `every_window_has_a_capability`). `macro_case_follow` wired
+and proven. Two distinct toggle sounds (880 Hz on / 520 Hz off). **Macro table now actually
+reaches the engine** — it never did, so gõ tắt was dead at runtime; found by E2E, fixed in
+`vkb-windows/src/state.rs`. Host E2E: 12/12 typing cases + 20/20 config-matrix cases
+(`88-e2e-report.md`).
 
 **Still to do, in this order.**
-1. `macro_case_follow` (spec A8) — engine + tests; the current hard-coded follow becomes the
-   `true` branch.
-2. Two distinct toggle sounds (on/off), replacing the single system beep.
-3. Built-in application table (invisible): per-exe send strategy and the Excel/Google-Sheets
+1. Built-in application table (invisible): per-exe send strategy and the Excel/Google-Sheets
    suggestion fix that `CSuggestion`/`CSuggestion2` actually targeted.
-4. Persist per-app remembered on/off to config (EVKey's `blacklist`).
-5. `VK_PACKET` — Windows virtual/touch keyboard events must reach the engine.
-6. Auto-exclusion: when injection fails for an app, fall back per app without a user rule.
-7. Multiline macro typing that really emits newlines into the target app.
-8. `raw_zone` again, tests-first: pending opener decided by the next key, cleared by
+2. Persist per-app remembered on/off to config (EVKey's `blacklist`).
+3. `VK_PACKET` — Windows virtual/touch keyboard events must reach the engine.
+4. Auto-exclusion: when injection fails for an app, fall back per app without a user rule.
+5. Multiline macro typing that really emits newlines into the target app.
+6. `raw_zone` again, tests-first: pending opener decided by the next key, cleared by
    whitespace/Enter/Backspace, never set by ellipsis or digit-dot.
-9. `macro_when_disabled` — backend must call the engine while Vietnamese is off.
-10. `hotkeys.toggle_mode` — implement press/release, or drop the control.
-11. Verification debt: `modern_tone`, `free_tone`, each hotkey action, per-app rules, F8/F9.
-
-**Wave 2 — EVKey features we simply do not have.**
-1. `VK_PACKET` (Windows virtual keyboard / touch keyboard) — feed those events through the engine.
-2. Auto-exclusion: detect an app where injection fails and fall back (clipboard or standard) per app, without the user adding a rule.
-3. Persist remembered per-app state across restarts.
-4. Multiline macro editing that actually types newlines into the target app.
-5. Two distinct toggle sounds (on/off), opt-in.
-
-**Wave 3 — close the verification gaps.** `modern_tone`, `free_tone`, each hotkey action,
-per-app rules, macro F8/F9. Add asserting tests; the audit found none.
+7. `macro_when_disabled` — engine needs a macro-only mode; the first attempt was reverted
+   because it broke tests, so it must be written test-first.
+8. `hotkeys.toggle_mode` — implement press/release, or drop the control.
+9. Verification debt left: each hotkey action, per-app rules, macro F8/F9.
 
 ## 8. What the resource strings add (found after the first matrix)
 

@@ -53,6 +53,31 @@ to the target by the sandbox session.
 Sandbox remains the right place for installer, uninstall, autostart and profile-isolation
 checks (those passed in `install-diag.txt`); typing E2E belongs on the real desktop.
 
+## Config matrix E2E (same harness, one `config.toml` per case)
+
+20/20 PASS, run after the macro wiring fix. Each case writes `config.toml`, restarts the app,
+types, and asserts.
+
+| # | Flag | Method | Expected | Result |
+|---|---|---|---|---|
+| A1/A2 | `modern_tone` on/off | Telex | `hòa` / `hoà` | PASS |
+| A3/A4 | `free_tone` on/off | Telex | `hoàn` / `hòan` | PASS |
+| A5/A6 | `jfwz_as_consonant` on/off | Telex | `w` / `ư` | PASS |
+| A7 | `auto_capitalize` on | Telex | `tiếng. Việt` | PASS |
+| A8/A9 | `spell_check` off/on | Telex | `ád` / `asd` | PASS |
+| A10/A11 | `macro_enabled` on/off | Telex | `Việt Nam ` / `vn ` | PASS |
+| A12/A13 | `macro_case_follow` on/off | Telex | `By the way ` / `by the way ` | PASS |
+| V1/V2 | `modern_tone` on/off | VNI | `hòa` / `hoà` | PASS |
+| V3/V4 | `free_tone` on/off | VNI | `hoàn` / `hòan` | PASS |
+| V5 | `spell_check` off | VNI | `ád` | PASS |
+| V6 | `macro_enabled` on | VNI | `Việt Nam ` | PASS |
+| V7 | `macro_case_follow` off | VNI | `by the way ` | PASS |
+
+This run found a real product bug that no unit test could: **the Windows backend never called
+`engine.set_macros`**, so gõ tắt did nothing at runtime even though the engine, the config and
+the macro editor were all correct. Fixed in `crates/vkb-windows/src/state.rs` (fingerprint guard,
+rebuilt only when the table changes); the five macro cases went from FAIL to PASS.
+
 ## Known gap in this run
 
 The About modal (tray item → window → X close) is still not scriptable: the tray menu has no
