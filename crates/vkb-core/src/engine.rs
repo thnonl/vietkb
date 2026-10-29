@@ -52,7 +52,7 @@ pub struct Engine {
     literal_from: usize,
     macros: MacroTable,
     caps_pending: bool,
-    /// The word the last space committed, live for exactly one key:
+    /// The word the last separator committed, live for exactly one key:
     /// `Tha` + space + Backspace + `s` = `Thá`.
     reopen: Option<CommittedWord>,
 }
@@ -207,6 +207,7 @@ impl Engine {
                 // The app deletes the boundary itself; the word comes back so
                 // the next keystroke composes onto it (`Tha` + space + BS + `s`
                 // = `Thá`). A second Backspace then deletes one character.
+                self.caps_pending = false;
                 self.raw = word.raw;
                 self.composed = word.composed;
                 self.text = word.text;
@@ -388,7 +389,7 @@ impl Engine {
         // class table initialiser `FUN_140036b10` puts space, Tab and ASCII
         // punctuation in class 1, and Enter with the other control characters in
         // class 3 — so Enter ends the line and never re-opens.
-        if is_reopening_separator(ch) && !self.text.is_empty() {
+        if is_reopening_separator(ch) {
             self.reopen = Some(CommittedWord {
                 raw: std::mem::take(&mut self.raw),
                 composed: std::mem::take(&mut self.composed),
@@ -464,10 +465,12 @@ impl VietnameseEngine for Engine {
         match key.vk {
             VK_BACK => return self.backspace(reopening),
             VK_RETURN => return self.boundary_key('\r'),
-            VK_TAB | VK_ESCAPE => {
+            VK_TAB => {
                 let ch = key.ch.unwrap_or('\t');
                 return self.boundary_key(ch);
             }
+            // Escape is class 3 in EVKey: a hard reset, never a reopenable word.
+            VK_ESCAPE => return self.boundary_key(key.ch.unwrap_or('\u{1b}')),
             _ => {}
         }
         let ch = match key.ch {
