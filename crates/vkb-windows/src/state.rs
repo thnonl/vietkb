@@ -254,7 +254,7 @@ impl HookRuntime {
             }
             self.refresh_app();
             self.sync_word_context();
-            if !self.effective_enabled() || self.ime_active {
+            if self.ime_active || (!self.effective_enabled() && !self.macro_only_active()) {
                 trace.stage("inactive");
                 self.reset_engine();
                 return Decision::PASS;
@@ -328,7 +328,7 @@ impl HookRuntime {
         // cache, so this is only an integer + flag comparison on the common path.
         self.sync_word_context();
         let enabled = self.effective_enabled();
-        if !enabled || self.ime_active {
+        if self.ime_active || (!enabled && !self.macro_only_active()) {
             trace.inactive(if !enabled {
                 "disabled"
             } else {
@@ -411,10 +411,20 @@ impl HookRuntime {
             if self.sound_on {
                 sound::play_toggle(enabled);
             }
+            self.engine.set_macro_only(self.macro_only_active());
             globals::fire_enabled(enabled);
             globals::fire_command(BackendCommand::Enable(enabled));
         }
         self.reset_engine();
+    }
+
+    /// Vietnamese is off but the owner still wants gõ tắt to work.
+    fn macro_only_active(&self) -> bool {
+        !self.effective_enabled()
+            && self
+                .cfg
+                .as_ref()
+                .is_some_and(|cfg| cfg.typing.macro_when_disabled)
     }
 
     pub fn effective_enabled(&self) -> bool {
@@ -640,6 +650,8 @@ impl HookRuntime {
                 .unwrap_or_default();
             self.engine.set_macros(macros);
         }
+        // Toggling Vietnamese on/off changes whether macros still run.
+        self.engine.set_macro_only(self.macro_only_active());
     }
 
     fn char_for(&mut self, vk: u16, scan: u16) -> Option<char> {

@@ -60,6 +60,8 @@ pub struct Engine {
     /// The word the last separator committed, live for exactly one key:
     /// `Tha` + space + Backspace + `s` = `Thá`.
     reopen: Option<CommittedWord>,
+    /// Vietnamese is off, but gõ tắt must still expand (`macro_when_disabled`).
+    macro_only: bool,
 }
 
 impl Engine {
@@ -75,6 +77,7 @@ impl Engine {
             last_emitted: None,
             raw_pending: false,
             reopen: None,
+            macro_only: false,
         }
     }
 
@@ -99,6 +102,49 @@ impl Engine {
     pub fn set_macros(&mut self, macros: MacroTable) {
         self.macros = macros;
         self.reset_word();
+    }
+
+    /// While on, the engine only expands macros: every other key passes through
+    /// and nothing is composed, so Vietnamese stays off.
+    pub fn set_macro_only(&mut self, on: bool) {
+        self.macro_only = on;
+        self.reset_word();
+    }
+
+    fn macro_only_key(&mut self, key: KeyInput) -> EngineAction {
+        if key.vk == VK_BACK {
+            self.raw.pop();
+            return EngineAction::Noop;
+        }
+        let Some(ch) = key.ch else {
+            return EngineAction::Noop;
+        };
+        let is_boundary = matches!(ch, ' ' | '\t' | '\r' | '\n') || is_reopening_separator(ch);
+        if !is_boundary {
+            self.raw.push(ch);
+            return EngineAction::Noop;
+        }
+        // `raw` holds exactly the characters the app already typed, so deleting
+        // that many units is safe even in Unicode NFD.
+        let delete_units = self.raw.len() as u32;
+        let expansion = if self.options.macro_enabled {
+            self.macros.lookup_chars(&self.raw).map(str::to_owned)
+        } else {
+            None
+        };
+        self.raw.clear();
+        match expansion {
+            Some(text) => {
+                let mut insert = TextBuf::new();
+                self.push_expansion(&mut insert, &text);
+                push_encoded(ch, self.options.charset, &mut insert);
+                EngineAction::Replace {
+                    delete_units,
+                    insert: insert.iter().collect(),
+                }
+            }
+            None => EngineAction::Noop,
+        }
     }
 
     pub fn upsert_macro(&mut self, trigger: &str, expansion: &str) {
@@ -486,6 +532,10 @@ impl VietnameseEngine for Engine {
         Engine::set_macros(self, macros);
     }
 
+    fn set_macro_only(&mut self, on: bool) {
+        Engine::set_macro_only(self, on);
+    }
+
     fn process_key(&mut self, key: KeyInput) -> EngineAction {
         // Key-up and non-text chords are none of our business.
         if !key.down {
@@ -493,6 +543,9 @@ impl VietnameseEngine for Engine {
         }
         if key.modifiers.ctrl || key.modifiers.alt || key.modifiers.win {
             return EngineAction::Noop;
+        }
+        if self.macro_only {
+            return self.macro_only_key(key);
         }
         // The just-committed word is reachable from one key only: whatever this
         // key is (Backspace, a letter, a navigation key), the memory is spent.

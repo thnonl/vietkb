@@ -30,7 +30,7 @@ Status vocabulary:
 | `ưo → ươ` tự động (spec A1) | `typing.auto_horn_uo` | **covered** | engine + tests `auto_horn_uo_*` |
 | Vùng gõ thô URL/code (spec A9) | `typing.raw_zone` | **covered** | engine: opener chờ phím kế tiếp, bỏ qua ellipsis/digit-dot, Backspace xoá opener; tests `raw_zone_*` |
 | Macro theo hoa/thường của trigger (spec A8) | `typing.macro_case_follow` | **covered** | engine + E2E A12/A13 |
-| Gõ tắt khi đã tắt tiếng Việt | `typing.macro_when_disabled` | **deferred (inert)** | cần chế độ "macro-only" trong engine; bản thử đã bị rút vì làm hỏng test, sẽ làm lại test-trước |
+| Gõ tắt khi đã tắt tiếng Việt | `typing.macro_when_disabled` | **covered** | engine macro-only mode + backend route; tests `macro_only_*` |
 | Sửa lỗi dấu gợi ý 1/2 (Browsers, Excel) | toggle removed; hành vi sẽ nằm trong bảng app | **removed** | owner: bật/tắt trên Chrome không đổi gì; EVKey áp dụng cho Excel/Sheets |
 | Hỗ trợ ứng dụng Metro | toggle removed | **removed** | không kiểm chứng được; bảng app sẽ xử lý nếu cần |
 | Delay giữa các lần gửi | — | removed by owner | implementation detail, không phải khái niệm người dùng |
@@ -112,8 +112,7 @@ reaches the engine** — it never did, so gõ tắt was dead at runtime; found b
 4. Auto-exclusion: when injection fails for an app, fall back per app without a user rule.
 5. Multiline macro typing — done (newline sends Return, UI edits multiline).
 6. `raw_zone` — done (tests-first: `crates/vkb-core/tests/raw_zone.rs`).
-7. `macro_when_disabled` — engine needs a macro-only mode; the first attempt was reverted
-   because it broke tests, so it must be written test-first.
+7. `macro_when_disabled` — done (engine macro-only mode, tests-first).
 8. `hotkeys.toggle_mode` — done (press/release wired, default release).
 9. Verification debt left: each hotkey action, per-app rules, macro F8/F9.
 

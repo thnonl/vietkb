@@ -293,6 +293,8 @@ pub trait VietnameseEngine: Send {
     fn set_options(&mut self, options: EngineOptions);
     /// Swap the macro table. One `Arc` store; valid from the next keystroke.
     fn set_macros(&mut self, macros: MacroTable);
+    /// Macro-only mode: Vietnamese is off, but gõ tắt still expands.
+    fn set_macro_only(&mut self, _on: bool) {}
     /// Pure and allocation-free on the `Noop` path. O(1) in word length up to [`MAX_WORD`].
     fn process_key(&mut self, key: KeyInput) -> EngineAction;
     /// The caret moved / focus changed: flush history but emit nothing.
