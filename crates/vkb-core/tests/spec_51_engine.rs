@@ -188,6 +188,7 @@ fn spec_options(method: &str, category: &str, id: &str) -> EngineOptions {
         restore_wrong_word: false,
         jfwz_as_consonant: false,
         macro_enabled: false,
+        macro_case_follow: true,
         auto_capitalize: false,
         free_tone: true,
         auto_horn_uo: true,

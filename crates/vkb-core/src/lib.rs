@@ -252,6 +252,8 @@ pub struct EngineOptions {
     pub restore_wrong_word: bool,
     pub jfwz_as_consonant: bool,
     pub macro_enabled: bool,
+    /// Follow trigger capitalization when emitting macro expansions.
+    pub macro_case_follow: bool,
     pub auto_capitalize: bool,
     /// `Đặt dấu tự do`. `true`: the tone may be typed after the vowel run or at
     /// the end of the word, and it re-places itself as the syllable grows
@@ -273,6 +275,7 @@ impl Default for EngineOptions {
             restore_wrong_word: false,
             jfwz_as_consonant: true,
             macro_enabled: true,
+            macro_case_follow: true,
             auto_capitalize: false,
             free_tone: true,
             auto_horn_uo: true,

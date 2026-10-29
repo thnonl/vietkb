@@ -412,10 +412,8 @@ impl Engine {
     }
 
     fn push_expansion(&self, out: &mut TextBuf, expansion: &str) {
-        let capitalize = self
-            .raw
-            .first()
-            .is_some_and(|ch| ch.is_ascii_uppercase());
+        let capitalize = self.options.macro_case_follow
+            && self.raw.first().is_some_and(|ch| ch.is_ascii_uppercase());
         let mut pending_caps = capitalize;
         for ch in expansion.chars() {
             let ch = if pending_caps && ch.is_alphabetic() {

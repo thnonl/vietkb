@@ -541,6 +541,7 @@ impl HookRuntime {
             restore_wrong_word: typing.as_ref().is_some_and(|t| t.restore_wrong_word),
             jfwz_as_consonant: typing.as_ref().is_some_and(|t| t.jfwz_as_consonant),
             macro_enabled: effective.macro_enabled,
+            macro_case_follow: typing.as_ref().map_or(true, |t| t.macro_case_follow),
             auto_capitalize: typing.as_ref().is_some_and(|t| t.auto_capitalize),
             free_tone: typing.as_ref().map_or(true, |t| t.free_tone),
             auto_horn_uo: typing.as_ref().map_or(true, |t| t.auto_horn_uo),
