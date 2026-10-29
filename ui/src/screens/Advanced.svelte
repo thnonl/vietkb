@@ -1,11 +1,11 @@
-<script lang="ts">
+﻿<script lang="ts">
   import Checkbox from "../components/Checkbox.svelte";
   import Icon from "../components/Icon.svelte";
   import Select from "../components/Select.svelte";
   import TitleBar from "../components/TitleBar.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
-  import { closeCurrent } from "../lib/window.svelte";
+  import { closeCurrent, openWindow } from "../lib/window.svelte";
   import type { SettingsView, TypingView } from "../lib/bindings";
 
   const settings = $derived(app.settings);
@@ -88,8 +88,8 @@
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.macroWhenDisabled ?? false}
-          label="Gõ tắt cả khi tắt tiếng Việt"
-          onchange={(next) => setTyping({ macroWhenDisabled: next })} />Gõ tắt cả khi tắt tiếng Việt
+          label="Vẫn dùng gõ tắt khi đã tắt tiếng Việt"
+          onchange={(next) => setTyping({ macroWhenDisabled: next })} />Vẫn dùng gõ tắt khi đã tắt tiếng Việt
       </div>
       <div class="v4ck">
         <Checkbox
@@ -104,8 +104,8 @@
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.metroFix ?? false}
-          label="Hỗ trợ ứng dụng Metro"
-          onchange={(next) => setTyping({ metroFix: next })} />Hỗ trợ ứng dụng Metro
+          label="Hỗ trợ ứng dụng từ Microsoft Store"
+          onchange={(next) => setTyping({ metroFix: next })} />Hỗ trợ ứng dụng từ Microsoft Store
       </div>
       <div class="v4ck">
         <Checkbox
@@ -116,15 +116,15 @@
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.disableOnNonUsLayout ?? true}
-          label="Tắt khi đổi bàn phím khác"
-          onchange={(next) => setTyping({ disableOnNonUsLayout: next })} />Tắt khi đổi bàn phím khác
+          label="Tắt khi chuyển bố cục bàn phím khác"
+          onchange={(next) => setTyping({ disableOnNonUsLayout: next })} />Tắt khi chuyển bố cục bàn phím khác
       </div>
     </div>
     <div class="v4sr">
-      <span class="lb">Sửa lỗi dấu gợi ý</span>
+      <span class="lb">Sửa lỗi đặt dấu</span>
       <Select
         width={96}
-        label="Sửa lỗi dấu gợi ý"
+        label="Sửa lỗi đặt dấu"
         value={suggestion}
         options={[
           { value: "off", label: "Tắt" },
@@ -158,8 +158,8 @@
       <div class="v4ck">
         <Checkbox
           checked={settings?.system.runAsAdmin ?? false}
-          label="Chạy với quyền Admin"
-          onchange={(next) => setSystem({ runAsAdmin: next })} />Chạy với quyền Admin
+          label="Chạy bằng quyền quản trị"
+          onchange={(next) => setSystem({ runAsAdmin: next })} />Chạy bằng quyền quản trị
       </div>
       <div class="v4ck">
         <Checkbox
@@ -192,6 +192,9 @@
       <button type="button" class="v4lk" onclick={resetAll}>
         <Icon name="reset" small />
         Đặt lại tất cả…
+      </button>
+      <button type="button" class="v4lk" onclick={() => openWindow("about")}>
+        Giới thiệu…
       </button>
       <span class="sp"></span>
       <button type="button" class="btn pri" onclick={closeCurrent}>Đóng</button>

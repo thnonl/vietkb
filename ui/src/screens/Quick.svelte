@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { onMount } from "svelte";
   import Toggle from "../components/Toggle.svelte";
   import TitleBar from "../components/TitleBar.svelte";
@@ -155,7 +155,7 @@
         <span class="h"><span class="num">{formatNumber(rules.length)}</span> ứng dụng</span>
       </div>
       <div class="c">
-        <button type="button" class="btn" onclick={() => (dialogOpen = true)}>Quản lý…</button>
+        <button type="button" class="btn" onclick={() => (dialogOpen = true)}>Danh sách ứng dụng…</button>
       </div>
     </div>
 
@@ -171,13 +171,13 @@
 
     <div class="v4row sys">
       <div class="l">
-        <b>Chỉ chạy trong tray khi khởi động</b>
-        <span class="h">Áp dụng từ lần khởi động Windows sau</span>
+        <b>Chạy ẩn</b>
+        <span class="h">Mở lên không hiện cửa sổ, chỉ nằm trong khay</span>
       </div>
       <div class="c">
         <Toggle
           checked={settings?.system.startMinimized ?? false}
-          label="Chỉ chạy trong tray khi khởi động"
+          label="Chạy ẩn"
           onchange={(next) => app.patch({ system: { startMinimized: next } })} />
       </div>
     </div>
@@ -189,7 +189,7 @@
       <button
         type="button"
         class="btn ghost"
-        title="Thoát hẳn — đóng cả khay hệ thống"
+        title="Thoát hẳn, tắt luôn biểu tượng trong khay"
         aria-label="Thoát hẳn"
         onclick={quit}>Thoát hẳn</button>
       <button type="button" class="btn pri" onclick={closeCurrent}>Đóng</button>

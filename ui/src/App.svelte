@@ -6,6 +6,7 @@
   import Hotkeys from "./screens/Hotkeys.svelte";
   import Advanced from "./screens/Advanced.svelte";
   import Macros from "./screens/Macros.svelte";
+  import About from "./screens/About.svelte";
   import { app } from "./lib/state.svelte";
   import { closeCurrent } from "./lib/window.svelte";
 
@@ -36,6 +37,8 @@
   <Hotkeys />
 {:else if kind === "advanced"}
   <Advanced />
+{:else if kind === "about"}
+  <About />
 {:else if kind === "macros"}
   <div class="v4win">
     <TitleBar title="Bảng gõ tắt" subtitle="VietKB" showMark={false} showMinimize={false} />

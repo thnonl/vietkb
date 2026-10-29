@@ -60,7 +60,7 @@
         .filter(([other, otherValue]) => other !== field && otherValue === value)
         .map(([other]) => labelForField(other));
       if (others.length > 0) {
-        out[field] = `Trùng “${prettyHotkey(value)}” với ${others.join(", ")} — chọn tổ hợp khác.`;
+        out[field] = `“${prettyHotkey(value)}” đã dùng cho ${others.join(", ")}. Chọn tổ hợp khác.`;
       }
     }
     return out;
@@ -87,7 +87,7 @@
     }
     const text =
       problem.kind === "conflict"
-        ? `Trùng với ${problem.text} — chọn tổ hợp khác.`
+        ? `Tổ hợp này đã dùng cho ${problem.text}. Chọn tổ hợp khác.`
         : problem.text;
     live = { ...live, [field]: { kind: problem.kind, text } };
     if (problem.kind === "conflict") {
@@ -98,7 +98,7 @@
           ...live,
           [other]: {
             kind: "conflict",
-            text: `Trùng với ${labelForField(field)} — chọn tổ hợp khác.`,
+            text: `Tổ hợp này đã dùng cho ${labelForField(field)}. Chọn tổ hợp khác.`,
           },
         };
       }
@@ -136,8 +136,8 @@
   <main class="v4sheet">
     <div class="v4intro">
       Bấm vào ô, nhấn tổ hợp mới.
-      <span class="k sm">Esc</span> để huỷ,
-      <span class="k sm">Backspace</span> để xoá.
+      <span class="k sm">Esc</span> để bỏ,
+      <span class="k sm">Backspace</span> để xoá phím tắt.
     </div>
 
     {#each rows as row, index (row.field)}

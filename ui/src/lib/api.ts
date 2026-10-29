@@ -6,10 +6,12 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppInfoView,
   AppRuleRow,
+  DownloadOutcome,
   MacroRow,
   RunningApp,
   SettingsView,
   StatusView,
+  UpdateStatus,
 } from "./bindings";
 
 export type * from "./bindings";
@@ -64,6 +66,18 @@ export const setAutostart = (enabled: boolean) =>
   invoke<boolean>("set_autostart", { enabled });
 
 /** Window management is presentation only; contract §6 commands are untouched. */
-export const openWindow = (kind: "hotkeys" | "advanced" | "macros") =>
+export const openWindow = (kind: "hotkeys" | "advanced" | "macros" | "about") =>
   invoke<void>("open_window", { kind });
 export const quitApp = () => invoke<void>("quit_app");
+
+// ------------------------------------------------------------------ updates
+// Same rule: the update surface is additive. GitHub is queried from Rust, never
+// from the page (CSP stays `default-src 'self'`).
+
+export const checkUpdate = () => invoke<UpdateStatus>("check_update");
+export const updateStatus = () => invoke<UpdateStatus>("update_status");
+export const downloadUpdate = () => invoke<DownloadOutcome>("download_update");
+export const installUpdate = () => invoke<void>("install_update");
+
+/** Opens one of the allow-listed links (repo, issues, Ko-fi) in the browser. */
+export const openUrl = (url: string) => invoke<void>("open_url", { url });

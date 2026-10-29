@@ -1,11 +1,19 @@
 //! Tray icon: state and method submenus with checkmarks, and an icon that
 //! reflects whether Vietnamese input is on.
+//!
+//! Mouse: a left click toggles Vietnamese (the same path as the menu's own
+//! `Bật/tắt tiếng Việt`), a right click opens the menu. Nothing on the tray
+//! opens the settings window any more — that is the menu's `Mở cài đặt…`.
+
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Wry};
 
 use crate::commands::{self, StatusView};
+use crate::update;
 
 pub const TRAY_ID: &str = "vietkb-tray";
 
@@ -48,14 +56,93 @@ fn icon_for(app: &AppHandle, status: &StatusView) -> tauri::Result<tauri::image:
         (true, _) => ON_32,
         (false, _) => OFF_32,
     };
+    if update::available().is_some() {
+        // Composed at runtime so the shipped PNGs stay untouched and the badge
+        // always matches the size Windows asked for.
+        return badged(bytes, tray_px(app));
+    }
     tauri::image::Image::from_bytes(bytes)
 }
 
+// Update badge: an accent disc with a white download arrow in the bottom-right
+// corner, plus a light halo so it reads on a dark taskbar too. Drawn from the
+// pixels of the existing icon, not from an extra asset.
+const ACCENT: [u8; 3] = [0x58, 0x44, 0xC8];
+const HALO: [u8; 3] = [0xFF, 0xFF, 0xFF];
+
+fn coverage(distance: f32, radius: f32) -> f32 {
+    (radius - distance + 0.5).clamp(0.0, 1.0)
+}
+
+/// Source-over one pixel, straight alpha.
+fn blend(pixels: &mut [u8], index: usize, color: [u8; 3], alpha: f32) {
+    let alpha = alpha.clamp(0.0, 1.0);
+    if alpha <= 0.0 {
+        return;
+    }
+    let dest = pixels[index + 3] as f32 / 255.0;
+    let out = alpha + dest * (1.0 - alpha);
+    if out <= 0.0 {
+        return;
+    }
+    for channel in 0..3 {
+        let dst = pixels[index + channel] as f32;
+        let src = color[channel] as f32;
+        pixels[index + channel] = ((src * alpha + dst * dest * (1.0 - alpha)) / out).round() as u8;
+    }
+    pixels[index + 3] = (out * 255.0).round() as u8;
+}
+
+fn badged(base: &'static [u8], px: u32) -> tauri::Result<tauri::image::Image<'static>> {
+    let image = tauri::image::Image::from_bytes(base)?;
+    let (width, height) = (image.width(), image.height());
+    let mut pixels = image.rgba().to_vec();
+
+    // 8.6 px across at 16 px: visible in the notification area without hiding
+    // the keycap.
+    let radius = (px as f32 * 0.27).max(3.5);
+    let cx = width as f32 - radius - 0.4;
+    let cy = height as f32 - radius - 0.4;
+
+    for y in 0..height {
+        for x in 0..width {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let index = ((y * width + x) * 4) as usize;
+
+            let halo = coverage(distance, radius + 1.0);
+            if halo > 0.0 {
+                blend(&mut pixels, index, HALO, halo * 0.9);
+            }
+            let disc = coverage(distance, radius);
+            if disc <= 0.0 {
+                continue;
+            }
+            blend(&mut pixels, index, ACCENT, disc);
+
+            let ax = dx.abs();
+            let stem = ax <= 0.7 && dy >= -radius * 0.45 && dy <= radius * 0.15;
+            let head =
+                dy > radius * 0.15 && dy <= radius * 0.52 && ax <= (radius * 0.52 - dy) * 1.1 + 0.5;
+            if stem || head {
+                blend(&mut pixels, index, HALO, disc);
+            }
+        }
+    }
+
+    Ok(tauri::image::Image::new_owned(pixels, width, height))
+}
+
 fn tooltip(status: &StatusView) -> String {
-    if status.enabled {
+    let base = if status.enabled {
         format!("VietKB · Tiếng Việt · {}", method_label(&status.method))
     } else {
         "VietKB · Đã tắt tiếng Việt".to_string()
+    };
+    match update::available_version() {
+        Some(version) => format!("{base} · Có bản cập nhật v{version}"),
+        None => base,
     }
 }
 
@@ -96,21 +183,40 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
 
     let settings = MenuItem::with_id(app, "settings", "Mở cài đặt…", true, None::<&str>)?;
     let hotkeys = MenuItem::with_id(app, "hotkeys", "Phím tắt…", true, None::<&str>)?;
+    // Only while a newer release is known: the item is the tray's third
+    // affordance, and it must appear without a restart when the 5 s check finds
+    // one (`refresh` rebuilds this menu).
+    let update_item = match update::available_version() {
+        Some(version) => {
+            tracing::debug!(%version, "tray: update item added");
+            Some(MenuItem::with_id(
+                app,
+                "update",
+                format!("Có bản cập nhật v{version}"),
+                true,
+                None::<&str>,
+            )?)
+        }
+        None => None,
+    };
     let quit = MenuItem::with_id(app, "quit", "Thoát VietKB", true, None::<&str>)?;
     let sep_top = PredefinedMenuItem::separator(app)?;
     let sep_open = PredefinedMenuItem::separator(app)?;
     let sep_bottom = PredefinedMenuItem::separator(app)?;
 
-    let items: Vec<&dyn IsMenuItem<Wry>> = vec![
+    let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![
         &toggle,
         &sep_top,
         &method_menu,
         &sep_open,
         &settings,
         &hotkeys,
-        &sep_bottom,
-        &quit,
     ];
+    if let Some(item) = &update_item {
+        items.push(item);
+    }
+    items.push(&sep_bottom);
+    items.push(&quit);
     Menu::with_items(app, &items)
 }
 
@@ -123,11 +229,47 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon_for(app, &status)?)
         .tooltip(tooltip(&status))
         .menu(&menu)
-        .show_menu_on_left_click(true)
+        // Left click belongs to the toggle below, so the menu is right-click
+        // only (Tauri's default on Windows).
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| handle_event(app, event.id.as_ref()))
+        .on_tray_icon_event(|_tray, event| {
+            // `Up`, not `Down`: one toggle per physical click.
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                toggle_from_left_click();
+            }
+        })
         .build(app)?;
 
     Ok(())
+}
+
+/// Swallow the second half of a double-click. Windows reports a double-click on
+/// the tray as extra click events; without this guard one double-click would
+/// flip the state twice and land back where it started.
+const CLICK_GUARD: Duration = Duration::from_millis(350);
+
+fn toggle_from_left_click() {
+    static LAST_CLICK: Mutex<Option<Instant>> = Mutex::new(None);
+
+    let now = Instant::now();
+    let Ok(mut last) = LAST_CLICK.lock() else {
+        return;
+    };
+    if last.is_some_and(|previous| now.duration_since(previous) < CLICK_GUARD) {
+        return;
+    }
+    *last = Some(now);
+    drop(last);
+
+    // Same path as the menu item: persist, set `enabled` on the hook, patch the
+    // tray icon and tooltip, broadcast to the open windows.
+    let _ = commands::toggle_enabled();
 }
 
 /// Rebuild the menu and icon after any state change. Never panics: a tray that
@@ -153,6 +295,7 @@ fn handle_event(app: &AppHandle, id: &str) {
     match id {
         "quit" => crate::quit(app),
         "settings" => crate::show_settings(app),
+        "update" => crate::show_about(app),
         "hotkeys" => {
             if let Err(error) = crate::show_aux(app, "hotkeys") {
                 tracing::warn!(%error, "tray: could not open the hotkeys window");

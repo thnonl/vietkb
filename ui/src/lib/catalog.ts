@@ -93,7 +93,7 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
   },
   {
     field: "restoreWord",
-    label: "Phục hồi từ gõ sai",
+    label: "Khôi phục từ gõ sai",
     hint: "Khôi phục đúng các phím bạn vừa gõ khi từ bị nhận sai.",
     group: "state",
     fallback: "",

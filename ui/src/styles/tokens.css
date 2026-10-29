@@ -14,6 +14,12 @@
   --line-2: #e0dbd2;
   --line-3: #cbc5b9;
   --ctl-line: #8e887e;
+  /* Window edge: the ring drawn inside `.v4win`. A frameless window has no
+   * system border of its own, so the darkest neutral in the ramp is the edge.
+   * --win-hl is the 1 px highlight one pixel inside it; transparent in light
+   * mode, faint white in dark mode so the edge reads on a black desktop. */
+  --win-edge: var(--line-2);
+  --win-hl: transparent;
   --t1: #1c1a16;
   --t2: #57524a;
   --t3: #6b655b;
@@ -115,6 +121,9 @@
   --focus: #b9aeff;
   --rail: #8b7bff;
 
+  /* 1 px highlight inside the window edge (see .v4win). */
+  --win-hl: rgba(255, 255, 255, 0.1);
+
   --ok: #5dcb9b;
   --ok-tint: #14251c;
   --warn: #e9b34f;
@@ -215,6 +224,7 @@
     --on-acc: #14121a;
     --focus: #b9aeff;
     --rail: #8b7bff;
+    --win-hl: rgba(255, 255, 255, 0.1);
 
     --ok: #5dcb9b;
     --ok-tint: #14251c;

@@ -7,7 +7,7 @@ export const closeCurrent = (): void => {
   if (isNative()) void getCurrentWindow().close();
 };
 
-export const openWindow = (kind: "hotkeys" | "advanced" | "macros"): void => {
+export const openWindow = (kind: "hotkeys" | "advanced" | "macros" | "about"): void => {
   if (isNative()) {
     void import("./api").then((api) => api.openWindow(kind));
     return;

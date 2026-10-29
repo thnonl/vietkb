@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { app } from "../lib/state.svelte";
+  import { openWindow } from "../lib/window.svelte";
   // Product mark, identical in every window: the keycap `V` (Vietnamese on)
   // from the approved set (design/logo11/keycap/v-20.png). The title bar never
   // switches to `E` — the tray icon carries the on/off state.
@@ -69,6 +70,19 @@
   <span class="ttl">{title}{#if subtitle}<small>— {subtitle}</small>{/if}</span>
   <span class="drag"></span>
   <div class="wc">
+    {#if showMark && app.updateAvailable}
+      <button
+        type="button"
+        class="tslot upd"
+        aria-label="Có bản cập nhật — mở Giới thiệu"
+        title={`Có bản cập nhật v${app.updateVersion ?? ""} — mở Giới thiệu`}
+        onclick={() => openWindow("about")}>
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
+          <path d="M3 13.1h10" />
+        </svg>
+      </button>
+    {/if}
     <button
       type="button"
       class="tslot"

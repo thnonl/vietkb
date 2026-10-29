@@ -1,8 +1,9 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
 mod running_apps;
 mod tray;
+mod update;
 #[cfg(windows)]
 mod windows_backend;
 
@@ -25,6 +26,16 @@ const MAIN_LABEL: &str = "main";
 /// where it comes back.
 pub fn show_settings(app: &tauri::AppHandle) {
     open_settings(app);
+}
+
+/// Raise the About modal: from the tray's update item and from the title-bar
+/// badge's window-level entry point. The page may not exist yet, so the request
+/// is also left in the update state for the next startup of the main window.
+pub fn show_about(app: &tauri::AppHandle) {
+    if let Err(error) = show_aux(app, "about") {
+        tracing::warn!(%error, "could not open the About window");
+        open_settings(app);
+    }
 }
 
 /// Keep old callers (hotkeys, tray) working after the tab strip was removed:
@@ -78,10 +89,24 @@ fn open_settings(app: &tauri::AppHandle) {
 /// (`set_enabled(false)`) for as long as the modal lives. The modal is centred
 /// on the main window rather than on the monitor.
 pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
+    // Height is the content height rounded up to the 4 px grid, never a
+    // guessed constant — the same rule the main window uses. Each value is
+    // measured from the screen it opens:
+    //   hotkeys   36 caption + 1 + 44 intro + 5×44 rows + 56 footer = 357 → 360
+    //   advanced  36 caption + 1 + 4 sections (33 head, 28/row grid, 36 field
+    //             row) + 56 footer = 488 → 488
+    //   macros    36 caption + 1 + 16 + 36 toolbar + 12 + 406 table
+    //             (36 header + 8×46 rows + 2 border) + 9 + 28 footer
+    //             + 16 sheet pad = 560 → 560
+    //   about     36 caption + 1 + 12 pad + 493 measured content (story +
+    //             update block + links) + 14 pad = 556, inside the 560 px hard
+    //             cap the owner set; the sheet scrolls only if a longer
+    //             changelog is clipped.
     let (label, title, width, height) = match kind {
-        "hotkeys" => ("hotkeys", "Phím tắt — VietKB", 520.0, 460.0),
-        "advanced" => ("advanced", "Nâng cao — VietKB", 560.0, 496.0),
+        "hotkeys" => ("hotkeys", "Phím tắt — VietKB", 520.0, 360.0),
+        "advanced" => ("advanced", "Nâng cao — VietKB", 560.0, 488.0),
         "macros" => ("macros", "Bảng gõ tắt — VietKB", 720.0, 560.0),
+        "about" => ("about", "Giới thiệu — VietKB", 560.0, 556.0),
         other => return Err(format!("cửa sổ không hợp lệ: {other}")),
     };
 
@@ -105,7 +130,10 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         .maximizable(false)
         .minimizable(false)
         .decorations(false)
-        .shadow(false)
+        // Frameless windows get no system border, so the native shadow is the
+        // only thing separating this window from whatever is behind it. The 1 px
+        // ring the page draws on top is the edge itself (ui/src/styles/v4.css).
+        .shadow(true)
         .transparent(false)
         .visible(false);
 
@@ -166,7 +194,7 @@ fn centre_on_parent(
 }
 
 /// Labels of the modal windows that can be open at once.
-const AUX_LABELS: [&str; 3] = ["hotkeys", "advanced", "macros"];
+const AUX_LABELS: [&str; 4] = ["hotkeys", "advanced", "macros", "about"];
 
 /// Close every open modal. Used before the main window goes away so no window
 /// outlives its parent.
@@ -193,7 +221,10 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
     .resizable(false)
     .maximizable(false)
     .decorations(false)
-    .shadow(false)
+    // Frameless: without the native shadow the window has no edge against a
+    // neighbouring app. `transparent` stays false, which is what Windows needs
+    // for DWM to paint the frame shadow at all.
+    .shadow(true)
     .transparent(false)
     // Hidden at build time; placed and shown below in one go.
     .visible(false)
@@ -329,11 +360,16 @@ fn main() {
     vkb_windows::perf::init_from_env();
 
     let app = tauri::Builder::default()
+        // Second launch: same rule as a first one, so `Chạy ẩn` also keeps a
+        // re-launch in the tray instead of flashing a window.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_settings(app);
+            if !commands::config_cell().read().system.start_minimized {
+                show_settings(app);
+            }
         }))
-        // The `--autostart` argument is what lets the app tell "Windows started
-        // me" apart from "the user double-clicked the exe".
+        // The `--autostart` argument identifies a Windows launch in the `Run`
+        // value. It no longer decides what appears on screen: `Chạy ẩn` does
+        // that for every launch path alike.
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .arg("--autostart")
@@ -341,8 +377,8 @@ fn main() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        // No updater plugin: update checking is Sprint 4. Registering it without a
-        // `plugins.updater` block in tauri.conf.json fails plugin init at startup.
+        // No updater plugin: the GitHub Releases check lives in `update.rs`
+        // (plain `ureq`), so `plugins.updater` is never needed in the config.
         .setup(|app| {
             let handle = app.handle().clone();
             commands::set_app_handle(handle.clone());
@@ -356,6 +392,11 @@ fn main() {
             commands::adopt_autostart_registry(config.system.start_with_windows);
 
             tray::install(&handle)?;
+
+            // Five seconds after launch, off the UI thread, honouring
+            // `system.check_updates`. A failure stays silent; the About window
+            // shows the reason when the owner opens it.
+            update::schedule_startup_check(handle.clone());
 
             // Hook, config hand-off and both callbacks. Must run after the tray
             // exists (a hotkey can flip it) and after the config load.
@@ -374,11 +415,11 @@ fn main() {
                 "VietKB starting"
             );
 
-            // A Windows-launched instance always starts hidden — the tray is the
-            // whole window. A manual launch honours `start_minimized`.
-            let launched_by_autostart = std::env::args().any(|arg| arg == "--autostart");
-            let should_show = !launched_by_autostart && !config.system.start_minimized;
-            if should_show {
+            // Every launch path obeys the same switch: `Chạy ẩn`
+            // (`system.start_minimized`) hides the window for a Start-menu pick,
+            // a desktop shortcut, an autostart run and a second instance alike.
+            // `--autostart` is no longer a special case.
+            if !config.system.start_minimized {
                 show_settings(&handle);
             }
 
@@ -446,6 +487,11 @@ fn main() {
             commands::app_info,
             commands::autostart_state,
             commands::set_autostart,
+            update::check_update,
+            update::update_status,
+            update::download_update,
+            update::install_update,
+            update::open_url,
         ])
         .build(tauri::generate_context!())
         .expect("error while building VietKB");

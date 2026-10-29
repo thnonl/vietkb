@@ -317,7 +317,7 @@
         <span class="sample">được</span>
       </div>
       <b>Chưa có gõ tắt nào</b>
-      <p>Gõ dc rồi dấu cách sẽ ra “được”. Thêm vài mục mẫu để thử:</p>
+      <p>Gõ dc rồi bấm dấu cách sẽ ra “được”. Thêm vài mục mẫu để thử:</p>
       <div class="samples">
         {#each [
           { trigger: "dc", expansion: "được" },
@@ -520,7 +520,9 @@
     align-items: flex-start;
     justify-content: center;
     gap: 6px;
-    min-height: 404px;
+    /* Fills the table box the window is sized for — a fixed minimum left a
+     * band under the illustration once the window matched its content. */
+    flex: 1 1 auto;
     padding: 18px 24px;
   }
   .illustration {
@@ -581,6 +583,10 @@
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
+    /* 9 px instead of the kit's 10: the sheet's 16 px bottom pad plus this
+     * margin is what makes the window height land exactly on the 4 px grid
+     * (see `macros` in crates/vkb-app/src/main.rs). */
+    margin-bottom: 9px;
   }
   .tblbody {
     flex: 1 1 auto;

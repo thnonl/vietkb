@@ -1,13 +1,48 @@
-/* v4 window kit — one 480 × 460 main window, three secondary modals.
+﻿/* v4 window kit — one 480 × 460 main window, three secondary modals.
  * Mirrors design/{light,dark}/{quick,hotkeys,advanced}.html with two added
  * system rows; the height is the smallest 4 px multiple that fits all eight
  * 44 px rows, one separator, the 4 px top pad, the 36 px caption and the
- * 56 px footer without scrolling. */
+ * 56 px footer without scrolling. The modals follow the same rule and their
+ * heights live with the window builder in crates/vkb-app/src/main.rs
+ * (hotkeys 520×360, advanced 560×488, macros 720×568). */
 
+/* ---- window frame ---------------------------------------------------------
+ * The window is frameless (`decorations(false)`), so Windows draws no border of
+ * its own. The shell paints the edge instead: 1 px of --line-2 all round, plus
+ * 1 px of highlight one pixel inside it in dark mode. Both are `inset` shadows,
+ * never a CSS border: a border would shrink the content box by 2 px and push
+ * every row off the 44 px grid.
+ *
+ * The radius matches the 8 px curve Windows gives a frameless top-level window,
+ * so the ring sits on the same curve as the native corner instead of cutting a
+ * square one behind it; `overflow: hidden` clips the children to that same
+ * curve. No blur: this is an edge, not a drop shadow (that is `.shadow(true)`
+ * in crates/vkb-app/src/main.rs). */
 .v4win {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* The ring lives on an overlay, not on `.v4win` itself: the sheet below paints
+ * its own background right up to the client edge, which would cover an inset
+ * shadow on the root. `fixed` anchors it to the viewport — the window is the
+ * viewport, and the flex box may be taller than it. `pointer-events: none`
+ * keeps the whole window clickable, and inset shadows follow the radius
+ * without touching layout. */
+.v4win::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px var(--win-edge),
+    inset 0 0 0 2px var(--win-hl);
+  pointer-events: none;
+  z-index: 2147483647;
 }
 
 /* ---- caption (36 px, drag surface, 44 × 36 window buttons) ---------------- */
@@ -370,4 +405,174 @@
   font: 400 12px/18px var(--sm);
   color: var(--t3);
   margin-left: 4px;
+}
+
+/* ------------------------------------------------------------- update UI */
+/* 16 px download button, next to the theme slot in the main title bar. */
+.cap-bar .tslot.upd {
+  margin-right: 2px;
+  color: var(--acc-text);
+}
+.cap-bar .tslot.upd:hover {
+  background: var(--acc-tint);
+  color: var(--acc-text);
+}
+
+/* ---------------------------------------------------------------- About */
+.about-sheet {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  padding: 12px 12px 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--line-2);
+  overflow-y: auto;
+}
+.about-inner {
+  width: 100%;
+  max-width: 528px;
+}
+.about-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+}
+.about-head img {
+  width: 48px;
+  height: 48px;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.about-head b {
+  font: 600 16px/22px var(--ui);
+  color: var(--t1);
+}
+.about-ver {
+  font: 400 13px/20px var(--ui);
+  color: var(--t2);
+}
+.about-lead {
+  margin: 8px 0 0;
+  font: 400 13px/20px var(--ui);
+  color: var(--t2);
+}
+.about-story {
+  margin-top: 12px;
+}
+.about-story h2,
+.about-sec-head h2 {
+  margin: 0;
+  font: 600 12px/16px var(--ui);
+  letter-spacing: 0.01em;
+  color: var(--t2);
+}
+.about-story p {
+  margin: 6px 0 0;
+  font: 400 13px/22px var(--ui);
+  color: var(--t2);
+}
+.about-story p:first-of-type {
+  margin-top: 6px;
+}
+.about-story p.about-close {
+  margin: 12px 0 0;
+  font: 600 15px/22px var(--ui);
+  color: var(--t1);
+}
+.about-div {
+  height: 1px;
+  flex: none;
+  margin: 7px 0;
+  background: var(--line-1);
+}
+.about-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.about-sec-head .num {
+  font: 400 12px/16px var(--ui);
+  color: var(--t3);
+}
+.about-status {
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--t2);
+  font: 400 12px/18px var(--ui);
+}
+.about-status[data-tone="acc"] {
+  background: var(--acc-tint);
+  color: var(--acc-text);
+}
+.about-status[data-tone="warn"] {
+  background: var(--warn-tint);
+  color: var(--warn);
+}
+.about-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.about-progress {
+  margin: 8px 0 0;
+  font: 400 12px/18px var(--ui);
+  color: var(--t3);
+}
+.about-changelog {
+  margin-top: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.about-changelog .about-sec-head {
+  margin: 0;
+  padding: 2px 10px;
+  background: var(--hover);
+}
+.about-changelog pre {
+  margin: 0;
+  max-height: 44px;
+  overflow-y: auto;
+  padding: 5px 8px;
+  color: var(--t2);
+  font: 400 12px/18px var(--ui);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.about-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.about-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 13px/20px var(--ui);
+}
+.about-lk {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: 400 13px/20px var(--ui);
+  color: var(--acc-text);
+}
+.about-lk:hover {
+  text-decoration: underline;
+}
+.about-dot {
+  color: var(--t4);
+}
+.about-privacy {
+  margin: 0;
+  font: 400 12px/18px var(--ui);
+  color: var(--t4);
 }

@@ -112,3 +112,42 @@ export interface AppInfoView {
 export type Theme = "system" | "light" | "dark";
 /** The panel has exactly four tabs (charter C9). */
 export type NavId = "go" | "macros" | "hotkeys" | "system";
+
+// ---------------------------------------------------------------- updates
+
+export type UpdateState = "idle" | "checking" | "none" | "available" | "error";
+
+export interface UpdateAsset {
+  name: string;
+  url: string;
+  size: number;
+}
+
+/** One GitHub release that is newer than this build. */
+export interface UpdateInfo {
+  version: string;
+  tag: string;
+  changelog: string;
+  publishedAt: string | null;
+  htmlUrl: string;
+  assets: UpdateAsset[];
+  assetName: string | null;
+  assetUrl: string | null;
+  assetSize: number | null;
+}
+
+export interface UpdateStatus {
+  state: UpdateState;
+  currentVersion: string;
+  update: UpdateInfo | null;
+  /** Readable reason for `state === "error"` (network, rate limit, …). */
+  message: string | null;
+  checkedAt: number | null;
+}
+
+export interface DownloadOutcome {
+  path: string;
+  version: string;
+  /** `false` when the release notes carried no `SHA256:` line. */
+  verified: boolean;
+}

@@ -1,4 +1,4 @@
-// Global UI store (Svelte 5 runes).
+﻿// Global UI store (Svelte 5 runes).
 //
 // Live apply: every `patch` merges into a pending object, updates the local view
 // immediately (so controls never lag behind the mouse) and flushes to
@@ -10,6 +10,7 @@ import * as api from "./api";
 import type {
   AppInfoView,
   AppsView,
+  DownloadOutcome,
   HotkeyField,
   InputView,
   NavId,
@@ -18,6 +19,7 @@ import type {
   SystemView,
   TypingView,
   UiView,
+  UpdateStatus,
 } from "./bindings";
 import { isLang, translator, type Lang } from "./i18n";
 
@@ -47,14 +49,34 @@ const demoStatus: StatusView = {
   charset: "unicode",
   mechanism: "hook",
   hookReady: false,
-  version: "0.1.0",
+  version: "0.2.0",
 };
 
 const demoInfo: AppInfoView = {
-  version: "0.1.0",
+  version: "0.2.0",
   arch: "x86_64",
   configPath: "%APPDATA%\\VietKB\\config.toml",
   hookReady: false,
+};
+
+/** Preview mode (plain vite, no Tauri): a stub so About and the badge render. */
+const demoUpdate: UpdateStatus = {
+  state: "available",
+  currentVersion: "0.2.0",
+  update: {
+    version: "0.9.9",
+    tag: "v0.9.9",
+    changelog:
+      "VietKB 0.9.9 (bản xem trước)\n\n- Huy hiệu cập nhật trên thanh tiêu đề\n- Mục cập nhật trong menu khay hệ thống\n- Cửa sổ Giới thiệu có nhật ký thay đổi\n",
+    publishedAt: "2026-10-20T09:00:00Z",
+    htmlUrl: "https://github.com/thnonl/vietkb",
+    assets: [],
+    assetName: null,
+    assetUrl: null,
+    assetSize: null,
+  },
+  message: null,
+  checkedAt: null,
 };
 
 const demoSettings: SettingsView = {
@@ -120,6 +142,11 @@ class Store {
   /** Total macro count, mirrored into the Gõ tắt tab label and the Gõ tab link. */
   macroCount = $state<number | null>(null);
 
+  /** Update surface: last check result and the busy flag. */
+  update = $state<UpdateStatus | null>(null);
+  updateBusy = $state<"idle" | "checking" | "downloading" | "installing">("idle");
+  updateNote = $state<string | null>(null);
+
   /** Brush/patch objects merged into a single debounced request. */
   private pending: SettingsPatch = {};
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -131,6 +158,7 @@ class Store {
   private themeChannel: BroadcastChannel | null = null;
   private settingsUnlisten: UnlistenFn | null = null;
   private settingsChannel: BroadcastChannel | null = null;
+  private updateUnlisten: UnlistenFn | null = null;
 
   get lang(): Lang {
     const value = this.settings?.system.language;
@@ -153,6 +181,15 @@ class Store {
     return this.settings?.typing.modernTone ?? true;
   }
 
+  /** True once a check has found a newer release. Drives the badge and tray. */
+  get updateAvailable(): boolean {
+    return this.update?.state === "available" && this.update.update !== null;
+  }
+
+  get updateVersion(): string | null {
+    return this.update?.update?.version ?? null;
+  }
+
   async init(): Promise<void> {
     this.previewMode = !api.isTauri();
     this.startThemeBus();
@@ -161,6 +198,7 @@ class Store {
         this.settings = demoSettings;
         this.status = demoStatus;
         this.info = demoInfo;
+        this.update = demoUpdate;
         this.applyTheme(demoSettings.system.theme);
         return;
       }
@@ -181,6 +219,19 @@ class Store {
           this.settings.input.charset = event.payload.charset;
         }
       });
+
+      // The update state is one object the backend owns: the 5 s startup check,
+      // a manual check and the tray all write it. Every window follows the
+      // event, so the title-bar badge and the tray item appear without a
+      // restart.
+      this.update = await api.updateStatus().catch(() => null);
+      await listen<UpdateStatus>("vkb:update", (event) => {
+        this.update = event.payload;
+      })
+        .then((unlisten) => {
+          this.updateUnlisten = unlisten;
+        })
+        .catch(() => {});
     } catch (error) {
       this.settings = demoSettings;
       this.status = demoStatus;
@@ -202,6 +253,8 @@ class Store {
     this.settingsUnlisten = null;
     this.settingsChannel?.close();
     this.settingsChannel = null;
+    this.updateUnlisten?.();
+    this.updateUnlisten = null;
     if (this.timer !== undefined) clearTimeout(this.timer);
   }
 
@@ -299,6 +352,50 @@ class Store {
       this.applyTheme(settings.system.theme);
     } catch {
       // Already surfaced by the caller's toast.
+    }
+  }
+
+  // ------------------------------------------------------------------ update
+
+  /** Ask Rust for the latest release. Never throws: failures become the status
+   *  line (`state === "error"`), which is exactly what About shows. */
+  async checkForUpdate(): Promise<void> {
+    if (this.previewMode) {
+      this.update = demoUpdate;
+      this.updateNote = "Chế độ xem trước: đang hiện bản cập nhật mẫu.";
+      return;
+    }
+    this.updateBusy = "checking";
+    this.updateNote = null;
+    try {
+      this.update = await api.checkUpdate();
+    } catch (error) {
+      const base = this.update ?? demoUpdate;
+      this.update = { ...base, state: "error", update: null, message: errorText(error) };
+    } finally {
+      this.updateBusy = "idle";
+    }
+  }
+
+  /** `Cập nhật ngay`: download into %TEMP%, then hand off to the installer. */
+  async installUpdate(): Promise<void> {
+    if (this.previewMode) {
+      this.updateNote = "Chế độ xem trước: không tải được tệp cài đặt.";
+      return;
+    }
+    this.updateBusy = "downloading";
+    this.updateNote = "Đang tải bản cập nhật…";
+    try {
+      const done: DownloadOutcome = await api.downloadUpdate();
+      this.updateNote = done.verified
+        ? `Đã tải và xác minh SHA256 — bản ${done.version}`
+        : `Đã tải bản ${done.version} (bản phát hành không kèm SHA256)`;
+      this.updateBusy = "installing";
+      await api.installUpdate();
+    } catch (error) {
+      this.updateNote = errorText(error);
+    } finally {
+      this.updateBusy = "idle";
     }
   }
 

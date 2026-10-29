@@ -78,7 +78,12 @@ Rules:
 | Dev | `general` | `opencode-go/deepseek-v4.1-flash#max` | all implementation in its worktree | change the contract, change design values |
 | QA | `general` | `opencode-go/deepseek-v4.1-flash#low` | test cases, defect log, independent verification | edit product code (may add tests) |
 | Design | `general` | `anthropic/claude-opus-5-5#medium` | visual directions, tokens, screenshot-ready mocks | decide taste alone |
-| Copy | `general` | `anthropic/claude-opus-5-5#medium` | every Vietnamese UI string, terms, states | edit code or layout |
+| Copy | `general` | `opencode-go/deepseek-v4.1-flash#max` | every Vietnamese sentence: voice guide, About, site, release notes, string audits | edit code or layout |
+
+**Copy owns the words (owner, 2026-10-29).** No product string ships without the copywriter's pass;
+the Lead may propose facts and constraints but not final phrasing. Opus credits ran out during the
+design phase, so Design and Copy now run on DeepSeek; design judgement is unchanged in scope but its
+lateral-idea quality is lower — say so when a design decision matters more than execution.
 
 **Reasoning level rule (owner, 2026-10-28):** Opus runs at **`medium`**. `high`/`xhigh` only when
 the owner asks for it by name — the cost is not justified for routine work. DeepSeek devs stay at
