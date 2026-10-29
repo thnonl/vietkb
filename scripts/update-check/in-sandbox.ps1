@@ -3,6 +3,9 @@ param([switch]$NoShutdown)
 $ErrorActionPreference = 'Stop'
 $result = 'C:\share\update-check\result.txt'
 function Log($kind, $message) { Add-Content -Path $result -Value "$kind $message" }
+# NSIS writes InstallLocation/UninstallString with surrounding quotes; strip them before use.
+function Clean-Path($value) { return ([string]$value).Trim().Trim('"').Trim() }
+$roots = @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
 try {
     $headers = @{ 'User-Agent' = 'vietkb-update-check'; 'Accept' = 'application/vnd.github+json' }
     if ($env:VERSION) { $version = $env:VERSION } else { $version = (Invoke-RestMethod 'https://api.github.com/repos/thnonl/vietkb/releases/latest' -Headers $headers).tag_name.TrimStart('v') }
@@ -16,7 +19,10 @@ try {
     Log PASS "SHA256 $((Get-FileHash $download -Algorithm SHA256).Hash)"
     function Find-App {
         $roots = @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
-        foreach ($root in $roots) { $e = Get-ItemProperty $root -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'VietKB*' -and $_.InstallLocation } | Select-Object -First 1; if ($e) { return (Join-Path $e.InstallLocation 'vietkb.exe') } }
+        foreach ($root in $roots) {
+            $e = Get-ItemProperty $root -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'VietKB*' -and $_.InstallLocation } | Select-Object -First 1
+            if ($e) { return (Join-Path (Clean-Path $e.InstallLocation) 'vietkb.exe') }
+        }
         foreach ($p in @((Join-Path $env:LOCALAPPDATA 'VietKB\vietkb.exe'),(Join-Path $env:ProgramFiles 'VietKB\vietkb.exe'))) { if (Test-Path $p) { return $p } }; return $null
     }
     $releases = Invoke-RestMethod 'https://api.github.com/repos/thnonl/vietkb/releases?per_page=30' -Headers $headers
@@ -28,7 +34,10 @@ try {
     $installDir = Split-Path $exe -Parent; $fileVersion = (Get-Item $exe).VersionInfo.FileVersion
     if (-not $fileVersion.StartsWith($version)) { throw "FileVersion $fileVersion != $version" }; Log PASS "installed FileVersion $fileVersion"
     $uninstallEntry = Get-ItemProperty $roots -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'VietKB*' } | Select-Object -First 1
-    if ($uninstallEntry.UninstallString) { $uninstaller = $uninstallEntry.UninstallString.Trim().Trim('"') } else { $uninstaller = Join-Path $env:LOCALAPPDATA 'VietKB\uninstall.exe' }
+    if ($uninstallEntry.UninstallString) {
+        $raw = [string]$uninstallEntry.UninstallString
+        $uninstaller = if ($raw -match '^\s*"([^"]+)"') { $matches[1] } else { ($raw -split '\s+')[0] }
+    } else { $uninstaller = Join-Path $env:LOCALAPPDATA 'VietKB\uninstall.exe' }
     if (-not (Test-Path $uninstaller)) { throw 'uninstaller missing' }; Start-Process $uninstaller -ArgumentList '/S' -Wait
     $uninstallDeadline = (Get-Date).AddSeconds(60)
     while ((Test-Path $installDir) -and (Get-Date) -lt $uninstallDeadline) { Start-Sleep -Seconds 2 }

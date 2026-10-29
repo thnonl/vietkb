@@ -1,5 +1,17 @@
 ﻿# Log
 
+- 2026-10-29 **Update path verified in Windows Sandbox.** `scripts/verify-update.ps1 -Version 0.2.2`
+  installed the published `v0.2.0` build, then the `v0.2.2` installer, read back
+  `FileVersion 0.2.2`, uninstalled, and confirmed both the install directory and the
+  `HKCU\...\Run` value were gone: PASS on tag, asset, size, SHA256, previous version,
+  installed version and uninstall. Two harness bugs surfaced and were fixed in
+  `scripts/update-check/in-sandbox.ps1`: NSIS stores `InstallLocation`/`UninstallString`
+  with surrounding quotes (`Join-Path` turned that into a drive named `"C`), and `$roots`
+  was scoped inside `Find-App` while the uninstall step used it outside.
+  A stuck `vmwp` (SYSTEM-owned) had also blocked every earlier run with "Only one running
+  instance of Windows Sandbox is allowed"; killing the stale VMs from an elevated shell
+  cleared it.
+
 - 2026-10-29 **Released 0.2.2 and shipped the public site.** The E/V toggle now plays the
   Windows sound scheme (`SystemAsterisk` on, `SystemHand` off) instead of a generated tone —
   the synthesized WAV was too loud and was removed. CI (`release.yml`, no verify job) builds and
