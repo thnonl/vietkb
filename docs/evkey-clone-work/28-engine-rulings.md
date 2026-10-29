@@ -30,6 +30,64 @@ Source: `80-verify-report.md` part 1 and the QA report. 522/551 rows pass; 7 def
 `25-contract.md` §3 still carries the pre-correction tone-style examples. Correct them to
 `modern_tone = true → hòa`, `false → hoà`.
 
+## Binary-confirmed rules (REA + Ghidra 12.1.4, 2026-10-29)
+
+Target: `EVKey64.exe`, sha256 `69274b44…`. Full decompile at `reference/evkey-decomp/`
+(2,300 functions, one `.c` per address). Nothing below is inferred from black-box probing —
+EVKey ignores `SendInput`-injected keys (`LLKHF_INJECTED`), so probing is worthless here.
+
+Evidence chain:
+- `0x14002fcf0`:17 — `SetWindowsHookExW(0xd, FUN_14002dc90, …)` → LL hook proc is `FUN_14002dc90`.
+- `0x14002dc90` builds a key-event object (`FUN_14002d640`) and calls `FUN_14000a590` = per-key dispatcher.
+- `0x14000a590`: vk `0x08` → `FUN_140036830` → `FUN_14003cb50` (engine backspace);
+  every other key → `FUN_1400367e0` → `FUN_14003c8a0` (engine process-char).
+- Engine object base `DAT_1400ac490`: letter array at `+0xc50`, last-letter index `+0x1c`
+  (`-1` = empty), delete count `+0x14`. Outputs: delete count `DAT_1400ac468`,
+  text `DAT_1400ab460`, text byte length `DAT_1400ac46c`.
+
+**B1 — Backspace deletes exactly one displayed character.** `FUN_14003cb50` pops exactly one
+letter entry (`[+0x1c] -= 1` after re-composing that letter via `FUN_14003ba90`), writes
+`[+0x14]` to the delete-count output, and returns `false` when `[+0x1c] < 0`
+(`0x14003cb50`:43-79). One tone-marked letter is one letter entry, so BS never leaves a bare
+base vowel behind: `tiếng` → `tiến` → `tiế` → `ti`.
+
+**B2 — EVKey passes the key through when there is nothing to rewrite.** `0x14000a590`:40-48:
+it swallows and injects (8 × `delete count`, then the text buffer) only when
+`delete count > 1` or the text buffer is non-empty; otherwise it returns 0 and lets the
+physical Backspace reach the app. So the app's own Backspace semantics apply, and our
+`Replace { delete_units }` with `delete_units = 1` matches for Unicode output.
+
+**B3 — A word-boundary key resets the word.** `FUN_140039740` (word-break class) sets
+`[+0x1c] = -1`, `[+0x185] = -1`, and — unless the char is CR `0xd` — clears `+0xc44` and
+`[+0x189]` (`0x140039740`:87-94). A Backspace arriving after a word boundary therefore hits
+the `[+0x1c] < 0` early-return in `FUN_14003cb50`.
+
+Charset branches still present in the engine (`[+8]+4`, `[+8]+0x14` option fields) are not
+modelled: we ship Unicode only.
+
+**B4 — EVKey does *not* reopen the word after a space.** Two independent traces of the
+decompiled tree agree: after a word-break key the engine holds `[+0x1c] = -1`
+(`0x140039740`:84-105), the next Backspace hits the early return in `FUN_14003cb50`
+(`0x14003cb50`:28-33) and the dispatcher passes the key through
+(`0x14000a590`:33-46, 70-89). Nothing in the EVKey layer reads the focused control's text
+back to rebuild the word: the only `GetGUIThreadInfo` use (`0x1400154f0`:21-39) resolves a
+window handle and never retrieves text; `+0xc48` is a remembered character code used for
+punctuation/space classification (`0x14003b5b0`:51-76), not a word cache; and
+`DAT_1400ac468` / `DAT_1400ac46c` / `DAT_1400ab460` are pending delete/output bookkeeping
+for the current keystroke, cleared by the next engine call.
+
+Consequence: `Tha` → space → BS → `s` produces **`Thas`** in EVKey, not `Thá`. The reopen
+behaviour in `vkb-core` (`CommittedWord`, space only) is therefore a **VietKB extra**, not a
+clone requirement — see D8.
+
+## D8 — Reopen after space: keep or drop
+
+Our engine reopens the just-committed word when the boundary space is deleted and a letter
+follows (`tiếng…` spec case: `Tha` + space + BS + `s` → `Thá`). EVKey does not do this (B4).
+Options: keep as an intentional VietKB extra (documented, differs from EVKey), or drop it for
+byte-for-byte fidelity. Owner decision pending; until then the implemented behaviour and the
+`editing.rs` cases that assert it stay as they are.
+
 ## Accepted nuance (QA, 2026-10-28)
 
 `COMPAT_RESTORE_RAW` — the fallback that emits raw keystrokes when a transform cannot apply
