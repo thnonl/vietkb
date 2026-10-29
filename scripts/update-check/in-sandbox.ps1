@@ -1,4 +1,5 @@
 param([switch]$NoShutdown)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ErrorActionPreference = 'Stop'
 $result = 'C:\share\update-check\result.txt'
 function Log($kind, $message) { Add-Content -Path $result -Value "$kind $message" }
@@ -29,7 +30,8 @@ try {
     $uninstallEntry = Get-ItemProperty $roots -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'VietKB*' } | Select-Object -First 1
     if ($uninstallEntry.UninstallString) { $uninstaller = $uninstallEntry.UninstallString.Trim().Trim('"') } else { $uninstaller = Join-Path $env:LOCALAPPDATA 'VietKB\uninstall.exe' }
     if (-not (Test-Path $uninstaller)) { throw 'uninstaller missing' }; Start-Process $uninstaller -ArgumentList '/S' -Wait
-    Start-Sleep -Seconds 5
+    $uninstallDeadline = (Get-Date).AddSeconds(60)
+    while ((Test-Path $installDir) -and (Get-Date) -lt $uninstallDeadline) { Start-Sleep -Seconds 2 }
     if (Test-Path $installDir) { throw "install directory remains: $installDir" }
     $run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name VietKB -ErrorAction SilentlyContinue
     if ($run) { throw 'VietKB Run value remains' }; Log PASS 'uninstalled; install directory and Run value gone'

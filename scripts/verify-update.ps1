@@ -4,13 +4,14 @@ param(
     [bool]$KeepSandbox = $false
 )
 $ErrorActionPreference = 'Stop'
-$root = 'E:\vietkb'
+$root = Split-Path -Parent $PSScriptRoot
 $share = Join-Path $root 'sandbox-share'
 $check = Join-Path $share 'update-check'
 New-Item -ItemType Directory -Force -Path $check | Out-Null
 $result = Join-Path $check 'result.txt'
 Remove-Item $result -Force -ErrorAction SilentlyContinue
 $inner = Join-Path $check 'in-sandbox.ps1'
+Copy-Item (Join-Path $PSScriptRoot 'update-check\in-sandbox.ps1') $inner -Force
 if ($Version) { $env:VERSION = $Version } else { Remove-Item Env:\VERSION -ErrorAction SilentlyContinue }
 if (-not $Sandbox) {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $inner -NoShutdown
@@ -20,12 +21,13 @@ if (-not $Sandbox) {
 <Configuration>
   <Networking>Enable</Networking>
   <MappedFolders><MappedFolder><HostFolder>$share</HostFolder><SandboxFolder>C:\share</SandboxFolder><ReadOnly>false</ReadOnly></MappedFolder></MappedFolders>
-  <LogonCommand><Command>C:\share\update-check\launch.ps1</Command></LogonCommand>
+  <LogonCommand><Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\share\update-check\launch.ps1</Command></LogonCommand>
 </Configuration>
 "@ | Set-Content -Encoding UTF8 $wsb
-    @'
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\share\update-check\in-sandbox.ps1
-'@ | Set-Content -Encoding ASCII (Join-Path $check 'launch.ps1')
+    $launch = @()
+    if ($Version) { $launch += "`$env:VERSION='$Version'" }
+    $launch += 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\share\update-check\in-sandbox.ps1'
+    $launch | Set-Content -Encoding ASCII (Join-Path $check 'launch.ps1')
     Start-Process WindowsSandbox.exe -ArgumentList "`"$wsb`""
 }
 $deadline = (Get-Date).AddMinutes(15)
