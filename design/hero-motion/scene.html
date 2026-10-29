@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>VietKB hero motion</title>
+<style>
+  :root{
+    --plane:#17161E; --ink:#F2F2F5; --muted:#A6A3B8; --accent:#8B7BFF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:1280px;height:720px;overflow:hidden;background:var(--plane);
+    font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink)}
+  .stage{position:relative;width:1280px;height:720px;display:grid;place-content:center;gap:34px;
+    justify-items:center;background:
+      radial-gradient(60% 55% at 50% 40%, rgba(139,123,255,.20), transparent 70%),
+      var(--plane)}
+  .brand{display:flex;align-items:center;gap:20px;will-change:transform,opacity}
+  .brand img{width:96px;height:96px;border-radius:24px;display:block}
+  .brand b{font-size:64px;letter-spacing:-.02em;font-weight:650}
+  .line{display:flex;align-items:center;gap:6px;font-family:"Cascadia Mono",Consolas,monospace;
+    font-size:96px;font-weight:600;height:130px}
+  .raw{color:var(--ink);min-width:3ch}
+  .final{color:var(--accent);position:relative;display:none}
+  .final.on{display:inline-block;animation:pop 240ms cubic-bezier(.2,.8,.2,1) both}
+  .final::after{content:"";position:absolute;left:0;right:0;bottom:-14px;height:5px;
+    background:var(--accent);transform-origin:left;transform:scaleX(0)}
+  .final.on::after{animation:underline 320ms ease-out both}
+  .caret{width:5px;height:96px;background:var(--accent);opacity:.9}
+  .caret.blink{animation:blink 900ms steps(2,end) infinite}
+  .sub{font-size:26px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+  @keyframes pop{from{transform:scale(.94);opacity:.5}to{transform:scale(1);opacity:1}}
+  @keyframes underline{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  @keyframes blink{50%{opacity:0}}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="brand" id="brand"><img src="assets/logo-v.png" alt=""><b>VietKB</b></div>
+    <div class="line"><span class="raw" id="raw"></span><span class="final" id="final">tiếng</span><span class="caret" id="caret"></span></div>
+    <div class="sub">Telex · VNI · Windows</div>
+  </div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const raw = document.getElementById('raw');
+  const fin = document.getElementById('final');
+  const brand = document.getElementById('brand');
+  const caret = document.getElementById('caret');
+  const CHARS = 'tieengs', STEP = 0.22, TYPE_END = CHARS.length * STEP;
+  const FINAL_AT = TYPE_END + 0.35, RESET_AT = 5.4, DUR = 6.0;
+
+  function frame(t) {
+    t = ((t % DUR) + DUR) % DUR;
+    const intro = Math.min(1, t / 0.5);
+    brand.style.opacity = intro;
+    brand.style.transform = `translateY(${(1 - intro) * 14}px)`;
+    fin.classList.remove('on');
+    caret.classList.remove('blink');
+    if (t < FINAL_AT) {
+      raw.style.display = '';
+      raw.textContent = t < TYPE_END ? CHARS.slice(0, Math.floor(t / STEP) + 1) : CHARS;
+    } else if (t < RESET_AT) {
+      raw.textContent = '';
+      raw.style.display = 'none';
+      fin.classList.add('on');
+      caret.classList.add('blink');
+    } else {
+      raw.style.display = '';
+      raw.textContent = '';
+      fin.classList.remove('on');
+    }
+  }
+
+  if (q.has('t')) {
+    // Freeze harness: kill every animation and draw the exact frame.
+    const t = Number(q.get('t')) || 0;
+    document.querySelectorAll('*').forEach(el => { el.style.animation = 'none'; });
+    frame(t);
+    document.getElementById('final').style.transform = '';
+  } else {
+    const start = performance.now();
+    const tick = now => { frame((now - start) / 1000); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+</script>
+</body>
+</html>

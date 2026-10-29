@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   const root = document.querySelector('.telex-demo');
   if (!root) return;
   const raw = root.querySelector('.telex-raw');
@@ -50,8 +50,23 @@
     if (reduced) finalState();
     else if (!paused && !freeze) { start = performance.now(); raf = requestAnimationFrame(tick); }
   };
+  // The hero clip is decorative motion: stop it when motion is reduced.
+  const heroVideo = document.querySelector('.hero-video');
+  if (heroVideo) {
+    const syncVideo = () => {
+      if (reduceQuery.matches || forced) {
+        heroVideo.removeAttribute('autoplay');
+        heroVideo.pause();
+      } else {
+        heroVideo.play().catch(() => {});
+      }
+    };
+    syncVideo();
+    reduceQuery.addEventListener('change', syncVideo);
+  }
   reduceQuery.addEventListener('change', motionChange);
   if (freeze) render(Number(new URLSearchParams(location.search).get('t')) || 0);
   else if (reduced) finalState();
   else raf = requestAnimationFrame(tick);
 })();
+
