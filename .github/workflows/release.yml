@@ -191,8 +191,8 @@ jobs:
           Start-Process -FilePath $download -ArgumentList '/S' -Wait
           $after = (Get-Item $installed).VersionInfo.FileVersion
           Write-Host "after update, file version $after"
-          if (-not $after.StartsWith($env:VERSION)) {
-            throw "installed version $after != $env:VERSION"
+          if ([string]::IsNullOrWhiteSpace($after) -or -not $after.StartsWith($env:VERSION)) {
+            throw "installed version '$after' != $env:VERSION"
           }
 
           # 6. Uninstall must leave nothing behind.
