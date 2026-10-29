@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VietKB — Bộ gõ tiếng Việt cho Windows</title>
-<meta name="description" content="VietKB là bộ gõ tiếng Việt cho Windows: Telex, VNI, gõ tắt, loại trừ ứng dụng. Nhẹ 14 MB, bộ cài 3,1 MB.">
+<meta name="description" content="VietKB là bộ gõ tiếng Việt cho Windows: Telex, VNI, gõ tắt và quy tắc theo ứng dụng. Unicode NFC/NFD, nhẹ 14 MB.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#202020" media="(prefers-color-scheme: dark)">
@@ -39,7 +39,11 @@
       <div class="hero-copy">
         <p class="eyebrow">Bộ gõ tiếng Việt cho Windows</p>
         <h1 id="hero-title">VietKB</h1>
-        <p class="pitch">Gõ tiếng Việt bằng Telex hoặc VNI trên Windows — nhẹ, kín đáo, nằm gọn trong khay hệ thống.</p>
+        <div class="telex-demo" aria-hidden="true">
+          <span class="telex-raw"></span><span class="telex-final">tiếng</span><span class="telex-caret"></span>
+          <button type="button" aria-label="Tạm dừng hoạt ảnh" aria-pressed="false">Ⅱ</button>
+        </div>
+        <p class="pitch">Gõ tiếng Việt bằng Telex hoặc VNI. VietKB chạy gọn trong khay hệ thống, dùng bảng mã Unicode NFC hoặc NFD.</p>
 
         <div class="actions">
           <a class="btn btn-primary" href="https://github.com/thnonl/vietkb/releases/latest">
@@ -79,12 +83,9 @@
       <div class="story-inner">
         <h2 id="story-title">Vì sao có VietKB</h2>
         <div class="story-body">
-          <p>Các bộ gõ hiện có vẫn gõ đúng, nhưng mang theo cả một thời phần mềm cũ: bảng mã 8-bit, hàng chục tuỳ chọn, nhiều tab, và vài lỗi đã thành quen.</p>
-          <p>Windows 10 và 11 không cần những thứ đó. VietKB giữ lại phần còn dùng được — và làm phần đó nhẹ, nhanh, dễ đổi.</p>
+          <p>VietKB tập trung vào việc gõ tiếng Việt trên Windows: Telex, VNI và Unicode.</p>
           <p>Không thu phí, không quảng cáo, không ghi lại nội dung gõ. Mã nguồn mở.</p>
-          <p class="story-facts">14 MB trong khay · bộ cài khoảng 3 MB · mở cửa sổ khoảng 0,3 giây · Telex và VNI, chỉ Unicode</p>
-          <p class="story-claim">Một bộ gõ tốt là bộ gõ không phải nghĩ tới.</p>
-          <p class="story-note">Bảng mã cũ (TCVN3, VNI Windows, VISCII) và VIQR không có trong VietKB.</p>
+          <p class="story-facts">14 MB trong khay · bộ cài khoảng 3 MB · mở cửa sổ khoảng 0,3 giây · Unicode NFC và NFD</p>
         </div>
       </div>
     </div>
@@ -96,7 +97,7 @@
         <span class="num" aria-hidden="true">01</span>
         <div>
           <h2 id="tinh-nang-title">Tính năng</h2>
-          <p class="lead">Đủ những thứ một bộ gõ cần có hằng ngày, không thêm gì thừa.</p>
+          <p class="lead">Từ kiểu gõ, gõ tắt đến quy tắc riêng cho từng ứng dụng.</p>
         </div>
       </div>
 
@@ -109,7 +110,7 @@
             </svg>
           </span>
           <h3>Telex và VNI</h3>
-          <p>Hai kiểu gõ quen thuộc, đổi qua lại trong một lần bấm. Kết quả ra Unicode, dán được vào mọi ứng dụng.</p>
+          <p>Chọn Telex hoặc VNI. Kết quả dùng Unicode NFC hoặc NFD; không hỗ trợ bảng mã khác.</p>
         </li>
 
         <li class="card">
@@ -120,7 +121,7 @@
             </svg>
           </span>
           <h3>Gõ tắt</h3>
-          <p>Bảng gõ tắt riêng, nhập và xuất được để mang sang máy khác. Có công tắc bật tắt riêng.</p>
+          <p>Tạo bảng gõ tắt, nhập hoặc xuất để dùng trên máy khác. Có thể bật tắt riêng, chọn theo hoa/thường; vẫn dùng được khi tắt tiếng Việt.</p>
         </li>
 
         <li class="card">
@@ -133,7 +134,7 @@
             </svg>
           </span>
           <h3>Loại trừ ứng dụng</h3>
-          <p>Tắt bộ gõ riêng cho từng ứng dụng, ví dụ game hoặc trình soạn thảo có phím tắt riêng.</p>
+          <p>Đặt quy tắc theo ứng dụng và nhớ trạng thái bật/tắt riêng khi chuyển cửa sổ.</p>
         </li>
 
         <li class="card">
@@ -143,7 +144,7 @@
             </svg>
           </span>
           <h3>Phím tắt tự đặt</h3>
-          <p>Đổi phím tắt bật tắt bộ gõ. Nếu phím mới trùng với phím khác, cửa sổ báo ngay lúc đặt.</p>
+          <p>Chín hành động có phím tắt, gồm F1, F2 và Ctrl+Shift. Có thể đổi tổ hợp phím trong cài đặt.</p>
         </li>
 
         <li class="card">
@@ -153,8 +154,8 @@
               <path d="M16.5 7.5 6 18"/>
             </svg>
           </span>
-          <h3>Nhẹ</h3>
-          <p>14 MB khi đang chạy trong khay, bộ cài <span data-release="installer">3,1 MB</span>. Viết bằng Rust và Tauri 2, không kéo theo bộ máy trình duyệt.</p>
+          <h3>Gọn nhẹ</h3>
+          <p>14 MB khi chạy trong khay; bộ cài <span data-release="installer">3,1 MB</span>. Viết bằng Rust và Tauri 2.</p>
         </li>
 
         <li class="card">
@@ -164,8 +165,8 @@
               <path d="M7.5 6.2a7.5 7.5 0 1 0 9 0"/>
             </svg>
           </span>
-          <h3>Nằm trong khay</h3>
-          <p>Nhấp trái vào biểu tượng để bật hoặc tắt. Tự khởi động cùng Windows, có chế độ Chạy ẩn và tự kiểm tra bản mới.</p>
+          <h3>Khay hệ thống</h3>
+          <p>Nhấp trái biểu tượng V/E để bật hoặc tắt. Có thể khởi động cùng Windows, chạy ẩn và kiểm tra cập nhật trong ứng dụng.</p>
         </li>
       </ul>
     </div>
@@ -416,5 +417,6 @@
   }
 })();
 </script>
+<script defer src="hero.js"></script>
 </body>
 </html>

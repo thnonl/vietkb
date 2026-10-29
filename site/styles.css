@@ -1,4 +1,4 @@
-/* VietKB landing — static, no build step.
+﻿/* VietKB landing — static, no build step.
    Palette mirrors the app: paper #F7F7F5 / ink #1C1C1A, dark #202020 / #272727 / #F2F2F5,
    accent #5844C8 (light) and #8B7BFF (dark). */
 
@@ -692,6 +692,25 @@ code {
 .notfound p { max-width: 48ch; color: var(--muted); }
 .notfound .actions { margin-top: 26px; }
 
+@media (prefers-reduced-motion: no-preference) {
+  .telex-demo { display: flex; align-items: center; gap: .12em; width: max-content; max-width: 100%; min-height: 58px; margin: 0 0 22px; padding: 8px 10px 8px 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--ink); font: 600 clamp(1.5rem, 4vw, 2rem)/1.2 var(--mono); }
+  .telex-demo::before { content: ""; position: absolute; }
+  .telex-demo .telex-raw, .telex-demo .telex-final { min-width: 6ch; }
+  .telex-demo .telex-final { display: none; color: var(--accent); }
+  .telex-demo[data-state="final"] .telex-raw, .telex-demo[data-state="reset"] .telex-raw { display: none; }
+  .telex-demo[data-state="final"] .telex-final { display: inline-block; animation: telex-pop 220ms cubic-bezier(.2,.8,.2,1) both; }
+  .telex-demo[data-state="final"] .telex-final::after { content: ""; display: block; height: 2px; background: var(--accent); transform-origin: left; animation: telex-underline 300ms ease-out both; }
+  .telex-caret { width: 2px; height: 1.1em; background: var(--accent); animation: telex-blink 600ms steps(2,end) 2; }
+  .telex-demo button { flex: 0 0 24px; width: 24px; height: 24px; margin-left: 10px; padding: 0; border: 0; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font: 12px var(--sans); cursor: pointer; }
+  @keyframes telex-pop { from { transform: scale(.96); opacity: .6; } to { transform: scale(1); opacity: 1; } }
+  @keyframes telex-underline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes telex-blink { 50% { opacity: 0; } }
+}
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  .telex-demo { display: flex; align-items: center; gap: .12em; width: max-content; max-width: 100%; min-height: 58px; margin: 0 0 22px; padding: 8px 10px 8px 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--ink); font: 600 clamp(1.5rem, 4vw, 2rem)/1.2 var(--mono); }
+  .telex-demo .telex-raw { display: none; }
+  .telex-demo .telex-final { display: inline-block; color: var(--accent); }
+  .telex-demo .telex-caret { display: none; }
+  .telex-demo button { flex: 0 0 24px; width: 24px; height: 24px; margin-left: 10px; padding: 0; border: 0; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font: 12px var(--sans); cursor: pointer; }
+  .telex-demo * { animation: none !important; transition: opacity 160ms ease-out; }
 }
