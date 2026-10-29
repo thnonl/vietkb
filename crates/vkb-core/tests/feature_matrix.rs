@@ -83,16 +83,16 @@ fn opts(method: InputMethod) -> EngineOptions { EngineOptions { method, ..Engine
     assert_eq!(simulate(EngineOptions { spell_check:false, ..opts(InputMethod::Vni) }, "a1d"), "ád");
 }
 #[test] fn restore_wrong_word_telex() {
-    // Commit invalid transformed google as space; on restores raw, off leaves transformed text.
+    // D4 in 28-engine-rulings.md: spell_check=false disables restore_wrong_word.
     let mut on=Session::new(EngineOptions { restore_wrong_word:true, spell_check:false, ..opts(InputMethod::Telex) });
-    assert_eq!(on.text("google "), "google ");
+    assert_eq!(on.text("google "), "gôgle ");
     let mut off=Session::new(EngineOptions { spell_check:false, ..opts(InputMethod::Telex) });
     assert_eq!(off.text("google "), "gôgle ");
 }
 #[test] fn restore_wrong_word_vni() {
-    // VNI gõgle via go6gle; with option enabled restore returns the typed keys (VNI digits included).
+    // With spell check off, both flags allow VNI transforms at boundary.
     let mut on=Session::new(EngineOptions { restore_wrong_word:true, spell_check:false, ..opts(InputMethod::Vni) });
-    assert_eq!(on.text("go6gle "), "go6gle ");
+    assert_eq!(on.text("go6gle "), "gôgle ");
     let mut off=Session::new(EngineOptions { spell_check:false, ..opts(InputMethod::Vni) });
     assert_eq!(off.text("go6gle "), "gôgle ");
 }

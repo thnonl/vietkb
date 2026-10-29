@@ -78,14 +78,15 @@ fn spell_check_off_keeps_transforming_english_words() {
         ..EngineOptions::default()
     };
     assert_ne!(simulate(options, "windows"), "windows");
-    // …and restore still works on the reference shapes.
+    // …and restore is inert without the spell checker (ruling D4), so the
+    // transform stands instead of being reverted to the raw word.
     let options = EngineOptions {
         spell_check: false,
         restore_wrong_word: true,
         jfwz_as_consonant: false,
         ..EngineOptions::default()
     };
-    assert_eq!(simulate(options, "of "), "of ");
+    assert_eq!(simulate(options, "of "), "ò ");
 }
 
 #[test]

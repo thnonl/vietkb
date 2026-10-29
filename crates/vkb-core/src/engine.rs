@@ -189,9 +189,9 @@ impl Engine {
         let action = self.diff(&next, Some(ch));
         self.text = next;
         if committed {
-            EngineAction::ReplaceThenPass {
+            EngineAction::Replace {
                 delete_units: 0,
-                insert: self.text.iter().take(self.text.len().saturating_sub(1)).collect(),
+                insert: self.text.iter().collect(),
             }
         } else {
             action
@@ -430,7 +430,7 @@ impl Engine {
     }
 
     fn should_restore(&self) -> bool {
-        if self.composed.literal || self.literal_from != usize::MAX || self.raw.len() < 2 {
+        if !self.options.spell_check || self.composed.literal || self.literal_from != usize::MAX || self.raw.len() < 2 {
             return false;
         }
         if raw_matches(&self.raw, COMPAT_RESTORE_RAW) {

@@ -51,6 +51,11 @@ fn auto_horn_uo_can_be_disabled() {
 }
 
 #[test]
+fn vni_horn_does_not_mark_qu_onset_u() {
+    check(vni(), &[("quo7", "quơ"), ("quo72", "quờ")]);
+}
+
+#[test]
 fn explicit_vni_horn_cluster_works_with_auto_horn_uo_disabled() {
     let enabled = vni();
     let disabled = EngineOptions {

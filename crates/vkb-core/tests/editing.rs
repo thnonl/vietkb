@@ -474,6 +474,12 @@ fn word_cap_keeps_the_keystroke_that_starts_the_next_word() {
     let vni_digit = format!("{}1", "b".repeat(MAX_WORD));
     assert_eq!(simulate(vni_options, &vni_digit), vni_digit);
 
+    let jfwz_off = EngineOptions { jfwz_as_consonant: false, ..EngineOptions::default() };
+    assert!(simulate(jfwz_off, &format!("{}w", "b".repeat(MAX_WORD))).ends_with("bư"));
+    let nfd = EngineOptions { jfwz_as_consonant: false, charset: Charset::UnicodeNfd, ..EngineOptions::default() };
+    // NFD renders `ư` as two scalars: `u` + U+031B.
+    assert!(simulate(nfd, &format!("{}w", "b".repeat(MAX_WORD))).ends_with("bu\u{031B}"));
+
     let vni = "1".repeat(MAX_WORD + 1);
     let options = EngineOptions {
         method: InputMethod::Vni,

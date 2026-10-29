@@ -87,10 +87,11 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
         }
 
         // Promote `ưo` only once a legal C2 (or `i`/`u` continuation) follows.
-        if options.auto_horn_uo && !out.literal && i > 0 && matches!(ch.to_ascii_lowercase(), 'i' | 'u' | 'c' | 'h' | 'm' | 'n' | 'p' | 't') {
+        if options.auto_horn_uo && !out.literal && out.tone == Tone::None && i > 0 && matches!(ch.to_ascii_lowercase(), 'i' | 'u' | 'c' | 'h' | 'm' | 'n' | 'p' | 't') {
             if let Some(o) = out.letters.iter().rposition(|letter| letter.base() == 'o' && letter.mark == Mark::None) {
                 if o > 0 && out.letters[o - 1].base() == 'u' && out.letters[o - 1].mark == Mark::Horn {
                     out.letters[o].mark = Mark::Horn;
+                    out.mark_at = i;
                 }
             }
         }
@@ -420,8 +421,18 @@ fn mark_vni_horn(out: &mut Composed, raw: &[char], i: usize, key: char) {
         && out.letters[len - 1].base() == 'o'
         && out.letters[len - 1].mark == Mark::None
     {
-        out.letters[len - 2].mark = Mark::Horn;
-        out.letters[len - 1].mark = Mark::Horn;
+        // C1 `qu`: its `u` belongs to the onset, so 7 horns only the `o`.
+        // Use raw history to distinguish this from a true `uo` vowel cluster.
+        let qu_onset = i >= 3
+            && raw[i - 3].eq_ignore_ascii_case(&'q')
+            && raw[i - 2].eq_ignore_ascii_case(&'u');
+        let u = len - 2;
+        if qu_onset {
+            out.letters[len - 1].mark = Mark::Horn;
+        } else {
+            out.letters[u].mark = Mark::Horn;
+            out.letters[len - 1].mark = Mark::Horn;
+        }
         out.mark_at = i;
         return;
     }
