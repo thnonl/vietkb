@@ -53,8 +53,17 @@ try {
     # 4. The same command line the updater's batch runs, but timed so a hung
     #    installer is reported instead of blocking the whole sandbox.
     $sw = [Diagnostics.Stopwatch]::StartNew()
+    Log 'START setup /S /UPDATE'
     $setup = Start-Process $newFile -ArgumentList '/S', '/UPDATE' -PassThru
-    if (-not $setup.WaitForExit(240000)) {
+    $beat = (Get-Date).AddSeconds(10)
+    while (-not $setup.HasExited -and $sw.Elapsed.TotalSeconds -lt 240) {
+        if ((Get-Date) -ge $beat) {
+            Log ("WAIT {0}s setup still running" -f [int]$sw.Elapsed.TotalSeconds)
+            $beat = (Get-Date).AddSeconds(10)
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    if (-not $setup.HasExited) {
         try { Stop-Process -Id $setup.Id -Force } catch {}
         Log FAIL 'setup /S /UPDATE did not finish in 240 s'
     } else {

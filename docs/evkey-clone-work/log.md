@@ -1,5 +1,16 @@
 ﻿# Log
 
+- 2026-10-30 **Updater verified in place inside Windows Sandbox.** Installed the published
+  `v0.2.0`, started it, then handed the `v0.2.3` setup the exact command line the About
+  button uses (`/S /UPDATE`) while the app was running: exit 0 in 0.6 s, `FileVersion`
+  0.2.3, the install directory kept a sentinel file (so the old uninstaller never ran), the
+  config directory kept its marker, the installer closed the old process, the app reopened
+  by itself as exactly one process, and the uninstall registry entry reads 0.2.3. The same
+  command measured 1.3 s with no app running and 1.5 s with one running on the host, so the
+  earlier "hang" was the host machine, not the installer. `inplace-flow.ps1` now logs
+  `START setup` plus a 10-second heartbeat while the setup runs, so a stall is visible
+  instead of silent.
+
 - 2026-10-29 **Paragraph-level typing E2E, Telex and VNI.** Ten paragraphs written for
   different purposes (chat, email, technical doc, news, administrative text, marketing,
   study notes, place names, a mixed English spec, punctuation-heavy prose) plus 95 edge
