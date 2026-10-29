@@ -26,6 +26,8 @@ const USER_AGENT: &str = concat!(
 );
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 const STARTUP_DELAY: Duration = Duration::from_secs(5);
+/// Shown when the release has no Windows x64 installer asset.
+pub const NO_INSTALLER: &str = "Bản phát hành không có bộ cài cho Windows x64";
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -438,7 +440,7 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
         return Err("Chưa có bản cập nhật để tải.".to_string());
     };
     let Some(url) = info.asset_url.clone() else {
-        return Err("Bản phát hành không có bộ cài cho Windows x64".to_string());
+        return Err(NO_INSTALLER.to_string());
     };
     let name = info
         .asset_name
@@ -815,5 +817,51 @@ mod tests {
         );
         assert_eq!(sanitize_file_name("../../evil.exe"), "_.._evil.exe");
         assert_eq!(sanitize_file_name(""), "VietKB-update_x64-setup.exe");
+    }
+
+    #[test]
+    fn the_missing_installer_message_is_the_promised_one() {
+        assert_eq!(NO_INSTALLER, "Bản phát hành không có bộ cài cho Windows x64");
+    }
+
+    #[test]
+    fn a_release_without_an_installer_has_no_asset() {
+        // `latest.json` and the `.sig` must never be picked as the download.
+        let body = r#"{"tag_name":"v9.9.9","assets":[
+            {"name":"latest.json","browser_download_url":"https://x/latest.json","size":879},
+            {"name":"VietKB_9.9.9_x64-setup.exe.sig","browser_download_url":"https://x/a.sig","size":755}]}"#;
+        let info = parse_release(body).expect("parses").expect("newer");
+        assert!(info.asset_url.is_none());
+        assert!(info.asset_name.is_none());
+    }
+
+    #[test]
+    #[ignore = "network: hits the live GitHub API for thnonl/vietkb"]
+    fn live_release_is_not_newer_than_this_build() {
+        let status = run_check();
+        println!(
+            "LIVE state={:?} version={:?} message={:?}",
+            status.state,
+            status.update.as_ref().map(|info| info.version.clone()),
+            status.message
+        );
+        assert_eq!(status.state, UpdateState::None);
+    }
+
+    #[test]
+    #[ignore = "sets VKB_UPDATE_FAKE=1 for this process"]
+    fn fake_release_reports_0_9_9() {
+        std::env::set_var("VKB_UPDATE_FAKE", "1");
+        let status = run_check();
+        std::env::remove_var("VKB_UPDATE_FAKE");
+        let info = status.update.clone().expect("fake update");
+        println!(
+            "FAKE state={:?} version={} tag={} asset={:?} changelog={:?}",
+            status.state, info.version, info.tag, info.asset_name, info.changelog
+        );
+        assert_eq!(status.state, UpdateState::Available);
+        assert_eq!(info.version, "0.9.9");
+        assert_eq!(info.asset_name.as_deref(), Some("VietKB_0.9.9_x64-setup.exe"));
+        assert!(info.changelog.contains("Huy hiệu cập nhật"));
     }
 }

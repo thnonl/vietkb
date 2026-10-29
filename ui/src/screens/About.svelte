@@ -67,7 +67,7 @@
         </p>
         <p>
           Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ. Cả bộ gõ nằm trong
-          khay, tốn 14 MB; bộ cài 2,3 MB; mở cửa sổ mất khoảng 0,3 giây.
+          khay, tốn 14 MB; bộ cài khoảng 3 MB; mở cửa sổ mất khoảng 0,3 giây.
         </p>
 
         <p class="about-close">Một bộ gõ tốt là bộ gõ bạn không phải nghĩ tới.</p>

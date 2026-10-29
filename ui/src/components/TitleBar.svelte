@@ -31,10 +31,16 @@
 
   const theme = $derived(normalize(app.settings?.system.theme));
   const label = $derived(LABEL[theme]);
+  // The icon shows what the click will do, not what is on now: sun when the
+  // next click selects light, moon when it selects dark, half circle when it
+  // goes back to following Windows. The tooltip/aria-label keep naming the
+  // current state, which is what a hover is asking about.
+  const nextTheme = $derived(ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length]);
+
+  const showUpdate = $derived(showMark && app.updateAvailable);
 
   const cycleTheme = () => {
-    const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
-    app.patch({ system: { theme: next } });
+    app.patch({ system: { theme: nextTheme } });
   };
 
   const win = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
@@ -70,31 +76,35 @@
   <span class="ttl">{title}{#if subtitle}<small>— {subtitle}</small>{/if}</span>
   <span class="drag"></span>
   <div class="wc">
-    {#if showMark && app.updateAvailable}
-      <button
-        type="button"
-        class="tslot upd"
-        aria-label="Có bản cập nhật — mở Giới thiệu"
-        title={`Có bản cập nhật v${app.updateVersion ?? ""} — mở Giới thiệu`}
-        onclick={() => openWindow("about")}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
-          <path d="M3 13.1h10" />
-        </svg>
-      </button>
-    {/if}
+    <!-- The update slot keeps its 24 × 24 place in the row even when there is
+         no update (hidden, out of the a11y tree), so the theme, minimize and
+         close buttons never shift. -->
+    <button
+      type="button"
+      class="tslot upd"
+      class:off={!showUpdate}
+      aria-hidden={!showUpdate}
+      tabindex={showUpdate ? 0 : -1}
+      aria-label={showUpdate ? "Có bản cập nhật — mở Giới thiệu" : undefined}
+      title={showUpdate ? `Có bản cập nhật v${app.updateVersion ?? ""} — mở Giới thiệu` : undefined}
+      onclick={() => openWindow("about")}>
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
+        <path d="M3 13.1h10" />
+      </svg>
+    </button>
     <button
       type="button"
       class="tslot"
       aria-label={`Giao diện: ${label}. Bấm để đổi`}
       title={`Giao diện: ${label} — bấm để đổi`}
       onclick={cycleTheme}>
-      {#if theme === "system"}
+      {#if nextTheme === "system"}
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <circle cx="8" cy="8" r="5.4" />
           <path class="solid" d="M8 2.6a5.4 5.4 0 0 1 0 10.8z" />
         </svg>
-      {:else if theme === "light"}
+      {:else if nextTheme === "light"}
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <circle cx="8" cy="8" r="3.1" />
           <path

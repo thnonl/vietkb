@@ -1,4 +1,4 @@
-//! Tray icon: state and method submenus with checkmarks, and an icon that
+﻿//! Tray icon: state and method submenus with checkmarks, and an icon that
 //! reflects whether Vietnamese input is on.
 //!
 //! Mouse: a left click toggles Vietnamese (the same path as the menu's own
@@ -154,6 +154,11 @@ fn method_label(slug: &str) -> &str {
         .unwrap_or("Telex")
 }
 
+/// Exact label of the tray's update item, so the string is testable.
+fn update_menu_label(version: &str) -> String {
+    format!("Có bản cập nhật v{version}")
+}
+
 fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> {
     let toggle = CheckMenuItem::with_id(
         app,
@@ -192,7 +197,7 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
             Some(MenuItem::with_id(
                 app,
                 "update",
-                format!("Có bản cập nhật v{version}"),
+                update_menu_label(&version),
                 true,
                 None::<&str>,
             )?)
@@ -311,5 +316,16 @@ fn handle_event(app: &AppHandle, id: &str) {
                 }
             }
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The tray's third affordance names the exact version, so the string is
+    /// asserted here rather than discovered by reading the menu.
+    #[test]
+    fn update_item_label_names_the_version() {
+        assert_eq!(update_menu_label("0.9.9"), "Có bản cập nhật v0.9.9");
     }
 }

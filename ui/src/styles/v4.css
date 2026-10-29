@@ -90,12 +90,18 @@
   display: flex;
   align-self: stretch;
   align-items: center;
+  /* Every control in the group is a 24 × 24 slot with the same 8 px gap, so the
+   * four centres are evenly spaced and none of them moves when a neighbour
+   * appears or disappears. */
+  gap: 8px;
 }
 .cap-bar .wbtn {
-  width: 44px;
-  height: 36px;
+  width: 24px;
+  height: 24px;
+  flex: none;
   display: grid;
   place-items: center;
+  border-radius: 6px;
   color: var(--t2);
 }
 .cap-bar .wbtn:hover {
@@ -114,13 +120,12 @@
   stroke-width: 1;
 }
 
-/* Theme cycle button — a fixed 24 × 24 slot with a fixed 8 px gap, so the
- * minimize/close buttons never move when the icon changes. */
+/* Theme cycle button — a fixed 24 × 24 slot; the group's 8 px gap comes from
+ * `.wc`, so the minimize/close buttons never move when the icon changes. */
 .cap-bar .tslot {
   width: 24px;
   height: 24px;
   flex: none;
-  margin-right: 8px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -408,14 +413,19 @@
 }
 
 /* ------------------------------------------------------------- update UI */
-/* 16 px download button, next to the theme slot in the main title bar. */
+/* 16 px download button: the same 24 × 24 slot and 8 px gap as the rest of the
+ * caption group. Hidden (not removed) when there is no update, so nothing
+ * shifts. */
 .cap-bar .tslot.upd {
-  margin-right: 2px;
   color: var(--acc-text);
 }
 .cap-bar .tslot.upd:hover {
   background: var(--acc-tint);
   color: var(--acc-text);
+}
+.cap-bar .tslot.upd.off {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ---------------------------------------------------------------- About */
