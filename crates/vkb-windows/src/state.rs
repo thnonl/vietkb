@@ -91,6 +91,10 @@ pub struct HookRuntime {
     resolved: Option<EffectiveSettings>,
     remembered: HashMap<String, bool>,
     send_mode: SendMode,
+    /// A short send switched this app to Standard scancodes.
+    force_standard: bool,
+    /// This app refused every send strategy: stop converting for it.
+    auto_excluded: bool,
     use_clipboard: bool,
     sound_on: bool,
     remember_per_app: bool,
@@ -123,6 +127,8 @@ impl HookRuntime {
             resolved: None,
             remembered: HashMap::new(),
             send_mode: SendMode::Unicode,
+            force_standard: false,
+            auto_excluded: false,
             use_clipboard: false,
             sound_on: true,
             remember_per_app: false,
@@ -159,7 +165,7 @@ impl HookRuntime {
             macro_enabled: cfg.typing.macro_enabled,
         };
         self.hotkeys = hotkey_map::compile(&cfg.hotkeys);
-        self.send_mode = if cfg.typing.send_standard {
+        self.send_mode = if self.force_standard || cfg.typing.send_standard {
             SendMode::Standard
         } else {
             SendMode::Unicode
@@ -428,6 +434,9 @@ impl HookRuntime {
     }
 
     pub fn effective_enabled(&self) -> bool {
+        if self.auto_excluded {
+            return false;
+        }
         if let Some(rule) = self.rule.as_ref().and_then(|rule| rule.enabled) {
             return rule;
         }
@@ -515,7 +524,31 @@ impl HookRuntime {
             return SendResult::default();
         }
         let inputs = input::build_segment(deletes, text, self.send_mode);
-        input::send_detailed(&inputs)
+        let mut result = input::send_detailed(&inputs);
+        if result.total > 0 && result.sent < result.total {
+            // The app refused (part of) the batch. Step down one strategy for
+            // this app: Standard scancodes first, then exclude it, so the user
+            // keeps typing raw instead of losing characters.
+            self.on_short_send();
+            if !self.auto_excluded {
+                let retry = input::build_segment(deletes, text, self.send_mode);
+                result = input::send_detailed(&retry);
+                if result.total > 0 && result.sent < result.total {
+                    self.auto_excluded = true;
+                }
+            }
+        }
+        result
+    }
+
+    /// After a short `SendInput`, decide what this app gets next.
+    fn on_short_send(&mut self) {
+        if self.send_mode == SendMode::Unicode && !self.force_standard {
+            self.force_standard = true;
+            self.send_mode = SendMode::Standard;
+        } else {
+            self.auto_excluded = true;
+        }
     }
 
     fn reset_engine(&mut self) {
@@ -548,6 +581,8 @@ impl HookRuntime {
         if key != self.app || app.process_name != self.app_name {
             self.app = key;
             self.app_name = app.process_name;
+            self.force_standard = false;
+            self.auto_excluded = false;
             self.resolve_app();
         }
     }
@@ -750,6 +785,20 @@ mod tests {
             dwExtraInfo: 0,
         };
         assert_eq!(rt.on_event(WM_KEYDOWN, &info), Decision::PASS);
+    }
+
+    #[test]
+    fn short_send_switches_to_standard_then_excludes() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        rt.send_mode = SendMode::Unicode;
+        assert!(rt.effective_enabled());
+        rt.on_short_send();
+        assert_eq!(rt.send_mode, SendMode::Standard, "first short send retries with scancodes");
+        assert!(!rt.auto_excluded);
+        rt.on_short_send();
+        assert!(rt.auto_excluded, "second short send excludes the app");
+        assert!(!rt.effective_enabled(), "an excluded app types raw");
     }
 
     #[test]

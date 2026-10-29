@@ -69,7 +69,7 @@ Status vocabulary:
 |---|---|---|
 | Loại trừ ứng dụng | `apps.rules` by exe basename, overrides enabled/method/charset/macro | covered, **no UI test** |
 | Nhớ trạng thái theo app | in-memory `HashMap`, lost on restart | **partial** |
-| Thêm loại trừ tự động | — | **missing** |
+| Thêm loại trừ tự động | app từ chối batch → Standard, rồi loại trừ | **covered** | `on_short_send`, test `short_send_switches_to_standard_then_excludes` |
 | Charset/macro override trong hộp thoại app | rule model has them, dialog does not expose them | partial |
 | App có quyền Admin | — | **removed by owner** | không có luồng elevation; toggle đã gỡ |
 
@@ -109,7 +109,7 @@ reaches the engine** — it never did, so gõ tắt was dead at runtime; found b
    suggestion fix that `CSuggestion`/`CSuggestion2` actually targeted.
 2. Persist per-app remembered on/off to config (EVKey's `blacklist`).
 3. `VK_PACKET` — Windows virtual/touch keyboard events must reach the engine.
-4. Auto-exclusion: when injection fails for an app, fall back per app without a user rule.
+4. Auto-exclusion — done (short send → Standard → exclude, session-scoped).
 5. Multiline macro typing — done (newline sends Return, UI edits multiline).
 6. `raw_zone` — done (tests-first: `crates/vkb-core/tests/raw_zone.rs`).
 7. `macro_when_disabled` — done (engine macro-only mode, tests-first).
