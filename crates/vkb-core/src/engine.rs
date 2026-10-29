@@ -52,6 +52,11 @@ pub struct Engine {
     literal_from: usize,
     macros: MacroTable,
     caps_pending: bool,
+    /// The last character the engine produced, used by the raw-zone rules.
+    last_emitted: Option<char>,
+    /// A raw-zone opener was just typed; the next key decides whether the word
+    /// that follows is typed literally (spec §A9).
+    raw_pending: bool,
     /// The word the last separator committed, live for exactly one key:
     /// `Tha` + space + Backspace + `s` = `Thá`.
     reopen: Option<CommittedWord>,
@@ -67,6 +72,8 @@ impl Engine {
             literal_from: usize::MAX,
             macros: MacroTable::new(),
             caps_pending: false,
+            last_emitted: None,
+            raw_pending: false,
             reopen: None,
         }
     }
@@ -169,6 +176,15 @@ impl Engine {
     }
 
     fn word_key(&mut self, ch: char) -> EngineAction {
+        if self.raw_pending {
+            // The opener was followed straight by a letter: this whole word is
+            // raw, so freeze it from its first keystroke (spec §A9).
+            self.raw_pending = false;
+            if self.literal_from == usize::MAX {
+                self.literal_from = self.raw.len();
+            }
+        }
+        self.last_emitted = Some(ch);
         let committed = if self.raw.len() >= MAX_WORD {
             // Commit the capped word, then start the new word with this key.
             self.reset_word();
@@ -212,6 +228,8 @@ impl Engine {
     /// the surviving characters are frozen as literal keystrokes instead: the
     /// screen never moves, at the cost of that word no longer composing further.
     fn backspace(&mut self, reopening: Option<CommittedWord>) -> EngineAction {
+        // Backspace removes the opener itself: the pending raw zone is dead.
+        self.raw_pending = false;
         if self.raw.is_empty() {
             if let Some(word) = reopening {
                 // The app deletes the boundary itself; the word comes back so
@@ -358,6 +376,14 @@ impl Engine {
         if self.options.auto_capitalize && matches!(ch, '.' | '!' | '?' | '\r' | '\n') {
             self.caps_pending = true;
         }
+        // Raw zone (spec §A9): the opener only arms; the next key decides. An
+        // ellipsis or a digit-dot never arms, and whitespace disarms it again.
+        let previous = self.last_emitted;
+        self.last_emitted = Some(ch);
+        let opener = matches!(ch, '.' | '/' | ':' | '@' | '_' | '\\' | '#' | '=' | '?')
+            && !(ch == '.' && previous == Some('.'))
+            && !(ch == '.' && previous.is_some_and(|c| c.is_ascii_digit()));
+        self.raw_pending = self.options.raw_zone && opener;
         if self.raw.is_empty() {
             return EngineAction::Noop;
         }
@@ -444,6 +470,8 @@ impl VietnameseEngine for Engine {
         // A caret move or focus change is a boundary the memory must not cross.
         self.reopen = None;
         self.caps_pending = false;
+        self.last_emitted = None;
+        self.raw_pending = false;
     }
 
     fn set_options(&mut self, options: EngineOptions) {

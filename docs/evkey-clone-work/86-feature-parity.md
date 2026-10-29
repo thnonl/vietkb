@@ -28,7 +28,7 @@ Status vocabulary:
 | Viết hoa đầu câu | `typing.auto_capitalize` | covered (default `false`) | `engine.rs:347`, test `auto_capitalize_after_a_sentence_end` |
 | j/f/w/z là phụ âm | `typing.jfwz_as_consonant` | covered | test `jfwz_off_lets_the_tone_keys_win` |
 | `ưo → ươ` tự động (spec A1) | `typing.auto_horn_uo` | **covered** | engine + tests `auto_horn_uo_*` |
-| Vùng gõ thô URL/code (spec A9) | `typing.raw_zone` | **reserved, không implement** | field giữ để migrate, UI đã gỡ, engine bỏ qua; làm lại kiểu test-trước |
+| Vùng gõ thô URL/code (spec A9) | `typing.raw_zone` | **covered** | engine: opener chờ phím kế tiếp, bỏ qua ellipsis/digit-dot, Backspace xoá opener; tests `raw_zone_*` |
 | Macro theo hoa/thường của trigger (spec A8) | `typing.macro_case_follow` | **covered** | engine + E2E A12/A13 |
 | Gõ tắt khi đã tắt tiếng Việt | `typing.macro_when_disabled` | **deferred (inert)** | cần chế độ "macro-only" trong engine; bản thử đã bị rút vì làm hỏng test, sẽ làm lại test-trước |
 | Sửa lỗi dấu gợi ý 1/2 (Browsers, Excel) | toggle removed; hành vi sẽ nằm trong bảng app | **removed** | owner: bật/tắt trên Chrome không đổi gì; EVKey áp dụng cho Excel/Sheets |
@@ -111,8 +111,7 @@ reaches the engine** — it never did, so gõ tắt was dead at runtime; found b
 3. `VK_PACKET` — Windows virtual/touch keyboard events must reach the engine.
 4. Auto-exclusion: when injection fails for an app, fall back per app without a user rule.
 5. Multiline macro typing — done (newline sends Return, UI edits multiline).
-6. `raw_zone` again, tests-first: pending opener decided by the next key, cleared by
-   whitespace/Enter/Backspace, never set by ellipsis or digit-dot.
+6. `raw_zone` — done (tests-first: `crates/vkb-core/tests/raw_zone.rs`).
 7. `macro_when_disabled` — engine needs a macro-only mode; the first attempt was reverted
    because it broke tests, so it must be written test-first.
 8. `hotkeys.toggle_mode` — done (press/release wired, default release).
