@@ -1,0 +1,36 @@
+﻿HOST-E2E-START
+prod_before files=\config.backup-20261029-034136.toml,\config.toml,\config.toml.testresidue-20261029,\keys.log,\perf-20261028-164908.tsv,\perf-20261029-043450.tsv config=CBB17FC832F5E51F33AF736C58AF4168BC8D892EA8F992E4E76A6E6100DDA472
+app_wait=PASS pid=70376
+config_telex_written
+app_wait=PASS pid=7480
+PHASE Telex
+focus T1-tieengs fg_match=True tb_focused=True after_clear=[]
+CASE T1-tieengs expected=[tiếng] actual=[tiếng] PASS
+focus T2-backspace fg_match=True tb_focused=True after_clear=[]
+CASE T2-backspace expected=[ti] actual=[ti] PASS
+focus T3-reopen fg_match=True tb_focused=True after_clear=[]
+CASE T3-reopen expected=[Thá] actual=[Thá] PASS
+focus T4-horn fg_match=True tb_focused=True after_clear=[]
+CASE T4-horn expected=[thương] actual=[thương] PASS
+focus T5-af fg_match=True tb_focused=True after_clear=[]
+CASE T5-af expected=[à] actual=[à] PASS
+focus T6-f2-off fg_match=True tb_focused=True after_clear=[]
+CASE T6-f2-off expected=[tieengs] actual=[tieengs] PASS
+focus T7-f1-on fg_match=True tb_focused=True after_clear=[]
+CASE T7-f1-on expected=[tiếng] actual=[tiếng] PASS
+config_vni_written
+app_wait=PASS pid=85932
+PHASE VNI
+focus V1-tone fg_match=True tb_focused=True after_clear=[]
+CASE V1-tone expected=[Thá] actual=[Thá] PASS
+focus V2-auto-horn fg_match=True tb_focused=True after_clear=[]
+CASE V2-auto-horn expected=[thương] actual=[thương] PASS
+focus V3-cluster-horn fg_match=True tb_focused=True after_clear=[]
+CASE V3-cluster-horn expected=[thương] actual=[thương] PASS
+focus V4-quo7 fg_match=True tb_focused=True after_clear=[]
+CASE V4-quo7 expected=[quơ] actual=[quơ] PASS
+focus V5-tie6ng1 fg_match=True tb_focused=True after_clear=[]
+CASE V5-tie6ng1 expected=[tiếng] actual=[tiếng] PASS
+keys_log=copied
+PROFILE_ISOLATED=True
+HOST-E2E-DONE
