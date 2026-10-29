@@ -1,0 +1,206 @@
+name: release
+
+# Builds the Windows installer on every tag, publishes it, then proves that the
+# public update path works: the GitHub API the app itself calls must report the
+# new release, the asset must download byte-identically, install over the
+# previous version, and uninstall cleanly.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag_ok: ${{ steps.v.outputs.tag_ok }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: pwsh
+        run: |
+          $conf = Get-Content crates/vkb-app/tauri.conf.json -Raw | ConvertFrom-Json
+          $version = $conf.version
+          "version=$version" >> $env:GITHUB_OUTPUT
+          $tag = "${{ github.ref_name }}"
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($tag -ne "v$version") {
+              throw "tag $tag does not match tauri.conf.json version $version"
+            }
+            "tag_ok=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "tag_ok=false" >> $env:GITHUB_OUTPUT
+          }
+
+  build:
+    needs: meta
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm --prefix ui ci
+
+      - name: Engine and backend tests
+        run: cargo test --workspace --quiet
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build the NSIS installer
+        working-directory: crates/vkb-app
+        run: "& ../../ui/node_modules/.bin/tauri.cmd build"
+
+      - name: Locate the installer
+        id: installer
+        shell: pwsh
+        run: |
+          $file = Get-ChildItem target/release/bundle/nsis/*x64-setup.exe |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $file) { throw "no installer was produced" }
+          "path=$($file.FullName)" >> $env:GITHUB_OUTPUT
+          "name=$($file.Name)" >> $env:GITHUB_OUTPUT
+          "size=$($file.Length)" >> $env:GITHUB_OUTPUT
+          Write-Host "$($file.Name) — $($file.Length) bytes"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: target/release/bundle/nsis/*x64-setup.exe
+          if-no-files-found: error
+
+  release:
+    needs: [meta, build]
+    if: needs.meta.outputs.tag_ok == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*x64-setup.exe
+          name: VietKB ${{ needs.meta.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          make_latest: true
+
+  verify-update:
+    needs: [meta, build, release]
+    if: needs.meta.outputs.tag_ok == 'true'
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer
+          path: dist
+
+      - name: The app's own update path (API → asset → download → install)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $headers = @{ 'User-Agent' = 'vietkb-ci'; 'Accept' = 'application/vnd.github+json' }
+          $dist = Join-Path $env:GITHUB_WORKSPACE 'dist'
+          $local = Get-ChildItem $dist -Filter '*x64-setup.exe' | Select-Object -First 1
+          if (-not $local) { throw 'the build artifact is missing' }
+
+          # 1. The exact endpoint `update.rs` calls.
+          $deadline = (Get-Date).AddMinutes(3)
+          do {
+            $latest = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:REPO/releases/latest" -Headers $headers
+            if ($latest.tag_name -eq "v$env:VERSION") { break }
+            Start-Sleep -Seconds 10
+          } while ((Get-Date) -lt $deadline)
+          if ($latest.tag_name -ne "v$env:VERSION") {
+            throw "latest release is $($latest.tag_name), expected v$env:VERSION"
+          }
+
+          # 2. The asset the app looks for, with the size the build produced.
+          $asset = $latest.assets | Where-Object { $_.name.ToLower().EndsWith('x64-setup.exe') } | Select-Object -First 1
+          if (-not $asset) { throw 'the latest release has no *x64-setup.exe asset' }
+          if ($asset.size -ne $local.Length) {
+            throw "asset size $($asset.size) != built $($local.Length)"
+          }
+          if ($asset.name -ne $local.Name) {
+            throw "asset name $($asset.name) != built $($local.Name)"
+          }
+
+          # 3. Download through `browser_download_url`, the field the app reads.
+          $download = Join-Path $env:TEMP 'vietkb-download.exe'
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $download -MaximumRedirection 5
+          if ((Get-FileHash $download).Hash -ne (Get-FileHash $local.FullName).Hash) {
+            throw 'downloaded installer differs from the built one'
+          }
+
+          $installed = Join-Path $env:LOCALAPPDATA 'VietKB\vietkb.exe'
+          $uninstaller = Join-Path $env:LOCALAPPDATA 'VietKB\uninstall.exe'
+
+          # 4. Start from the previous release when the repo has one.
+          $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:REPO/releases?per_page=30" -Headers $headers
+          $previous = $releases |
+            Where-Object {
+              $_.tag_name -ne "v$env:VERSION" -and
+              ($_.assets | Where-Object { $_.name.ToLower().EndsWith('x64-setup.exe') })
+            } |
+            Select-Object -First 1
+          if ($previous) {
+            $old = ($previous.assets | Where-Object { $_.name.ToLower().EndsWith('x64-setup.exe') })[0]
+            $oldPath = Join-Path $env:TEMP 'vietkb-previous.exe'
+            Invoke-WebRequest -Uri $old.browser_download_url -OutFile $oldPath -MaximumRedirection 5
+            Start-Process -FilePath $oldPath -ArgumentList '/S' -Wait
+            $before = (Get-Item $installed).VersionInfo.FileVersion
+            Write-Host "installed $($previous.tag_name), file version $before"
+            if ($before -and $before.StartsWith($env:VERSION)) {
+              throw "the previous release already reports $before"
+            }
+          } else {
+            Write-Host 'no previous release with an installer; testing a clean install'
+          }
+
+          # 5. Apply the update exactly as the tray's "Cài đặt" does.
+          Start-Process -FilePath $download -ArgumentList '/S' -Wait
+          $after = (Get-Item $installed).VersionInfo.FileVersion
+          Write-Host "after update, file version $after"
+          if (-not $after.StartsWith($env:VERSION)) {
+            throw "installed version $after != $env:VERSION"
+          }
+
+          # 6. Uninstall must leave nothing behind.
+          Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 5
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'VietKB')) {
+            throw 'uninstall left %LOCALAPPDATA%\VietKB behind'
+          }
+          $run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'VietKB' -ErrorAction SilentlyContinue
+          if ($run) { throw 'uninstall left the autostart value' }
+          Write-Host 'update path verified: API, asset, download, install, uninstall'
