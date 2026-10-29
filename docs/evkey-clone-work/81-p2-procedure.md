@@ -50,6 +50,11 @@ and a failing number is unambiguous: the part this project owns is too slow.
   cargo build --release -p vkb-app --features custom-protocol
   ```
 
+  The dev channel (`VietKB Dev`, identifier `vn.vietkb.app.dev`) is built by
+  `scripts\build-dev.ps1` into its **own** target dir, `target-dev\release\`;
+  `target\release\vietkb.exe` is always the production binary. Never quote a
+  `target-dev` build as a P2 result.
+
 * The binary under test must install the keyboard hook. Check §7 before typing.
 * No other keyboard tool running: EVKey/UniKey, PowerToys Keyboard Manager,
   AutoHotkey scripts, RDP sessions, on-screen keyboards.

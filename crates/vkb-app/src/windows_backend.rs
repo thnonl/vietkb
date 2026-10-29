@@ -92,14 +92,14 @@ fn send(event: Event) {
 /// Reconcile the `Run` key with the config. The config wins; a mismatch that
 /// survives the write is a real failure and is logged instead of ignored.
 fn sync_autostart(enabled: bool) {
-    if let Err(error) = vkb_windows::set_autostart(enabled) {
+    if let Err(error) = crate::autostart::set(enabled) {
         tracing::warn!(%error, enabled, "could not update the Run key");
         return;
     }
-    if vkb_windows::is_autostart_enabled() != enabled {
+    if crate::autostart::is_enabled() != enabled {
         tracing::warn!(
             wanted = enabled,
-            found = vkb_windows::is_autostart_enabled(),
+            found = crate::autostart::is_enabled(),
             "autostart still disagrees with the config after writing"
         );
     }

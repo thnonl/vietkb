@@ -5,6 +5,8 @@ mod running_apps;
 mod tray;
 mod update;
 #[cfg(windows)]
+mod autostart;
+#[cfg(windows)]
 mod windows_backend;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -355,9 +357,14 @@ fn main() {
 
     // P2 latency probe: reads `VKB_PERF` once, here. Off unless the variable is
     // `1`, in which case the keystroke path records samples and the exit path
-    // writes `%APPDATA%\VietKB\perf-<timestamp>.tsv`.
+    // writes `perf-<timestamp>.tsv`.
     #[cfg(windows)]
-    vkb_windows::perf::init_from_env();
+    {
+        // Both opt-in debug outputs (`perf-*.tsv`, `keys.log`) write under the
+        // channel-aware data directory, never a hardcoded `%APPDATA%\VietKB`.
+        vkb_windows::set_data_dir(vkb_config::paths::config_dir());
+        vkb_windows::perf::init_from_env();
+    }
 
     let app = tauri::Builder::default()
         // Second launch: same rule as a first one, so `Chạy ẩn` also keeps a

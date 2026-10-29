@@ -17,7 +17,7 @@ use vkb_platform::{BackendCommand, Hotkey, SharedConfig};
 mod backend;
 pub mod autostart;
 pub mod clipboard;
-/// Opt-in keystroke trace (`VKB_DEBUG_KEYS=1`) → `%APPDATA%\VietKB\keys.log`.
+/// Opt-in keystroke trace (`VKB_DEBUG_KEYS=1`) → `<data dir>\keys.log`.
 pub mod debuglog;
 pub mod foreground;
 mod globals;
@@ -26,6 +26,7 @@ pub mod hotkeys;
 pub mod ime;
 pub mod input;
 pub mod keys;
+mod paths;
 /// Opt-in P2 latency probe (`VKB_PERF=1`); see `docs/evkey-clone-work/81-p2-procedure.md`.
 pub mod perf;
 pub mod sound;
@@ -33,6 +34,7 @@ pub mod state;
 
 pub use backend::{Injector, WindowsBackend};
 pub use input::SendMode;
+pub use paths::set_data_dir;
 
 /// Install the global keyboard hook and register the hotkey callback.
 ///

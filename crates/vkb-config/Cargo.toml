@@ -5,6 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Side-by-side test channel: everything lands under `VietKB Dev` instead of
+# `VietKB`, so a test build can never read or write the installed app's state.
+# Off by default; production builds are unchanged.
+dev-channel = []
+
 [dependencies]
 vkb-core = { path = "../vkb-core" }
 serde.workspace = true

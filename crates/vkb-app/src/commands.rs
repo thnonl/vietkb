@@ -306,23 +306,43 @@ fn after_change() {
     }
 }
 
-fn sync_autostart(enabled: bool) {    use tauri_plugin_autostart::ManagerExt;
-
+fn sync_autostart(enabled: bool) {
     if AUTOSTART_SYNCED.load(Ordering::Relaxed) && AUTOSTART_STATE.load(Ordering::Relaxed) == enabled
     {
         return;
     }
-    let Some(app) = app_handle() else {
-        return;
-    };
-    let manager = app.autolaunch();
-    let result = if enabled { manager.enable() } else { manager.disable() };
-    match result {
-        Ok(()) => {
-            AUTOSTART_SYNCED.store(true, Ordering::Relaxed);
-            AUTOSTART_STATE.store(enabled, Ordering::Relaxed);
+
+    // Dev channel: write the `VietKB Dev` value ourselves, HKCU only, quoted
+    // exe plus the flag. The plugin would use an unquoted command line and may
+    // pick HKLM, so the two channels must not share that writer.
+    #[cfg(all(windows, feature = "dev-channel"))]
+    {
+        match crate::autostart::set(enabled) {
+            Ok(()) => {
+                AUTOSTART_SYNCED.store(true, Ordering::Relaxed);
+                AUTOSTART_STATE.store(enabled, Ordering::Relaxed);
+            }
+            Err(error) => tracing::warn!(%error, enabled, "autostart update failed"),
         }
-        Err(error) => tracing::warn!(%error, enabled, "autostart update failed"),
+        return;
+    }
+
+    #[cfg(not(all(windows, feature = "dev-channel")))]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+
+        let Some(app) = app_handle() else {
+            return;
+        };
+        let manager = app.autolaunch();
+        let result = if enabled { manager.enable() } else { manager.disable() };
+        match result {
+            Ok(()) => {
+                AUTOSTART_SYNCED.store(true, Ordering::Relaxed);
+                AUTOSTART_STATE.store(enabled, Ordering::Relaxed);
+            }
+            Err(error) => tracing::warn!(%error, enabled, "autostart update failed"),
+        }
     }
 }
 
@@ -331,7 +351,7 @@ fn sync_autostart(enabled: bool) {    use tauri_plugin_autostart::ManagerExt;
 fn autostart_registry_state() -> Option<bool> {
     #[cfg(windows)]
     {
-        Some(vkb_windows::is_autostart_enabled())
+        Some(crate::autostart::is_enabled())
     }
     #[cfg(not(windows))]
     {
@@ -376,13 +396,14 @@ pub fn autostart_state() -> bool {
     autostart_registry_state().unwrap_or_else(|| config_cell().read().system.start_with_windows)
 }
 
-/// Write the `Run` entry through `vkb_windows::set_autostart`, read it back and
-/// persist what the registry actually holds. Returns that value so the switch
-/// lands on the truth even when the write fails.
+/// Write the `Run` entry for this channel (production `VietKB`, dev channel
+/// `VietKB Dev`), read it back and persist what the registry actually holds.
+/// Returns that value so the switch lands on the truth even when the write
+/// fails.
 #[tauri::command]
 pub fn set_autostart(enabled: bool) -> Result<bool, String> {
     #[cfg(windows)]
-    vkb_windows::set_autostart(enabled).map_err(|error| error.to_string())?;
+    crate::autostart::set(enabled)?;
 
     #[cfg(not(windows))]
     {

@@ -24,7 +24,10 @@
 //!
 //! ## Output
 //!
-//! [`flush`] writes `%APPDATA%\VietKB\perf-<timestamp>.tsv` (one microsecond
+//! [`flush`] writes `perf-<timestamp>.tsv` under the app's data directory —
+//! `%APPDATA%\VietKB Dev` in a dev build, `%APPDATA%\VietKB` otherwise (see
+//! [`crate::set_data_dir`]; the crate falls back to the production directory
+//! when no app set one) — one microsecond
 //! value per row, `#` header) and logs count/p50/p95/p99/max plus a verdict, so
 //! a run answers the budget without extra tooling. The procedure that consumes
 //! this file is `docs/evkey-clone-work/81-p2-procedure.md`.
@@ -339,11 +342,7 @@ fn write_report() -> Result<PathBuf> {
 }
 
 fn output_path(started: SystemTime) -> PathBuf {
-    let base = std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("VietKB")
-        .join(format!("perf-{}.tsv", compact_utc(started)))
+    crate::paths::data_dir().join(format!("perf-{}.tsv", compact_utc(started)))
 }
 
 /// Layout the probe started under, e.g. `0x0409 (en-US)`. Sampled once so a

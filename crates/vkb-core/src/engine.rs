@@ -32,6 +32,15 @@ pub const VK_SPACE: u16 = 0x20;
 /// boundary, ported verbatim as a compat shim.
 const COMPAT_RESTORE_RAW: &[&str] = &["of", "oj", "awf", "owf", "uwf", "aww", "oww", "uww"];
 
+/// The word a boundary key just committed, kept only until the next key so a
+/// Backspace can re-open it. One word, not a history.
+struct CommittedWord {
+    raw: SmallVec<[char; MAX_WORD]>,
+    composed: Composed,
+    text: TextBuf,
+    literal_from: usize,
+}
+
 /// Default engine.
 pub struct Engine {
     options: EngineOptions,
@@ -43,6 +52,9 @@ pub struct Engine {
     literal_from: usize,
     macros: MacroTable,
     caps_pending: bool,
+    /// The word the last space committed, live for exactly one key:
+    /// `Tha` + space + Backspace + `s` = `Thá`.
+    reopen: Option<CommittedWord>,
 }
 
 impl Engine {
@@ -55,6 +67,7 @@ impl Engine {
             literal_from: usize::MAX,
             macros: MacroTable::new(),
             caps_pending: false,
+            reopen: None,
         }
     }
 
@@ -136,7 +149,7 @@ impl Engine {
         }
     }
 
-    fn diff(&self, next: &TextBuf, typed: Option<char>, allow_single_delete: bool) -> EngineAction {
+    fn diff(&self, next: &TextBuf, typed: Option<char>) -> EngineAction {
         let old = self.text.as_slice();
         let new = next.as_slice();
         if new == old {
@@ -148,10 +161,6 @@ impl Engine {
                 Some(ch) if ch == appended => EngineAction::Noop,
                 _ => EngineAction::Commit(appended.to_string()),
             };
-        }
-        if allow_single_delete && new.len() + 1 == old.len() && old[..new.len()] == *new {
-            // The app's own backspace removes exactly the last character.
-            return EngineAction::Noop;
         }
         EngineAction::Replace {
             delete_units: old.len() as u32,
@@ -174,24 +183,162 @@ impl Engine {
         method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
         let mut next = TextBuf::new();
         self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
-        let action = self.diff(&next, Some(ch), false);
+        let action = self.diff(&next, Some(ch));
         self.text = next;
         action
     }
 
-    fn backspace(&mut self) -> EngineAction {
+    /// One displayed character per press: the last composed *letter*, not the
+    /// last keystroke (`tiếng` − `g` = `tiến`, and `ế` goes in one press even
+    /// though `ee` + `s` typed it).
+    ///
+    /// The raw history stays honest instead of being recomposed from a shorter
+    /// prefix: every keystroke that fed the deleted letter is dropped, found by
+    /// replaying [`method::compose`] over the growing prefixes (see
+    /// [`Engine::keystroke_owners`]). What is left is the keystroke sequence the
+    /// user would have typed to produce the surviving text, so further typing
+    /// composes on top of it. When the replay cannot reproduce the text on
+    /// screen — a doubled-trigger escape (`aaa`, `ass`) rewrote the history —
+    /// the surviving characters are frozen as literal keystrokes instead: the
+    /// screen never moves, at the cost of that word no longer composing further.
+    fn backspace(&mut self, reopening: Option<CommittedWord>) -> EngineAction {
         if self.raw.is_empty() {
+            if let Some(word) = reopening {
+                // The app deletes the boundary itself; the word comes back so
+                // the next keystroke composes onto it (`Tha` + space + BS + `s`
+                // = `Thá`). A second Backspace then deletes one character.
+                self.raw = word.raw;
+                self.composed = word.composed;
+                self.text = word.text;
+                self.literal_from = word.literal_from;
+            }
             // Nothing of ours: let the app delete whatever came before.
             return EngineAction::Noop;
         }
-        self.raw.pop();
-        if self.raw.is_empty() || self.literal_from > self.raw.len() {
-            self.literal_from = usize::MAX;
+        if self.composed.letters.is_empty() {
+            return EngineAction::Noop;
         }
-        method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
+
+        let target = self.text_without_last_character();
+        let kept = self.raw_without_letter(self.composed.letters.len() - 1);
+
+        let mut literal_from = self.literal_from;
+        if literal_from != usize::MAX && literal_from > kept.len() {
+            literal_from = usize::MAX;
+        }
+        let mut composed = Composed::default();
         let mut next = TextBuf::new();
-        self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
-        let action = self.diff(&next, None, true);
+        method::compose(&kept, &self.options, literal_from, &mut composed);
+        self.render_into(
+            &composed.letters,
+            composed.tone,
+            composed.tone_slot,
+            &mut next,
+        );
+
+        if next.as_slice() == target.as_slice() {
+            self.raw = kept;
+        } else {
+            let mut frozen: SmallVec<[char; MAX_WORD]> = SmallVec::new();
+            for &ch in &target {
+                frozen.push(ch);
+            }
+            literal_from = 0;
+            method::compose(&frozen, &self.options, literal_from, &mut composed);
+            self.render_into(
+                &composed.letters,
+                composed.tone,
+                composed.tone_slot,
+                &mut next,
+            );
+            self.raw = frozen;
+        }
+
+        self.literal_from = literal_from;
+        self.composed = composed;
+        self.settle_deletion(next)
+    }
+
+    /// The text on screen without its last displayed character.
+    ///
+    /// One character, not one charset unit: `ế` is a single scalar in `unicode`
+    /// and three in `unicode_nfd`, and both must lose the whole letter.
+    fn text_without_last_character(&self) -> TextBuf {
+        let letters = &self.composed.letters;
+        let last = letters.len() - 1;
+        let carrier = self
+            .composed
+            .tone_slot
+            .or_else(|| place::target(letters, self.options.modern_tone));
+        let last_tone = if carrier == Some(last) {
+            self.composed.tone
+        } else {
+            Tone::None
+        };
+        let mut tail = TextBuf::new();
+        self.render_into(&letters[last..], last_tone, Some(0), &mut tail);
+        let keep = self.text.len().saturating_sub(tail.len());
+        let mut target = TextBuf::new();
+        target.extend_from_slice(&self.text[..keep]);
+        target
+    }
+
+    /// The raw keystrokes left when every keystroke that fed letter `drop` goes.
+    fn raw_without_letter(&self, drop: usize) -> SmallVec<[char; MAX_WORD]> {
+        let owners = self.keystroke_owners();
+        let dropped = drop as u8;
+        let mut kept: SmallVec<[char; MAX_WORD]> = SmallVec::new();
+        for (idx, &ch) in self.raw.iter().enumerate() {
+            if owners.get(idx) != Some(&dropped) {
+                kept.push(ch);
+            }
+        }
+        kept
+    }
+
+    /// For each raw keystroke, the letter it produced or modified.
+    ///
+    /// Recomputed by replaying [`method::compose`] over the growing prefixes, so
+    /// it always agrees with what the engine actually composed — there is no
+    /// parallel bookkeeping that could drift from the state machine.
+    fn keystroke_owners(&self) -> SmallVec<[u8; MAX_WORD]> {
+        let mut owners: SmallVec<[u8; MAX_WORD]> = SmallVec::new();
+        let mut prev = Composed::default();
+        let mut cur = Composed::default();
+        for end in 0..self.raw.len() {
+            method::compose(&self.raw[..=end], &self.options, self.literal_from, &mut cur);
+            owners.push(owner_of(&prev, &cur, self.options.modern_tone));
+            std::mem::swap(&mut prev, &mut cur);
+        }
+        owners
+    }
+
+    /// Emit the smallest action that turns `self.text` into `next`, then adopt
+    /// `next`. A deletion that changes nothing visible swallows the key instead
+    /// of emitting a stray `Replace`.
+    fn settle_deletion(&mut self, next: TextBuf) -> EngineAction {
+        let old = self.text.as_slice();
+        let new = next.as_slice();
+        let action = if new == old {
+            EngineAction::Swallow
+        } else if new.len() < old.len() && old[..new.len()] == *new {
+            let units = old.len() - new.len();
+            if units == 1 {
+                // One unit: the app's own backspace deletes exactly that.
+                EngineAction::Noop
+            } else {
+                // One character, several units (`unicode_nfd`): delete them all.
+                EngineAction::Replace {
+                    delete_units: units as u32,
+                    insert: String::new(),
+                }
+            }
+        } else {
+            EngineAction::Replace {
+                delete_units: old.len() as u32,
+                insert: new.iter().collect(),
+            }
+        };
         self.text = next;
         action
     }
@@ -232,6 +379,19 @@ impl Engine {
         }
 
         // The word on screen is already correct: let the boundary key through.
+        //
+        // A space is the typing separator, so the word it commits is remembered
+        // for exactly one key: a Backspace that removes the space re-opens it
+        // (`Tha` + space + BS + `s` = `Thá`). Enter, Tab and punctuation do not
+        // re-open: they end the line/field/sentence, not just the word.
+        if ch == ' ' {
+            self.reopen = Some(CommittedWord {
+                raw: std::mem::take(&mut self.raw),
+                composed: std::mem::take(&mut self.composed),
+                text: std::mem::take(&mut self.text),
+                literal_from: self.literal_from,
+            });
+        }
         self.reset_word();
         EngineAction::Noop
     }
@@ -269,12 +429,15 @@ impl Engine {
 impl VietnameseEngine for Engine {
     fn reset(&mut self) {
         self.reset_word();
+        // A caret move or focus change is a boundary the memory must not cross.
+        self.reopen = None;
         self.caps_pending = false;
     }
 
     fn set_options(&mut self, options: EngineOptions) {
         if self.options.method != options.method || self.options.charset != options.charset {
             self.reset_word();
+            self.reopen = None;
         }
         self.options = options;
     }
@@ -291,8 +454,11 @@ impl VietnameseEngine for Engine {
         if key.modifiers.ctrl || key.modifiers.alt || key.modifiers.win {
             return EngineAction::Noop;
         }
+        // The just-committed word is reachable from one key only: whatever this
+        // key is (Backspace, a letter, a navigation key), the memory is spent.
+        let reopening = self.reopen.take();
         match key.vk {
-            VK_BACK => return self.backspace(),
+            VK_BACK => return self.backspace(reopening),
             VK_RETURN => return self.boundary_key('\r'),
             VK_TAB | VK_ESCAPE => {
                 let ch = key.ch.unwrap_or('\t');
@@ -305,7 +471,7 @@ impl VietnameseEngine for Engine {
             None => return EngineAction::Noop,
         };
         match ch {
-            '\u{8}' | '\u{7f}' => self.backspace(),
+            '\u{8}' | '\u{7f}' => self.backspace(reopening),
             '\r' | '\n' => self.boundary_key('\r'),
             _ if ch.is_control() => self.boundary_key(ch),
             _ if is_word_key(self.options.method, ch) => self.word_key(ch),
@@ -324,6 +490,7 @@ impl VietnameseEngine for Engine {
 
     fn boundary(&mut self) {
         self.reset_word();
+        self.reopen = None;
     }
 }
 
@@ -335,6 +502,37 @@ fn is_word_key(method: InputMethod, ch: char) -> bool {
         InputMethod::Telex | InputMethod::Legacy => false,
         InputMethod::Vni => ch.is_ascii_digit(),
     }
+}
+
+/// Which letter the keystroke that turned `prev` into `cur` belongs to.
+///
+/// A keystroke either created a letter, or transformed one already on the
+/// buffer: a mark lands on the letter whose mark changed, a tone on the letter
+/// that carries it right now (`ế` owns the `s` of `tiếng`; the `g` does not).
+fn owner_of(prev: &Composed, cur: &Composed, modern_tone: bool) -> u8 {
+    let Some(last) = cur.letters.len().checked_sub(1) else {
+        return 0;
+    };
+    if cur.letters.len() == prev.letters.len() + 1 {
+        return last as u8;
+    }
+    if let Some(idx) = cur
+        .letters
+        .iter()
+        .zip(prev.letters.iter())
+        .position(|(now, before)| now != before)
+    {
+        return idx as u8;
+    }
+    if cur.tone != prev.tone {
+        if let Some(slot) = cur.tone_slot {
+            return slot as u8;
+        }
+        if let Some(idx) = place::target(&cur.letters, modern_tone) {
+            return idx as u8;
+        }
+    }
+    last as u8
 }
 
 /// Case-insensitive comparison of raw keystrokes against a literal shape.

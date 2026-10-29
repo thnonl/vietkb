@@ -1,9 +1,9 @@
-//! Backspace over the raw keystroke history, restore-word, boundaries,
-//! auto-capitalisation and the word cap.
+//! Backspace (one displayed character per press), reopen-after-boundary,
+//! restore-word, boundaries, auto-capitalisation and the word cap.
 
 use vkb_core::{
-    apply_action, simulate, simulate_keys, Engine, EngineOptions, InputMethod, KeyInput, MacroTable,
-    VietnameseEngine, MAX_WORD,
+    apply_action, simulate, simulate_keys, Charset, Engine, EngineAction, EngineOptions,
+    InputMethod, KeyInput, MacroTable, VietnameseEngine, MAX_WORD,
 };
 
 fn keys(input: &str) -> Vec<KeyInput> {
@@ -20,58 +20,121 @@ fn run(options: EngineOptions, all: &[KeyInput]) -> String {
     out
 }
 
-#[test]
-fn backspace_recomputes_from_the_raw_keystrokes() {
-    let mut all = keys("tieengs");
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "tiêng");
-
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "tiên");
-
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "tiê");
+/// One engine plus the text a backend would have typed, so a test can assert
+/// what the user sees after every single key.
+struct Session {
+    engine: Engine,
+    out: String,
 }
 
-#[test]
-fn backspace_keeps_the_original_case() {
-    let mut all = keys("Thuongwf");
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "Thương");
+impl Session {
+    fn new(options: EngineOptions) -> Self {
+        Self {
+            engine: Engine::new(options),
+            out: String::new(),
+        }
+    }
+
+    fn key(&mut self, key: KeyInput) -> &str {
+        let action = self.engine.process_key(key);
+        apply_action(&mut self.out, action, key);
+        &self.out
+    }
+
+    fn text(&mut self, input: &str) -> &str {
+        for ch in input.chars() {
+            self.key(KeyInput::char(ch));
+        }
+        &self.out
+    }
+
+    fn backspace(&mut self) -> &str {
+        self.key(KeyInput::backspace())
+    }
 }
 
-#[test]
-fn backspace_after_a_tone_restores_the_previous_word() {
-    let mut all = keys("Hoas");
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "Hoa");
+/// `text` rendered the way `unicode_nfd` emits it.
+fn nfd(text: &str) -> String {
+    String::from_utf8(Charset::UnicodeNfd.encode(text)).expect("NFD output is UTF-8")
 }
 
-#[test]
-fn backspace_undoes_vni_modifiers() {
-    let vni = EngineOptions {
-        method: InputMethod::Vni,
+fn nfd_options() -> EngineOptions {
+    EngineOptions {
+        charset: Charset::UnicodeNfd,
         ..EngineOptions::default()
-    };
-    let mut all = keys("To6i1");
-    all.push(KeyInput::backspace());
-    assert_eq!(run(vni, &all), "Tôi");
-
-    let mut all = keys("nghieng2");
-    all.push(KeyInput::backspace());
-    assert_eq!(run(vni, &all), "nghieng");
+    }
 }
 
 #[test]
-fn backspace_to_empty_leaves_nothing_behind() {
-    let mut all = keys("as");
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "a");
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "");
-    // With no word of ours, backspace reaches the application.
-    all.push(KeyInput::backspace());
-    assert_eq!(run(EngineOptions::default(), &all), "");
+fn backspace_deletes_one_displayed_character() {
+    // The owner's example: `tiếng` is five characters, so three presses leave
+    // `ti` — each press removes one letter, not one raw keystroke.
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("tieengs"), "tiếng");
+    assert_eq!(session.backspace(), "tiến");
+    assert_eq!(session.backspace(), "tiế");
+    assert_eq!(session.backspace(), "ti");
+}
+
+#[test]
+fn backspace_deletes_a_marked_word_one_character_at_a_time() {
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("dduwowngf"), "đường");
+    assert_eq!(session.backspace(), "đườn");
+    assert_eq!(session.backspace(), "đườ");
+    assert_eq!(session.backspace(), "đư");
+}
+
+#[test]
+fn backspace_counts_a_capital_letter_as_one_character() {
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("Tieengs"), "Tiếng");
+    assert_eq!(session.backspace(), "Tiến");
+}
+
+#[test]
+fn backspace_removes_a_toned_letter_and_its_tone() {
+    // The tone lives on the deleted letter: it goes with it.
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("cas"), "cá");
+    assert_eq!(session.backspace(), "c");
+}
+
+#[test]
+fn nfd_backspace_deletes_one_character() {
+    let mut session = Session::new(nfd_options());
+    assert_eq!(session.text("tieengs"), nfd("tiếng"));
+    assert_eq!(session.backspace(), nfd("tiến"));
+    assert_eq!(session.engine.current_text(), nfd("tiến"));
+}
+
+#[test]
+fn nfd_backspace_deletes_every_unit_of_a_multi_unit_character() {
+    // `ế` is three code units in NFD (e + circumflex + acute): one press must
+    // delete all three, so the action cannot be a pass-through backspace.
+    let mut engine = Engine::new(nfd_options());
+    for key in keys("tiees") {
+        engine.process_key(key);
+    }
+    assert_eq!(engine.current_text(), nfd("tiế"));
+    assert_eq!(
+        engine.process_key(KeyInput::backspace()),
+        EngineAction::Replace {
+            delete_units: 3,
+            insert: String::new(),
+        }
+    );
+    assert_eq!(engine.current_text(), nfd("ti"));
+}
+
+#[test]
+fn backspace_after_a_boundary_leaves_the_word_to_the_application() {
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("tieengs "), "tiếng ");
+    // The space belongs to the application, not to the word buffer.
+    assert_eq!(session.backspace(), "tiếng");
+    // Then the committed word's own last letter, still untouched by the engine.
+    assert_eq!(session.backspace(), "tiến");
 }
 
 #[test]
@@ -79,6 +142,197 @@ fn backspace_with_no_word_is_a_noop() {
     let mut engine = Engine::new(EngineOptions::default());
     assert!(engine.process_key(KeyInput::backspace()).is_noop());
     assert!(engine.buffer().is_empty());
+}
+
+#[test]
+fn typing_after_a_deletion_composes_on_the_kept_history() {
+    // The surviving keystrokes are a real history: typing the deleted key back
+    // rebuilds the word instead of doubling a letter.
+    let mut session = Session::new(EngineOptions::default());
+    session.text("dduwowngf");
+    assert_eq!(session.backspace(), "đườn");
+    assert_eq!(session.text("g"), "đường");
+}
+
+#[test]
+fn typing_after_a_deletion_composes_like_the_same_history_typed_at_once() {
+    // After `tiếng` - `g` the buffer still holds `t i e e n s`, so a following
+    // `t` is the same shape as typing `tieenst` in one go: the spell check
+    // leaves both as raw keystrokes rather than inventing a syllable.
+    let mut session = Session::new(EngineOptions::default());
+    session.text("tieengs");
+    assert_eq!(session.backspace(), "tiến");
+    assert_eq!(session.text("t"), simulate(EngineOptions::default(), "tieenst"));
+}
+
+#[test]
+fn backspace_keeps_the_original_case() {
+    let mut all = keys("Thuongwf");
+    all.push(KeyInput::backspace());
+    assert_eq!(run(EngineOptions::default(), &all), "Thườn");
+}
+
+#[test]
+fn backspace_over_a_toned_letter_removes_the_letter() {
+    // `Hoas` shows `Hóa`; the press removes `a`, so the tone stays on `o`.
+    let mut all = keys("Hoas");
+    all.push(KeyInput::backspace());
+    assert_eq!(run(EngineOptions::default(), &all), "Hó");
+}
+
+#[test]
+fn backspace_over_vni_modifiers_deletes_a_character() {
+    let vni = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    let mut session = Session::new(vni);
+    assert_eq!(session.text("To6i1"), "Tối");
+    assert_eq!(session.backspace(), "Tố");
+
+    // `nghieng2` puts the tone on the `i` (A4), so the press removes the final
+    // `g` and keeps it there.
+    let mut session = Session::new(vni);
+    assert_eq!(session.text("nghieng2"), "nghìeng");
+    assert_eq!(session.backspace(), "nghìen");
+}
+
+#[test]
+fn backspace_to_empty_leaves_nothing_behind() {
+    let mut all = keys("as");
+    assert_eq!(run(EngineOptions::default(), &all), "á");
+    // `á` is one character: the press deletes the letter and its tone.
+    all.push(KeyInput::backspace());
+    assert_eq!(run(EngineOptions::default(), &all), "");
+    // With no word of ours, backspace reaches the application.
+    all.push(KeyInput::backspace());
+    assert_eq!(run(EngineOptions::default(), &all), "");
+}
+
+// ---------------------------------------------------------------------------
+// Reopen after a boundary: `Tha` + space + BS + `s` = `Thá`
+// ---------------------------------------------------------------------------
+
+#[test]
+fn backspace_reopens_the_word_the_space_committed() {
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("Tha"), "Tha");
+    assert_eq!(session.text(" "), "Tha ");
+    // The app deletes the space; the engine puts the word back in the buffer.
+    assert_eq!(session.backspace(), "Tha");
+    assert_eq!(session.engine.buffer(), ['T', 'h', 'a']);
+    assert_eq!(session.engine.current_text(), "Tha");
+    // So the tone trigger composes on it instead of starting a new word.
+    assert_eq!(session.text("s"), "Thá");
+}
+
+#[test]
+fn a_second_backspace_after_reopening_deletes_a_character() {
+    let mut session = Session::new(EngineOptions::default());
+    session.text("Tha ");
+    assert_eq!(session.backspace(), "Tha");
+    assert_eq!(session.backspace(), "Th");
+}
+
+#[test]
+fn a_keystroke_after_the_boundary_suppresses_reopening() {
+    let mut session = Session::new(EngineOptions::default());
+    session.text("Tha ");
+    assert_eq!(session.text("x"), "Tha x");
+    // `x` spent the memory: this press deletes `x`, it does not reopen `Tha`.
+    assert_eq!(session.backspace(), "Tha ");
+    assert_eq!(session.engine.buffer(), Vec::<char>::new());
+}
+
+#[test]
+fn reopening_is_for_the_space_only() {
+    // Enter ends the line, not just the word: no reopen, so `s` starts a word.
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("Tha "), "Tha ");
+    assert_eq!(session.key(KeyInput::enter()), "Tha \r");
+    assert_eq!(session.backspace(), "Tha ");
+    assert_eq!(session.text("s"), "Tha s");
+
+    // Tab and sentence punctuation commit too, and are not re-opened either.
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("Tha "), "Tha ");
+    assert_eq!(session.key(KeyInput::key(vkb_core::VK_TAB, Some('\t'))), "Tha \t");
+    assert_eq!(session.backspace(), "Tha ");
+    assert_eq!(session.text("s"), "Tha s");
+
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("Tha."), "Tha.");
+    assert_eq!(session.backspace(), "Tha");
+    assert_eq!(session.text("s"), "Thas", "no remembered word to compose onto");
+}
+
+#[test]
+fn a_tone_trigger_on_a_reopened_toned_word_keeps_the_escape_rule() {
+    // The word comes back with its tone; the second `s` is the engine's existing
+    // doubled-trigger escape (same result as typing the keystrokes in one go),
+    // so nothing is corrupted and nothing is duplicated.
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("tieengs "), "tiếng ");
+    assert_eq!(session.backspace(), "tiếng");
+    assert_eq!(
+        session.text("s"),
+        simulate(EngineOptions::default(), "tieengss")
+    );
+}
+
+#[test]
+fn the_reopen_memory_is_one_word_not_a_history() {
+    // The space after `ho` replaces the memory: reopening gives `ho`, not `Tha`.
+    let mut session = Session::new(EngineOptions::default());
+    session.text("Tha ho ");
+    assert_eq!(session.backspace(), "Tha ho");
+    assert_eq!(session.text("s"), "Tha hó");
+}
+
+#[test]
+fn a_boundary_clears_the_reopen_memory() {
+    // `Tha` + space + BS restores and re-commits; the second space commits it
+    // again, so this press is a plain pass-through of that space.
+    let mut session = Session::new(EngineOptions::default());
+    session.text("Tha ");
+    assert_eq!(session.backspace(), "Tha");
+    assert_eq!(session.text(" "), "Tha ");
+    assert_eq!(session.backspace(), "Tha");
+}
+
+#[test]
+fn a_macro_commit_is_not_reopened() {
+    // The screen shows the expansion, not the trigger: re-opening `vn` would
+    // desync the buffer from the screen, so a macro commit leaves no memory.
+    let mut engine = Engine::new(EngineOptions::default());
+    engine.upsert_macro("vn", "Việt Nam");
+    let mut out = String::new();
+    for key in keys("vn ") {
+        apply_action(&mut out, engine.process_key(key), key);
+    }
+    assert_eq!(out, "Việt Nam ");
+    apply_action(&mut out, engine.process_key(KeyInput::backspace()), KeyInput::backspace());
+    assert_eq!(out, "Việt Nam");
+    assert!(engine.buffer().is_empty());
+    apply_action(&mut out, engine.process_key(KeyInput::char('s')), KeyInput::char('s'));
+    assert_eq!(out, "Việt Nams", "the trigger must not come back");
+}
+
+#[test]
+fn backspace_after_restore_word_deletes_a_character() {
+    // `restore_word` forces literal text from raw index 0; a press then deletes
+    // one character of that literal word and keeps the rest literal.
+    let mut engine = Engine::new(EngineOptions::default());
+    let mut out = String::new();
+    for key in keys("tieengs") {
+        apply_action(&mut out, engine.process_key(key), key);
+    }
+    apply_action(&mut out, engine.restore_word(), KeyInput::char(' '));
+    assert_eq!(out, "tieengs");
+    for key in [KeyInput::backspace(), KeyInput::char('s')] {
+        apply_action(&mut out, engine.process_key(key), key);
+    }
+    assert_eq!(out, "tieengs", "typing stays literal after the restore");
 }
 
 #[test]

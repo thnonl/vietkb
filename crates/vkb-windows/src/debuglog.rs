@@ -1,4 +1,6 @@
-//! Opt-in keystroke trace (`VKB_DEBUG_KEYS=1`) → `%APPDATA%\VietKB\keys.log`.
+//! Opt-in keystroke trace (`VKB_DEBUG_KEYS=1`) → `<data dir>\keys.log`, where
+//! the data directory is the one the app published with [`crate::set_data_dir`]
+//! (channel-aware), or `%APPDATA%\VietKB` when the crate runs standalone.
 //!
 //! Only for diagnosis: it answers "what did the hook decide for this key, and
 //! what did the injection call return?" without a debugger. Kept out of the hot
@@ -43,10 +45,7 @@ pub fn enabled() -> bool {
 }
 
 pub fn log_path() -> PathBuf {
-    let base = std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("VietKB").join("keys.log")
+    crate::paths::data_dir().join("keys.log")
 }
 
 /// Append one already-formatted line (adds the timestamp and newline).

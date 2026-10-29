@@ -2,10 +2,17 @@
 
 use std::path::PathBuf;
 
+/// Directory under the platform config root. The `dev-channel` build gets its
+/// own, so a test install never shares config, logs or perf files with the
+/// production app.
+#[cfg(feature = "dev-channel")]
+pub const APP_DIR: &str = "VietKB Dev";
+#[cfg(not(feature = "dev-channel"))]
 pub const APP_DIR: &str = "VietKB";
 pub const CONFIG_NAME: &str = "config.toml";
 
-/// `%APPDATA%\VietKB` on Windows, `~/Library/Application Support/VietKB` on macOS.
+/// `%APPDATA%\VietKB` on Windows, `~/Library/Application Support/VietKB` on macOS
+/// (`VietKB Dev` with the `dev-channel` feature).
 pub fn config_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
