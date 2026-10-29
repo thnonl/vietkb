@@ -345,7 +345,7 @@ impl HookRuntime {
                 self.remembered.insert(self.app_name.clone(), enabled);
             }
             if self.sound_on {
-                sound::play_notification_sound();
+                sound::play_toggle(enabled);
             }
             globals::fire_enabled(enabled);
             globals::fire_command(BackendCommand::Enable(enabled));
@@ -419,7 +419,7 @@ impl HookRuntime {
             Injection::None => None,
             Injection::Beep => {
                 if self.sound_on {
-                    sound::play_notification_sound();
+                    sound::play_toggle(globals::enabled());
                 }
                 None
             }

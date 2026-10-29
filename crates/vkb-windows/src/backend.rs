@@ -53,7 +53,7 @@ impl EngineSink for Injector {
         let decision = decide(&action, None);
         match decision.injection {
             Injection::None => {}
-            Injection::Beep => sound::play_notification_sound(),
+            Injection::Beep => sound::play_toggle(true),
             Injection::Type(text) => self.type_text(&text, 0),
             Injection::Replace { deletes, insert } => self.type_text(&insert, deletes),
         }
