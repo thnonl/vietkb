@@ -809,3 +809,11 @@ code {
 
 .hero-video { display: block; width: 100%; height: auto; border-radius: 9px; background: #17161E; }
 
+
+.hero-video { aspect-ratio: 16 / 9; object-fit: cover; }
+
+@media (max-width: 640px) {
+  .hero { padding-block: 22px 30px; }
+  .hero-figure .shot-frame { width: 100% !important; max-width: 100% !important; }
+  .telex-demo { font-size: clamp(1.35rem, 7vw, 1.8rem); }
+}
