@@ -1,5 +1,15 @@
 ﻿# Log
 
+- 2026-10-29 **Released 0.2.2 and shipped the public site.** The E/V toggle now plays the
+  Windows sound scheme (`SystemAsterisk` on, `SystemHand` off) instead of a generated tone —
+  the synthesized WAV was too loud and was removed. CI (`release.yml`, no verify job) builds and
+  publishes `VietKB_0.2.2_x64-setup.exe` on tag push. The landing page got a motion hero
+  (`site/hero.js`: `tieengs` → `tiếng`, transform/opacity only, pause control, tiered
+  reduced-motion) built on the rules from `iart-ai/web-animation-skills`, a full copy rewrite,
+  and a mobile pass (hero grid track pinned, header keeps the download CTA at ≤640 px). A README
+  with the Pages and Ko-fi links was added. Release verification lives in
+  `scripts/verify-update.ps1` (Windows Sandbox), not CI.
+
 - 2026-10-29 **Owner, second parity round.** Custom input methods (`user_method_input`) are
   dropped: Telex/VNI cover the real use and a rule-table editor is a large surface nobody wants
   to maintain. EVKey's hidden per-application table (Excel, Google Sheets, browsers, Viber,

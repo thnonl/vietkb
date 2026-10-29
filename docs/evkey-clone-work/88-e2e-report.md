@@ -78,6 +78,14 @@ This run found a real product bug that no unit test could: **the Windows backend
 the macro editor were all correct. Fixed in `crates/vkb-windows/src/state.rs` (fingerprint guard,
 rebuilt only when the table changes); the five macro cases went from FAIL to PASS.
 
+## Flake seen once (QA run 2026-10-29)
+
+The harness failed `V4-quo7` once (`quơ` came back as `qu`) and passed on an immediate re-run of
+the same binary. The engine's own corpus test `quo7 → quơ` (`crates/vkb-core/tests/corpus_vni.rs`)
+passes, so this is harness timing (35 ms/key with the app's own injections interleaving), not a
+product regression. If it repeats, raise the per-key settle in `host-e2e.ps1` before touching the
+engine.
+
 ## Known gap in this run
 
 The About modal (tray item → window → X close) is still not scriptable: the tray menu has no
