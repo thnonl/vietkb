@@ -1,0 +1,16 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="base"><rect x="0" y="0" width="512" height="512" rx="112"/></clipPath>
+    <filter id="sh" x="-25%" y="-60%" width="150%" height="230%"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+  <ellipse cx="256" cy="496" rx="190" ry="12" fill="#1C1C1A" opacity="0.20" filter="url(#sh)"/>
+  <g clip-path="url(#base)">
+    <rect x="0" y="0" width="512" height="512" fill="#B4693C"/>
+    <polygon points="0,0 512,0 478,34 34,34" fill="#FFF7F0"/>
+    <polygon points="0,0 34,34 34,478 0,512" fill="#F8E2CE"/>
+    <polygon points="512,0 478,34 478,478 512,512" fill="#E3B896"/>
+    <polygon points="0,512 34,478 478,478 512,512" fill="#B4693C"/>
+    <rect x="34" y="34" width="444" height="444" rx="82" ry="82" fill="#FFEBDD"/>
+  </g>
+  <g transform="translate(114.0 104.0) scale(0.5)"><g transform="translate(-11 10)"><path fill="#A84A00" d="M398.8 69.3Q402.0 62.0 409.8 60.4L466.3 48.5Q478.0 46.0 473.6 57.2L318.4 448.0L304.4 446.0L274.6 356.6L398.8 69.3Z"/><path fill="#E4507C" d="M60.7 79.1Q56.0 68.0 67.8 65.8L170.2 46.6Q184.0 44.0 188.4 57.3L318.4 448.0L226.8 448.0Q216.8 448.0 212.9 438.8L60.7 79.1Z"/></g></g>
+</svg>
