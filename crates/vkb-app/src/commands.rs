@@ -705,7 +705,7 @@ pub fn toggle_enabled() -> StatusView {
             #[cfg(windows)]
             vkb_windows::set_enabled(enabled);
             if play_sound {
-                play_notification();
+                play_notification(enabled);
             }
             status_view_from_view(&view)
         }
@@ -716,9 +716,18 @@ pub fn toggle_enabled() -> StatusView {
     }
 }
 
-fn play_notification() {
+/// Play the cue for the state that was just set, not a hard-coded "on"
+/// (`D-SND-03`): the UI switch and the tray item call `toggle_enabled`, so OFF
+/// must play the off sound.
+fn play_notification(enabled: bool) {
     #[cfg(windows)]
-    vkb_windows::play_notification_sound();
+    {
+        vkb_windows::sound::play_toggle(enabled);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = enabled;
+    }
 }
 
 fn status_view_from_view(view: &SettingsView) -> StatusView {

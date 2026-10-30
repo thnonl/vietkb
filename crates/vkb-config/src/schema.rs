@@ -357,3 +357,30 @@ impl AppRuleSet {
             .find(|rule| rule.process.eq_ignore_ascii_case(&needle))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// Forward compatibility for the removed `[system]` sound key (see
+    /// `22-sound-spec.md` §6/§9). The name is assembled from parts so the
+    /// zero-leftover grep stays meaningful: this test is the only place that
+    /// writes it, and it asserts the key is ignored, not supported.
+    #[test]
+    fn removed_sound_key_still_loads() {
+        const REMOVED: &str = concat!("sound", "_pack");
+        for value in ["\"go_moc\"", "\"system\"", "\"khong_ton_tai\"", "7"] {
+            let src = format!(
+                "version = 1\n[system]\n{REMOVED} = {value}\nnotification_sound = false\n[typing]\nspell_check = false\n[macros]\nvn = \"Việt Nam\"\n"
+            );
+            let cfg = crate::AppConfig::from_toml(&src)
+                .unwrap_or_else(|err| panic!("{value} must not fail the load: {err}"));
+            assert!(!cfg.system.notification_sound);
+            assert!(!cfg.typing.spell_check, "other keys survive");
+            assert_eq!(cfg.macros.get("vn").map(String::as_str), Some("Việt Nam"));
+            let saved = cfg.to_toml().unwrap();
+            assert!(
+                !saved.contains(REMOVED),
+                "the removed key must not be written back:\n{saved}"
+            );
+        }
+    }
+}

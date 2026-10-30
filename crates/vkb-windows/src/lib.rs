@@ -94,10 +94,6 @@ pub fn is_autostart_enabled() -> bool {
     autostart::is_autostart_enabled()
 }
 
-pub fn play_notification_sound() {
-    sound::play_toggle(true);
-}
-
 /// Foreground process name, lowercased. Used for per-app rules.
 pub fn active_app_name() -> Option<String> {
     foreground::active_app().map(|app| app.process_name)
