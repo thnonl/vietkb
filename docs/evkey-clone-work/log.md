@@ -367,3 +367,11 @@ KILL-SWITCH 2026-10-30 11:38:53: stopped 1 vietkb processes (pid 26028, C:\Users
 - 2026-10-30 15:28 BUILD released: qa-round-close
 - 2026-10-30 15:30 BUILD: dev-release-024 main claim — version bump + release build
 - 2026-10-30 15:40 BUILD released: dev-release-024. 0.2.4 RC via scripts/build-prod.ps1 (default features, no e2e-harness), build 188 s. vietkb.exe 8412672 B SHA-256 E2189678BF5EDA8675BA31654B3AC0F244F3C6B3289E881B2A182618EEFC1D02; target/release/bundle/nsis/VietKB_0.2.4_x64-setup.exe 2778070 B SHA-256 5E37703BACD51C0DE5ED51574ED4403954DD10655E4955C6C96C11D3ABA652E4. cargo test --workspace 429 passed / 0 failed / 5 ignored. Nothing launched, installed or published; installed copy untouched.
+KILL 2026-10-30 09:59:32 notepad pid=52560 reason=QA host E2E teardown (scratch file only, launched by QA) (launched by QA host-e2e)
+KILL 2026-10-30 09:59:33 vietkb pid=49852 reason=QA host E2E teardown: owned target build path=E:\vietkb\target\release\vietkb.exe (launched by QA) (launched by QA host-e2e)
+KILL 2026-10-30 10:08:53 Code pid=26524 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+KILL 2026-10-30 10:08:53 Code pid=44356 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+KILL 2026-10-30 10:08:53 Code pid=25880 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+KILL 2026-10-30 10:08:53  pid=9144 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+KILL 2026-10-30 10:08:53 notepad pid=52976 reason=QA host E2E teardown (scratch file only, launched by QA) (launched by QA host-e2e)
+KILL 2026-10-30 10:08:54 vietkb pid=44820 reason=QA host E2E teardown: owned target build path=E:\vietkb\target\release\vietkb.exe (launched by QA) (launched by QA host-e2e)

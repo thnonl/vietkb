@@ -1,0 +1,17 @@
+﻿"id"	"app"	"keys"	"expected"	"actual"	"verdict"	"note"
+"A1"	"Notepad"	"dduwowcj"	"được"	"10:07:08.925 BATCH copy-Notepad prevFg=8981468 -> OK được"	"FAIL"	""
+"A2"	"Notepad"	"tieesng vieetj"	"tiếng việt"	"tiếng việt"	"PASS"	""
+"A3"	"Notepad"	"nghieeng"	"nghiêng"	"nghiêng"	"PASS"	""
+"A4"	"Notepad"	"Tieesng Vieetj raast ddepj."	"Tiếng Việt rất đẹp."	"tiếng Việt rất ẹẹp."	"FAIL"	""
+"A5"	"Notepad"	"dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj "	"được được được được được được được được được được "	" ợợợc ợợợc được ợợợc ợợợc ợợợc được được  "	"FAIL"	""
+"B1"	"Notepad"	"VIEETJ"	"VIỆT"	"viỆt"	"FAIL"	""
+"B2"	"Notepad"	"Vieejt"	"Việt"	"việt"	"FAIL"	""
+"B3"	"Notepad"	"AAS DD"	"Ấ Đ"	"Ấ Đ"	"PASS"	""
+"A5x10"	"Notepad"	"dduwowcj x10 (per-token count)"	"10 of 10 correct"	"3 of 10 correct"	"FAIL"	""
+"C1"	"Notepad"	"xyz{ENTER}vie | click end of line 1 | et"	"xyzet
+vie"	"10:07:35.856 BATCH copy-Notepad prevFg=8981468 -> OK xyzet
+vie"	"FAIL"	""
+"E1"	"Notepad"	"vieejt then Ctrl+Shift+Z"	"vieejt"	"10:07:52.146 BATCH copy-Notepad prevFg=8981468 -> OK vieejt"	"FAIL"	""
+"H1"	"VietKB"	"Ctrl+Alt+S"	"settings window visible"	"visible hwnd=8195060 rect=4091,383,4709,968"	"PASS"	""
+"H2"	"VietKB"	"settings window placement"	"settings on DISPLAY1"	"rect=4091,383,4709,968"	"FAIL"	""
+"H3"	"Shell"	"tray area"	"screenshot of tray icon area (primary taskbar)"	"shots\H-tray-primary.png"	"PASS"	"owner to view; icon presence not auto-checked"

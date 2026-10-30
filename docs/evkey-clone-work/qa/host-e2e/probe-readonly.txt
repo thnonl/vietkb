@@ -1,0 +1,9 @@
+IDLE_MS=65625
+CURSOR=3340,802
+FOREGROUND_HWND=66808
+MONITOR1 device=\\.\DISPLAY2 primary=True bounds={X=0,Y=0,Width=2048,Height=1152} workingArea={X=0,Y=0,Width=2048,Height=1104} bpp=32 logpixelsx=96 (scale=100%)
+MONITOR2 device=\\.\DISPLAY1 primary=False bounds={X=2560,Y=0,Width=1920,Height=1080} workingArea={X=2560,Y=0,Width=1920,Height=1032} bpp=32 logpixelsx=96 (scale=100%)
+HOOK_PROCESSES:
+  EVKey64 pid=21112 path=D:\Software\EVKey\EVKey64.exe
+INSTALLER_VERSION_RESOURCE:
+  FileVersion=0.2.4 ProductVersion=0.2.4 ProductName=VietKB FileDescription=VietKB

@@ -1,0 +1,70 @@
+﻿10:06:04.275 START host E2E 0.2.4; initFg=66808; scratch=C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e
+10:06:05.005 PREFLIGHT ok idleMs=77500
+10:06:05.025 IDLE ok idleMs=77500
+10:06:05.086 CONFIG backup hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 orig=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 equal=True
+10:06:05.091 RUNKEY VietKB before="E:\vietkb\target\debug\deps\vkb_windows-703be73b8891cfe5.exe" --autostart
+10:06:05.123 CLIPBOARD had-text=True formats=System.String,UnicodeText,Text
+10:06:05.133 CONFIG set [input] method = "telex" for this run (restored from backup at teardown)
+10:06:10.832 LAUNCH vietkb pid=44820 path=E:\vietkb\target\release\vietkb.exe
+10:06:12.973 NOTEPAD hwnd=8981468 pid=52976 rect=2660,100,3428,660
+10:06:13.283 BATCH clear-notepad prevFg=8981468 -> OK
+10:06:18.994 BATCH type-A1-Notepad prevFg=8981468 -> OK
+10:06:24.951 BATCH type-A2-Notepad prevFg=8981468 -> OK
+10:06:30.634 BATCH type-A3-Notepad prevFg=8981468 -> OK
+10:06:37.205 BATCH type-A4-Notepad prevFg=8981468 -> OK
+10:06:46.710 BATCH type-A5-Notepad prevFg=8981468 -> OK
+10:06:52.311 BATCH type-B1-Notepad prevFg=8981468 -> OK
+10:06:57.907 BATCH type-B2-Notepad prevFg=8981468 -> OK
+10:07:03.501 BATCH type-B3-Notepad prevFg=8981468 -> OK
+10:07:08.925 BATCH copy-Notepad prevFg=8981468 -> OK
+10:07:08.945 RESULT A1 [Notepad] FAIL keys=[dduwowcj] expected=[được] actual=[10:07:08.925 BATCH copy-Notepad prevFg=8981468 -> OK được] 
+10:07:08.949 RESULT A2 [Notepad] PASS keys=[tieesng vieetj] expected=[tiếng việt] actual=[tiếng việt] 
+10:07:08.972 RESULT A3 [Notepad] PASS keys=[nghieeng] expected=[nghiêng] actual=[nghiêng] 
+10:07:08.973 RESULT A4 [Notepad] FAIL keys=[Tieesng Vieetj raast ddepj.] expected=[Tiếng Việt rất đẹp.] actual=[tiếng Việt rất ẹẹp.] 
+10:07:08.981 RESULT A5 [Notepad] FAIL keys=[dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj ] expected=[được được được được được được được được được được ] actual=[ ợợợc ợợợc được ợợợc ợợợc ợợợc được được  ] 
+10:07:08.988 RESULT B1 [Notepad] FAIL keys=[VIEETJ] expected=[VIỆT] actual=[viỆt] 
+10:07:08.998 RESULT B2 [Notepad] FAIL keys=[Vieejt] expected=[Việt] actual=[việt] 
+10:07:09.005 RESULT B3 [Notepad] PASS keys=[AAS DD] expected=[Ấ Đ] actual=[Ấ Đ] 
+10:07:09.036 RESULT A5x10 [Notepad] FAIL keys=[dduwowcj x10 (per-token count)] expected=[10 of 10 correct] actual=[3 of 10 correct] 
+10:07:14.266 BATCH clear-C prevFg=8981468 -> OK
+10:07:19.815 BATCH C-type prevFg=8981468 -> OK
+10:07:25.508 CLICK C-click-line1-end at 3633,231 -> OK
+10:07:30.492 BATCH C-et prevFg=8981468 -> OK
+10:07:35.856 BATCH copy-Notepad prevFg=8981468 -> OK
+10:07:35.858 RESULT C1 [Notepad] FAIL keys=[xyz{ENTER}vie | click end of line 1 | et] expected=[xyzet
+vie] actual=[10:07:35.856 BATCH copy-Notepad prevFg=8981468 -> OK xyzet
+vie] 
+10:07:41.186 BATCH clear-E prevFg=8981468 -> OK
+10:07:46.746 BATCH E-type-restore prevFg=8981468 -> OK
+10:07:52.146 BATCH copy-Notepad prevFg=8981468 -> OK
+10:07:52.148 RESULT E1 [Notepad] FAIL keys=[vieejt then Ctrl+Shift+Z] expected=[vieejt] actual=[10:07:52.146 BATCH copy-Notepad prevFg=8981468 -> OK vieejt] 
+10:07:57.422 BATCH H-open-settings prevFg=8981468 -> OK
+10:08:00.429 RESULT H1 [VietKB] PASS keys=[Ctrl+Alt+S] expected=[settings window visible] actual=[visible hwnd=8195060 rect=4091,383,4709,968] 
+10:08:02.441 RESULT H2 [VietKB] FAIL keys=[settings window placement] expected=[settings on DISPLAY1] actual=[rect=4091,383,4709,968] 
+10:08:02.540 RESULT H3 [Shell] PASS keys=[tray area] expected=[screenshot of tray icon area (primary taskbar)] actual=[shots\H-tray-primary.png] owner to view; icon presence not auto-checked
+10:08:09.449 VSCODE hwnd=10292450 pid=26524 rect=3200,100,3840,820
+10:08:09.761 BATCH clear-vscode prevFg=10292450 -> OK
+10:08:15.440 BATCH type-A1-VS Code prevFg=10292450 -> OK
+10:08:21.438 BATCH type-A2-VS Code prevFg=10292450 -> OK
+10:08:27.128 BATCH type-A3-VS Code prevFg=10292450 -> OK
+10:08:33.702 BATCH type-A4-VS Code prevFg=10292450 -> OK
+10:08:43.218 BATCH type-A5-VS Code prevFg=10292450 -> OK
+10:08:48.812 BATCH type-B1-VS Code prevFg=10292450 -> OK
+10:08:52.427 BATCH type-B2-VS Code prevFg=10292450 -> ABORT:physical input after our last injection, before type-B2-VS Code
+10:08:52.444 ABORT RUN-ABORT ABORT:physical input after our last injection, before type-B2-VS Code
+10:08:52.446 TEARDOWN begin
+10:08:53.282 KILL 2026-10-30 10:08:53 Code pid=26524 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+10:08:53.350 KILL 2026-10-30 10:08:53 Code pid=44356 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+10:08:53.423 KILL 2026-10-30 10:08:53 Code pid=25880 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+10:08:53.499 KILL 2026-10-30 10:08:53  pid=9144 reason=QA host E2E teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+10:08:53.572 KILL 2026-10-30 10:08:53 notepad pid=52976 reason=QA host E2E teardown (scratch file only, launched by QA) (launched by QA host-e2e)
+10:08:54.077 KILL 2026-10-30 10:08:54 vietkb pid=44820 reason=QA host E2E teardown: owned target build path=E:\vietkb\target\release\vietkb.exe (launched by QA) (launched by QA host-e2e)
+10:08:56.289 TEARDOWN candidate processes left=0
+10:08:56.296 CONFIG restored hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 expected=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 identical=True
+10:08:56.305 RUNKEY VietKB after="E:\vietkb\target\release\vietkb.exe" --autostart unchanged=False
+10:08:56.317 RUNKEY VietKB restored to original value
+10:08:56.325 RUNKEY VietKB final byte-identical=True value="E:\vietkb\target\debug\deps\vkb_windows-703be73b8891cfe5.exe" --autostart
+10:08:56.335 CLIPBOARD restored (had-text=True)
+10:08:56.346 FOREGROUND restored to 66808 now=66808
+10:08:56.360 OVERALL ABORTED: RUN-ABORT ABORT:physical input after our last injection, before type-B2-VS Code
+10:08:56.367 END

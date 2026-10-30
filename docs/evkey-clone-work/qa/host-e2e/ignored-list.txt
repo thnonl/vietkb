@@ -1,0 +1,13 @@
+   Compiling vkb-windows v0.1.0 (E:\vietkb\crates\vkb-windows)
+    Finished `test` profile [optimized + debuginfo] target(s) in 9.52s
+     Running unittests src\lib.rs (target\debug\deps\vkb_windows-0f2822a163672b56.exe)
+clipboard::tests::text_round_trip_restores_previous_contents: test
+
+1 test, 0 benchmarks
+     Running tests\hook_integration.rs (target\debug\deps\hook_integration-4d13418baecbfe7b.exe)
+hook_installs_fires_hotkey_and_uninstalls: test
+install_is_idempotent_and_stop_is_safe: test
+
+2 tests, 0 benchmarks
+   Doc-tests vkb_windows
+0 tests, 0 benchmarks
