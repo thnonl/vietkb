@@ -103,13 +103,20 @@ fn vni_strip_that_changes_nothing_does_not_allocate() {
         method: InputMethod::Vni,
         ..EngineOptions::default()
     });
-    let lowest = minimum_over(8, || {
+    // Only the `0` key is measured; the setup keys carry text and allocate.
+    let mut lowest = usize::MAX;
+    for _ in 0..8 {
         engine.reset();
         engine.process_key(KeyInput::char('a'));
-        // `0` with no accent to remove renders the same word.
+        engine.process_key(KeyInput::char('6'));
+        // `0` after a mark but with no tone to remove renders the same word
+        // (a bare `a0` is a literal digit now, D-TN-03).
+        let before = ALLOCATIONS.load(Ordering::Relaxed);
         let action = engine.process_key(KeyInput::char('0'));
+        let used = ALLOCATIONS.load(Ordering::Relaxed) - before;
         assert!(matches!(action, vkb_core::EngineAction::Swallow));
-    });
+        lowest = lowest.min(used);
+    }
     assert_eq!(lowest, 0, "the Swallow path allocated");
 }
 

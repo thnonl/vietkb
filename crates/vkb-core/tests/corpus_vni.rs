@@ -103,9 +103,11 @@ fn zero_strips_the_previous_tone() {
     check(
         vni(),
         &[
-            ("nghie6ng0", "nghieng"),
-            ("di90", "di"),
-            ("ta8t10", "tat"),
+            // D-TN-03: `0` removes the tone only; circumflex/breve/bar stay
+            // (§A5). Supersedes the older E-VN-044 / OQ-6 reading.
+            ("nghie6ng0", "nghiêng"),
+            ("di90", "đi"),
+            ("ta8t10", "tăt"),
         ],
     );
 }

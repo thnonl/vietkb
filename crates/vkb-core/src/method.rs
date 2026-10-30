@@ -209,15 +209,16 @@ fn step_digit(out: &mut Composed, raw: &[char], i: usize, options: &EngineOption
         return;
     }
     match digit {
-        '0' => {
-            for letter in out.letters.iter_mut() {
-                letter.mark = Mark::None;
-            }
-            out.tone = Tone::None;
-            out.tone_at = usize::MAX;
-            out.mark_at = usize::MAX;
-            out.tone_slot = None;
+        // `0` removes the tone only (§A2); the circumflex/breve/horn/bar are
+        // independent of it (§A5), so `a60` is `â`, not `a` (D-TN-03).
+        // With no tone and no mark there is nothing to remove: the digit is
+        // literal text (§A2 rule 1), `a0` stays `a0`.
+        '0' if out.tone != Tone::None
+            || out.letters.iter().any(|letter| letter.mark != Mark::None) =>
+        {
+            remove_tone(out)
         }
+        '0' => literal_trigger(out, digit),
         '1' | '2' | '3' | '4' | '5' => {
             let tone = tone_of(digit);
             apply_tone(out, raw, i, tone, digit, options);
@@ -311,6 +312,9 @@ fn step_telex(out: &mut Composed, raw: &[char], i: usize, options: &EngineOption
 
     match lower {
         's' | 'f' | 'r' | 'x' | 'j' => apply_tone(out, raw, i, tone_of(lower), ch, options),
+        // §A1: `z` removes the tone; with no tone present it is a plain letter
+        // (`az` stays `az`). D-TN-02.
+        'z' if out.tone != Tone::None => remove_tone(out),
         'w' if options.jfwz_as_consonant && !has_vowel(out) => {
             out.letters.push(Letter::literal(ch));
         }
@@ -452,6 +456,38 @@ fn tone_of(ch: char) -> Tone {
     }
 }
 
+/// Drop the word's tone and nothing else: every letter keeps its mark.
+fn remove_tone(out: &mut Composed) {
+    out.tone = Tone::None;
+    out.tone_at = usize::MAX;
+    out.tone_slot = None;
+}
+
+/// A trigger that cannot apply (§A1 rule 5 / §A2 rule 1) is text: it is
+/// appended as the literal key and the word on screen stays as it is. The rest
+/// of the word stays literal too, so later keys cannot rewrite what is shown.
+fn literal_trigger(out: &mut Composed, key: char) {
+    out.letters.push(Letter::literal(key));
+    out.escaped = true;
+}
+
+/// A9 coda check: `c ch p t` take only sắc and nặng, so huyền/hỏi/ngã on a word
+/// that ends in one of them would spell something that cannot exist.
+fn tone_illegal_before_coda(letters: &[Letter], tone: Tone) -> bool {
+    if !matches!(tone, Tone::Grave | Tone::Hook | Tone::Tilde) {
+        return false;
+    }
+    let n = letters.len();
+    let Some(last) = letters.last() else {
+        return false;
+    };
+    match last.base() {
+        'c' | 'p' | 't' => true,
+        'h' => n >= 2 && letters[n - 2].base() == 'c',
+        _ => false,
+    }
+}
+
 fn has_vowel(out: &Composed) -> bool {
     out.letters.iter().any(|letter| letter.is_vowel())
 }
@@ -484,6 +520,12 @@ fn apply_tone(out: &mut Composed, raw: &[char], i: usize, tone: Tone, key: char,
             escape_to_raw(out, raw, i, Some(drop));
             return;
         }
+        return;
+    }
+    // §A1 rule 5 + A9: a tone that cannot stand before the coda is not applied;
+    // the key is literal text and the word stays as it is (D-TN-04: `bậtf`).
+    if options.spell_check && tone_illegal_before_coda(&out.letters, tone) {
+        literal_trigger(out, key);
         return;
     }
     out.tone = tone;
@@ -530,10 +572,16 @@ fn mark_last(out: &mut Composed, raw: &[char], i: usize, bases: &[char], mark: M
         out.mark_at = i;
         return;
     }
-    // No letter can take it: escape to the raw keystrokes, never a half
-    // transform (`a^^` → `a^`, `await` → `await`).
+    // The same digit pressed again right after its own transform escapes to the
+    // raw keystrokes, never a half transform (`a66` → `a6`).
     let drop = drop_for(raw, i, key, out.mark_at);
-    escape_to_raw(out, raw, i, drop);
+    if drop.is_some() {
+        escape_to_raw(out, raw, i, drop);
+        return;
+    }
+    // Otherwise the word offers no target: the digit is literal text and the
+    // word stays composed (§A2 rule 1; D-TN-05: `ba65t6` → `bật6`).
+    literal_trigger(out, key);
 }
 
 #[cfg(test)]

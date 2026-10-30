@@ -33,7 +33,9 @@ fn an_invalid_suffix_shows_the_raw_keystrokes() {
     // Spell check on: an invalid suffix makes the word show what was typed.
     assert_eq!(simulate(EngineOptions::default(), "tieengk"), "tieengk");
     assert_eq!(simulate(EngineOptions::default(), "nghieengxq"), "nghieengxq");
-    assert_eq!(simulate(EngineOptions::default(), "hoafnz"), "hoafnz");
+    // (`z` is not a suffix any more: Telex `z` removes the tone, D-TN-02.)
+    assert_eq!(simulate(EngineOptions::default(), "hoafnk"), "hoafnk");
+    assert_eq!(simulate(EngineOptions::default(), "hoafnz"), "hoan");
 }
 
 #[test]

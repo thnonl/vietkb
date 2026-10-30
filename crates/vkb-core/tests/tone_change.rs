@@ -239,21 +239,21 @@ fn d_tn_06_owner_repro_vni_tone_digit_after_deleted_space() {
     // The owner's exact case: `viêt` + space + BS + `1`.
     assert_eq!(flow(vni(), "vie6t \u{8}1"), "viết");
     assert_eq!(flow(vni(), "vie6t \u{8}5"), "việt");
-    // The other digits on the same base (placement per §A4; `viềt`/`viểt` are not
-    // words, `viết`/`việt` are — the tone must land on the re-opened word either
-    // way).
-    assert_eq!(flow(vni(), "vie6t \u{8}2"), "viềt");
-    assert_eq!(flow(vni(), "vie6t \u{8}3"), "viểt");
-    assert_eq!(flow(vni(), "vie6t \u{8}4"), "viễt");
+    // 2/3/4 cannot stand before the coda `t` (§A9, D-TN-04): the digit is
+    // literal text and the re-opened word is untouched.
+    assert_eq!(flow(vni(), "vie6t \u{8}2"), "viêt2");
+    assert_eq!(flow(vni(), "vie6t \u{8}3"), "viêt3");
+    assert_eq!(flow(vni(), "vie6t \u{8}4"), "viêt4");
 }
 
 #[test]
 fn d_tn_06_owner_repro_telex_tone_key_after_deleted_space() {
     assert_eq!(flow(telex(), "vieet \u{8}s"), "viết");
     assert_eq!(flow(telex(), "vieet \u{8}j"), "việt");
-    assert_eq!(flow(telex(), "vieet \u{8}f"), "viềt");
-    assert_eq!(flow(telex(), "vieet \u{8}r"), "viểt");
-    assert_eq!(flow(telex(), "vieet \u{8}x"), "viễt");
+    // f/r/x before the coda `t` are illegal (§A9, D-TN-04): literal trigger.
+    assert_eq!(flow(telex(), "vieet \u{8}f"), "viêtf");
+    assert_eq!(flow(telex(), "vieet \u{8}r"), "viêtr");
+    assert_eq!(flow(telex(), "vieet \u{8}x"), "viêtx");
 }
 
 #[test]
@@ -276,7 +276,7 @@ fn d_tn_06_owner_repro_reopen_a_two_unit_tone_target() {
     assert_eq!(flow(telex(), "dduowng \u{8}f"), "đường");
     // A horned, toned word: reopen keeps the `ươ` and the tone changes.
     assert_eq!(flow(telex(), "dduowcj \u{8}s"), "đước");
-    assert_eq!(flow(telex(), "dduowcj \u{8}f"), "đườc");
+    assert_eq!(flow(telex(), "dduowcj \u{8}f"), "đượcf"); // D-TN-04: huyền is illegal before c
     // VNI twin of the same shape (`9` = đ, `7` = ơ/ư).
     assert_eq!(flow(vni(), "d9uo7ng \u{8}2"), "đường");
 }
@@ -309,4 +309,128 @@ fn d_tn_06_owner_repro_reopens_only_the_immediately_preceding_word() {
     assert_eq!(flow(telex(), "toi di hoc \u{8}s"), "toi di hóc");
     // The same VNI flow reopens only the last word too.
     assert_eq!(flow(vni(), "toi di hoc \u{8}1"), "toi di hóc");
+}
+
+// ---------------------------------------------------------------------------
+// D-TN-02 — Telex `z` removes the tone (§A1: `asz` → `a`), the mark stays (§A5).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn d_tn_02_z_removes_the_tone() {
+    assert_eq!(typed(telex(), "basz"), "ba");
+    assert_eq!(typed(telex(), "toansz"), "toan");
+    assert_eq!(typed(telex(), "asz"), "a");
+    assert_eq!(typed(telex(), "Basz"), "Ba");
+}
+
+#[test]
+fn d_tn_02_z_keeps_the_circumflex() {
+    assert_eq!(typed(telex(), "baajz"), "bâ");
+    assert_eq!(typed(telex(), "baajtz"), "bât");
+    assert_eq!(typed(telex_nfd(), "baajtz"), nfd("bât"));
+    // Reopen route and partial deletion: `bật` BS `z` → `bâ`.
+    assert_eq!(typed(telex(), "baajt\u{8}z"), "bâ");
+    assert_eq!(flow(telex(), "baajt \u{8}z"), "bât");
+}
+
+#[test]
+fn d_tn_02_z_without_a_tone_is_literal() {
+    assert_eq!(typed(telex(), "az"), "az");
+    assert_eq!(typed(telex(), "zalo"), "zalo");
+    assert_eq!(typed(telex(), "baz"), "baz");
+}
+
+#[test]
+fn d_tn_02_a_tone_can_be_typed_again_after_z() {
+    assert_eq!(typed(telex(), "baszf"), "bà");
+}
+
+// ---------------------------------------------------------------------------
+// D-TN-03 — VNI `0` removes the tone only (§A2, §A5).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn d_tn_03_zero_keeps_the_marks() {
+    assert_eq!(typed(vni(), "a60"), "â");
+    assert_eq!(typed(vni(), "ba650"), "bâ");
+    assert_eq!(typed(vni(), "ba65t0"), "bât");
+    assert_eq!(typed(vni(), "ba65t\u{8}0"), "bâ");
+    assert_eq!(typed(vni(), "ba10"), "ba");
+    assert_eq!(typed(vni(), "d90"), "đ");
+    assert_eq!(typed(vni(), "tu7o7ng0"), "tương");
+}
+
+#[test]
+fn d_tn_03_zero_with_nothing_to_remove_is_a_literal_digit() {
+    assert_eq!(typed(vni(), "a0"), "a0");
+    assert_eq!(typed(vni(), "ba0"), "ba0");
+    assert_eq!(typed(vni(), "ban0"), "ban0");
+    assert_eq!(typed(vni(), "ba00"), "ba00");
+    // A tone or a mark is a target: unchanged.
+    assert_eq!(typed(vni(), "a60"), "â");
+    assert_eq!(typed(vni(), "ba10"), "ba");
+    // A repeated 0 after a removal has nothing left to remove: literal.
+    assert_eq!(typed(vni(), "ba100"), "ba0");
+}
+
+// ---------------------------------------------------------------------------
+// D-TN-04 — a tone change obeys the A9 coda check: `c ch p t` take only sắc and
+// nặng, an impossible tone is literal text and the word stays as it is.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn d_tn_04_illegal_tone_change_before_a_stop_coda_is_literal() {
+    assert_eq!(typed(telex(), "baajtf"), "bậtf");
+    assert_eq!(typed(telex(), "baajtr"), "bậtr");
+    assert_eq!(typed(telex(), "baajtx"), "bậtx");
+    assert_eq!(typed(telex(), "Baajtf"), "Bậtf");
+    assert_eq!(typed(telex(), "BAATJf"), "BẬTf");
+    assert_eq!(typed(telex(), "dduowcjf"), "đượcf");
+    assert_eq!(typed(vni(), "ba65t2"), "bật2");
+    assert_eq!(typed(vni(), "ba65t3"), "bật3");
+    assert_eq!(typed(vni(), "ba65t4"), "bật4");
+}
+
+#[test]
+fn d_tn_04_the_fresh_word_sibling_is_literal_too() {
+    assert_eq!(typed(telex(), "tacf"), "tacf");
+    assert_eq!(typed(telex(), "tachr"), "tachr");
+    assert_eq!(typed(telex(), "tapx"), "tapx");
+}
+
+#[test]
+fn d_tn_04_legal_changes_still_apply() {
+    assert_eq!(typed(telex(), "baajts"), "bất");
+    assert_eq!(typed(telex(), "dduowcjs"), "đước");
+    assert_eq!(typed(telex(), "kieemsf"), "kiềm");
+    assert_eq!(typed(telex(), "hoangfj"), "hoạng");
+    assert_eq!(typed(telex(), "basf"), "bà");
+    assert_eq!(typed(vni(), "ba65t1"), "bất");
+    assert_eq!(typed(vni(), "ba12"), "bà");
+}
+
+#[test]
+fn d_tn_04_spell_check_off_applies_the_tone() {
+    let options = EngineOptions {
+        spell_check: false,
+        ..telex()
+    };
+    assert_eq!(typed(options, "baajtf"), "bầt");
+}
+
+// ---------------------------------------------------------------------------
+// D-TN-05 — a trigger with no target is a literal digit; the word stays composed.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn d_tn_05_digit_with_no_target_is_literal() {
+    assert_eq!(typed(vni(), "ba65t6"), "bật6");
+    assert_eq!(typed(vni(), "ba6t6"), "bât6");
+}
+
+#[test]
+fn d_tn_05_adjacent_digit_escape_is_unchanged() {
+    assert_eq!(typed(vni(), "a66"), "a6");
+    assert_eq!(typed(vni(), "ba11"), "ba1");
+    assert_eq!(typed(vni(), "d99"), "d9");
 }
