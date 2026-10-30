@@ -360,6 +360,19 @@ fn d_tn_03_zero_keeps_the_marks() {
     assert_eq!(typed(vni(), "tu7o7ng0"), "tương");
 }
 
+#[test]
+fn d_tn_03_zero_with_nothing_to_remove_is_a_literal_digit() {
+    assert_eq!(typed(vni(), "a0"), "a0");
+    assert_eq!(typed(vni(), "ba0"), "ba0");
+    assert_eq!(typed(vni(), "ban0"), "ban0");
+    assert_eq!(typed(vni(), "ba00"), "ba00");
+    // A tone or a mark is a target: unchanged.
+    assert_eq!(typed(vni(), "a60"), "â");
+    assert_eq!(typed(vni(), "ba10"), "ba");
+    // A repeated 0 after a removal has nothing left to remove: literal.
+    assert_eq!(typed(vni(), "ba100"), "ba0");
+}
+
 // ---------------------------------------------------------------------------
 // D-TN-04 — a tone change obeys the A9 coda check: `c ch p t` take only sắc and
 // nặng, an impossible tone is literal text and the word stays as it is.

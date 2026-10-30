@@ -211,7 +211,14 @@ fn step_digit(out: &mut Composed, raw: &[char], i: usize, options: &EngineOption
     match digit {
         // `0` removes the tone only (§A2); the circumflex/breve/horn/bar are
         // independent of it (§A5), so `a60` is `â`, not `a` (D-TN-03).
-        '0' => remove_tone(out),
+        // With no tone and no mark there is nothing to remove: the digit is
+        // literal text (§A2 rule 1), `a0` stays `a0`.
+        '0' if out.tone != Tone::None
+            || out.letters.iter().any(|letter| letter.mark != Mark::None) =>
+        {
+            remove_tone(out)
+        }
+        '0' => literal_trigger(out, digit),
         '1' | '2' | '3' | '4' | '5' => {
             let tone = tone_of(digit);
             apply_tone(out, raw, i, tone, digit, options);
