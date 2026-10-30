@@ -1,0 +1,20 @@
+﻿app	id	keys	expected	actual	via	focus	verdict
+vscode	A1-bat-slash-tat	ba6t5/ta8t1	bật/tắt	bật/tắt	saved-file	True	PASS
+vscode	A2-bat-dot-tat	ba6t5.ta8t1	bật.tắt	bật.tắt	saved-file	True	PASS
+vscode	A3-bat-question-tat	ba6t5?ta8t1	bật?tắt	bật?tắt	saved-file	True	PASS
+vscode	A4-bat-underscore-tat	ba6t5_ta8t1	bật_tắt	bật_tắt	saved-file	True	PASS
+vscode	A5-windows-path	C:\Users\nam	C:\Users\nam	C:\Users\nam	saved-file	True	PASS
+vscode	A6-bat-space-tat	ba6t5 ta8t1	bật tắt	bật tắt	saved-file	True	PASS
+vscode	A7-nguyen-thu-ha	Nguye6n4 Thu Ha2	Nguyễn Thu Hà	Nguyễn Thu Hà	saved-file	True	PASS
+vscode	A8-url-tai	https://vietkb.dev/ta3i	https://vietkb.dev/tải	https://vietkb.dev/ta3i	saved-file	True	FAIL
+vscode	A9-a-slash-b	a/b	a/b	a/b	saved-file	True	PASS
+vscode	A10-2-slash-3	2/3	2/3	2/3	saved-file	True	PASS
+vscode	A11-percent	100%/50%	100%/50%	100%/50%	saved-file	True	PASS
+vscode	B1-bs-tone	ba6t5	bậ	bậ	saved-file	True	PASS
+vscode	B2-bs-horn	ba6t	bâ	bâ	saved-file	True	PASS
+vscode	C1-restore-word	ba6t5 Ctrl+Shift+Z	ba6t5	bâ	saved-file	True	FAIL
+vscode	C2-macro-m01	m01 	mục 1 	bâ	saved-file	True	FAIL
+vscode	D1-enter	ba6t5 Enter ba6t5	bật\nbật	bâ	saved-file	True	FAIL
+vscode	D2-tab	ba6t5 Tab ba6t5	bật\tbật	bâ	saved-file	True	FAIL
+vscode	E1-off-f2	ba6t5 after F2	ba6t5	bâ	saved-file	True	FAIL
+vscode	E2-on-f1	ba6t5 after F1	bật	bâ	saved-file	True	FAIL

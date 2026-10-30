@@ -1,0 +1,257 @@
+﻿vkb-cli vkb 0.1.0  |  exe 1042944 B  sha256 3E6B33D3303AD423AEB32A19F0EDEA3C7FC9FE167ECD634D5E765F2FDE66D17D
+head 14bc655 + uncommitted working tree (engine.rs A9 amendment + host fixes)
+char path (vkb_core::simulate): one KeyInput per char, <BS> = KeyInput::backspace() (vk 0x08)
+
+=== D-TN-01 same tone key re-typed, coda letter between the two presses
+--- telex  baajtj
+'b' -> Noop
+'a' -> Noop
+'a' -> Replace { delete_units: 2, insert: "bâ" }
+'j' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'j' -> Replace { delete_units: 3, insert: "baatj" }
+-- text: baatj
+-- raw:  baajtj
+
+=== D-TN-01 same tone digit re-typed, coda letter in between (A2 says "immediately after")
+--- vni  ba65t5
+'b' -> Noop
+'a' -> Noop
+'6' -> Replace { delete_units: 2, insert: "bâ" }
+'5' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'5' -> Replace { delete_units: 3, insert: "ba6t5" }
+-- text: ba6t5
+-- raw:  ba65t5
+
+=== D-TN-01 same tone key after a Backspace
+--- telex  tieengs<BS>s
+'t' -> Noop
+'i' -> Noop
+'e' -> Noop
+'e' -> Replace { delete_units: 3, insert: "tiê" }
+'n' -> Noop
+'g' -> Noop
+'s' -> Replace { delete_units: 5, insert: "tiếng" }
+'\u{8}' -> Noop
+'s' -> Replace { delete_units: 4, insert: "tieens" }
+-- text: tieens
+-- raw:  tieenss
+
+=== D-TN-01 same tone key after a reopen (space, BS)
+--- telex  baajt<SP><BS>j
+'b' -> Noop
+'a' -> Noop
+'a' -> Replace { delete_units: 2, insert: "bâ" }
+'j' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+' ' -> Noop
+'\u{8}' -> Noop
+'j' -> Replace { delete_units: 3, insert: "baatj" }
+-- text: baatj
+-- raw:  baajtj
+
+control: the documented adjacent escape the rule above was copied from
+=== control A-10
+--- telex  bass
+'b' -> Noop
+'a' -> Noop
+'s' -> Replace { delete_units: 2, insert: "bá" }
+'s' -> Replace { delete_units: 2, insert: "bas" }
+-- text: bas
+-- raw:  bass
+
+=== D-TN-02 z must remove the tone (A1: asz -> a)
+--- telex  basz
+'b' -> Noop
+'a' -> Noop
+'s' -> Replace { delete_units: 2, insert: "bá" }
+'z' -> Replace { delete_units: 2, insert: "basz" }
+-- text: basz
+-- raw:  basz
+
+=== D-TN-02 z with a circumflex word (A1+A5: baajz -> ba-circumflex)
+--- telex  baajz
+'b' -> Noop
+'a' -> Noop
+'a' -> Replace { delete_units: 2, insert: "bâ" }
+'j' -> Replace { delete_units: 2, insert: "bậ" }
+'z' -> Replace { delete_units: 2, insert: "baajz" }
+-- text: baajz
+-- raw:  baajz
+
+=== D-TN-03 VNI 0 must remove the tone only (A2)
+--- vni  a60
+'a' -> Noop
+'6' -> Replace { delete_units: 1, insert: "â" }
+'0' -> Replace { delete_units: 1, insert: "a" }
+-- text: a
+-- raw:  a60
+
+=== D-TN-03 VNI 0 on a toned circumflex word
+--- vni  ba65t0
+'b' -> Noop
+'a' -> Noop
+'6' -> Replace { delete_units: 2, insert: "bâ" }
+'5' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'0' -> Replace { delete_units: 3, insert: "bat" }
+-- text: bat
+-- raw:  ba65t0
+
+=== D-TN-04 tone change to a tone that is illegal before the coda (A1 rule 5 / A9)
+--- telex  baajtf
+'b' -> Noop
+'a' -> Noop
+'a' -> Replace { delete_units: 2, insert: "bâ" }
+'j' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'f' -> Replace { delete_units: 3, insert: "bầt" }
+-- text: bầt
+-- raw:  baajtf
+
+=== D-TN-04 VNI digit 2 before coda t
+--- vni  ba65t2
+'b' -> Noop
+'a' -> Noop
+'6' -> Replace { delete_units: 2, insert: "bâ" }
+'5' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'2' -> Replace { delete_units: 3, insert: "bầt" }
+-- text: bầt
+-- raw:  ba65t2
+
+control: the same illegal tone on a fresh word - the pre-existing sibling of D-TN-04
+=== control tacf
+--- telex  tacf
+'t' -> Noop
+'a' -> Noop
+'c' -> Noop
+'f' -> Replace { delete_units: 3, insert: "tàc" }
+-- text: tàc
+-- raw:  tacf
+
+=== D-TN-05 trigger with no target must be a literal digit (A2 rule 1)
+--- vni  ba65t6
+'b' -> Noop
+'a' -> Noop
+'6' -> Replace { delete_units: 2, insert: "bâ" }
+'5' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'6' -> Replace { delete_units: 3, insert: "ba5t6" }
+-- text: ba5t6
+-- raw:  ba65t6
+
+=== D-TN-06 after BS the next key must re-place the tone (A7 step 4)
+--- telex  toans<BS>f
+'t' -> Noop
+'o' -> Noop
+'a' -> Noop
+'n' -> Noop
+'s' -> Replace { delete_units: 4, insert: "toán" }
+'\u{8}' -> Noop
+'f' -> Noop
+-- text: toáf
+-- raw:  toáf
+
+=== D-TN-06 same, tone already in force
+--- telex  toans<BS>s
+'t' -> Noop
+'o' -> Noop
+'a' -> Noop
+'n' -> Noop
+'s' -> Replace { delete_units: 4, insert: "toán" }
+'\u{8}' -> Noop
+'s' -> Noop
+-- text: toás
+-- raw:  toás
+
+=== D-TN-06 oai shape
+--- telex  hoais<BS>f
+'h' -> Noop
+'o' -> Noop
+'a' -> Noop
+'i' -> Noop
+'s' -> Replace { delete_units: 4, insert: "hoái" }
+'\u{8}' -> Noop
+'f' -> Noop
+-- text: hoáf
+-- raw:  hoáf
+
+=== D-TN-07 a plain letter is not a trigger: it appends (A9)
+--- telex  baajt<BS>b
+'b' -> Noop
+'a' -> Noop
+'a' -> Replace { delete_units: 2, insert: "bâ" }
+'j' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'\u{8}' -> Noop
+'b' -> Replace { delete_units: 2, insert: "baajb" }
+-- text: baajb
+-- raw:  baajb
+
+=== D-TN-07 same without any Backspace - the shape is not deletion-specific
+--- telex  baajtb
+'b' -> Noop
+'a' -> Noop
+'a' -> Replace { delete_units: 2, insert: "bâ" }
+'j' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'b' -> Replace { delete_units: 3, insert: "baajtb" }
+-- text: baajtb
+-- raw:  baajtb
+
+=== D-TN-08 a letter whose base equals the last COMPOSED letter must append, not escape the mark
+--- telex  Nguyeexn<BS>e
+'N' -> Noop
+'g' -> Noop
+'u' -> Noop
+'y' -> Noop
+'e' -> Noop
+'e' -> Replace { delete_units: 5, insert: "Nguyê" }
+'x' -> Replace { delete_units: 5, insert: "Nguyễ" }
+'n' -> Noop
+'\u{8}' -> Noop
+'e' -> Replace { delete_units: 5, insert: "Nguyexe" }
+-- text: Nguyexe
+-- raw:  Nguyeexe
+
+=== D-TN-08 same on i-e
+--- telex  kieems<BS>e
+'k' -> Noop
+'i' -> Noop
+'e' -> Noop
+'e' -> Replace { delete_units: 3, insert: "kiê" }
+'m' -> Noop
+'s' -> Replace { delete_units: 4, insert: "kiếm" }
+'\u{8}' -> Noop
+'e' -> Replace { delete_units: 3, insert: "kiese" }
+-- text: kiese
+-- raw:  kieese
+
+=== control: same shape where the previous key really is the doubled letter (spec escape)
+--- telex  Nguyeexne
+'N' -> Noop
+'g' -> Noop
+'u' -> Noop
+'y' -> Noop
+'e' -> Noop
+'e' -> Replace { delete_units: 5, insert: "Nguyê" }
+'x' -> Replace { delete_units: 5, insert: "Nguyễ" }
+'n' -> Noop
+'e' -> Replace { delete_units: 6, insert: "Nguyeexne" }
+-- text: Nguyeexne
+-- raw:  Nguyeexne
+
+=== coverage check: --method legacy
+Error: unknown method "legacy"; expected one of telex, vni
+
+ENGINE POINTERS (measured tree):
+  apply_tone same-tone branch        crates/vkb-core/src/method.rs:402-407
+  step_telex has no 'z' arm         crates/vkb-core/src/method.rs:250-259
+  step_digit '0' clears every mark  crates/vkb-core/src/method.rs:147-155
+  apply_tone never consults spell   crates/vkb-core/src/method.rs:392-412 (no spell:: call)
+  mark_last no-target escape        crates/vkb-core/src/method.rs:452-455
+  compose literalize on invalid     crates/vkb-core/src/method.rs:102-110
+  double_letter reads the composed last letter, not the previous key  crates/vkb-core/src/method.rs:263-283
+  backspace freeze fallback         crates/vkb-core/src/engine.rs:317-333

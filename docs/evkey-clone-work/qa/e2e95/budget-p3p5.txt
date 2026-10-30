@@ -1,0 +1,7 @@
+﻿P3/P5 idle
+start 03:16:40 pid=29856 app=5.5MB total=5.5MB webviews=0 cpu_s=0.12
+settings_window_open=False
+end   03:26:41 app=8.4MB total=8.4MB webviews=0 cpu_s=0.22
+elapsed_s=600.5 cpu_avg_pct=0.016 (1 core basis)
+P3_pass=True P5_pass=True
+P3P5-DONE

@@ -1,0 +1,20 @@
+﻿app	id	keys	expected	actual	via	focus	verdict
+chrome	A1-bat-slash-tat	ba6t5/ta8t1	bật/tắt	bật/tắt	TextPattern/ControlType.Document	True	PASS
+chrome	A2-bat-dot-tat	ba6t5.ta8t1	bật.tắt	bật.tắt	TextPattern/ControlType.Document	True	PASS
+chrome	A3-bat-question-tat	ba6t5?ta8t1	bật?tắt	bật?tắt	TextPattern/ControlType.Document	True	PASS
+chrome	A4-bat-underscore-tat	ba6t5_ta8t1	bật_tắt	bật_tắt	TextPattern/ControlType.Document	True	PASS
+chrome	A5-windows-path	C:\Users\nam	C:\Users\nam	C:\Users\nam	TextPattern/ControlType.Document	True	PASS
+chrome	A6-bat-space-tat	ba6t5 ta8t1	bật tắt	bật tắt	TextPattern/ControlType.Document	True	PASS
+chrome	A7-nguyen-thu-ha	Nguye6n4 Thu Ha2	Nguyễn Thu Hà	Nguyễn Thu Hà	TextPattern/ControlType.Document	True	PASS
+chrome	A8-url-tai	https://vietkb.dev/ta3i	https://vietkb.dev/tải	https://vietkb.dev/ta3i	TextPattern/ControlType.Document	True	FAIL
+chrome	A9-a-slash-b	a/b	a/b	a/b	TextPattern/ControlType.Document	True	PASS
+chrome	A10-2-slash-3	2/3	2/3	2/3	TextPattern/ControlType.Document	True	PASS
+chrome	A11-percent	100%/50%	100%/50%	100%/50%	TextPattern/ControlType.Document	True	PASS
+chrome	B1-bs-tone	ba6t5	bậ	bậ	TextPattern/ControlType.Document	True	PASS
+chrome	B2-bs-horn	ba6t	bâ	bâ	TextPattern/ControlType.Document	True	PASS
+chrome	C1-restore-word	ba6t5 Ctrl+Shift+Z	ba6t5	bật	TextPattern/ControlType.Document	True	FAIL
+chrome	C2-macro-m01	m01 	mục 1 	mục 1 	TextPattern/ControlType.Document	True	PASS
+chrome	D1-enter	ba6t5 Enter ba6t5	bật\nbật	bật\nbật	TextPattern/ControlType.Document	True	PASS
+chrome	D2-tab	ba6t5 Tab ba6t5	bậtbật	bậtbật	TextPattern/ControlType.Document	True	PASS
+chrome	E1-off-f2	ba6t5 after F2	ba6t5	ba6t5	TextPattern/ControlType.Document	True	PASS
+chrome	E2-on-f1	ba6t5 after F1	bật	bật	TextPattern/ControlType.Document	True	PASS

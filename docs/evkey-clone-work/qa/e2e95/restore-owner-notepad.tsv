@@ -1,0 +1,9 @@
+﻿tag	app	id	keystrokes	expected	actual	via	verdict
+owner	notepad	R0-typed	ba6t5	bật	bật	TextPattern/pinned	PASS
+owner	notepad	R1-restore	ba6t5 Ctrl+Shift+Z	ba6t5		TextPattern/pinned	FAIL
+owner	notepad	R2-still-on	ba6t5 after the chord	bật		TextPattern/pinned	FAIL
+owner	notepad	R-order-SKC	ba6t5 Ctrl+Shift+Z release=SKC	ba6t5		TextPattern/pinned	FAIL
+owner	notepad	R-order-CSK	ba6t5 Ctrl+Shift+Z release=CSK	ba6t5		TextPattern/pinned	FAIL
+owner	notepad	R-order-CKS	ba6t5 Ctrl+Shift+Z release=CKS	ba6t5	BA^T%	TextPattern/pinned	FAIL
+owner	notepad	R6-toggle-off	Alt+Shift tap 1	ba6t5	ba6t5	TextPattern/pinned	PASS
+owner	notepad	R7-toggle-on	Alt+Shift tap 2	bật	bật	TextPattern/pinned	PASS

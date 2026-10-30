@@ -1,0 +1,7 @@
+﻿TEARDOWN
+vscode_closed=False
+chrome_profile_procs_stopped=1
+vietkb_running=False
+config_sha=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 backup_sha=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 identical=True compare_object_empty=True
+app_closed=True
+TEARDOWN-DONE

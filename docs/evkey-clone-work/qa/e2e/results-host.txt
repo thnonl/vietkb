@@ -1,0 +1,136 @@
+﻿# VietKB host E2E - results-host.txt
+# generated: 2026-10-30 10:17:26  host: NAMPC  ps: 5.1.26100.9711
+# fields: app | id | keystrokes | expected | actual | raw-keystrokes | verdict | via | note
+# judgement (91-round-plan-sound-cases.md, owner 2026-10-30): PASS = composed text or literal raw keystrokes;
+#   PASS(raw) = literal raw keystrokes (rule 4); QUALITY = documented, owner-accepted loss (L1-L7 / raw-zone);
+#   FAIL = anything else. Never ship on a FAIL.
+# app labels: notepad | chrome | vscode | chord | toggle | soak | teardown
+# config: 1078 B  SHA-256 58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704  (backed up, then restored and byte-compared at the end)
+# method: vni   open_settings: Ctrl+Alt+S   toggle: Alt+Shift   restore_word: Ctrl+Shift+Z
+# binary: E:\vietkb\target\release\vietkb.exe  8384512 B  SHA-256 810EDD24B24913B5FBED01E82810ADB855DE61C7C0BE336A92CD5CF951E64DAA
+notepad | A1-bat-slash-tat | ba6t5/ta8t1 | bật/tắt | bật/tắt | ba6t5/ta8t1 | PASS | TextPattern/ControlType.Document
+notepad | A2-bat-dot-tat | ba6t5.ta8t1 | bật.tắt | bật.tắt | ba6t5.ta8t1 | PASS | TextPattern/ControlType.Document
+notepad | A3-bat-question-tat | ba6t5?ta8t1 | bật?tắt | bật?tắt | ba6t5?ta8t1 | PASS | TextPattern/ControlType.Document
+notepad | A4-bat-underscore-tat | ba6t5_ta8t1 | bật_tắt | bật_tắt | ba6t5_ta8t1 | PASS | TextPattern/ControlType.Document
+notepad | A5-windows-path | C:\Users\nam | C:\Users\nam | C:\Users\nam | C:\Users\nam | PASS | TextPattern/ControlType.Document
+notepad | A6-bat-space-tat | ba6t5 ta8t1 | bật tắt | bật tắt | ba6t5 ta8t1 | PASS | TextPattern/ControlType.Document
+notepad | A7-nguyen-thu-ha | Nguye6n4 Thu Ha2 | Nguyễn Thu Hà | Nguyễn Thu Hà | Nguye6n4 Thu Ha2 | PASS | TextPattern/ControlType.Document
+notepad | A8-url-tai | https://vietkb.dev/ta3i | https://vietkb.dev/tải | https://vietkb.dev/ta3i | https://vietkb.dev/ta3i | QUALITY | TextPattern/ControlType.Document | raw-zone: the URL tail stays literal (spec A9 / L1, owner-accepted)
+notepad | A9-a-slash-b | a/b | a/b | a/b | a/b | PASS | TextPattern/ControlType.Document
+notepad | A10-2-slash-3 | 2/3 | 2/3 | 2/3 | 2/3 | PASS | TextPattern/ControlType.Document
+notepad | A11-percent | 100%/50% | 100%/50% | 100%/50% | 100%/50% | PASS | TextPattern/ControlType.Document
+notepad | B1-bs-tone | ba6t5 + BS | ậ | bậ | ba6t | FAIL | TextPattern/ControlType.Document
+notepad | B2-bs-horn | ba6t + BS | bâ | bâ | ba6 | PASS | TextPattern/ControlType.Document
+notepad | C1-restore-word | ba6t5 + Ctrl+Shift+Z | ba6t5 | t5 | ba6t5 | FAIL | TextPattern/ControlType.Document
+notepad | C2-macro-m01 | m01  | mục 1  | mục 1  | m01  | PASS | TextPattern/ControlType.Document | retried at 130 ms
+notepad | D1-enter | ba6t5 Enter ba6t5 | bật\nbật | bật\nbật | ba6t5\nba6t5 | PASS | TextPattern/ControlType.Document
+notepad | D2-tab | ba6t5 Tab ba6t5 | bật\tbật | bật\tbật | ba6t5\tba6t5 | PASS | TextPattern/ControlType.Document
+notepad | E1-off-f2 | F2 then ba6t5 | ba6t5 | ba6t5 | ba6t5 | PASS | TextPattern/ControlType.Document
+notepad | E2-on-f1 | F1 then ba6t5 | bật |  | ba6t5 | FAIL | TextPattern/ControlType.Document
+notepad | T1-telex-bat-slash-tat | baajt/tawts | bật/tắt | baajt/tawts | baajt/tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T2-telex-bat-dot-tat | baajt.tawts | bật.tắt | baajt.tawts | baajt.tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T3-telex-bat-question-tat | baajt?tawts | bật?tắt | baajt?tawts | baajt?tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T4-telex-bat-underscore-tat | baajt_tawts | bật_tắt | baajt_tawts | baajt_tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T5-telex-bat-space-tat | baajt tawts | bật tắt | baajt tawts | baajt tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T6-telex-nguyen-thu-ha | Nguyeexn Thu Haf | Nguyễn Thu Hà | Nguyeexn Thu Haf | Nguyeexn Thu Haf | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T7-telex-path-forward | C:/Users/nam | C:/Users/nam | C:/Users/nam | C:/Users/nam | PASS | TextPattern/ControlType.Document
+notepad | T8-telex-a-slash-b | a/b | a/b | a/b | a/b | PASS | TextPattern/ControlType.Document
+notepad | T9-telex-2-slash-3 | 2/3 | 2/3 | 2/3 | 2/3 | PASS | TextPattern/ControlType.Document
+notepad | T10-telex-percent | 100%/50% | 100%/50% | 100%/50% | 100%/50% | PASS | TextPattern/ControlType.Document
+notepad | T11-telex-url | https://vietkb.dev/taif | https://vietkb.dev/tải | https://vietkb.dev/taif | https://vietkb.dev/taif | QUALITY | TextPattern/ControlType.Document | raw-zone: the URL tail stays literal (spec A9 / L1, owner-accepted)
+notepad | T12-telex-l7-digit-run | 10/users | 10/úe | 10/users | 10/users | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T13-telex-bs-tone | baajt + BS | ậ | baaj | baaj | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+notepad | T14-telex-macro-m01 | m01  | mục 1  | mục 1  | m01  | PASS | TextPattern/ControlType.Document
+notepad | T15-telex-double-slash | baajt//tawts | bật//tắt | baajt//tawts | baajt//tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | A1-bat-slash-tat | ba6t5/ta8t1 | bật/tắt | bật/tắt | ba6t5/ta8t1 | PASS | TextPattern/ControlType.Document
+chrome | A2-bat-dot-tat | ba6t5.ta8t1 | bật.tắt | bật.tắt | ba6t5.ta8t1 | PASS | TextPattern/ControlType.Document
+chrome | A3-bat-question-tat | ba6t5?ta8t1 | bật?tắt | bật?tắt | ba6t5?ta8t1 | PASS | TextPattern/ControlType.Document
+chrome | A4-bat-underscore-tat | ba6t5_ta8t1 | bật_tắt | bật_tắt | ba6t5_ta8t1 | PASS | TextPattern/ControlType.Document
+chrome | A5-windows-path | C:\Users\nam | C:\Users\nam | C:\Users\nam | C:\Users\nam | PASS | TextPattern/ControlType.Document
+chrome | A6-bat-space-tat | ba6t5 ta8t1 | bật tắt | bật tắt | ba6t5 ta8t1 | PASS | TextPattern/ControlType.Document
+chrome | A7-nguyen-thu-ha | Nguye6n4 Thu Ha2 | Nguyễn Thu Hà | Nguyễn Thu Hà | Nguye6n4 Thu Ha2 | PASS | TextPattern/ControlType.Document
+chrome | A8-url-tai | https://vietkb.dev/ta3i | https://vietkb.dev/tải | https://vietkb.dev/ta3i | https://vietkb.dev/ta3i | QUALITY | TextPattern/ControlType.Document | raw-zone: the URL tail stays literal (spec A9 / L1, owner-accepted)
+chrome | A9-a-slash-b | a/b | a/b | a/b | a/b | PASS | TextPattern/ControlType.Document
+chrome | A10-2-slash-3 | 2/3 | 2/3 | 2/3 | 2/3 | PASS | TextPattern/ControlType.Document
+chrome | A11-percent | 100%/50% | 100%/50% | 100%/50% | 100%/50% | PASS | TextPattern/ControlType.Document
+chrome | B1-bs-tone | ba6t5 + BS | ậ | bậ | ba6t | FAIL | TextPattern/ControlType.Document
+chrome | B2-bs-horn | ba6t + BS | bâ | bâ | ba6 | PASS | TextPattern/ControlType.Document
+chrome | C1-restore-word | ba6t5 + Ctrl+Shift+Z | ba6t5 | ￼ | ba6t5 | FAIL | TextPattern/ControlType.Document
+chrome | C2-macro-m01 | m01  | mục 1  | mục 1  | m01  | PASS | TextPattern/ControlType.Document
+chrome | D1-enter | ba6t5 Enter ba6t5 | bật\nbật | bật\nbật | ba6t5\nba6t5 | PASS | TextPattern/ControlType.Document
+chrome | D2-tab | ba6t5 Tab ba6t5 | bậtbật | bậtbật | ba6t5ba6t5 | PASS | TextPattern/ControlType.Document
+chrome | E1-off-f2 | F2 then ba6t5 | ba6t5 | ba6t5 | ba6t5 | PASS | TextPattern/ControlType.Document
+chrome | E2-on-f1 | F1 then ba6t5 | bật | ￼ | ba6t5 | FAIL | TextPattern/ControlType.Document
+chrome | T1-telex-bat-slash-tat | baajt/tawts | bật/tắt | baajt/tawts | baajt/tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T2-telex-bat-dot-tat | baajt.tawts | bật.tắt | baajt.tawts | baajt.tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T3-telex-bat-question-tat | baajt?tawts | bật?tắt | baajt?tawts | baajt?tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T4-telex-bat-underscore-tat | baajt_tawts | bật_tắt | baajt_tawts | baajt_tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T5-telex-bat-space-tat | baajt tawts | bật tắt | baajt tawts | baajt tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T6-telex-nguyen-thu-ha | Nguyeexn Thu Haf | Nguyễn Thu Hà | Nguyeexn Thu Haf | Nguyeexn Thu Haf | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T7-telex-path-forward | C:/Users/nam | C:/Users/nam | C:/Users/nam | C:/Users/nam | PASS | TextPattern/ControlType.Document
+chrome | T8-telex-a-slash-b | a/b | a/b | a/b | a/b | PASS | TextPattern/ControlType.Document
+chrome | T9-telex-2-slash-3 | 2/3 | 2/3 | 2/3 | 2/3 | PASS | TextPattern/ControlType.Document
+chrome | T10-telex-percent | 100%/50% | 100%/50% | 100%/50% | 100%/50% | PASS | TextPattern/ControlType.Document
+chrome | T11-telex-url | https://vietkb.dev/taif | https://vietkb.dev/tải | https://vietkb.dev/taif | https://vietkb.dev/taif | QUALITY | TextPattern/ControlType.Document | raw-zone: the URL tail stays literal (spec A9 / L1, owner-accepted)
+chrome | T12-telex-l7-digit-run | 10/users | 10/úe | 10/users | 10/users | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T13-telex-bs-tone | baajt + BS | ậ | baaj | baaj | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+chrome | T14-telex-macro-m01 | m01  | mục 1  | mục 1  | m01  | PASS | TextPattern/ControlType.Document
+chrome | T15-telex-double-slash | baajt//tawts | bật//tắt | baajt//tawts | baajt//tawts | PASS(raw) | TextPattern/ControlType.Document | literal raw keystrokes (rule 4)
+NOTE | vscode rows are read through Ctrl+S + the saved file (Monaco exposes no document text over UIA), as in 95-e2e-report.md
+vscode | A1-bat-slash-tat | ba6t5/ta8t1 | bật/tắt | bật/tắt | ba6t5/ta8t1 | PASS | saved-file
+vscode | A2-bat-dot-tat | ba6t5.ta8t1 | bật.tắt | bật.tắt | ba6t5.ta8t1 | PASS | saved-file
+vscode | A3-bat-question-tat | ba6t5?ta8t1 | bật?tắt | bật?tắt | ba6t5?ta8t1 | PASS | saved-file
+vscode | A4-bat-underscore-tat | ba6t5_ta8t1 | bật_tắt | bật_tắt | ba6t5_ta8t1 | PASS | saved-file
+vscode | A5-windows-path | C:\Users\nam | C:\Users\nam | C:\Users\nam | C:\Users\nam | PASS | saved-file
+vscode | A6-bat-space-tat | ba6t5 ta8t1 | bật tắt | bật tắt | ba6t5 ta8t1 | PASS | saved-file
+vscode | A7-nguyen-thu-ha | Nguye6n4 Thu Ha2 | Nguyễn Thu Hà | Nguyễn Thu Hà | Nguye6n4 Thu Ha2 | PASS | saved-file
+vscode | A8-url-tai | https://vietkb.dev/ta3i | https://vietkb.dev/tải | https://vietkb.dev/ta3i | https://vietkb.dev/ta3i | QUALITY | saved-file | raw-zone: the URL tail stays literal (spec A9 / L1, owner-accepted)
+vscode | A9-a-slash-b | a/b | a/b | a/b | a/b | PASS | saved-file
+vscode | A10-2-slash-3 | 2/3 | 2/3 | 2/3 | 2/3 | PASS | saved-file
+vscode | A11-percent | 100%/50% | 100%/50% | 100%/50% | 100%/50% | PASS | saved-file
+vscode | B1-bs-tone | ba6t5 + BS | ậ | bậ | ba6t | FAIL | saved-file
+vscode | B2-bs-horn | ba6t + BS | bâ | bâ | ba6 | PASS | saved-file
+vscode | C1-restore-word | ba6t5 + Ctrl+Shift+Z | ba6t5 |  | ba6t5 | FAIL | saved-file
+vscode | C2-macro-m01 | m01  | mục 1  | mục 1  | m01  | PASS | saved-file
+vscode | D1-enter | ba6t5 Enter ba6t5 | bật\nbật | bật\nbật | ba6t5\nba6t5 | PASS | saved-file
+vscode | D2-tab | ba6t5 Tab ba6t5 | bật bật | bật bật | ba6t5 ba6t5 | PASS | saved-file
+vscode | E1-off-f2 | F2 then ba6t5 | ba6t5 | ba6t5 | ba6t5 | PASS | saved-file
+vscode | E2-on-f1 | F1 then ba6t5 | bật |  | ba6t5 | FAIL | saved-file
+vscode | T1-telex-bat-slash-tat | baajt/tawts | bật/tắt | baajt/tawts | baajt/tawts | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T2-telex-bat-dot-tat | baajt.tawts | bật.tắt | baajt.tawts | baajt.tawts | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T3-telex-bat-question-tat | baajt?tawts | bật?tắt | baajt?tawts | baajt?tawts | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T4-telex-bat-underscore-tat | baajt_tawts | bật_tắt | baajt_tawts | baajt_tawts | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T5-telex-bat-space-tat | baajt tawts | bật tắt | baajt tawts | baajt tawts | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T6-telex-nguyen-thu-ha | Nguyeexn Thu Haf | Nguyễn Thu Hà | Nguyeexn Thu Haf | Nguyeexn Thu Haf | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T7-telex-path-forward | C:/Users/nam | C:/Users/nam | C:/Users/nam | C:/Users/nam | PASS | saved-file
+vscode | T8-telex-a-slash-b | a/b | a/b | a/b | a/b | PASS | saved-file
+vscode | T9-telex-2-slash-3 | 2/3 | 2/3 | 2/3 | 2/3 | PASS | saved-file
+vscode | T10-telex-percent | 100%/50% | 100%/50% | 100%/50% | 100%/50% | PASS | saved-file
+vscode | T11-telex-url | https://vietkb.dev/taif | https://vietkb.dev/tải | https://vietkb.dev/taif | https://vietkb.dev/taif | QUALITY | saved-file | raw-zone: the URL tail stays literal (spec A9 / L1, owner-accepted)
+vscode | T12-telex-l7-digit-run | 10/users | 10/úe | 10/users | 10/users | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T13-telex-bs-tone | baajt + BS | ậ | baaj | baaj | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+vscode | T14-telex-macro-m01 | m01  | mục 1  | mục 1  | m01  | PASS | saved-file
+vscode | T15-telex-double-slash | baajt//tawts | bật//tắt | baajt//tawts | baajt//tawts | PASS(raw) | saved-file | literal raw keystrokes (rule 4)
+chord | CH1-toggle-once/release-shift | Ctrl+Shift, release shift | one flip of ON | state ON -> ON | (modifier-only hotkey) | FAIL | typed probe
+chord | CH1-toggle-once/release-ctrl | Ctrl+Shift, release ctrl | one flip of ON | state ON -> ON | (modifier-only hotkey) | FAIL | typed probe
+chord | CH1-toggle-once/release-both | Ctrl+Shift, release both | one flip of ON | state ON -> ON | (modifier-only hotkey) | FAIL | typed probe
+chord | CH2-restore-word/release-shift | ba6t5 then Ctrl+Shift+Z, release shift | bật -> ba6t5, state stays ON | [bật] -> [￼], state ON | ba6t5 | FAIL | typed probe
+chord | CH2-restore-word/release-ctrl | ba6t5 then Ctrl+Shift+Z, release ctrl | bật -> ba6t5, state stays ON | [bật] -> [BA^T%], state ON | ba6t5 | FAIL | typed probe
+chord | CH2-restore-word/release-key | ba6t5 then Ctrl+Shift+Z, release key | bật -> ba6t5, state stays ON | [bật] -> [BA^T%], state ON | ba6t5 | FAIL | typed probe
+chord | CH3-open-settings/release-shift | Ctrl+Alt+S (config open_settings, release shift) | Cài đặt VietKB window | window opened | (open_settings=Ctrl+Alt+S) | PASS | window title
+chord | CH3-open-settings/release-ctrl | Ctrl+Alt+S (config open_settings, release ctrl) | Cài đặt VietKB window | window opened | (open_settings=Ctrl+Alt+S) | PASS | window title
+chord | CH3-open-settings/release-key | Ctrl+Alt+S (config open_settings, release key) | Cài đặt VietKB window | window opened | (open_settings=Ctrl+Alt+S) | PASS | window title
+NOTE | brief chord Ctrl+Shift+S -> settings: did NOT open; config open_settings="Ctrl+Alt+S". The gate uses the config chord; the brief chord is a contract question for the Lead, not a pass/fail.
+toggle | RT1-disable-then-enable | F2, F1 | ON -> OFF -> ON | ON -> OFF -> ON | (hotkey) | PASS | typed probe
+toggle | RT2-alt-shift-tap2 | Alt+Shift x2 (bare Alt first) | ON -> !ON -> ON | ON -> OFF -> ON (bare Alt: ON) | (hotkey) | PASS | typed probe
+toggle | RT3-ui-switch | open panel, Bật tiếng Việt | TogglePattern flips the state | settings window not found | (ui) | FAIL | UIA
+toggle | RT4-tray | tray left click | engine state flips and the tooltip follows | engine ON -> ON; name [VietKB · Tiếng Việt · VNI] -> [VietKB · Tiếng Việt · VNI] | (tray) | FAIL | UIA icon name + typed probe
+NOTE | sound path: the one-shot 'toggle sound could not be played' line appears 0 time(s) in app.log (was 0). Absence is consistent with a healthy path but is NOT proof of sound: this is a GUI-subsystem process and tracing may never reach the redirected log (95-e2e-report.md O2). Audibility of the go_moc pair is the OWNER check, not this script.
+NOTE | soak skipped (-Fast)
+teardown | TE1-quit-via-button | Thoát hẳn | the app exits through its own quit | fallback kill | (quit) | FAIL | process table
+teardown | TE2-zero-processes | Get-Process vietkb | 0 | 0 | (none) | PASS | process table
+teardown | TE3-config-restored | config.toml | byte-identical to the backup | Compare-Object empty | 58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 | PASS | Compare-Object
+NOTE | an instance was already running before the gate and was stopped: pid=53444 path="C:\Users\namth\AppData\Local\VietKB\vietkb.exe" started 10/30/2026 10:03:44. It was NOT restarted: the release under test replaced it for the run. Relaunch the installed build from the Start menu afterwards if that is the daily driver.
+
+PASS 94 / FAIL 18 / QUALITY 6
+HOLD

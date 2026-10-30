@@ -1,0 +1,8 @@
+﻿PROBE1
+notepad hwnd=4131680 title=scratch-np.txt - Notepad
+uia_initial via=TextPattern/ControlType.Text text=[package.json]
+no_hook via=TextPattern/ControlType.Document text=[abc ba6t5] pass=True
+app pid=27200 start=02:53:21.298
+hook_on via=TextPattern/ControlType.Document text=[bật] pass=True
+hook_on_clipboard text=[bật]
+PROBE1-DONE

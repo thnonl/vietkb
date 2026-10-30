@@ -1,0 +1,91 @@
+﻿TRAY (keyboard path: Win+B)
+focused_after_win_b=[Show Hidden Icons] type=[ControlType.Button]
+step 0 icon=[Show Desktop]
+step 1 icon=[Clock 3:27 AM
+‎10/‎30/‎2026]
+step 2 icon=[Volume Speakers (eMeet Luna): 40%]
+step 3 icon=[Network Network
+Internet access
+
+Tailscale
+No internet access]
+step 4 icon=[Hey Look! Hey Look! — 1 unread conversation]
+step 5 icon=[Show Hidden Icons]
+step 6 icon=[Show Desktop]
+step 7 icon=[Clock 3:28 AM
+‎10/‎30/‎2026]
+step 8 icon=[Volume Speakers (eMeet Luna): 40%]
+step 9 icon=[Network Network
+Internet access
+
+Tailscale
+No internet access]
+step 10 icon=[Hey Look! Hey Look! — 1 unread conversation]
+step 11 icon=[Show Hidden Icons]
+step 12 icon=[Show Desktop]
+step 13 icon=[Clock 3:28 AM
+‎10/‎30/‎2026]
+tray_icon=NOT_REACHABLE_BY_KEYBOARD
+TRAY-DONE
+TRAY (overflow flyout)
+focused=Show Hidden Icons
+flyout element type=ControlType.Button name=[VietKB · Tiếng Việt · VNI] rect=2238,1208,50,50
+flyout element type=ControlType.Pane name=[VietKB E2E probe] rect=23,13,1246,1348
+flyout element type=ControlType.Text name=[VietKB E2E probe] rect=54,21,1044,21
+flyout element type=ControlType.Document name=[VietKB E2E probe] rect=23,50,1245,1310
+flyout element type=ControlType.Pane name=[VietKB E2E probe] rect=23,13,1246,1348
+flyout element type=ControlType.Text name=[VietKB E2E probe] rect=54,21,1044,21
+flyout element type=ControlType.Document name=[VietKB E2E probe] rect=23,50,1245,1310
+flyout element type=ControlType.Pane name=[VietKB E2E probe] rect=23,13,1246,1348
+flyout element type=ControlType.Text name=[VietKB E2E probe] rect=54,21,1044,21
+flyout element type=ControlType.Document name=[VietKB E2E probe] rect=23,50,1245,1310
+flyout element type=ControlType.Pane name=[vietkb | OpenChamber] rect=2560,0,1920,1032
+flyout element type=ControlType.Document name=[vietkb | OpenChamber] rect=2560,0,1920,1032
+flyout element type=ControlType.Button name=[Expand VietKB settings UI] rect=2576,354,14,14
+flyout element type=ControlType.Button name=[Open VietKB settings UI] rect=2596,351,237,20
+flyout element type=ControlType.Button name=[New draft session in VietKB settings UI] rect=2805,353,16,16
+flyout element type=ControlType.Button name=[Task menu for VietKB settings UI] rect=2823,353,16,16
+flyout element type=ControlType.Button name=[Expand VietKB engine sprint 1] rect=2576,390,14,14
+flyout element type=ControlType.Button name=[Open VietKB engine sprint 1] rect=2596,387,237,20
+flyout element type=ControlType.Button name=[New draft session in VietKB engine sprint 1] rect=2805,389,16,16
+flyout element type=ControlType.Button name=[Task menu for VietKB engine sprint 1] rect=2823,389,16,16
+flyout element type=ControlType.Button name=[vietkb New worktree Project menu New draft session] rect=2560,913,291,28
+flyout element type=ControlType.Button name=[vietkb] rect=2576,917,261,20
+flyout element type=ControlType.Button name=[Expand VietKB settings UI] rect=2576,1020,14,14
+flyout element type=ControlType.Button name=[Open VietKB settings UI] rect=2596,1017,237,20
+flyout element type=ControlType.Button name=[New draft session in VietKB settings UI] rect=2805,1019,16,16
+flyout element type=ControlType.Button name=[Task menu for VietKB settings UI] rect=2823,1019,16,16
+flyout element type=ControlType.Button name=[Expand VietKB engine sprint 1] rect=2576,1056,14,14
+flyout element type=ControlType.Button name=[Open VietKB engine sprint 1] rect=2596,1053,237,20
+flyout element type=ControlType.Button name=[New draft session in VietKB engine sprint 1] rect=2805,1055,16,16
+flyout element type=ControlType.Button name=[Task menu for VietKB engine sprint 1] rect=2823,1055,16,16
+flyout element type=ControlType.Text name=[%LOCALAPPDATA%\VietKB\vietkb.exe] rect=3503,-2505,226,15
+flyout element type=ControlType.Document name=[VietKB — screenshot sau khi cắt phạm vi] rect=3124,-2026,721,1439
+flyout element type=ControlType.Image name=[Menu tray VietKB] rect=3491,-1018,353,320
+flyout element type=ControlType.ListItem name=[Binary E2E: target\release\vietkb.exe 8 380 928 B, SHA 0B566EE4…743EF, mtime 02:47:16 — không sửa gì sau build] rect=3144,675,701,49
+flyout element type=ControlType.Button name=[target\release\vietkb.exe] rect=3221,679,188,18
+flyout element type=ControlType.Text name=[Projectvietkb] rect=4132,170,220,16
+flyout element type=ControlType.Pane name=[VietKB — Bộ gõ tiếng Việt cho Windows - Part of tab group GitHub - Microsoft Edge] rect=2560,0,1920,1032
+flyout element type=ControlType.Text name=[VietKB — Bộ gõ tiếng Việt cho Windows] rect=3407,8,250,16
+flyout element type=ControlType.TabItem name=[pages · thnonl/vietkb@b50a744 - Part of tab group GitHub] rect=2573,400,282,32
+flyout element type=ControlType.TabItem name=[VietKB — Bộ gõ tiếng Việt cho Windows - Part of tab group GitHub - Memory usage - 65.9 MB] rect=2573,436,282,32
+menu_items=10: File | Edit | View | File | Edit | Selection | View | Go | Run | More
+tray_toggle_item=NOT_FOUND
+TRAY-DONE
+TRAY (right-click on the flyout icon)
+icon_name=[VietKB · Tiếng Việt · VNI VietKB · Đã tắt tiếng Việt] rect=2238,1208,50,50
+vkb_window title=[vn.vietkb.app-siw]
+menu_items=10: File@Notepad | Edit@Notepad | View@Notepad | File@Code | Edit@Code | Selection@Code | View@Code | Go@Code | Run@Code | More@Code
+tray_toggle_item=NOT_FOUND
+TRAY-DONE
+TRAY (state read from the icon name)
+icon_before=[VietKB · Tiếng Việt · VNI VietKB · Đã tắt tiếng Việt]
+typed before tray toggle actual=[ba6t5] state=OFF
+TRAY (overflow icon, left-click toggle)
+after tray left-click      actual=[bật] state=ON
+icon_name_before=[VietKB · Tiếng Việt · VNI VietKB · Đã tắt tiếng Việt]
+icon_name_after =[VietKB · Tiếng Việt · VNI]
+tray_route_state_flipped=
+after second tray left-click actual=[ba6t5] state=OFF
+icon_name_final=[VietKB · Tiếng Việt · VNI VietKB · Đã tắt tiếng Việt] final_state=OFF
+TRAY-DONE

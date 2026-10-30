@@ -1,0 +1,26 @@
+﻿TOGGLE-E2E (observer: Chrome textarea)
+sound_error_lines_before=0
+initial                              focused=True actual=[bật] state=ON
+initial_state=ON
+--- route A: hotkey F2 / F1 ---
+after F2                             focused=True actual=[ba6t5] state=OFF
+after F1                             focused=True actual=[bật] state=ON
+route_F2F1_ok=True
+--- route B: Alt+Shift (tap) ---
+after Alt+Shift #1                   focused=True actual=[ba6t5] state=OFF
+after Alt+Shift #2                   focused=True actual=[bật] state=ON
+route_AltShift_ok=True
+--- route C: UI switch in the settings window ---
+ui_switch_state_before=On
+ui_switch_state_after=Off
+after UI switch #1                   focused=True actual=[ba6t5] state=OFF
+ui_switch_state_now=On
+after UI switch #2                   focused=True actual=[bật] state=ON
+route_UI_ok=True
+settings_window outer=494x468 client=478x459 dpi=96
+button[Phím tắt…] found=True
+button[Nâng cao…] found=True
+button[Bảng gõ tắt…] found=True
+button[Giới thiệu] found=False
+sound_error_lines_after=0
+TOGGLE-DONE

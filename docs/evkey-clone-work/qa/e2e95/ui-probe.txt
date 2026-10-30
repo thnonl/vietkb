@@ -1,0 +1,40 @@
+﻿UI-PROBE
+app pid=48080
+settings hwnd=3214498 title=[Cài đặt VietKB]
+descendants=45
+ControlType.Pane         name=[Cài đặt VietKB] auto=[] rect=3281,307,478,459
+ControlType.Pane         name=[Cài đặt VietKB - Web content] auto=[] rect=3281,307,478,459
+ControlType.Document     name=[Cài đặt VietKB] auto=[RootWebArea] rect=3281,307,478,459
+ControlType.Image        name=[VietKB] auto=[] rect=3299,315,20,20
+ControlType.Text         name=[VietKB] auto=[] rect=3341,316,40,17
+ControlType.Button       name=[Giao diện: Tối. Bấm để đổi] auto=[] rect=3663,313,24,24
+ControlType.Button       name=[Thu nhỏ] auto=[] rect=3695,313,24,24
+ControlType.Button       name=[Đóng, VietKB vẫn chạy] auto=[] rect=3727,313,24,24
+ControlType.Text         name=[Bật tiếng Việt] auto=[] rect=3301,360,87,19
+ControlType.Text         name=[Alt + Shift] auto=[] rect=3395,361,59,17
+ControlType.Button       name=[Bật tiếng Việt] auto=[] rect=3699,358,40,24
+ControlType.Text         name=[Kiểu gõ] auto=[] rect=3301,404,49,19
+ControlType.ComboBox     name=[Kiểu gõ] auto=[] rect=3643,398,96,32
+ControlType.Text         name=[Đặt dấu kiểu mới] auto=[] rect=3301,456,110,19
+ControlType.Text         name=[hòa, thúy] auto=[] rect=3418,460,66,15
+ControlType.Button       name=[Đặt dấu kiểu mới] auto=[] rect=3699,455,40,24
+ControlType.Text         name=[Kiểm tra chính tả] auto=[] rect=3301,501,109,19
+ControlType.Button       name=[Kiểm tra chính tả] auto=[] rect=3699,499,40,24
+ControlType.Text         name=[Cho phép gõ tắt] auto=[] rect=3301,545,104,19
+ControlType.Button       name=[Bảng gõ tắt…] auto=[] rect=3585,539,104,32
+ControlType.Button       name=[Cho phép gõ tắt] auto=[] rect=3699,543,40,24
+ControlType.Text         name=[Loại trừ ứng dụng] auto=[] rect=3301,589,116,19
+ControlType.Text         name=[0] auto=[] rect=3424,590,8,17
+ControlType.Text         name=[ ứng dụng] auto=[] rect=3431,590,61,17
+ControlType.Button       name=[Danh sách ứng dụng…] auto=[] rect=3582,583,157,32
+ControlType.Text         name=[Khởi động cùng Windows] auto=[] rect=3301,625,165,19
+ControlType.Text         name=[Chạy ngay khi đăng nhập Windows] auto=[] rect=3301,645,194,16
+ControlType.Button       name=[Khởi động cùng Windows] auto=[] rect=3699,631,40,24
+ControlType.Text         name=[Chạy ẩn] auto=[] rect=3301,669,51,19
+ControlType.Text         name=[Mở lên không hiện cửa sổ, chỉ nằm trong khay] auto=[] rect=3301,689,255,16
+ControlType.Button       name=[Chạy ẩn] auto=[] rect=3699,675,40,24
+ControlType.Button       name=[Phím tắt…] auto=[] rect=3293,722,77,33
+ControlType.Button       name=[Nâng cao…] auto=[] rect=3373,722,84,33
+ControlType.Button       name=[Thoát hẳn] auto=[] rect=3595,722,84,33
+ControlType.Button       name=[Đóng] auto=[] rect=3682,722,57,33
+UI-PROBE-DONE

@@ -1,0 +1,48 @@
+﻿UI-E2E
+dismissed dialog [Save as]
+main_window: outer=494x468 client=478x459 at 3273,306 dpi=96
+sound_row_present=False
+advanced_window: outer=574x396 client=558x387 at 3161,293 dpi=96 title=[Nâng cao — VietKB]
+advanced_has_sound_row=True
+advanced_has_pack_select=False
+advanced_client_bottom=680 lowest_element_bottom=1674 [] clipped=True
+advanced_closed=True
+hotkeys_window=True outer=534x368 client=518x359 at 3186,310 dpi=96
+hotkeys_closed=True
+macros_window=True outer=734x568 client=718x559 at 3061,185 dpi=96
+macros_closed=True
+about_on_main=False
+UI-DONE
+about button=[Giới thiệu…]
+vkb window title=[Giới thiệu — VietKB]
+vkb window title=[Nâng cao — VietKB]
+vkb window title=[Cài đặt VietKB]
+vkb window title=[vn.vietkb.app-siw]
+about_text=[]
+about_page_closed_via_esc=False
+ABOUT-DONE
+about outer=718x705 client=700x695 dpi=120
+about_el ControlType.Pane name=[Cài đặt VietKB] rect=930,368,700,695
+about_el ControlType.Pane name=[Cài đặt VietKB - Web content] rect=930,368,700,695
+about_el ControlType.Document name=[Cài đặt VietKB] rect=930,368,700,695
+about_el ControlType.Text name=[Giới thiệu] rect=950,379,72,22
+about_el ControlType.Text name=[— VietKB] rect=1026,379,69,22
+about_el ControlType.Button name=[Giao diện: Tối. Bấm để đổi] rect=1550,375,30,31
+about_el ControlType.Button name=[Đóng, VietKB vẫn chạy] rect=1590,375,30,31
+about_el ControlType.Text name=[VietKB] rect=1022,445,61,28
+about_el ControlType.Text name=[0.2.3] rect=1095,447,34,23
+about_el ControlType.Text name=[Bộ gõ tiếng Việt cho Windows. Nhẹ, nhanh, và không làm phiền bạn.] rect=950,500,493,22
+about_el ControlType.Text name=[Vì sao có VietKB] rect=950,539,660,20
+about_el ControlType.Text name=[Những bộ gõ đang có vẫn gõ đúng, nhưng mang theo cả một thời phần mềm cũ: bảng mã 8-bit, hàng chục tuỳ chọn, nhiều tab.] rect=950,568,653,50
+about_el ControlType.Text name=[VietKB có mặt vì phần dùng hằng ngày thì ít, phần phải mang theo thì nhiều. Ở đây chỉ có Telex, VNI, gõ tắt và loại trừ ứng dụng, không có mục nào để bạn phải đoán.] rect=950,631,644,50
+about_el ControlType.Text name=[Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ. Cả bộ gõ nằm trong khay, tốn 14 MB; bộ cài khoảng 3 MB; mở cửa sổ mất khoảng 0,3 giây.] rect=950,693,654,50
+about_el ControlType.Text name=[Một bộ gõ tốt là bộ gõ bạn không phải nghĩ tới.] rect=950,762,411,26
+about_el ControlType.Text name=[Bạn đang dùng bản mới nhất] rect=962,813,195,21
+about_el ControlType.Button name=[Kiểm tra cập nhật] rect=950,845,161,41
+about_el ControlType.Button name=[GitHub] rect=950,904,51,25
+about_el ControlType.Text name=[·] rect=1010,905,5,22
+about_el ControlType.Button name=[Báo lỗi] rect=1024,904,50,25
+about_el ControlType.Text name=[·] rect=1083,905,4,22
+about_el ControlType.Button name=[Ko-fi] rect=1096,904,35,25
+about_el ControlType.Text name=[Không quảng cáo. Không thu thập nội dung bạn gõ.] rect=950,933,346,21
+about_closed_after_altF4=True

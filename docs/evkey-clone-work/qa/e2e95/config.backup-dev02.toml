@@ -1,0 +1,66 @@
+version = 1
+
+[input]
+enabled = true
+method = "vni"
+charset = "unicode"
+mechanism = "hook"
+
+[typing]
+modern_tone = true
+free_tone = true
+jfwz_as_consonant = true
+auto_capitalize = false
+spell_check = true
+restore_wrong_word = false
+send_standard = false
+use_clipboard = false
+macro_enabled = true
+macro_when_disabled = false
+auto_horn_uo = true
+raw_zone = true
+macro_case_follow = true
+
+[hotkeys]
+enable = "F1"
+disable = "F2"
+toggle = "Alt+Shift"
+restore_word = "Ctrl+Shift+Z"
+app_exclude = "F11"
+macro_panel = "F8"
+macro_toggle = "F9"
+open_settings = "Ctrl+Alt+S"
+cycle_method = ""
+toggle_mode = "release"
+
+[system]
+start_with_windows = true
+notification_sound = true
+start_minimized = true
+language = "vi"
+theme = "dark"
+check_updates = true
+
+[ui]
+window_width = 720
+window_height = 560
+last_tab = "macros"
+compact_rows = false
+
+[apps]
+remember_per_app = false
+rules = []
+
+[macros]
+m01 = "mục 1"
+m02 = "mục 2"
+m03 = "mục 3"
+m04 = "mục 4"
+m05 = "mục 5"
+m06 = "mục 6"
+m07 = "mục 7"
+m08 = "mục 8"
+m09 = "mục 9"
+m10 = "mục 10"
+m11 = "mục 11"
+m12 = "mục 12"

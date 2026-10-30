@@ -1,0 +1,38 @@
+VietKB QA — special-case audit, VNI / defect. Generated 2026-10-30 (machine date 2026-10-30 00:28).
+All commands run from E:\vietkb.
+
+
+=== 1. Owner report, reproduced through the CLI ===
+$ cargo run -q -p vkb-cli -- simulate --method vni "ba65t/ta8t1"
+bật/ta8t1
+
+=== 2. Same word pair with a space (control) ===
+$ cargo run -q -p vkb-cli -- simulate --method vni "ba65t ta8t1"
+bật tắt
+
+=== 3. Telex control (letters stay literal too) ===
+$ cargo run -q -p vkb-cli -- simulate --method telex "baajt/taats"
+bật/taats
+
+=== 4. Action trace: the / key arms the raw zone, the next word is frozen literal ===
+$ cargo run -q -p vkb-cli -- simulate --method vni --actions "ba65t/ta8t1"
+'b' -> Noop
+'a' -> Noop
+'6' -> Replace { delete_units: 2, insert: "bâ" }
+'5' -> Replace { delete_units: 2, insert: "bậ" }
+'t' -> Noop
+'/' -> Noop
+'t' -> Noop
+'a' -> Noop
+'8' -> Noop
+'t' -> Noop
+'1' -> Noop
+-- text: bật/ta8t1
+-- raw:  ta8t1
+
+=== 5. raw_zone = false (test harness): the same input composes ===
+see crates/vkb-core/tests/special_cases.rs SC-46: EngineOptions{raw_zone:false} + "ba65t/ta8t1" -> "bật/tắt" (PASS)
+
+=== 6. URL/email protection still works (why the raw zone exists) ===
+$ simulate --method vni "http://a.b/c" -> http://a.b/c
+$ simulate --method vni "a@b.com" -> a@b.com

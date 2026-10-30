@@ -1,0 +1,311 @@
+﻿# vkb-cli simulate — QA re-verification 2026-10-30 (stream B, second pass)
+# repo E:\vietkb · 14bc655 · 2026-10-30 01:01:30 +07:00
+# each block: command line as run, then the exact stdout
+
+# [owner repro VNI] cargo run -q -p vkb-cli -- simulate --method vni "ba65t/ta8t1"
+bật/tắt
+  (exit 0)
+
+# [owner repro Telex (tawts=tắt)] cargo run -q -p vkb-cli -- simulate --method telex "baajt/tawts"
+bật/tắt
+  (exit 0)
+
+# [audit spelling (taats=tất)] cargo run -q -p vkb-cli -- simulate --method telex "baajt/taats"
+bật/tất
+  (exit 0)
+
+# [leading /] cargo run -q -p vkb-cli -- simulate --method vni "/ta8t1"
+/tắt
+  (exit 0)
+
+# [double /] cargo run -q -p vkb-cli -- simulate --method vni "ba65t//ta8t1"
+bật//tắt
+  (exit 0)
+
+# [space then /] cargo run -q -p vkb-cli -- simulate --method vni "ba65t /ta8t1"
+bật /tắt
+  (exit 0)
+
+# [chain of three] cargo run -q -p vkb-cli -- simulate --method vni "ba65t/ta8t1/ba65t"
+bật/tắt/bật
+  (exit 0)
+
+# [uppercase] cargo run -q -p vkb-cli -- simulate --method vni "Ba65t/Ta8t1"
+Bật/Tắt
+  (exit 0)
+
+# [trigger a8 after /] cargo run -q -p vkb-cli -- simulate --method vni "ba65t/a8"
+bật/ă
+  (exit 0)
+
+# [trigger a61 after /] cargo run -q -p vkb-cli -- simulate --method vni "ba65t/a61"
+bật/ấ
+  (exit 0)
+
+# [trigger d9 after /] cargo run -q -p vkb-cli -- simulate --method vni "ba65t/d9"
+bật/đ
+  (exit 0)
+
+# [trigger o7 after /] cargo run -q -p vkb-cli -- simulate --method vni "ba65t/o7"
+bật/ơ
+  (exit 0)
+
+# [trigger u7 after /] cargo run -q -p vkb-cli -- simulate --method vni "ba65t/u7"
+bật/ư
+  (exit 0)
+
+# [dot] cargo run -q -p vkb-cli -- simulate --method vni "ba65t.ta8t1"
+bật.tắt
+  (exit 0)
+
+# [question] cargo run -q -p vkb-cli -- simulate --method vni "ba65t?ta8t1"
+bật?tắt
+  (exit 0)
+
+# [underscore] cargo run -q -p vkb-cli -- simulate --method vni "ba65t_ta8t1"
+bật_tắt
+  (exit 0)
+
+# [at] cargo run -q -p vkb-cli -- simulate --method vni "ba65t@ta8t1"
+bật@tắt
+  (exit 0)
+
+# [colon] cargo run -q -p vkb-cli -- simulate --method vni "ba65t:ta8t1"
+bật:tắt
+  (exit 0)
+
+# [equals] cargo run -q -p vkb-cli -- simulate --method vni "ba65t=ta8t1"
+bật=tắt
+  (exit 0)
+
+# [hash] cargo run -q -p vkb-cli -- simulate --method vni "ba65t#ta8t1"
+bật#tắt
+  (exit 0)
+
+# [backslash] cargo run -q -p vkb-cli -- simulate --method vni "ba65t\ta8t1"
+bật\tắt
+  (exit 0)
+
+# [win path Telex] cargo run -q -p vkb-cli -- simulate --method telex "C:\Users\nam"
+C:\Users\nam
+  (exit 0)
+
+# [win path VNI] cargo run -q -p vkb-cli -- simulate --method vni "C:\Users\nam"
+C:\Users\nam
+  (exit 0)
+
+# [win path fwd Telex] cargo run -q -p vkb-cli -- simulate --method telex "C:/Users/nam"
+C:/Users/nam
+  (exit 0)
+
+# [win path fwd VNI] cargo run -q -p vkb-cli -- simulate --method vni "C:/Users/nam"
+C:/Users/nam
+  (exit 0)
+
+# [UNC Telex] cargo run -q -p vkb-cli -- simulate --method telex "C:\\server\share"
+C:\\server\share
+  (exit 0)
+
+# [UNC VNI] cargo run -q -p vkb-cli -- simulate --method vni "C:\\server\share"
+C:\\server\share
+  (exit 0)
+
+# [https path Telex] cargo run -q -p vkb-cli -- simulate --method telex "https://x/y/z"
+https://x/y/z
+  (exit 0)
+
+# [https path VNI] cargo run -q -p vkb-cli -- simulate --method vni "https://x/y/z"
+https://x/y/z
+  (exit 0)
+
+# [http path Telex] cargo run -q -p vkb-cli -- simulate --method telex "http://a.b/c"
+http://a.b/c
+  (exit 0)
+
+# [http path VNI] cargo run -q -p vkb-cli -- simulate --method vni "http://a.b/c"
+http://a.b/c
+  (exit 0)
+
+# [NEG: . then / must not chain] cargo run -q -p vkb-cli -- simulate --method telex "xyz./tieesng"
+xyz./tiếng
+  (exit 0)
+
+# [NEG: _/ must not chain] cargo run -q -p vkb-cli -- simulate --method telex "baajt:_/tieesng"
+bật:_/tiếng
+  (exit 0)
+
+# [compose after /] cargo run -q -p vkb-cli -- simulate --method telex "baajt/taawts"
+bật/tắt
+  (exit 0)
+
+# [compose after //] cargo run -q -p vkb-cli -- simulate --method telex "baajt//taawts"
+bật//tắt
+  (exit 0)
+
+# [compose after space + /] cargo run -q -p vkb-cli -- simulate --method telex "baajt /taawts"
+bật /tắt
+  (exit 0)
+
+# [compose after leading /] cargo run -q -p vkb-cli -- simulate --method telex "/taawts"
+/tắt
+  (exit 0)
+
+# [a/b] cargo run -q -p vkb-cli -- simulate --method vni "a/b"
+a/b
+  (exit 0)
+
+# [2/3] cargo run -q -p vkb-cli -- simulate --method vni "2/3"
+2/3
+  (exit 0)
+
+# [dot then word] cargo run -q -p vkb-cli -- simulate --method telex "baajt.http"
+bật.http
+  (exit 0)
+
+# [./ then word] cargo run -q -p vkb-cli -- simulate --method telex "baajt./taawts"
+bật./tắt
+  (exit 0)
+
+# [:_/ then word] cargo run -q -p vkb-cli -- simulate --method telex "baajt:_/taawts"
+bật:_/tắt
+  (exit 0)
+
+# [guard github.cof] cargo run -q -p vkb-cli -- simulate --method telex "github.cof"
+github.cof
+  (exit 0)
+
+# [guard a@b.com] cargo run -q -p vkb-cli -- simulate --method vni "a@b.com"
+a@b.com
+  (exit 0)
+
+# [guard file_name] cargo run -q -p vkb-cli -- simulate --method vni "file_name"
+file_name
+  (exit 0)
+
+# [guard x=cof] cargo run -q -p vkb-cli -- simulate --method vni "x=cof"
+x=cof
+  (exit 0)
+
+# [guard me@cof] cargo run -q -p vkb-cli -- simulate --method vni "me@cof"
+me@cof
+  (exit 0)
+
+# [guard a. + space] cargo run -q -p vkb-cli -- simulate --method telex "a. tieengs"
+a. tiếng
+  (exit 0)
+
+# [guard a.] cargo run -q -p vkb-cli -- simulate --method telex "a."
+a.
+  (exit 0)
+
+# [guard tiengs] cargo run -q -p vkb-cli -- simulate --method telex "tiengs"
+tíeng
+  (exit 0)
+
+# [guard 1.5] cargo run -q -p vkb-cli -- simulate --method vni "1.5"
+1.5
+  (exit 0)
+
+# [guard 3.5] cargo run -q -p vkb-cli -- simulate --method vni "3.5"
+3.5
+  (exit 0)
+
+# [guard %20] cargo run -q -p vkb-cli -- simulate --method vni "%20"
+%20
+  (exit 0)
+
+# [guard --opt] cargo run -q -p vkb-cli -- simulate --method vni "--opt"
+cargo.exe : error: unexpected argument '--opt' found
+At E:\vietkb\docs\evkey-clone-work\qa\verify\run-cli.ps1:101 char:10
++   $res = & cargo run -q -p vkb-cli -- simulate --method $c.m $c.s 2>& ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (error: unexpected argument '--opt' found:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+  tip: to pass '--opt' as a value, use '-- --opt'
+
+Usage: vkb.exe simulate --method <METHOD> <TEXT>
+
+For more information, try '--help'.
+  (exit 2)
+
+# [guard ellipsis] cargo run -q -p vkb-cli -- simulate --method telex "..."
+...
+  (exit 0)
+
+# [guard ellipsis word] cargo run -q -p vkb-cli -- simulate --method telex "a...cof"
+a...cò
+  (exit 0)
+
+# [guard 3.cof] cargo run -q -p vkb-cli -- simulate --method telex "3.cof"
+3.cò
+  (exit 0)
+
+# [NEW: path mid-sentence] cargo run -q -p vkb-cli -- simulate --method telex "tooi ddang owr C:\Users\nam"
+tôi đang ở C:\Users\nam
+  (exit 0)
+
+# [NEW: bật.C:\x] cargo run -q -p vkb-cli -- simulate --method telex "baajt.C:\x"
+bật.C:\x
+  (exit 0)
+
+# [NEW: a.b/c] cargo run -q -p vkb-cli -- simulate --method telex "a.b/c"
+a.b/c
+  (exit 0)
+
+# [NEW: e.g./i.e.] cargo run -q -p vkb-cli -- simulate --method telex "e.g./i.e."
+e.g./i.e.
+  (exit 0)
+
+# [NEW: v1.2.3/tag] cargo run -q -p vkb-cli -- simulate --method vni "v1.2.3/tag"
+v1.2.3/tag
+  (exit 0)
+
+# [NEW: 100%/50%] cargo run -q -p vkb-cli -- simulate --method vni "100%/50%"
+100%/50%
+  (exit 0)
+
+# [NEW/L2: #hashtag/tieesng] cargo run -q -p vkb-cli -- simulate --method telex "#hashtag/tieesng"
+#hashtag/tieesng
+  (exit 0)
+
+# [NEW/L2: abc/d9uo7ng2] cargo run -q -p vkb-cli -- simulate --method vni "abc/d9uo7ng2"
+abc/d9uo7ng2
+  (exit 0)
+
+# [NEW: URL after VN word] cargo run -q -p vkb-cli -- simulate --method telex "baajt https://x"
+bật https://x
+  (exit 0)
+
+# [NEW: : then https] cargo run -q -p vkb-cli -- simulate --method telex "baajt:https://x"
+bật:https://x
+  (exit 0)
+
+# [L5: cof:/tiếng?] cargo run -q -p vkb-cli -- simulate --method telex "cof:/tiengs"
+cò:/tíeng
+  (exit 0)
+
+# [L5: a:/tắt?] cargo run -q -p vkb-cli -- simulate --method vni "a:/ta8t1"
+a:/ta8t1
+  (exit 0)
+
+# [L5: abc://tiếng?] cargo run -q -p vkb-cli -- simulate --method telex "abc://tieesng"
+abc://tieesng
+  (exit 0)
+
+# [L1: x=@cof] cargo run -q -p vkb-cli -- simulate --method telex "x=@cof"
+x=@cò
+  (exit 0)
+
+# [L1: a./cof] cargo run -q -p vkb-cli -- simulate --method telex "a./cof"
+a./cò
+  (exit 0)
+
+# [L3: ban.cof] cargo run -q -p vkb-cli -- simulate --method telex "ban.cof"
+ban.cò
+  (exit 0)
+
+# [NEW: VN word then path] cargo run -q -p vkb-cli -- simulate --method telex "baajt.C:\Users\nam"
+bật.C:\Users\nam
+  (exit 0)

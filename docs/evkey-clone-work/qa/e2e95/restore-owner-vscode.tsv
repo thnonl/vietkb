@@ -1,0 +1,9 @@
+﻿tag	app	id	keystrokes	expected	actual	via	verdict
+owner	vscode	R0-typed	ba6t5	bật	bật	saved-file	PASS
+owner	vscode	R1-restore	ba6t5 Ctrl+Shift+Z	ba6t5	bật	saved-file	FAIL
+owner	vscode	R2-still-on	ba6t5 after the chord	bật	bật	saved-file	PASS
+owner	vscode	R-order-SKC	ba6t5 Ctrl+Shift+Z release=SKC	ba6t5	bật	saved-file	FAIL
+owner	vscode	R-order-CSK	ba6t5 Ctrl+Shift+Z release=CSK	ba6t5	bật	saved-file	FAIL
+owner	vscode	R-order-CKS	ba6t5 Ctrl+Shift+Z release=CKS	ba6t5	bật	saved-file	FAIL
+owner	vscode	R6-toggle-off	Alt+Shift tap 1	ba6t5	ba6t5	saved-file	PASS
+owner	vscode	R7-toggle-on	Alt+Shift tap 2	bật	bật	saved-file	PASS

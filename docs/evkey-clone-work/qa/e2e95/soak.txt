@@ -1,0 +1,14 @@
+﻿SOAK 30 min, 5 apps
+started=03:30:15 targets=chrome,vscode,notepad,console,settings-webview
+round 1/10 chrome           target=chrome             app_alive=True app=25.1MB total=353.8MB canary=TRANSFORMS warn_err=0 keys~3504 t=03:33:24
+round 2/10 vscode           target=vscode             app_alive=True app=25.2MB total=355.1MB canary=TRANSFORMS warn_err=0 keys~7012 t=03:36:34
+round 3/10 notepad          target=notepad            app_alive=True app=25.4MB total=356.5MB canary=TRANSFORMS warn_err=0 keys~10516 t=03:39:50
+round 4/10 console          target=console            app_alive=True app=25.4MB total=356.7MB canary=TRANSFORMS warn_err=0 keys~14024 t=03:42:58
+round 5/10 settings-webview target=settings-webview   app_alive=True app=25.5MB total=367.4MB canary=TRANSFORMS warn_err=0 keys~17528 t=03:46:05
+round 6/10 chrome           target=chrome             app_alive=True app=25.4MB total=369.2MB canary=TRANSFORMS warn_err=0 keys~21036 t=03:49:16
+round 7/10 vscode           target=vscode             app_alive=True app=25.5MB total=368.8MB canary=TRANSFORMS warn_err=0 keys~24540 t=03:52:25
+round 8/10 notepad          target=notepad            app_alive=True app=25.4MB total=368.6MB canary=TRANSFORMS warn_err=0 keys~28048 t=03:55:40
+round 9/10 console          target=console            app_alive=True app=25.5MB total=368.5MB canary=TRANSFORMS warn_err=0 keys~31552 t=03:58:48
+round 10/10 settings-webview target=settings-webview   app_alive=True app=25.5MB total=370.5MB canary=TRANSFORMS warn_err=0 keys~35060 t=04:01:56
+end=04:02:02 keystrokes~35060 final_app=2.6MB total=2.6MB webviews=0 app_alive=True
+SOAK-DONE

@@ -1,0 +1,89 @@
+﻿
+running 1 test
+
+id | method | keys | expected | actual | verdict
+SC-01 | VNI | `ba65t ta8t1` | `bật tắt` | `bật tắt` | PASS
+SC-02 | VNI | `ba65t/ta8t1` | `bật/tắt` | `bật/ta8t1` | FAIL
+SC-03 | VNI | `ba65t.ta8t1` | `bật.tắt` | `bật.ta8t1` | FAIL
+SC-04 | VNI | `ba65t,ta8t1` | `bật,tắt` | `bật,tắt` | PASS
+SC-05 | VNI | `ba65t-ta8t1` | `bật-tắt` | `bật-tắt` | PASS
+SC-06 | VNI | `ba65t_ta8t1` | `bật_tắt` | `bật_ta8t1` | FAIL
+SC-07 | VNI | `ba65t:ta8t1` | `bật:tắt` | `bật:ta8t1` | FAIL
+SC-08 | VNI | `ba65t@ta8t1` | `bật@tắt` | `bật@ta8t1` | FAIL
+SC-09 | VNI | `ba65t;ta8t1` | `bật;tắt` | `bật;tắt` | PASS
+SC-10 | VNI | `ba65t(ta8t1` | `bật(tắt` | `bật(tắt` | PASS
+SC-11 | VNI | `ba65t)ta8t1` | `bật)tắt` | `bật)tắt` | PASS
+SC-12 | VNI | `ba65t[ta8t1` | `bật[tắt` | `bật[tắt` | PASS
+SC-13 | VNI | `ba65t]ta8t1` | `bật]tắt` | `bật]tắt` | PASS
+SC-14 | VNI | `ba65t"ta8t1` | `bật"tắt` | `bật"tắt` | PASS
+SC-15 | VNI | `ba65t'ta8t1` | `bật'tắt` | `bật'tắt` | PASS
+SC-16 | VNI | `ba65t+ta8t1` | `bật+tắt` | `bật+tắt` | PASS
+SC-17 | VNI | `ba65t=ta8t1` | `bật=tắt` | `bật=ta8t1` | FAIL
+SC-18 | VNI | `ba65t*ta8t1` | `bật*tắt` | `bật*tắt` | PASS
+SC-19 | VNI | `ba65t&ta8t1` | `bật&tắt` | `bật&tắt` | PASS
+SC-20 | VNI | `ba65t%ta8t1` | `bật%tắt` | `bật%tắt` | PASS
+SC-21 | VNI | `ba65t#ta8t1` | `bật#tắt` | `bật#ta8t1` | FAIL
+SC-22 | VNI | `ba65t!ta8t1` | `bật!tắt` | `bật!tắt` | PASS
+SC-23 | VNI | `ba65t?ta8t1` | `bật?tắt` | `bật?ta8t1` | FAIL
+SC-24 | VNI | `ba65t~ta8t1` | `bật~tắt` | `bật~tắt` | PASS
+SC-25 | VNI | `ba65t`ta8t1` | `bật`tắt` | `bật`tắt` | PASS
+SC-26 | VNI | `ba65t|ta8t1` | `bật|tắt` | `bật|tắt` | PASS
+SC-27 | VNI | `ba65t\ta8t1` | `bật\tắt` | `bật\ta8t1` | FAIL
+SC-28 | VNI | `ba65t/ta8t1` | `bật/tắt` | `bật/ta8t1` | FAIL
+SC-29 | Telex | `baajt/taats` | `bật/tắt` | `bật/taats` | FAIL
+SC-30 | VNI | `a/b` | `a/b` | `a/b` | PASS
+SC-31 | VNI | `/ta8t1` | `/tắt` | `/ta8t1` | FAIL
+SC-32 | VNI | `ba65t//ta8t1` | `bật//tắt` | `bật//ta8t1` | FAIL
+SC-33 | VNI | `ba65t /ta8t1` | `bật /tắt` | `bật /ta8t1` | FAIL
+SC-34 | VNI | `ba65t/ ta8t1` | `bật/ tắt` | `bật/ tắt` | PASS
+SC-35 | VNI | `http://a.b/c` | `http://a.b/c` | `http://a.b/c` | PASS
+SC-36 | VNI | `a@b.com` | `a@b.com` | `a@b.com` | PASS
+SC-37 | VNI | `github.cof` | `github.cof` | `github.cof` | PASS
+SC-38 | Telex | `a. tieengs` | `a. tiếng` | `a. tiếng` | PASS
+SC-39 | Telex | `3.cof` | `3.cò` | `3.cò` | PASS
+SC-40 | VNI | `-ta8t1` | `-tắt` | `-tắt` | PASS
+SC-41 | VNI | `--opt` | `--opt` | `--opt` | PASS
+SC-42 | VNI | `file_name` | `file_name` | `file_name` | PASS
+SC-43 | VNI | `2/3` | `2/3` | `2/3` | PASS
+SC-44 | VNI | `1.5` | `1.5` | `1.5` | PASS
+SC-45 | VNI | `%20` | `%20` | `%20` | PASS
+SC-46 | VNI | `ba65t/ta8t1` | `bật/tắt` | `bật/tắt` | PASS
+SC-47 | VNI | `ba65t.ta8t1` | `bật.tắt` | `bật.tắt` | PASS
+SC-48 | VNI | `ba65t_ta8t1` | `bật_tắt` | `bật_tắt` | PASS
+SC-49 | VNI | `t8` | `t8` | `t8` | PASS
+SC-50 | VNI | `ba65t t8` | `bật t8` | `bật t8` | PASS
+SC-51 | VNI | `t8 t8` | `t8 t8` | `t8 t8` | PASS
+SC-52 | VNI | `ba65t.t8` | `bật.t8` | `bật.t8` | PASS
+SC-53 | VNI | `a8` | `ă` | `ă` | PASS
+SC-54 | VNI | `ba65t/a8` | `bật/ă` | `bật/a8` | FAIL
+SC-55 | VNI | `a61` | `ấ` | `ấ` | PASS
+SC-56 | VNI | `ba65t/a61` | `bật/ấ` | `bật/a61` | FAIL
+SC-57 | VNI | `d9` | `đ` | `đ` | PASS
+SC-58 | VNI | `ba65t/d9` | `bật/đ` | `bật/d9` | FAIL
+SC-59 | VNI | `o7` | `ơ` | `ơ` | PASS
+SC-60 | VNI | `ba65t/o7` | `bật/ơ` | `bật/o7` | FAIL
+SC-61 | VNI | `u7` | `ư` | `ư` | PASS
+SC-62 | VNI | `ba65t/u7` | `bật/ư` | `bật/u7` | FAIL
+SC-63 | VNI+keypad | `ba65t/ta8t1 (numpad digits)` | `bật/tắt` | `bật/ta8t1` | FAIL
+SC-64 | VNI+keypad | `ta8t1 (numpad digits)` | `tắt` | `tắt` | PASS
+SC-65 | VNI+VK | `ba65t!ta8t1` | `bật!tắt` | `bật!tắt` | PASS
+SC-66 | VNI+Shift+1 | `ba65t!ta8t1 (vk 0x31 + `!`)` | `bật!tắt` | `bật!tắt` | PASS
+SC-67 | Telex | `Tha/ + BS + s` | `Thá` | `Thá` | PASS
+SC-68 | VNI+macro | `ko + space` | `không ` | `không ` | PASS
+SC-69 | VNI+macro | `ba65t/ko + space` | `bật/không ` | `bật/không ` | PASS
+SC-70 | VNI+macro | `bt/ + space (trigger contains `/`)` | `bt/ ` | `bt/ ` | PASS
+SC-76 | VNI+macro | `ko/ (macro committed by `/`)` | `không/` | `không/` | PASS
+SC-77 | VNI+macro | `ba65t/ko/` | `bật/không/` | `bật/không/` | PASS
+SC-71 | VNI+macro_only | `ko/ (macro only)` | `không/` | `không/` | PASS
+SC-72 | VNI | `ba65t/ta8t1 + BS` | `bật/ta8t` | `bật/ta8t` | PASS
+SC-73 | VNI | `ba65t/ta8t1/ba65t` | `bật/tắt/bật` | `bật/ta8t1/ba65t` | FAIL
+SC-74 | VNI | `ba65t/ta8t1 + Enter + ta8t1` | `bật/ta8t1
+tắt` | `bật/ta8t1
+tắt` | PASS
+SC-75 | VNI | `Ba65t/Ta8t1` | `Bật/Tắt` | `Bật/Ta8t1` | FAIL
+SC-78 | VNI | `ba65t$ta8t1` | `bật$tắt` | `bật$tắt` | PASS
+-- total 78 · pass 56 · fail 22
+-- failed: SC-02, SC-03, SC-06, SC-07, SC-08, SC-17, SC-21, SC-23, SC-27, SC-28, SC-29, SC-31, SC-32, SC-33, SC-54, SC-56, SC-58, SC-60, SC-62, SC-63, SC-73, SC-75
+.
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+

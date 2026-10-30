@@ -1,0 +1,9 @@
+﻿P6/P4
+P6 run1 hook_ready_ms=433 ready=True
+P6 run2 hook_ready_ms=391 ready=True
+P6 run3 hook_ready_ms=387 ready=True
+P4 tray_only app=15.7MB total=15.7MB webviews=0
+P4 window_open app=27.9MB total=347.5MB webviews=6
+P4 after_close_3s app=4.5MB total=4.5MB webviews=0
+P4 drop_mb=343
+P6P4-DONE
