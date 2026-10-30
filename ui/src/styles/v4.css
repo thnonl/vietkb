@@ -467,6 +467,15 @@
 .about-story.folded {
   margin-top: 8px;
 }
+.about-story h2.fold-h {
+  margin: 0;
+}
+.about-story [hidden] {
+  display: none;
+}
+.about-update.story-open .about-changelog {
+  min-height: 120px;
+}
 .about-story.folded > div {
   padding: 0 4px 4px;
 }
@@ -560,12 +569,11 @@
   outline: 2px solid var(--acc-text);
   outline-offset: -2px;
 }
-.about-cl-body p,
-.about-cl-body h3 {
+.about-cl-body :where(p, h3) {
   margin: 0;
 }
 .cl-h {
-  margin-top: 12px !important;
+  margin-top: 12px;
   font: 600 12px/16px var(--ui);
   color: var(--t1);
 }
@@ -574,7 +582,7 @@
   color: var(--t2);
 }
 .cl-h:first-child {
-  margin-top: 0 !important;
+  margin-top: 0;
 }
 .cl-h + .cl-li,
 .cl-h + .cl-p {

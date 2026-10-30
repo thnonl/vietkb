@@ -18,11 +18,14 @@ function isShaLine(line: string): boolean {
   const plain = trimmed.replace(/[`*]/g, "");
   const at = plain.indexOf(":");
   if (at < 0) return false;
-  return plain.slice(0, at).trim().toLowerCase() === "sha256";
+  if (plain.slice(0, at).trim().toLowerCase() !== "sha256") return false;
+  const hex = plain.slice(at + 1).trim().replace(/^["' ]+|["' ]+$/g, "");
+  return /^[0-9a-f]{64}$/i.test(hex);
 }
 
 function isFullChangelogLine(line: string): boolean {
-  return /^\**\s*full changelog\s*\**\s*:/i.test(line.trim());
+  const plain = line.trim().replace(/^[*\-# ]+/, "").replace(/\*/g, "").trim();
+  return /^full changelog\s*:/i.test(plain);
 }
 
 export function parseInline(src: string): Inline[] {

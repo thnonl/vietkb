@@ -70,23 +70,25 @@
 
       <section class="about-story" class:folded={!!info}>
         {#if info}
-          <button
-            type="button"
-            class="about-fold"
-            aria-expanded={storyOpen}
-            aria-controls="about-story-body"
-            onclick={() => (storyOpen = !storyOpen)}
-          >
-            <span>Vì sao có VietKB</span>
-            <svg class="about-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
+          <h2 class="fold-h">
+            <button
+              type="button"
+              class="about-fold"
+              aria-expanded={storyOpen}
+              aria-controls="about-story-body"
+              onclick={() => (storyOpen = !storyOpen)}
+            >
+              <span>Vì sao có VietKB</span>
+              <svg class="about-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </h2>
         {:else}
           <h2>Vì sao có VietKB</h2>
         {/if}
-        {#if showStory}
-          <div id="about-story-body">          <p>
+        <div id="about-story-body" hidden={!showStory}>
+          <p>
             Những bộ gõ đang có vẫn gõ đúng, nhưng mang theo cả một thời phần mềm cũ: bảng mã 8-bit,
             hàng chục tuỳ chọn, nhiều tab.
           </p>
@@ -100,13 +102,12 @@
           </p>
 
           <p class="about-close">Một bộ gõ tốt là bộ gõ bạn không phải nghĩ tới.</p>
-          </div>
-        {/if}
+        </div>
       </section>
 
       <div class="about-div"></div>
 
-      <section class="about-update">
+      <section class="about-update" class:story-open={showStory}>
         <p class="about-status" data-tone={tone} role="status">{statusText}</p>
 
         <div class="about-actions">
