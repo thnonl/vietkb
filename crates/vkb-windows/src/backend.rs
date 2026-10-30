@@ -48,10 +48,6 @@ impl Injector {
 }
 
 impl EngineSink for Injector {
-    fn emit(&mut self, action: EngineAction) -> Result<()> {
-        self.emit_with(action, HeldKeys::default())
-    }
-
     fn emit_with(&mut self, action: EngineAction, held: HeldKeys) -> Result<()> {
         // The action is already final: `ch` is irrelevant here.
         let decision = decide(&action, None);
@@ -147,7 +143,7 @@ mod tests {
     #[test]
     fn injector_ignores_noop_actions() {
         let mut injector = Injector::default();
-        assert!(injector.emit(EngineAction::Noop).is_ok());
-        assert!(injector.emit(EngineAction::Swallow).is_ok());
+        assert!(injector.emit_with(EngineAction::Noop, HeldKeys::default()).is_ok());
+        assert!(injector.emit_with(EngineAction::Swallow, HeldKeys::default()).is_ok());
     }
 }

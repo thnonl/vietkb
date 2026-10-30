@@ -1223,7 +1223,11 @@ mod tests {
     struct Recorder(Arc<Mutex<Vec<EngineAction>>>);
 
     impl vkb_platform::EngineSink for Recorder {
-        fn emit(&mut self, action: EngineAction) -> anyhow::Result<()> {
+        fn emit_with(
+            &mut self,
+            action: EngineAction,
+            _held: vkb_platform::plan::HeldKeys,
+        ) -> anyhow::Result<()> {
             self.0.lock().unwrap().push(action);
             Ok(())
         }

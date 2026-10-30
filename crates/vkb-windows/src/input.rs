@@ -811,8 +811,14 @@ mod tests {
             out.push((keys::VK_BACK, back, up, tag));
         }
         let scancode_ascii = mode == SendMode::Standard || deletes > 0;
-        for ch in text.chars() {
-            if ch == '\n' {
+        let mut chars = text.chars().peekable();
+        while let Some(ch) = chars.next() {
+            // Main's line-break handling: `\r\n` is one Return, a lone `\r` or
+            // `\n` is one Return.
+            if ch == '\r' && chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            if ch == '\r' || ch == '\n' {
                 let scan = keys::scan_for_vk(keys::VK_RETURN);
                 out.push((keys::VK_RETURN, scan, down, tag));
                 out.push((keys::VK_RETURN, scan, up, tag));
@@ -847,7 +853,7 @@ mod tests {
         // Ruling C: without a held Shift (and Caps Lock off) nothing changes,
         // for `send_standard` and for the packet default, with and without a
         // delete block.
-        let text = "Việt Nam ăâđêôơư ABC xyz 019 !@#$ .,;:'\"[]{}|\\-=_+<>?/`~\n😀 tAs Đ";
+        let text = "Việt Nam ăâđêôơư ABC xyz 019 !@#$ .,;:'\"[]{}|\\-=_+<>?/`~\n😀 tAs Đ a\r\nb \r x\ny\r";
         for mode in [SendMode::Standard, SendMode::Unicode] {
             for deletes in [0, 1, 4] {
                 let built: Vec<_> = build_segment_held(deletes, text, mode, Held::default())
@@ -860,6 +866,32 @@ mod tests {
                 assert_eq!(plain, built);
             }
         }
+    }
+
+    #[test]
+    fn caps_lock_on_with_no_shift_held_gives_a_lowercase_letter_a_shift_pair() {
+        // Intended: with Caps Lock on, the bare key shows a capital, so a
+        // lowercase letter needs a Shift pair and a capital needs none.
+        // This deliberately differs from main, which ignored Caps Lock and so
+        // typed an uppercase letter wherever the engine wanted a lowercase one.
+        let caps = Held { shift: 0, caps: true };
+        let batch = build_segment_held(1, "aB", SendMode::Unicode, caps);
+        assert_eq!(
+            events(&batch).into_iter().skip(2).collect::<Vec<_>>(),
+            vec![
+                (keys::VK_SHIFT, false),
+                (0x41, false),
+                (0x41, true),
+                (keys::VK_SHIFT, true),
+                (0x42, false),
+                (0x42, true),
+            ]
+        );
+        // Caps Lock does not affect digits or punctuation.
+        let batch = build_segment_held(1, "5.", SendMode::Unicode, caps);
+        assert_eq!(batch.len(), 2 + 4, "no Shift events: {:?}", events(&batch));
+        // Main's batch has no Shift pair around the `a`: the divergence.
+        assert_eq!(main_batch(1, "a", SendMode::Unicode).len(), 2 + 2);
     }
 
     #[test]

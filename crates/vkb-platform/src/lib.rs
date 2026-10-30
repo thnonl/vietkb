@@ -32,14 +32,12 @@ impl AppInfo {
 
 /// The backend calls this for every engine decision.
 pub trait EngineSink: Send {
-    /// Apply an action to the live target window.
-    fn emit(&mut self, action: EngineAction) -> anyhow::Result<()>;
-    /// [`Self::emit`] with the Shift keys and Caps Lock the user holds at this
-    /// event, so the injection can leave them exactly as it found them. A sink
-    /// that does not care ignores `held`.
-    fn emit_with(&mut self, action: EngineAction, _held: plan::HeldKeys) -> anyhow::Result<()> {
-        self.emit(action)
-    }
+    /// Apply an action to the live target window, with the Shift keys and Caps
+    /// Lock the user holds at this event so the injection leaves them exactly as
+    /// it found them. There is deliberately no `held`-less variant: a caller
+    /// cannot drop the held keys without a compile error. A sink that does not
+    /// care ignores `held`.
+    fn emit_with(&mut self, action: EngineAction, held: plan::HeldKeys) -> anyhow::Result<()>;
     fn active_app(&self) -> Option<AppInfo>;
 }
 
