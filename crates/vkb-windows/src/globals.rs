@@ -30,6 +30,20 @@ pub static HEARTBEAT: AtomicU64 = AtomicU64::new(0);
 /// Asks the hook thread to exit its loop.
 pub static STOP: AtomicBool = AtomicBool::new(false);
 
+/// Set by the mouse hook on any button-down; consumed by the keyboard path,
+/// which ends the current word (the mouse proc itself does nothing else).
+pub static MOUSE_DOWN: AtomicBool = AtomicBool::new(false);
+
+#[inline]
+pub fn note_mouse_down() {
+    MOUSE_DOWN.store(true, Ordering::Relaxed);
+}
+
+#[inline]
+pub fn take_mouse_down() -> bool {
+    MOUSE_DOWN.load(Ordering::Relaxed) && MOUSE_DOWN.swap(false, Ordering::Relaxed)
+}
+
 /// Thread id of the hook thread, for `PostThreadMessageW`. 0 = not running.
 pub static THREAD_ID: AtomicU32 = AtomicU32::new(0);
 

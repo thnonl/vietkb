@@ -36,6 +36,18 @@ const APP_TTL: Duration = Duration::from_millis(1500);
 /// IMM composition checks are cheap but not free; throttle them.
 const IME_TTL: Duration = Duration::from_millis(60);
 
+/// Harness negative control: reproduce the pre-D-E2E-03 trigger leak.
+#[cfg(feature = "e2e-harness")]
+fn legacy_trigger_leak() -> bool {
+    crate::e2e::legacy_trigger_leak()
+}
+
+#[cfg(not(feature = "e2e-harness"))]
+#[inline(always)]
+fn legacy_trigger_leak() -> bool {
+    false
+}
+
 /// The `Đổi kiểu gõ` cycle: Telex ↔ VNI.
 pub fn next_method(current: InputMethod) -> InputMethod {
     match current {
@@ -195,6 +207,7 @@ impl HookRuntime {
         self.apply_engine_options();
         self.reset_engine();
         self.hotkeys.discard_latches();
+        self.trigger_swallowed = [0; 4];
         if debuglog::enabled() {
             debuglog::note(&format!(
                 "config-applied global_enabled={} base_enabled={} app_rules={} hotkeys={} ime={}",
@@ -221,6 +234,11 @@ impl HookRuntime {
         info: &KBDLLHOOKSTRUCT,
         trace: &mut debuglog::Trace,
     ) -> Decision {
+        // A mouse button went down since the last key: the caret may have moved,
+        // so the word is over (20-spec: "Mouse button down (any) -> boundary()").
+        if globals::take_mouse_down() {
+            self.boundary_engine();
+        }
         let down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
         let released = message == WM_KEYUP || message == WM_SYSKEYUP;
         if !down && !released {
@@ -308,6 +326,18 @@ impl HookRuntime {
         let repeat = down && was_down;
         self.sync_global_toggle();
 
+        // A trigger key-down that was swallowed stays swallowed for as long as it
+        // is held: an auto-repeat follows the bit, not the matcher latch (the
+        // chord's modifier may already be up). A fresh key-down never inherits a
+        // stale bit left by a lost key-up.
+        if down && !is_modifier && self.trigger_is_swallowed(vk) {
+            if repeat {
+                trace.stage("hotkey-trigger-repeat");
+                return Decision::SWALLOW;
+            }
+            self.set_trigger_swallowed(vk, false);
+        }
+
         // 1. Hotkeys before anything else: the trigger must never reach the app.
         if let Some(hotkey) = self.hotkeys.on_key(vk, down, modifiers, is_modifier) {
             trace.stage("hotkey");
@@ -330,7 +360,7 @@ impl HookRuntime {
             // command palette on `F1` and ate the keys that followed), and the
             // key-up of a swallowed key-down must not arrive on its own.
             if down {
-                if self.hotkeys.swallows_trigger(vk) {
+                if self.hotkeys.swallows_trigger(vk) && !legacy_trigger_leak() {
                     trace.stage("hotkey-trigger");
                     self.set_trigger_swallowed(vk, true);
                     return Decision::SWALLOW;
@@ -888,6 +918,11 @@ impl HookRuntime {
         }
     }
 
+    fn trigger_is_swallowed(&self, vk: u16) -> bool {
+        let index = vk as usize;
+        self.trigger_swallowed[index / 64] & (1u64 << (index % 64)) != 0
+    }
+
     /// `true` once, for the key-up that closes a swallowed trigger key-down.
     fn take_trigger_swallowed(&mut self, vk: u16) -> bool {
         let index = vk as usize;
@@ -1288,5 +1323,103 @@ toggle_mode = "release"
                 win: false
             }
         );
+    }
+
+    // -- hotkey trigger swallowing (D-E2E-03) and the mouse boundary ----------
+
+    fn quiet_runtime() -> HookRuntime {
+        globals::store_enabled(true);
+        let mut cfg = AppConfig::default();
+        cfg.system.notification_sound = false;
+        HookRuntime::new(Some(Arc::new(cfg)), None)
+    }
+
+    fn key(rt: &mut HookRuntime, vk: u16, down: bool) -> Decision {
+        let info = KBDLLHOOKSTRUCT {
+            vkCode: u32::from(vk),
+            scanCode: 0,
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        };
+        rt.on_event(if down { WM_KEYDOWN } else { WM_KEYUP }, &info)
+    }
+
+    #[test]
+    fn release_mode_trigger_down_and_up_are_swallowed() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        assert!(key(&mut rt, keys::VK_F2, true).swallow, "F2 down must not reach the app");
+        assert!(key(&mut rt, keys::VK_F2, false).swallow, "and neither does its key-up");
+        assert!(!globals::enabled(), "F2 disables on release");
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        assert!(key(&mut rt, keys::VK_F1, false).swallow);
+        assert!(globals::enabled());
+        assert!(!key(&mut rt, keys::VK_F1, false).swallow, "a lone key-up is not ours");
+    }
+
+    #[test]
+    fn auto_repeat_follows_the_bit_not_the_latch() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        // The chord's latch is gone (a modifier went up mid-hold) ...
+        rt.hotkeys.discard_latches();
+        // ... yet the repeat of the swallowed key-down is swallowed too.
+        assert!(key(&mut rt, keys::VK_F1, true).swallow, "repeat must not leak");
+        assert!(key(&mut rt, keys::VK_F1, false).swallow);
+        assert!(!rt.trigger_is_swallowed(keys::VK_F1), "key-up clears the bit");
+    }
+
+    #[test]
+    fn stale_bit_is_cleared_by_a_fresh_key_down() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        rt.set_trigger_swallowed(0x41, true); // a lost key-up left this behind
+        let decision = key(&mut rt, 0x41, true);
+        assert!(!decision.swallow, "a fresh key-down must pass");
+        assert!(!rt.trigger_is_swallowed(0x41), "and drop the stale bit");
+    }
+
+    #[test]
+    fn bit_is_set_only_when_the_key_down_was_swallowed() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        // restore_word with nothing to restore passes (redo must reach the app).
+        key(&mut rt, keys::VK_LCONTROL, true);
+        key(&mut rt, keys::VK_LSHIFT, true);
+        let z = key(&mut rt, 0x5A, true);
+        assert!(!z.swallow, "nothing to restore: Ctrl+Shift+Z passes");
+        assert!(!rt.trigger_is_swallowed(0x5A), "so no bit");
+        key(&mut rt, 0x5A, false);
+        key(&mut rt, keys::VK_LSHIFT, false);
+        key(&mut rt, keys::VK_LCONTROL, false);
+    }
+
+    #[test]
+    fn apply_config_clears_the_swallowed_bits() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        assert!(rt.trigger_is_swallowed(keys::VK_F1));
+        let mut cfg = AppConfig::default();
+        cfg.system.notification_sound = false;
+        rt.apply_config(Arc::new(cfg));
+        assert!(!rt.trigger_is_swallowed(keys::VK_F1));
+    }
+
+    #[test]
+    fn mouse_button_down_ends_the_word() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        // `aa` composes `â`, so the second key is swallowed ...
+        assert!(!key(&mut rt, 0x41, true).swallow);
+        assert!(key(&mut rt, 0x41, true).swallow, "aa -> a-circumflex");
+        key(&mut rt, 0x41, false);
+        key(&mut rt, keys::VK_SPACE, true);
+        // ... but a click between the two keys starts a new word.
+        assert!(!key(&mut rt, 0x41, true).swallow);
+        globals::note_mouse_down();
+        assert!(!key(&mut rt, 0x41, true).swallow, "after a click the word is over");
     }
 }

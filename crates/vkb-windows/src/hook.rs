@@ -30,7 +30,8 @@ use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, HHOOK, KBDLLHOOKSTRUCT, MSG, MWMO_INPUTAVAILABLE,
     MsgWaitForMultipleObjectsEx, PM_NOREMOVE, PM_REMOVE, PeekMessageW, PostThreadMessageW,
-    QS_ALLINPUT, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_QUIT,
+    QS_ALLINPUT, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL,
+    WH_MOUSE_LL, WM_QUIT,
 };
 
 use crate::globals;
@@ -56,6 +57,13 @@ static WATCHDOG: parking_lot::Mutex<Option<thread::JoinHandle<()>>> = parking_lo
 pub fn install() -> Result<()> {
     // P2 probe: reads `VKB_PERF` once here (startup), never per keystroke.
     crate::perf::init_from_env();
+    // A shipped build must stamp the production marker, whatever the harness seam does.
+    #[cfg(not(feature = "e2e-harness"))]
+    assert_eq!(
+        crate::input::injected_tag(),
+        crate::input::INJECTED_MAGIC,
+        "injection marker must be the production one"
+    );
     if globals::READY.load(Ordering::SeqCst) && globals::ALIVE.load(Ordering::SeqCst) {
         return Ok(());
     }
@@ -133,6 +141,9 @@ pub fn notify_config_changed() {
 #[derive(Default)]
 struct HookSlot {
     handle: Cell<Option<HHOOK>>,
+    /// `WH_MOUSE_LL`, button-down boundary only. Optional: a refused mouse hook
+    /// never blocks typing.
+    mouse: Cell<Option<HHOOK>>,
 }
 
 impl HookSlot {
@@ -147,6 +158,15 @@ impl HookSlot {
         }
         .map_err(|err| anyhow!("SetWindowsHookExW failed: {err}"))?;
         self.handle.set(Some(handle));
+        // The harness build installs keyboard hooks only (it must not observe
+        // the owner's mouse).
+        #[cfg(not(feature = "e2e-harness"))]
+        match unsafe {
+            SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), HINSTANCE::default(), 0)
+        } {
+            Ok(mouse) => self.mouse.set(Some(mouse)),
+            Err(err) => tracing::warn!(error = %err, "mouse hook refused; clicks will not end a word"),
+        }
         Ok(())
     }
 
@@ -154,24 +174,55 @@ impl HookSlot {
         self.handle.get().is_some()
     }
 
-    fn refresh(&self) -> Result<()> {
+    fn unhook_all(&self) {
+        if let Some(old) = self.mouse.take() {
+            unsafe {
+                let _ = UnhookWindowsHookEx(old);
+            }
+        }
         if let Some(old) = self.handle.take() {
             unsafe {
                 let _ = UnhookWindowsHookEx(old);
             }
         }
+    }
+
+    fn refresh(&self) -> Result<()> {
+        self.unhook_all();
         self.install()
     }
 }
 
 impl Drop for HookSlot {
     fn drop(&mut self) {
-        if let Some(old) = self.handle.take() {
-            unsafe {
-                let _ = UnhookWindowsHookEx(old);
-            }
+        self.unhook_all();
+    }
+}
+
+/// Mouse button-down ends the current word. Nothing else happens here: no
+/// allocation, no lock, never swallowed; the keyboard path consumes the flag.
+unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    if code >= 0 {
+        // WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN, WM_XBUTTONDOWN.
+        if matches!(wparam.0 as u32, 0x0201 | 0x0204 | 0x0207 | 0x020B) {
+            globals::note_mouse_down();
         }
     }
+    unsafe { CallNextHookEx(None, code, wparam, lparam) }
+}
+
+/// One keyboard event through the runtime: perf probe, panic guard, decision.
+/// Shared by the real hook procedure and the in-process harness.
+pub(crate) fn process_event(runtime: &mut HookRuntime, message: u32, info: &KBDLLHOOKSTRUCT) -> bool {
+    // P2 probe: this is the single env-gated check on the hot path. `enabled()`
+    // is a cached relaxed bool; with `VKB_PERF` unset the body is skipped, so no
+    // clock read and no allocation happen for this keystroke.
+    if crate::perf::enabled() {
+        crate::perf::begin();
+    }
+    // A panic must never cross the FFI boundary (or kill the hook thread).
+    std::panic::catch_unwind(AssertUnwindSafe(|| runtime.on_event(message, info).swallow))
+        .unwrap_or(false)
 }
 
 fn spawn_worker() {
@@ -308,19 +359,11 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         true
     };
 
-    // A panic must never cross the FFI boundary (or kill the hook thread).
-    // P2 probe: this is the single env-gated check on the hot path. `enabled()`
-    // is a cached relaxed bool; with `VKB_PERF` unset the body is skipped, so no
-    // clock read and no allocation happen for this keystroke.
-    if crate::perf::enabled() {
-        crate::perf::begin();
-    }
-    let swallow = std::panic::catch_unwind(AssertUnwindSafe(|| {
+    let swallow = {
         let runtime = unsafe { &mut *runtime_ptr };
         let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
-        runtime.on_event(wparam.0 as u32, info).swallow
-    }))
-    .unwrap_or(false);
+        process_event(runtime, wparam.0 as u32, info)
+    };
 
     #[cfg(feature = "e2e-harness")]
     if harness_event {
