@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use vkb_config::AppConfig;
 use vkb_core::{
-    Engine, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine,
+    Engine, EngineAction, EngineOptions, InputMethod, KeyInput, Modifiers, VietnameseEngine,
 };
 use vkb_platform::hotkeys::Matcher;
 use vkb_platform::plan::{decide, Decision, Injection};
@@ -307,8 +307,8 @@ impl HookRuntime {
         // 1. Hotkeys before anything else: the trigger must never reach the app.
         if let Some(hotkey) = self.hotkeys.on_key(vk, down, modifiers, is_modifier) {
             trace.stage("hotkey");
-            self.on_hotkey(hotkey);
-            if down && !is_modifier {
+            let handled = self.on_hotkey(hotkey);
+            if down && !is_modifier && handled {
                 return Decision::SWALLOW;
             }
             // Modifier-only combos (Ctrl+Shift) are matched but passed through:
@@ -322,6 +322,20 @@ impl HookRuntime {
 
         // 2. Shortcut chords are never text.
         if self.mods.has_shortcut_modifier() {
+            if is_modifier {
+                // A modifier on its own types nothing and may still be half of a
+                // chord whose key needs the word (`restore_word`), so the word
+                // survives until the chord's key arrives.
+                trace.stage("modifier");
+                return Decision::PASS;
+            }
+            // A hotkey that fires once the chord is up (`restore_word`) owns this
+            // key: swallow it while the word is there, so the app does not run
+            // its own `Ctrl+Shift+Z` first and restore on top of a redo.
+            if self.hotkeys.awaiting_release() && self.engine_can_restore() {
+                trace.stage("hotkey-armed");
+                return Decision::SWALLOW;
+            }
             trace.stage("shortcut");
             self.reset_engine();
             return Decision::PASS;
@@ -454,27 +468,115 @@ impl HookRuntime {
 
     // -- internals ---------------------------------------------------------
 
-    fn on_hotkey(&mut self, hotkey: Hotkey) {
-        match hotkey {
-            Hotkey::Enable => self.set_enabled(true),
-            Hotkey::Disable => self.set_enabled(false),
+    /// Apply a configured hotkey. Returns `false` when the action had nothing to
+    /// do and the trigger key must keep its normal meaning in the target app.
+    fn on_hotkey(&mut self, hotkey: Hotkey) -> bool {
+        let handled = match hotkey {
+            Hotkey::Enable => {
+                self.set_enabled(true);
+                true
+            }
+            Hotkey::Disable => {
+                self.set_enabled(false);
+                true
+            }
             Hotkey::Toggle => {
                 let next = !self.effective_enabled();
                 self.set_enabled(next);
+                true
             }
-            Hotkey::RestoreWord => globals::fire_command(BackendCommand::RestoreWord),
-            Hotkey::AppExclude => globals::fire_command(BackendCommand::ToggleAppExclude),
-            Hotkey::MacroPanel => globals::fire_command(BackendCommand::OpenMacroPanel),
-            Hotkey::MacroToggle => globals::fire_command(BackendCommand::ToggleMacro),
-            Hotkey::OpenSettings => globals::fire_command(BackendCommand::OpenSettings),
+            Hotkey::RestoreWord => {
+                let rewritten = self.restore_word();
+                globals::fire_command(BackendCommand::RestoreWord);
+                rewritten
+            }
+            Hotkey::AppExclude => {
+                globals::fire_command(BackendCommand::ToggleAppExclude);
+                true
+            }
+            Hotkey::MacroPanel => {
+                globals::fire_command(BackendCommand::OpenMacroPanel);
+                true
+            }
+            Hotkey::MacroToggle => {
+                globals::fire_command(BackendCommand::ToggleMacro);
+                true
+            }
+            Hotkey::OpenSettings => {
+                globals::fire_command(BackendCommand::OpenSettings);
+                true
+            }
             Hotkey::CycleMethod => {
                 let next = next_method(self.base.method);
                 self.base.method = next;
                 globals::fire_command(BackendCommand::SetMethod(next));
+                true
             }
-        }
+        };
         self.reset_engine();
         globals::fire_hotkey(hotkey);
+        handled
+    }
+
+    /// `Khôi phục từ gõ sai`: put the raw keystrokes of the current word back.
+    ///
+    /// The word buffer lives on the hook thread, so the rewrite has to happen
+    /// here; `BackendCommand::RestoreWord` stays the app-side notification.
+    /// Returns `false` when there is nothing to restore, so the chord keeps its
+    /// normal meaning in the app (EVKey lineage: `Ctrl+Shift+Z` is also *redo*).
+    fn restore_word(&mut self) -> bool {
+        if self.engine_failed {
+            return false;
+        }
+        let engine = &mut self.engine;
+        let action = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            engine.restore_word()
+        }))
+        .unwrap_or(EngineAction::Noop);
+        let decision = decide(&action, None);
+        if !decision.swallow {
+            return false;
+        }
+        if let Some(sink) = self.sink.as_mut() {
+            if let Err(err) = sink.emit(action) {
+                tracing::warn!(error = %err, "engine sink failed");
+            }
+        } else {
+            let chord = self.restore_chord();
+            let _ = self.execute_with(&decision, chord);
+        }
+        true
+    }
+
+    /// Modifiers of the configured `restore_word` chord.
+    ///
+    /// The chord fires inside the hook callback of its final key-up, so the
+    /// injection must release these itself (`input::build_restore`); otherwise
+    /// the target still sees them held and the text arrives shifted (CH2).
+    fn restore_chord(&self) -> Modifiers {
+        self.cfg
+            .as_ref()
+            .and_then(|cfg| cfg.hotkeys.restore_word.as_ref())
+            .map_or(
+                // No config yet: the shipped default chord is `Ctrl+Shift+Z`.
+                Modifiers {
+                    shift: true,
+                    ctrl: true,
+                    alt: false,
+                    win: false,
+                },
+                |hotkey| Modifiers {
+                    shift: hotkey.modifiers.shift,
+                    ctrl: hotkey.modifiers.ctrl,
+                    alt: hotkey.modifiers.alt,
+                    win: hotkey.modifiers.win,
+                },
+            )
+    }
+
+    /// `true` when the restore hotkey has a word to rewrite.
+    fn engine_can_restore(&self) -> bool {
+        !self.engine_failed && self.engine.can_restore()
     }
 
     fn process(&mut self, key: KeyInput) -> EngineAction {
@@ -498,21 +600,32 @@ impl HookRuntime {
     }
 
     fn execute(&mut self, decision: &Decision) -> Option<SendResult> {
+        self.execute_with(decision, Modifiers::NONE)
+    }
+
+    /// `release_chord`: the injection follows a modifier-chord hotkey
+    /// (`restore_word`), so the batch must neutralise the chord's modifiers
+    /// first — see [`input::build_restore`].
+    fn execute_with(&mut self, decision: &Decision, release_chord: Modifiers) -> Option<SendResult> {
         match &decision.injection {
             Injection::None => None,
             Injection::Beep => {
                 if self.sound_on {
-                    sound::play_toggle(globals::enabled());
+                    // Error cue, not a toggle state: `play_error()` is the
+                    // `SystemHand` alias (`22-sound-spec.md` §5).
+                    sound::play_error();
                 }
                 None
             }
-            Injection::Type(text) => Some(self.deliver(text, 0)),
-            Injection::Replace { deletes, insert } => Some(self.deliver(insert, *deletes)),
+            Injection::Type(text) => Some(self.deliver_with(text, 0, release_chord)),
+            Injection::Replace { deletes, insert } => {
+                Some(self.deliver_with(insert, *deletes, release_chord))
+            }
         }
     }
 
     /// Batched delivery: deletes and text go out in one `SendInput` call.
-    fn deliver(&mut self, text: &str, deletes: u32) -> SendResult {
+    fn deliver_with(&mut self, text: &str, deletes: u32, chord: Modifiers) -> SendResult {
         if self.use_clipboard {
             if deletes > 0 {
                 let inputs = input::build_segment(deletes, "", self.send_mode);
@@ -523,7 +636,14 @@ impl HookRuntime {
             }
             return SendResult::default();
         }
-        let inputs = input::build_segment(deletes, text, self.send_mode);
+        let build = |deletes: u32, text: &str, mode: SendMode| {
+            if chord == Modifiers::NONE {
+                input::build_segment(deletes, text, mode)
+            } else {
+                input::build_restore(deletes, text, mode, chord)
+            }
+        };
+        let inputs = build(deletes, text, self.send_mode);
         let mut result = input::send_detailed(&inputs);
         if result.total > 0 && result.sent < result.total {
             // The app refused (part of) the batch. Step down one strategy for
@@ -531,7 +651,7 @@ impl HookRuntime {
             // keeps typing raw instead of losing characters.
             self.on_short_send();
             if !self.auto_excluded {
-                let retry = input::build_segment(deletes, text, self.send_mode);
+                let retry = build(deletes, text, self.send_mode);
                 result = input::send_detailed(&retry);
                 if result.total > 0 && result.sent < result.total {
                     self.auto_excluded = true;
@@ -949,5 +1069,164 @@ mod tests {
             Some(WordContext { enabled: false, ..in_a }),
             in_a
         ));
+    }
+
+    // -- D-E2E-02: `restore_word` must reach the word buffer ------------------
+
+    struct Recorder(Arc<Mutex<Vec<EngineAction>>>);
+
+    impl vkb_platform::EngineSink for Recorder {
+        fn emit(&mut self, action: EngineAction) -> anyhow::Result<()> {
+            self.0.lock().unwrap().push(action);
+            Ok(())
+        }
+
+        fn active_app(&self) -> Option<vkb_platform::AppInfo> {
+            None
+        }
+    }
+
+    fn kb(vk: u32, scan: u32) -> KBDLLHOOKSTRUCT {
+        KBDLLHOOKSTRUCT {
+            vkCode: vk,
+            scanCode: scan,
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        }
+    }
+
+    /// Type through the packet path (no injection without a window) and return
+    /// everything the engine decided, so the caller can inspect the last action.
+    fn type_chars(rt: &mut HookRuntime, text: &str) {
+        for ch in text.chars() {
+            rt.on_event(WM_KEYDOWN, &kb(u32::from(keys::VK_PACKET), ch as u32));
+            rt.on_event(WM_KEYUP, &kb(u32::from(keys::VK_PACKET), ch as u32));
+        }
+    }
+
+    #[test]
+    fn restore_word_hotkey_rewrites_the_word_on_release() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        globals::store_enabled(true);
+        let toml = r#"
+version = 1
+[input]
+enabled = true
+method = "vni"
+[typing]
+send_standard = true
+[hotkeys]
+toggle = "Alt+Shift"
+restore_word = "Ctrl+Shift+Z"
+toggle_mode = "release"
+"#;
+        let cfg = AppConfig::from_toml(toml).unwrap();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut rt = HookRuntime::new(
+            Some(Arc::new(cfg)),
+            Some(Box::new(Recorder(Arc::clone(&seen)))),
+        );
+
+        type_chars(&mut rt, "ba6t5");
+
+        // Ctrl+Shift+Z with left/right modifier VKs, as SendInput delivers them.
+        rt.on_event(WM_KEYDOWN, &kb(0xA2, 0x1D));
+        rt.on_event(WM_KEYDOWN, &kb(0xA0, 0x2A));
+        rt.on_event(WM_KEYDOWN, &kb(0x5A, 0x2C));
+        rt.on_event(WM_KEYUP, &kb(0x5A, 0x2C));
+        rt.on_event(WM_KEYUP, &kb(0xA0, 0x2A));
+        rt.on_event(WM_KEYUP, &kb(0xA2, 0x1D));
+
+        let actions = seen.lock().unwrap();
+        let last = actions.last().expect("the hook must emit the restore");
+        assert_eq!(
+            *last,
+            EngineAction::Replace {
+                delete_units: 3,
+                insert: "ba6t5".to_string()
+            },
+            "the chord must rewrite `bật` back to the raw keystrokes"
+        );
+        drop(actions);
+
+        // A settings save republishes the config from the UI thread; the chord
+        // must keep working after the matcher is rebuilt.
+        let cfg = AppConfig::from_toml(toml).unwrap();
+        rt.apply_config(Arc::new(cfg));
+        type_chars(&mut rt, "ba6t5");
+        rt.on_event(WM_KEYDOWN, &kb(0xA2, 0x1D));
+        rt.on_event(WM_KEYDOWN, &kb(0xA0, 0x2A));
+        rt.on_event(WM_KEYDOWN, &kb(0x5A, 0x2C));
+        rt.on_event(WM_KEYUP, &kb(0x5A, 0x2C));
+        rt.on_event(WM_KEYUP, &kb(0xA0, 0x2A));
+        rt.on_event(WM_KEYUP, &kb(0xA2, 0x1D));
+        let actions = seen.lock().unwrap();
+        assert_eq!(
+            actions.last(),
+            Some(&EngineAction::Replace {
+                delete_units: 3,
+                insert: "ba6t5".to_string()
+            }),
+            "the chord must survive a config republish"
+        );
+        drop(actions);
+
+        // No word to restore: the chord keeps its meaning in the app (redo) and
+        // the hook must not swallow the trigger key.
+        rt.on_event(WM_KEYDOWN, &kb(0xA2, 0x1D));
+        rt.on_event(WM_KEYDOWN, &kb(0xA0, 0x2A));
+        let decision = rt.on_event(WM_KEYDOWN, &kb(0x5A, 0x2C));
+        assert!(
+            !decision.swallow,
+            "`Ctrl+Shift+Z` must reach the app when there is nothing to restore"
+        );
+        rt.on_event(WM_KEYUP, &kb(0x5A, 0x2C));
+        rt.on_event(WM_KEYUP, &kb(0xA0, 0x2A));
+        rt.on_event(WM_KEYUP, &kb(0xA2, 0x1D));
+    }
+
+    /// CH2: the injection runs inside the hook callback of the chord's last
+    /// key-up, so the restore batch must release the chord's own modifiers —
+    /// taken from the configured `restore_word`, not hardcoded.
+    #[test]
+    fn restore_releases_the_configured_chord() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        globals::store_enabled(true);
+        let chord = |spec: &str| {
+            let toml = format!(
+                "version = 1\n[input]\nenabled = true\nmethod = \"vni\"\n\
+                 [typing]\nsend_standard = false\n[hotkeys]\nrestore_word = \"{spec}\"\n"
+            );
+            let cfg = AppConfig::from_toml(&toml).unwrap();
+            HookRuntime::new(Some(Arc::new(cfg)), None).restore_chord()
+        };
+        assert_eq!(
+            chord("Ctrl+Shift+Z"),
+            vkb_core::Modifiers {
+                shift: true,
+                ctrl: true,
+                alt: false,
+                win: false
+            }
+        );
+        assert_eq!(
+            chord("Ctrl+Alt+Z"),
+            vkb_core::Modifiers {
+                shift: false,
+                ctrl: true,
+                alt: true,
+                win: false
+            }
+        );
+        assert_eq!(
+            chord("Shift+F24"),
+            vkb_core::Modifiers {
+                shift: true,
+                ctrl: false,
+                alt: false,
+                win: false
+            }
+        );
     }
 }

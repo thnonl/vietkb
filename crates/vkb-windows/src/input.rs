@@ -5,15 +5,24 @@
 //! `EngineAction::Replace` that means the target window sees all backspaces and
 //! the replacement text in one atomic batch — no intermediate state, no flicker.
 //!
+//! Encoding inside that batch is not free, though: the Windows 11 Notepad text
+//! stack collapses a run of `KEYEVENTF_UNICODE` (`VK_PACKET`) characters that
+//! arrives directly after backspaces onto the run's last character (D-E2E-01,
+//! reproduced with raw `SendInput` and no hook). So a replacement types its
+//! ASCII characters as real VK + scancode keystrokes and reserves the packet
+//! path for characters no US key produces. Plain typing keeps the pure packet
+//! path: it has no delete block and is not affected.
+//!
 //! Clipboard is never part of this path (charter C4); the opt-in fallback lives
 //! in [`crate::clipboard`].
 
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
-    KEYEVENTF_UNICODE, VIRTUAL_KEY,
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY,
 };
 
 use crate::keys;
+use vkb_core::Modifiers;
 use vkb_platform::plan::Injection;
 
 /// Stamped on every synthetic event so the hook can recognise its own input and
@@ -42,11 +51,67 @@ pub fn build(injection: &Injection, mode: SendMode) -> Vec<INPUT> {
 /// Backspaces + text in one array, so `Replace` is delivered atomically.
 pub fn build_segment(deletes: u32, text: &str, mode: SendMode) -> Vec<INPUT> {
     let mut out = Vec::with_capacity((deletes as usize) * 2 + text.encode_utf16().count() * 2);
-    for _ in 0..deletes {
-        push_backspace(&mut out, mode);
-    }
-    push_text(&mut out, text, mode);
+    push_segment(&mut out, deletes, text, mode);
     out
+}
+
+/// A `restore_word` rewrite: the chord's modifiers are released first, then the
+/// deletes and the text, all in one `SendInput` call.
+///
+/// The restore chord fires *inside* the hook callback of the key-up that
+/// releases it (`Combo::fire_on_full_release`), so the OS has not applied that
+/// key-up yet and the target still sees `Ctrl`/`Shift` down. Every injected
+/// character then arrives shifted — measured CH2: `ba6t5` reached the app as
+/// `BA^T%` (Shift still down) or as `Ctrl+letter` shortcuts (Ctrl still down).
+/// A key-up for a key that is already up is a no-op for the OS, so releasing the
+/// chord's own modifiers here is safe: it only runs when the user has already
+/// let go of every key of the chord. Plain typing never uses this path.
+pub fn build_restore(deletes: u32, text: &str, mode: SendMode, chord: Modifiers) -> Vec<INPUT> {
+    let mut out =
+        Vec::with_capacity(8 + (deletes as usize) * 2 + text.encode_utf16().count() * 2);
+    push_chord_release(&mut out, chord);
+    push_segment(&mut out, deletes, text, mode);
+    out
+}
+
+fn push_segment(out: &mut Vec<INPUT>, deletes: u32, text: &str, mode: SendMode) {
+    for _ in 0..deletes {
+        push_backspace(out, mode);
+    }
+    // D-E2E-01: a replacement is a delete block followed by text in the *same*
+    // `SendInput` batch. In Notepad's WinUI text stack a run of `VK_PACKET`
+    // (`KEYEVENTF_UNICODE`) characters that follows backspaces is not appended
+    // character by character — the whole run collapses onto its last character
+    // (`Replace{2,"tă"}` over `bật/ta` yields `bật/ăă`, `Replace{3,"tắt"}`
+    // yields `ttt`). Reproduced with raw `SendInput` and no hook, so it is the
+    // target, not the engine. Keeping ASCII off the packet path in a
+    // replacement is what makes the batch survive: measured 8/8 correct for
+    // `ba6t5/ta8t1` versus 0/8 on the pure packet path. Plain typing has no
+    // delete block and keeps the layout-independent packet path.
+    push_text(out, text, mode, deletes > 0);
+}
+
+/// Key-ups for the modifiers of the chord that just ended.
+///
+/// Both sides of each modifier: a generic `VK_SHIFT` key-up does not clear
+/// `RSHIFT`, and the user may have used either.
+fn push_chord_release(out: &mut Vec<INPUT>, chord: Modifiers) {
+    if chord.shift {
+        push_key(out, keys::VK_LSHIFT, keys::scan_for_vk(keys::VK_LSHIFT), true);
+        push_key(out, keys::VK_RSHIFT, keys::scan_for_vk(keys::VK_RSHIFT), true);
+    }
+    if chord.ctrl {
+        push_key(out, keys::VK_LCONTROL, 0x1D, true);
+        push_key_ext(out, keys::VK_RCONTROL, 0x1D, true);
+    }
+    if chord.alt {
+        push_key(out, keys::VK_LMENU, 0x38, true);
+        push_key_ext(out, keys::VK_RMENU, 0x38, true);
+    }
+    if chord.win {
+        push_key_ext(out, keys::VK_LWIN, 0x5B, true);
+        push_key_ext(out, keys::VK_RWIN, 0x5C, true);
+    }
 }
 
 fn push_backspace(out: &mut Vec<INPUT>, mode: SendMode) {
@@ -58,7 +123,7 @@ fn push_backspace(out: &mut Vec<INPUT>, mode: SendMode) {
     push_key(out, keys::VK_BACK, scan, true);
 }
 
-fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode) {
+fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode, scancode_ascii: bool) {
     let mut chars = text.chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
@@ -71,7 +136,7 @@ fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode) {
                 push_newline(out);
             }
             '\n' => push_newline(out),
-            other => push_char(out, other, mode),
+            other => push_char(out, other, mode, scancode_ascii),
         }
     }
 }
@@ -82,43 +147,63 @@ fn push_newline(out: &mut Vec<INPUT>) {
     push_key(out, keys::VK_RETURN, scan, true);
 }
 
-fn push_char(out: &mut Vec<INPUT>, ch: char, mode: SendMode) {
-    match mode {
-        SendMode::Unicode => {
-            let mut buf = [0u16; 2];
-            for unit in ch.encode_utf16(&mut buf).iter().copied() {
-                push_unicode(out, unit, false);
-                push_unicode(out, unit, true);
-            }
-        }
-        SendMode::Standard => match keys::us_vk_for_char(ch) {
-            Some((vk, shift)) => {
-                if shift {
-                    push_key(out, keys::VK_SHIFT, keys::scan_for_vk(keys::VK_SHIFT), false);
-                }
-                let scan = keys::scan_for_vk(vk);
-                push_key(out, vk, scan, false);
-                push_key(out, vk, scan, true);
-                if shift {
-                    push_key(out, keys::VK_SHIFT, keys::scan_for_vk(keys::VK_SHIFT), true);
-                }
-            }
-            // No key produces this character on a US layout (Vietnamese
-            // diacritics): fall back to the Unicode event so the text is
-            // never lost.
-            None => {
-                let mut buf = [0u16; 2];
-                for unit in ch.encode_utf16(&mut buf).iter().copied() {
-                    push_unicode(out, unit, false);
-                    push_unicode(out, unit, true);
-                }
-            }
-        },
+fn push_char(out: &mut Vec<INPUT>, ch: char, mode: SendMode, scancode_ascii: bool) {
+    // Both modes fall back to a Unicode packet for a character no US key
+    // produces (Vietnamese diacritics), so the text is never lost.
+    let via_scancode = mode == SendMode::Standard || scancode_ascii;
+    match keys::us_vk_for_char(ch).filter(|_| via_scancode) {
+        Some((vk, shift)) => push_ascii_key(out, vk, shift),
+        None => push_unicode_char(out, ch),
+    }
+}
+
+/// One ASCII key press: optional Shift held around a VK + scancode pair.
+fn push_ascii_key(out: &mut Vec<INPUT>, vk: u16, shift: bool) {
+    let shift_scan = keys::scan_for_vk(keys::VK_SHIFT);
+    if shift {
+        push_key(out, keys::VK_SHIFT, shift_scan, false);
+    }
+    let scan = keys::scan_for_vk(vk);
+    push_key(out, vk, scan, false);
+    push_key(out, vk, scan, true);
+    if shift {
+        push_key(out, keys::VK_SHIFT, shift_scan, true);
+    }
+}
+
+/// One character as `KEYEVENTF_UNICODE` (layout independent, surrogate-safe).
+fn push_unicode_char(out: &mut Vec<INPUT>, ch: char) {
+    let mut buf = [0u16; 2];
+    for unit in ch.encode_utf16(&mut buf).iter().copied() {
+        push_unicode(out, unit, false);
+        push_unicode(out, unit, true);
     }
 }
 
 fn push_key(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
     push_key_tagged(out, vk, scan, up, INJECTED_MAGIC);
+}
+
+/// Same, for a key that lives on the extended scan-code set (`RCONTROL`,
+/// `RMENU`, `LWIN`/`RWIN`): without the flag a `RCONTROL` key-up with scan
+/// `0x1D` reads as the left key.
+fn push_key_ext(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
+    let mut flags = KEYEVENTF_EXTENDEDKEY;
+    if up {
+        flags |= KEYEVENTF_KEYUP;
+    }
+    out.push(INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VIRTUAL_KEY(vk),
+                wScan: scan,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: INJECTED_MAGIC,
+            },
+        },
+    });
 }
 
 fn push_key_tagged(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool, extra: usize) {
@@ -356,7 +441,7 @@ mod tests {
     #[test]
     fn macro_newline_is_typed_as_return() {
         let mut out = Vec::new();
-        push_text(&mut out, "a\nb", SendMode::Unicode);
+        push_text(&mut out, "a\nb", SendMode::Unicode, false);
         assert_eq!(out.len(), 6, "a, Return down/up, b");
         assert_eq!(field(&out[2]).0, keys::VK_RETURN);
         assert!(!is_up(&out[2]));
@@ -364,13 +449,353 @@ mod tests {
         assert!(is_up(&out[3]));
 
         let mut crlf = Vec::new();
-        push_text(&mut crlf, "a\r\nb", SendMode::Unicode);
+        push_text(&mut crlf, "a\r\nb", SendMode::Unicode, false);
         assert_eq!(crlf.len(), 6, "CRLF must collapse to one newline");
+    }
+
+    /// D-E2E-01: inside a replacement the ASCII characters must be real
+    /// scancode keystrokes, never `VK_PACKET` — Notepad's WinUI text stack
+    /// collapses a packet run that follows backspaces.
+    #[test]
+    fn replace_types_ascii_with_scancodes_in_unicode_mode() {
+        let inputs = bake(
+            &Injection::Replace {
+                deletes: 2,
+                insert: "tă".to_string(),
+            },
+            SendMode::Unicode,
+        );
+        // 2 backspace pairs, then T as a real key, then ă as a packet.
+        assert_eq!(inputs.len(), 4 + 2 + 2);
+        for input in &inputs[..4] {
+            assert_eq!(field(input).0, keys::VK_BACK);
+        }
+        let t_down = field(&inputs[4]);
+        assert_eq!(t_down.0, 0x54, "ASCII 't' goes through the VK path");
+        assert_eq!(t_down.1, keys::scan_for_vk(0x54));
+        assert_eq!(t_down.2 & KEYEVENTF_UNICODE.0, 0, "not a packet");
+        assert!(!is_up(&inputs[4]));
+        assert!(is_up(&inputs[5]));
+        let packet = field(&inputs[6]);
+        assert_eq!(packet.0, 0, "non-ASCII stays layout independent");
+        assert_eq!(packet.2 & KEYEVENTF_UNICODE.0, KEYEVENTF_UNICODE.0);
+        assert_eq!(unicode_seqs(&inputs[6..]), vec![(0x0103, false), (0x0103, true)]);
+    }
+
+    /// The packet path is kept for plain typing: no delete block, no collapse.
+    #[test]
+    fn type_keeps_unicode_packets_in_unicode_mode() {
+        let inputs = bake(&Injection::Type("tă".to_string()), SendMode::Unicode);
+        assert_eq!(inputs.len(), 4, "two characters, four packet events");
+        for input in &inputs {
+            let (vk, _, flags, _) = field(input);
+            assert_eq!(vk, 0, "plain typing must not press a VK");
+            assert_ne!(flags & KEYEVENTF_UNICODE.0, 0);
+        }
+        assert_eq!(unicode_seqs(&inputs), vec![(0x0074, false), (0x0074, true), (0x0103, false), (0x0103, true)]);
+    }
+
+    #[test]
+    fn replace_wraps_shifted_ascii_in_shift() {
+        let inputs = bake(
+            &Injection::Replace {
+                deletes: 1,
+                insert: "A".to_string(),
+            },
+            SendMode::Unicode,
+        );
+        // backspace pair, then shift down, A down, A up, shift up
+        assert_eq!(inputs.len(), 2 + 4);
+        assert_eq!(field(&inputs[2]).0, keys::VK_SHIFT);
+        assert_eq!(field(&inputs[3]).0, 0x41);
+        assert!(is_up(&inputs[5]), "shift must be released last");
+    }
+
+    #[test]
+    fn replace_keeps_surrogate_pairs_whole() {
+        let inputs = bake(
+            &Injection::Replace {
+                deletes: 1,
+                insert: "😀".to_string(),
+            },
+            SendMode::Unicode,
+        );
+        // backspace pair, then the four packet events of D83D DE00
+        assert_eq!(inputs.len(), 2 + 4);
+        assert_eq!(
+            unicode_seqs(&inputs[2..]),
+            vec![(0xD83D, false), (0xD83D, true), (0xDE00, false), (0xDE00, true)]
+        );
+    }
+
+    /// Every backspace precedes every inserted character, whichever encoding
+    /// each character uses.
+    #[test]
+    fn replace_order_is_all_deletes_then_all_text() {
+        let inputs = bake(
+            &Injection::Replace {
+                deletes: 3,
+                insert: "bật".to_string(),
+            },
+            SendMode::Unicode,
+        );
+        let backs = inputs.iter().take_while(|i| field(i).0 == keys::VK_BACK).count();
+        assert_eq!(backs, 6, "3 backspace pairs first");
+        assert!(
+            inputs[backs..].iter().all(|i| field(i).0 != keys::VK_BACK),
+            "no backspace may follow inserted text"
+        );
+        // 'b' and 't' are scancodes, 'ậ' is a packet.
+        assert_eq!(field(&inputs[6]).0, 0x42);
+        assert_eq!(field(&inputs[6]).1, keys::scan_for_vk(0x42));
+        let vowel = field(&inputs[8]);
+        assert_eq!(vowel.0, 0);
+        assert_eq!(vowel.2 & KEYEVENTF_UNICODE.0, KEYEVENTF_UNICODE.0);
+        assert_eq!(vowel.1, 0x1EAD);
+    }
+
+    #[test]
+    fn standard_mode_replace_is_unchanged() {
+        let inputs = bake(
+            &Injection::Replace {
+                deletes: 2,
+                insert: "tă".to_string(),
+            },
+            SendMode::Standard,
+        );
+        // identical to the Unicode-mode replacement apart from the backspace
+        // scan code, which Standard carries.
+        assert_eq!(inputs.len(), 8);
+        assert_eq!(field(&inputs[0]).1, keys::scan_for_vk(keys::VK_BACK));
+        assert_eq!(field(&inputs[4]).0, 0x54);
+        assert_eq!(unicode_seqs(&inputs[6..]), vec![(0x0103, false), (0x0103, true)]);
     }
 
     #[test]
     fn empty_send_is_a_no_op() {
         assert_eq!(send(&[]), 0);
+    }
+
+    // -- CH2: a restore batch must type exactly the text it was given ---------
+
+    fn chord_ctrl_shift() -> Modifiers {
+        Modifiers {
+            shift: true,
+            ctrl: true,
+            alt: false,
+            win: false,
+        }
+    }
+
+    /// Characters the array produces, each with the Shift state in force when
+    /// the key went down. Backspaces and modifier events are not characters.
+    fn typed(inputs: &[INPUT], stale: Modifiers) -> Vec<(char, bool)> {
+        let mut shift = stale.shift;
+        let mut out = Vec::new();
+        let mut units: Vec<u16> = Vec::new();
+        for input in inputs {
+            let (vk, scan, flags, _) = field(input);
+            let up = flags & KEYEVENTF_KEYUP.0 != 0;
+            match vk {
+                keys::VK_LSHIFT | keys::VK_RSHIFT | keys::VK_SHIFT => shift = !up,
+                0 if flags & KEYEVENTF_UNICODE.0 != 0 => {
+                    if up {
+                        if let Some(ch) = char::from_u32(u32::from(scan)) {
+                            out.push((ch, shift));
+                        } else if units.len() < 2 {
+                            units.push(scan);
+                            if let Ok(text) = String::from_utf16(&units) {
+                                if let Some(ch) = text.chars().next() {
+                                    out.push((ch, shift));
+                                    units.clear();
+                                }
+                            }
+                        }
+                    }
+                    continue;
+                }
+                _ => {
+                    if !up {
+                        if let Some(ch) = keys::us_char(vk, shift, false) {
+                            out.push((ch, shift));
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Replay the array the way the target sees it, starting from a *stale*
+    /// modifier state: the key-up that ended the restore chord is still in
+    /// flight while the hook injects. `\u{FFFD}` marks a character the chord ate
+    /// as a shortcut.
+    fn replay(inputs: &[INPUT], stale: Modifiers) -> String {
+        let mut shift = stale.shift;
+        let mut ctrl = stale.ctrl;
+        let mut alt = stale.alt;
+        let mut out = String::new();
+        let mut units: Vec<u16> = Vec::new();
+        for input in inputs {
+            let (vk, scan, flags, _) = field(input);
+            let up = flags & KEYEVENTF_KEYUP.0 != 0;
+            match vk {
+                keys::VK_LSHIFT | keys::VK_RSHIFT | keys::VK_SHIFT => shift = !up,
+                keys::VK_LCONTROL | keys::VK_RCONTROL | keys::VK_CONTROL => ctrl = !up,
+                keys::VK_LMENU | keys::VK_RMENU | keys::VK_MENU => alt = !up,
+                keys::VK_BACK => {
+                    if !up {
+                        out.pop();
+                    }
+                }
+                keys::VK_RETURN => {
+                    if !up {
+                        out.push('\n');
+                    }
+                }
+                0 if flags & KEYEVENTF_UNICODE.0 != 0 => {
+                    if up {
+                        units.push(scan);
+                        if let Ok(text) = String::from_utf16(&units) {
+                            if let Some(ch) = text.chars().next() {
+                                out.push(ch);
+                                units.clear();
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    if up {
+                        continue;
+                    }
+                    if ctrl || alt {
+                        out.push('\u{FFFD}');
+                    } else if let Some(ch) = keys::us_char(vk, shift, false) {
+                        out.push(ch);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn restore_of_ba6t5_keeps_every_character_unshifted() {
+        let inputs = build_restore(5, "ba6t5", SendMode::Unicode, chord_ctrl_shift());
+        assert_eq!(
+            typed(&inputs, Modifiers::NONE),
+            vec![('b', false), ('a', false), ('6', false), ('t', false), ('5', false)],
+            "lowercase letters and digits must not be shifted"
+        );
+    }
+
+    #[test]
+    fn restore_shift_decision_is_per_character_not_per_batch() {
+        let cases: [(&str, Vec<(char, bool)>); 5] = [
+            ("Ba6t5", vec![('B', true), ('a', false), ('6', false), ('t', false), ('5', false)]),
+            ("bAtB", vec![('b', false), ('A', true), ('t', false), ('B', true)]),
+            ("%", vec![('%', true)]),
+            ("^", vec![('^', true)]),
+            ("100%/50%", vec![
+                ('1', false), ('0', false), ('0', false), ('%', true), ('/', false),
+                ('5', false), ('0', false), ('%', true),
+            ]),
+        ];
+        for (text, want) in cases {
+            let inputs = build_restore(1, text, SendMode::Unicode, chord_ctrl_shift());
+            assert_eq!(typed(&inputs, Modifiers::NONE), want, "text {text:?}");
+        }
+    }
+
+    #[test]
+    fn restore_keeps_diacritics_and_surrogate_pairs_on_the_packet_path() {
+        let inputs = build_restore(3, "ăâđêôơư", SendMode::Unicode, chord_ctrl_shift());
+        let want: Vec<(char, bool)> = "ăâđêôơư".chars().map(|ch| (ch, false)).collect();
+        assert_eq!(typed(&inputs, Modifiers::NONE), want);
+
+        let emoji = build_restore(1, "😀", SendMode::Unicode, chord_ctrl_shift());
+        assert_eq!(typed(&emoji, Modifiers::NONE), vec![('😀', false)]);
+    }
+
+    #[test]
+    fn restore_of_mixed_text_types_it_verbatim() {
+        let text = "Ba6t5 100% ^ăâđêôơư 😀";
+        let inputs = build_restore(9, text, SendMode::Unicode, chord_ctrl_shift());
+        assert_eq!(
+            replay(&inputs, Modifiers::NONE),
+            text,
+            "no stale modifier: the batch must type exactly the text"
+        );
+    }
+
+    /// CH2, measured: `ba6t5` reached Chrome/VS Code as `BA^T%` because the
+    /// chord's key-up was still in flight, so the whole batch was shifted.
+    #[test]
+    fn restore_neutralises_a_chord_that_is_still_held() {
+        let inputs = build_restore(5, "ba6t5", SendMode::Unicode, chord_ctrl_shift());
+        let shift_only = Modifiers {
+            shift: true,
+            ctrl: false,
+            alt: false,
+            win: false,
+        };
+        // The pre-fix array (no release prefix) reproduces the field symptom
+        // character for character: every letter and digit arrives shifted.
+        let legacy = build_segment(5, "ba6t5", SendMode::Unicode);
+        assert_eq!(
+            replay(&legacy, shift_only),
+            "BA^T%",
+            "the measured CH2 symptom must be reproduced by the old batch"
+        );
+        assert_eq!(
+            replay(&inputs, shift_only),
+            "ba6t5",
+            "the batch must release the chord before typing"
+        );
+        let stale = Modifiers {
+            shift: true,
+            ctrl: true,
+            alt: false,
+            win: false,
+        };
+        assert_eq!(
+            replay(&inputs, stale),
+            "ba6t5",
+            "Ctrl still down must not turn the batch into shortcuts"
+        );
+        assert_eq!(
+            replay(&legacy, stale),
+            "\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}",
+            "…the old batch is eaten as `Ctrl+letter` shortcuts"
+        );
+        // Nothing extra is released for a chord that has no modifiers.
+        let plain = build_restore(5, "ba6t5", SendMode::Unicode, Modifiers::NONE);
+        assert_eq!(plain.len(), 5 * 2 + 5 * 2, "no prefix events");
+    }
+
+    #[test]
+    fn restore_prefix_is_key_ups_only() {
+        let inputs = build_restore(1, "a", SendMode::Unicode, chord_ctrl_shift());
+        // Shift (both sides) and Ctrl (both sides), all key-ups, all ours.
+        assert_eq!(inputs.len(), 4 + 2 + 2, "4 release events, backspace, 'a'");
+        let released: Vec<(u16, bool, u32)> =
+            inputs[..4].iter().map(|i| (field(i).0, is_up(i), field(i).2)).collect();
+        assert_eq!(
+            released,
+            vec![
+                (keys::VK_LSHIFT, true, KEYEVENTF_KEYUP.0),
+                (keys::VK_RSHIFT, true, KEYEVENTF_KEYUP.0),
+                (keys::VK_LCONTROL, true, KEYEVENTF_KEYUP.0),
+                (
+                    keys::VK_RCONTROL,
+                    true,
+                    KEYEVENTF_KEYUP.0 | KEYEVENTF_EXTENDEDKEY.0
+                ),
+            ]
+        );
+        for input in &inputs {
+            assert_eq!(field(input).3, INJECTED_MAGIC, "every event stays tagged");
+        }
     }
 
     #[test]

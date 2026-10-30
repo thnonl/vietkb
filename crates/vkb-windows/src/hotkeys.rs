@@ -57,7 +57,12 @@ fn to_combo(action: Action, hotkey: &ConfigHotkey) -> Option<Combo> {
             Some(vk)
         }
     };
-    Some(Combo::new(action, modifiers, vk))
+    let mut combo = Combo::new(action, modifiers, vk);
+    // `restore_word` types into the target, so it must run only once the chord is
+    // fully released: with Ctrl or Shift still down the injection arrives as a
+    // shortcut (`Ctrl+Shift+B`), not as a character.
+    combo.fire_on_full_release = action == Action::RestoreWord;
+    Some(combo)
 }
 
 /// Virtual key + whether the key needs Shift to produce the character.
@@ -227,8 +232,195 @@ mod tests {
         assert_eq!(matcher.on_key(keys::VK_CONTROL, true, ctrl, true), None);
         assert_eq!(
             matcher.on_key(keys::VK_SHIFT, true, both, true),
+            None,
+            "`Ctrl+Shift+Z` is also bound, so the toggle waits for the release"
+        );
+        assert_eq!(
+            matcher.on_key(keys::VK_SHIFT, false, ctrl, true),
             Some(Action::Toggle)
         );
+    }
+
+    #[test]
+    fn default_restore_chord_beats_the_toggle_in_press_mode() {
+        let set = HotkeySet {
+            toggle_mode: vkb_config::ToggleMode::Press,
+            ..HotkeySet::default()
+        };
+        let mut matcher = compile(&set);
+        let none = Modifiers::NONE;
+        let ctrl = Modifiers {
+            shift: false,
+            ctrl: true,
+            alt: false,
+            win: false,
+        };
+        let both = Modifiers {
+            shift: true,
+            ctrl: true,
+            alt: false,
+            win: false,
+        };
+        matcher.on_key(keys::VK_CONTROL, true, ctrl, true);
+        assert_eq!(matcher.on_key(keys::VK_SHIFT, true, both, true), None);
+        assert_eq!(matcher.on_key(0x5A, true, both, false), None);
+        assert_eq!(matcher.on_key(0x5A, false, both, false), None);
+        assert_eq!(matcher.on_key(keys::VK_SHIFT, false, ctrl, true), None);
+        assert_eq!(
+            matcher.on_key(keys::VK_CONTROL, false, none, true),
+            Some(Action::RestoreWord),
+            "`Ctrl+Shift+Z` restores in press mode, once the chord is up"
+        );
+    }
+
+    #[test]
+    fn owner_config_restore_chord_fires_when_the_chord_is_up() {
+        // The owner's live config: `toggle = "Alt+Shift"`, toggle_mode = release,
+        // `restore_word = "Ctrl+Shift+Z"` — D-E2E-02. The restore waits for the
+        // whole chord: typing while Ctrl/Shift are down would be a shortcut.
+        let set = HotkeySet {
+            toggle: vkb_config::Hotkey::parse("Alt+Shift").ok(),
+            restore_word: vkb_config::Hotkey::parse("Ctrl+Shift+Z").ok(),
+            toggle_mode: vkb_config::ToggleMode::Release,
+            ..HotkeySet::default()
+        };
+        let mut matcher = compile(&set);
+        let none = Modifiers::NONE;
+        let ctrl = Modifiers {
+            shift: false,
+            ctrl: true,
+            alt: false,
+            win: false,
+        };
+        let both = Modifiers {
+            shift: true,
+            ctrl: true,
+            alt: false,
+            win: false,
+        };
+        assert_eq!(matcher.on_key(keys::VK_CONTROL, true, ctrl, true), None);
+        assert_eq!(matcher.on_key(keys::VK_SHIFT, true, both, true), None);
+        assert_eq!(matcher.on_key(0x5A, true, both, false), None);
+        for _ in 0..3 {
+            assert_eq!(
+                matcher.on_key(0x5A, true, both, false),
+                None,
+                "autorepeat must not arm twice"
+            );
+        }
+        assert_eq!(matcher.on_key(0x5A, false, both, false), None);
+        assert_eq!(matcher.on_key(keys::VK_SHIFT, false, ctrl, true), None);
+        assert_eq!(
+            matcher.on_key(keys::VK_CONTROL, false, none, true),
+            Some(Action::RestoreWord)
+        );
+        assert_eq!(matcher.on_key(0x5A, false, none, false), None);
+    }
+
+    #[test]
+    fn default_config_toggles_on_ctrl_shift_in_every_release_order() {
+        // The shipped default binds `toggle = "Ctrl+Shift"` next to
+        // `restore_word = "Ctrl+Shift+Z"`: the modifier-only chord is an
+        // ambiguous prefix, so it must still fire once per press.
+        let set = HotkeySet::default();
+        assert_eq!(set.toggle_mode, vkb_config::ToggleMode::Release);
+        for order in 0..3 {
+            let mut matcher = compile(&set);
+            assert_eq!(matcher.on_key(keys::VK_CONTROL, true, ctrl(), true), None);
+            assert_eq!(
+                matcher.on_key(keys::VK_SHIFT, true, both(), true),
+                None,
+                "waits for the release: `Ctrl+Shift+Z` could still complete"
+            );
+            let fired = match order {
+                0 => matcher.on_key(keys::VK_SHIFT, false, ctrl(), true),
+                1 => matcher.on_key(keys::VK_CONTROL, false, shift_only(), true),
+                _ => matcher.on_key(keys::VK_SHIFT, false, ctrl(), true),
+            };
+            assert_eq!(fired, Some(Action::Toggle), "release order {order}");
+            assert_eq!(
+                matcher.on_key(keys::VK_CONTROL, false, Modifiers::NONE, true),
+                None,
+                "one fire per press, order {order}"
+            );
+        }
+    }
+
+    /// CH1's measured keystrokes against the config that was actually in force.
+    ///
+    /// The run's `config.toml` binds `toggle = "Alt+Shift"`
+    /// (`qa/e2e/config.backup.toml`, `91-round-plan-sound-cases.md` §B), while
+    /// `run-host-e2e.ps1` presses `Ctrl+Shift`; an unbound chord toggles
+    /// nothing, which is the `ON -> ON` the gate recorded. `RT2` (Alt+Shift ×2)
+    /// passing in the same run is the same fact from the other side.
+    #[test]
+    fn the_run_config_binds_alt_shift_and_not_ctrl_shift() {
+        let set = HotkeySet {
+            toggle: vkb_config::Hotkey::parse("Alt+Shift").ok(),
+            restore_word: vkb_config::Hotkey::parse("Ctrl+Shift+Z").ok(),
+            open_settings: vkb_config::Hotkey::parse("Ctrl+Alt+S").ok(),
+            toggle_mode: vkb_config::ToggleMode::Release,
+            ..HotkeySet::default()
+        };
+        let mut matcher = compile(&set);
+        matcher.on_key(keys::VK_CONTROL, true, ctrl(), true);
+        assert_eq!(matcher.on_key(keys::VK_SHIFT, true, both(), true), None);
+        assert_eq!(matcher.on_key(keys::VK_SHIFT, false, ctrl(), true), None);
+        assert_eq!(matcher.on_key(keys::VK_CONTROL, false, Modifiers::NONE, true), None);
+
+        // The configured chord does toggle, exactly once.
+        assert_eq!(matcher.on_key(keys::VK_MENU, true, alt(), true), None);
+        assert_eq!(matcher.on_key(keys::VK_SHIFT, true, alt_shift(), true), None);
+        assert_eq!(
+            matcher.on_key(keys::VK_SHIFT, false, alt(), true),
+            Some(Action::Toggle)
+        );
+        assert_eq!(matcher.on_key(keys::VK_MENU, false, Modifiers::NONE, true), None);
+    }
+
+    fn ctrl() -> Modifiers {
+        Modifiers {
+            ctrl: true,
+            alt: false,
+            shift: false,
+            win: false,
+        }
+    }
+
+    fn alt() -> Modifiers {
+        Modifiers {
+            ctrl: false,
+            alt: true,
+            shift: false,
+            win: false,
+        }
+    }
+
+    fn shift_only() -> Modifiers {
+        Modifiers {
+            ctrl: false,
+            alt: false,
+            shift: true,
+            win: false,
+        }
+    }
+
+    fn both() -> Modifiers {
+        Modifiers {
+            ctrl: true,
+            alt: false,
+            shift: true,
+            win: false,
+        }
+    }
+
+    fn alt_shift() -> Modifiers {
+        Modifiers {
+            ctrl: false,
+            alt: true,
+            shift: true,
+            win: false,
+        }
     }
 
     #[test]

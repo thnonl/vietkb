@@ -53,7 +53,10 @@ impl EngineSink for Injector {
         let decision = decide(&action, None);
         match decision.injection {
             Injection::None => {}
-            Injection::Beep => sound::play_toggle(true),
+            // Not a toggle: `Beep` means "invalid keystroke", so it keeps the OS
+            // error alias and never the Vietnamese-on cue (`22-sound-spec.md`
+            // §5; the ON/OFF symmetry covers the three toggle routes).
+            Injection::Beep => sound::play_error(),
             Injection::Type(text) => self.type_text(&text, 0),
             Injection::Replace { deletes, insert } => self.type_text(&insert, deletes),
         }
