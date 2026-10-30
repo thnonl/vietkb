@@ -5,6 +5,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+default = []
+# Test seam for the zero-focus hook sandwich (`examples/zero_focus_e2e.rs`). Off in
+# every shipped build; see `src/e2e.rs`.
+e2e-harness = []
+
+[[example]]
+name = "zero_focus_e2e"
+required-features = ["e2e-harness"]
+
 [target.'cfg(windows)'.dependencies]
 vkb-core = { path = "../vkb-core" }
 vkb-config = { path = "../vkb-config" }

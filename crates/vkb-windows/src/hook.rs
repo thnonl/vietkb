@@ -259,7 +259,9 @@ fn worker_main() {
                 globals::READY.store(true, Ordering::SeqCst);
                 tracing::info!("keyboard hook re-installed");
             }
-        } else if last_refresh.elapsed() >= HOOK_REFRESH {
+        } else if !cfg!(feature = "e2e-harness") && last_refresh.elapsed() >= HOOK_REFRESH {
+            // (Skipped under the harness: a refresh re-installs the hook as the
+            // newest one and would reorder the sandwich.)
             last_refresh = Instant::now();
             if let Err(err) = hook.refresh() {
                 tracing::warn!(error = %err, "hook refresh failed; retrying");
@@ -294,6 +296,18 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
+    // Zero-focus harness: only events carrying the harness tag are ours; every
+    // other event (physical keys, another VietKB's injections) is passed on
+    // untouched.
+    #[cfg(feature = "e2e-harness")]
+    let harness_event = {
+        let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
+        if !crate::e2e::admit(info.dwExtraInfo) {
+            return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+        }
+        true
+    };
+
     // A panic must never cross the FFI boundary (or kill the hook thread).
     // P2 probe: this is the single env-gated check on the hot path. `enabled()`
     // is a cached relaxed bool; with `VKB_PERF` unset the body is skipped, so no
@@ -307,6 +321,11 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         runtime.on_event(wparam.0 as u32, info).swallow
     }))
     .unwrap_or(false);
+
+    #[cfg(feature = "e2e-harness")]
+    if harness_event {
+        crate::e2e::note_decision(swallow);
+    }
 
     if swallow {
         LRESULT(1)
