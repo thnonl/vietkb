@@ -183,7 +183,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [meta, test, clippy, build, test-macos, build-macos]
+    needs: [meta, test, clippy, build]
     if: needs.meta.outputs.tag_ok == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -194,6 +194,24 @@ jobs:
           name: installer
           path: dist
 
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*x64-setup.exe
+          name: VietKB ${{ needs.meta.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          make_latest: true
+
+  # The Windows release above never waits for macOS. This job attaches the .dmg to
+  # the same release once it exists; a macOS failure leaves the Windows release
+  # published and only this job red.
+  release-macos:
+    needs: [meta, release, test-macos, build-macos]
+    if: needs.meta.outputs.tag_ok == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
       - uses: actions/download-artifact@v4
         with:
           name: dmg
@@ -201,10 +219,6 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/*x64-setup.exe
-            dist/*.dmg
-          name: VietKB ${{ needs.meta.outputs.version }}
+          files: dist/*.dmg
           tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
-          make_latest: true
+          make_latest: false

@@ -188,7 +188,9 @@ class Store {
     this.previewMode = !api.isTauri();
     this.startThemeBus();
     try {
-      await platformState.init();
+      // Not awaited: the user-agent guess is already the initial value, and the
+      // settings load must not wait on one more IPC round trip.
+      void platformState.init();
       if (this.previewMode) {
         this.settings = demoSettings;
         this.status = demoStatus;

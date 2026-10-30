@@ -1,3 +1,15 @@
+<script module lang="ts">
+  // The window is created tall exactly when Accessibility is missing (main.rs
+  // `main_content_height`), so its height at mount already answers the question
+  // before the first poll: seed the banner from it and no blank band is painted.
+  const BASE = 424;
+  const BANNER = 80;
+  export const seedMissing = (): boolean =>
+    typeof window !== "undefined" &&
+    document.documentElement.dataset.platform === "macos" &&
+    window.innerHeight >= BASE + BANNER / 2;
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
   import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
@@ -15,8 +27,8 @@
   // window (and taken off again once the grant is there) instead of squeezing
   // the rows. Keep these numbers equal to main.rs (`content_height(460.0)` and
   // `BANNER_PX`) and `.axbanner` in styles/mac.css.
-  const BASE_CONTENT_PX = 424;
-  const AX_BANNER_PX = 80;
+  const BASE_CONTENT_PX = BASE;
+  const AX_BANNER_PX = BANNER;
   const WIDTH_PX = 480;
   const POLL_MS = 2000;
 

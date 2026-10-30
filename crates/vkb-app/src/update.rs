@@ -27,7 +27,11 @@ const USER_AGENT: &str = concat!(
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 const STARTUP_DELAY: Duration = Duration::from_secs(5);
 /// Shown when the release has no Windows x64 installer asset.
+#[cfg(not(target_os = "macos"))]
 pub const NO_INSTALLER: &str = "Bản phát hành không có bộ cài cho Windows x64";
+/// Shown when the release has no `.dmg` asset (macOS).
+#[cfg(target_os = "macos")]
+pub const NO_INSTALLER: &str = "Bản phát hành không có tệp .dmg cho macOS";
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -892,7 +896,10 @@ mod tests {
 
     #[test]
     fn the_missing_installer_message_is_the_promised_one() {
+        #[cfg(not(target_os = "macos"))]
         assert_eq!(NO_INSTALLER, "Bản phát hành không có bộ cài cho Windows x64");
+        #[cfg(target_os = "macos")]
+        assert_eq!(NO_INSTALLER, "Bản phát hành không có tệp .dmg cho macOS");
     }
 
     #[test]

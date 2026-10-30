@@ -4,7 +4,7 @@
   import TitleBar from "../components/TitleBar.svelte";
   import Select from "../components/Select.svelte";
   import AppRulesDialog from "../components/AppRulesDialog.svelte";
-  import AccessibilityBanner from "../components/AccessibilityBanner.svelte";
+  import AccessibilityBanner, { seedMissing } from "../components/AccessibilityBanner.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { closeCurrent, openWindow } from "../lib/window.svelte";
@@ -20,7 +20,7 @@
   const mac = $derived(platformState.mac);
   // Windows: "Khởi động cùng Windows"; macOS: "Mở cùng macOS" (27-mac-decisions M4).
   const autostartLabel = $derived(mac ? "Mở cùng macOS" : "Khởi động cùng Windows");
-  let axMissing = $state(false);
+  let axMissing = $state(seedMissing());
 
   let rules = $state<AppRuleRow[]>([]);
   let dialogOpen = $state(false);
