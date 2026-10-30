@@ -212,8 +212,7 @@ fn flow(options: EngineOptions, keys: &str) -> String {
             letters.clear();
         }
     };
-    let mut chars = keys.chars();
-    while let Some(ch) = chars.next() {
+    for ch in keys.chars() {
         match ch {
             '\u{8}' => {
                 flush(&mut session, &mut letters);

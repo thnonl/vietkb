@@ -524,7 +524,7 @@ fn chained_openers_extend_a_path() {
             ("https://x/y/z", "https://x/y/z"),
             ("http://a.b/c", "http://a.b/c"),
         ] {
-            assert_eq!(sim(options.clone(), keys), expected, "{name} {keys:?}");
+            assert_eq!(sim(options, keys), expected, "{name} {keys:?}");
         }
     }
 
