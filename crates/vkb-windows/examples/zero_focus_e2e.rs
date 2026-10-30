@@ -1,35 +1,40 @@
-//! Zero-focus end-to-end harness ("hook sandwich").
+//! Zero-focus end-to-end harness.
 //!
-//! Drives the **real** pipeline - a real `WH_KEYBOARD_LL` hook, the real engine,
-//! the real `SendInput` injection packets - without delivering a single key to
-//! any window and without touching focus:
+//! Drives the real decision path of the backend - `hook::process_event` (the code
+//! the `WH_KEYBOARD_LL` procedure runs), the hotkey matcher, the engine and the
+//! real injection packet builders - and compares the rebuilt text with the
+//! expected text. It never delivers a key to any window and never touches focus.
 //!
-//! ```text
-//!   SendInput(HARNESS tag) --> H_high --> VietKB backend --> H_low --> (nothing)
-//!                                  ^            |
-//!                                  |            +-- injections (TEST tag) re-enter at the top
-//!                                  +----------------- H_high swallows them
-//!                                                      owner's installed VietKB (older hook) is never reached
-//! ```
+//! # Default mode: in-process, zero global events
 //!
-//! * hooks run most-recently-installed first, so the order of installation is
-//!   H_low, backend, H_high;
-//! * the backend (feature `e2e-harness`) processes only HARNESS-tagged events and
-//!   stamps its own injections with the TEST tag, so physical keys and the owner's
-//!   installed VietKB are never touched;
-//! * H_high swallows every TEST-tagged event and records it; H_low swallows every
-//!   HARNESS-tagged event the backend let through (literal passthrough) and also
-//!   swallows - and counts as a LEAK - any TEST-tagged event H_high missed.
-//!
-//! Run (never touches the desktop; safe while the owner types):
+//! No `SendInput`, no hook is installed. The harness builds `KBDLLHOOKSTRUCT`
+//! values and feeds them to the backend directly; the backend's injections are
+//! diverted into a capture buffer instead of `SendInput` (feature `e2e-harness`).
+//! The text is rebuilt from the captured injections (backspaces, unicode packets,
+//! VK+scancode keys) plus the keys the hook decided to pass. Only the OS
+//! transport is skipped. Captured packets are also fed back into the runtime to
+//! prove it ignores its own injections.
 //!
 //! ```text
 //! cargo run -p vkb-windows --features e2e-harness --example zero_focus_e2e --release
-//! cargo run -p vkb-windows --features e2e-harness --example zero_focus_e2e --release -- --probe-only
 //! ```
 //!
-//! Options: `--probe-only`, `--methods telex,vni`, `--modes unicode,standard`,
-//! `--pace-ms N` (default 6), `--only <id-prefix>`.
+//! # `--live-hooks`: real hooks (explicit opt-in)
+//!
+//! ```text
+//!   SendInput(HARNESS tag) --> H_high --> backend --> H_low --> (nothing)
+//!                                  ^          |
+//!                                  +----------+ injections (TEST tag) re-enter at the top
+//! ```
+//!
+//! Refuses to start while any other `vietkb*` / `vkb*` process is alive: such an
+//! instance refreshes its own hook every 30 s, can become the newest hook, and
+//! would compose the harness's keys and inject into the focused window with the
+//! production marker, which neither observer could catch. H_high is re-installed
+//! before every case and the run aborts on the first unaccounted event.
+//!
+//! Options: `--probe-only` (live), `--methods telex,vni`, `--modes unicode,standard`,
+//! `--pace-ms N` (live, default 6), `--only <id-prefix>`.
 //! Results: `target/zero-focus-e2e.txt`.
 
 #![cfg(windows)]
@@ -37,8 +42,9 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -47,9 +53,13 @@ use vkb_config::AppConfig;
 use vkb_core::InputMethod;
 use vkb_platform::BackendCommand;
 use vkb_windows::keys;
-use windows::Win32::Foundation::{BOOL, HINSTANCE, LPARAM, LRESULT, WPARAM};
+use vkb_windows::state::HookRuntime;
+use windows::Win32::Foundation::{CloseHandle, BOOL, HINSTANCE, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
-use windows::Win32::System::Threading::GetCurrentThreadId;
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
+use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, GetKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
     KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY,
@@ -57,10 +67,11 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetForegroundWindow, GetMessageW, PeekMessageW,
     PostThreadMessageW, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, HHOOK,
-    KBDLLHOOKSTRUCT, MSG, PM_NOREMOVE, WH_KEYBOARD_LL, WM_KEYDOWN, WM_QUIT, WM_SYSKEYDOWN,
+    KBDLLHOOKSTRUCT, KBDLLHOOKSTRUCT_FLAGS, MSG, PM_NOREMOVE, WH_KEYBOARD_LL, WM_KEYDOWN,
+    WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN,
 };
 
-/// Tag on every event the harness sends.
+/// Tag on every event the harness feeds or sends.
 const HARNESS_TAG: usize = 0x5645_5448; // "VETH"
 /// Tag the backend stamps on its own injections.
 const TEST_TAG: usize = 0x5645_5449; // "VETI"
@@ -70,30 +81,51 @@ const VK_LCONTROL: u16 = 0xA2;
 const VK_F23: u16 = 0x86;
 const VK_F24: u16 = 0x87;
 
+static ABORT: AtomicBool = AtomicBool::new(false);
+static EPOCH: OnceLock<Instant> = OnceLock::new();
+
+fn now_ms() -> u64 {
+    EPOCH.get().map_or(0, |t| t.elapsed().as_millis() as u64)
+}
+
 // ---------------------------------------------------------------------------
-// Observation (written by the two hook threads, read by the driver)
+// Observation
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Src {
-    /// Seen by H_high with the TEST tag: the backend's injection.
+    /// The backend's injection (in-process capture, or live H_high with the TEST tag).
     Injected,
-    /// Seen by H_low with the HARNESS tag: a key the backend let through.
+    /// A key the backend let through (in-process, or live H_low with the HARNESS tag).
     Passed,
 }
 
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code)]
 struct Ev {
-    seq: u64,
     src: Src,
     vk: u16,
     scan: u16,
     down: bool,
 }
 
-static SEQ: AtomicU64 = AtomicU64::new(0);
-static LOG: Mutex<Vec<Ev>> = Mutex::new(Vec::new());
+/// One synthetic key event the harness feeds or sends.
+#[derive(Clone, Copy, Debug)]
+struct Syn {
+    vk: u16,
+    scan: u16,
+    up: bool,
+    unicode: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Live mode: lock-free recording inside the hook procedures
+// ---------------------------------------------------------------------------
+
+const RING: usize = 1 << 16;
+const EMPTY: AtomicU64 = AtomicU64::new(0);
+/// Packed events: bit 63 valid, bit 41 down, bit 40 src, bits 16..32 scan, 0..16 vk.
+static RING_BUF: [AtomicU64; RING] = [EMPTY; RING];
+static HEAD: AtomicU64 = AtomicU64::new(0);
 
 static SENT_H: AtomicU64 = AtomicU64::new(0);
 static SENT_T: AtomicU64 = AtomicU64::new(0);
@@ -101,28 +133,40 @@ static HIGH_H: AtomicU64 = AtomicU64::new(0); // harness events H_high saw (pass
 static HIGH_T: AtomicU64 = AtomicU64::new(0); // test events H_high swallowed
 static LOW_H: AtomicU64 = AtomicU64::new(0); // harness events H_low swallowed
 static LOW_T: AtomicU64 = AtomicU64::new(0); // test events that ESCAPED H_high (leak)
-static FOREIGN: AtomicU64 = AtomicU64::new(0); // physical / other-app events passed untouched
+static FOREIGN: AtomicU64 = AtomicU64::new(0); // other traffic passed untouched
 static LAST_EVENT_MS: AtomicU64 = AtomicU64::new(0);
-static ABORT: AtomicBool = AtomicBool::new(false);
-static T0: Mutex<Option<Instant>> = Mutex::new(None);
-
-fn now_ms() -> u64 {
-    T0.lock().map_or(0, |t| t.elapsed().as_millis() as u64)
-}
 
 fn record(src: Src, info: &KBDLLHOOKSTRUCT, wparam: WPARAM) {
     let down = wparam.0 as u32 == WM_KEYDOWN || wparam.0 as u32 == WM_SYSKEYDOWN;
-    // The sequence number is taken under the lock so the log order is the
-    // order in which the two hook threads observed the events.
-    let mut log = LOG.lock();
-    let ev = Ev {
-        seq: SEQ.fetch_add(1, Ordering::SeqCst),
-        src,
-        vk: info.vkCode as u16,
-        scan: info.scanCode as u16,
-        down,
-    };
-    log.push(ev);
+    let idx = HEAD.fetch_add(1, Ordering::SeqCst) as usize % RING;
+    let packed = (1u64 << 63)
+        | (u64::from(down) << 41)
+        | (u64::from(src == Src::Passed) << 40)
+        | (u64::from(info.scanCode as u16) << 16)
+        | u64::from(info.vkCode as u16);
+    RING_BUF[idx].store(packed, Ordering::Release);
+}
+
+/// Move recorded events from the ring into `out`, in observation order.
+fn drain_ring(cursor: &mut u64, out: &mut Vec<Ev>) {
+    let head = HEAD.load(Ordering::SeqCst);
+    while *cursor < head {
+        let idx = (*cursor as usize) % RING;
+        let deadline = Instant::now() + Duration::from_millis(200);
+        let mut packed = RING_BUF[idx].load(Ordering::Acquire);
+        while packed >> 63 == 0 && Instant::now() < deadline {
+            std::hint::spin_loop();
+            packed = RING_BUF[idx].load(Ordering::Acquire);
+        }
+        RING_BUF[idx].store(0, Ordering::Release);
+        out.push(Ev {
+            src: if packed >> 40 & 1 == 1 { Src::Passed } else { Src::Injected },
+            vk: packed as u16,
+            scan: (packed >> 16) as u16,
+            down: packed >> 41 & 1 == 1,
+        });
+        *cursor += 1;
+    }
 }
 
 unsafe extern "system" fn high_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -220,11 +264,19 @@ impl Drop for HookThread {
     }
 }
 
-/// Everything installed, torn down on every exit path (including unwinding).
+/// Everything installed in live mode, torn down on every exit path.
 struct Sandwich {
     high: Option<HookThread>,
     low: Option<HookThread>,
     backend_up: bool,
+}
+
+impl Sandwich {
+    /// Re-install H_high so it is the newest hook again.
+    fn reinstall_high(&mut self) {
+        self.high = None;
+        self.high = Some(HookThread::start("h-high", high_proc));
+    }
 }
 
 impl Drop for Sandwich {
@@ -236,26 +288,114 @@ impl Drop for Sandwich {
             self.backend_up = false;
         }
         self.low.take();
-        vkb_windows::e2e::reset();
     }
 }
 
-unsafe extern "system" fn ctrl_handler(_kind: u32) -> BOOL {
-    ABORT.store(true, Ordering::SeqCst);
-    BOOL(1)
+/// Only Ctrl+C / Ctrl+Break are ours; anything else is left to the default handler.
+unsafe extern "system" fn ctrl_handler(kind: u32) -> BOOL {
+    if kind == 0 || kind == 1 {
+        ABORT.store(true, Ordering::SeqCst);
+        BOOL(1)
+    } else {
+        BOOL(0)
+    }
+}
+
+/// Names of other VietKB-like processes (empty = clear to run live hooks).
+fn other_vietkb_processes() -> Result<Vec<String>, String> {
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }
+        .map_err(|e| format!("process snapshot failed: {e}"))?;
+    let own = unsafe { GetCurrentProcessId() };
+    let mut found = Vec::new();
+    let mut entry = PROCESSENTRY32W {
+        dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
+    let mut ok = unsafe { Process32FirstW(snapshot, &mut entry) }.is_ok();
+    while ok {
+        let len = entry.szExeFile.iter().position(|c| *c == 0).unwrap_or(entry.szExeFile.len());
+        let name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
+        if entry.th32ProcessID != own && (name.starts_with("vietkb") || name.starts_with("vkb")) {
+            found.push(format!("{name} (pid {})", entry.th32ProcessID));
+        }
+        ok = unsafe { Process32NextW(snapshot, &mut entry) }.is_ok();
+    }
+    unsafe {
+        let _ = CloseHandle(snapshot);
+    }
+    Ok(found)
 }
 
 // ---------------------------------------------------------------------------
-// Sending
+// Building events
 // ---------------------------------------------------------------------------
 
-fn key_input(vk: u16, scan: u16, flags: KEYBD_EVENT_FLAGS, extra: usize) -> INPUT {
+fn vk_syn(vk: u16, up: bool) -> Syn {
+    let scan = match vk {
+        VK_LSHIFT => 0x2A,
+        VK_LCONTROL => 0x1D,
+        other => keys::scan_for_vk(other),
+    };
+    Syn {
+        vk,
+        scan,
+        up,
+        unicode: false,
+    }
+}
+
+fn unicode_syn(unit: u16, up: bool) -> Syn {
+    Syn {
+        vk: 0,
+        scan: unit,
+        up,
+        unicode: true,
+    }
+}
+
+fn tap_vk(vk: u16, shift: bool) -> Vec<Syn> {
+    let mut out = Vec::with_capacity(4);
+    if shift {
+        out.push(vk_syn(VK_LSHIFT, false));
+    }
+    out.push(vk_syn(vk, false));
+    out.push(vk_syn(vk, true));
+    if shift {
+        out.push(vk_syn(VK_LSHIFT, true));
+    }
+    out
+}
+
+fn char_syns(ch: char) -> Vec<Syn> {
+    match ch {
+        '\n' => tap_vk(keys::VK_RETURN, false),
+        '\t' => tap_vk(keys::VK_TAB, false),
+        other => match keys::us_vk_for_char(other) {
+            Some((vk, shift)) => tap_vk(vk, shift),
+            None => {
+                let mut buf = [0u16; 2];
+                let mut out = Vec::new();
+                for unit in other.encode_utf16(&mut buf).iter().copied() {
+                    out.push(unicode_syn(unit, false));
+                    out.push(unicode_syn(unit, true));
+                }
+                out
+            }
+        },
+    }
+}
+
+fn to_input(s: &Syn, extra: usize) -> INPUT {
+    let mut flags = if s.up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) };
+    if s.unicode {
+        flags |= KEYEVENTF_UNICODE;
+    }
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
             ki: KEYBDINPUT {
-                wVk: VIRTUAL_KEY(vk),
-                wScan: scan,
+                wVk: VIRTUAL_KEY(s.vk),
+                wScan: s.scan,
                 dwFlags: flags,
                 time: 0,
                 dwExtraInfo: extra,
@@ -264,25 +404,7 @@ fn key_input(vk: u16, scan: u16, flags: KEYBD_EVENT_FLAGS, extra: usize) -> INPU
     }
 }
 
-fn vk_event(vk: u16, up: bool, extra: usize) -> INPUT {
-    let scan = match vk {
-        VK_LSHIFT => 0x2A,
-        VK_LCONTROL => 0x1D,
-        other => keys::scan_for_vk(other),
-    };
-    key_input(vk, scan, if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) }, extra)
-}
-
-fn unicode_event(unit: u16, up: bool) -> INPUT {
-    let mut flags = KEYEVENTF_UNICODE;
-    if up {
-        flags |= KEYEVENTF_KEYUP;
-    }
-    key_input(0, unit, flags, HARNESS_TAG)
-}
-
-/// Send one batch. Aborts the process-level run on a short send (events that
-/// vanish would corrupt the accounting).
+/// Live mode: send one batch. A short send aborts the run.
 fn send_batch(inputs: &[INPUT], harness: bool) {
     if inputs.is_empty() {
         return;
@@ -299,38 +421,6 @@ fn send_batch(inputs: &[INPUT], harness: bool) {
     }
 }
 
-fn tap_vk(vk: u16, shift: bool) -> Vec<INPUT> {
-    let mut out = Vec::with_capacity(4);
-    if shift {
-        out.push(vk_event(VK_LSHIFT, false, HARNESS_TAG));
-    }
-    out.push(vk_event(vk, false, HARNESS_TAG));
-    out.push(vk_event(vk, true, HARNESS_TAG));
-    if shift {
-        out.push(vk_event(VK_LSHIFT, true, HARNESS_TAG));
-    }
-    out
-}
-
-fn char_events(ch: char) -> Vec<INPUT> {
-    match ch {
-        '\n' => tap_vk(keys::VK_RETURN, false),
-        '\t' => tap_vk(keys::VK_TAB, false),
-        other => match keys::us_vk_for_char(other) {
-            Some((vk, shift)) => tap_vk(vk, shift),
-            None => {
-                let mut buf = [0u16; 2];
-                let mut out = Vec::new();
-                for unit in other.encode_utf16(&mut buf).iter().copied() {
-                    out.push(unicode_event(unit, false));
-                    out.push(unicode_event(unit, true));
-                }
-                out
-            }
-        },
-    }
-}
-
 #[derive(Clone, Debug)]
 enum Step {
     /// Type characters one key at a time.
@@ -340,7 +430,10 @@ enum Step {
     /// Hold / release a modifier or key.
     Down(u16),
     Up(u16),
+    /// A mouse button goes down (in-process mode only).
+    Mouse,
 }
+
 
 // ---------------------------------------------------------------------------
 // Rebuilding the text
@@ -552,6 +645,7 @@ fn load_cases(
     root: &Path,
     methods: &[String],
     standard: bool,
+    live: bool,
     only: &Option<String>,
 ) -> Vec<Case> {
     let mode = if standard { "std" } else { "uni" };
@@ -689,6 +783,17 @@ fn load_cases(
             forbid_passed_vks: Vec::new(),
             want_command: Some(BackendCommand::RestoreWord),
         });
+        if !live {
+            cases.push(Case {
+                id: id("mouse-click-ends-word"),
+                settings: base(method_of(method)),
+                steps: vec![typed("a"), Step::Mouse, typed("a")],
+                // Without the mouse boundary `aa` would compose a circumflex.
+                expected: "aa".to_string(),
+                forbid_passed_vks: Vec::new(),
+                want_command: None,
+            });
+        }
     }
 
     if let Some(prefix) = only {
@@ -724,25 +829,53 @@ fn config_for(settings: &Settings) -> AppConfig {
     cfg
 }
 
+#[derive(Default)]
+struct Stats {
+    fed: u64,
+    injected: u64,
+    passed: u64,
+    swallowed: u64,
+}
+
 struct Driver {
+    /// `Some` = in-process mode: the backend runtime driven directly.
+    rt: Option<Box<HookRuntime>>,
     pace: Duration,
     shared: Arc<RwLock<AppConfig>>,
     applied: Option<Settings>,
+    events: Vec<Ev>,
+    cursor: u64,
+    stats: Stats,
+}
+
+fn kbd(syn: &Syn, extra: usize) -> KBDLLHOOKSTRUCT {
+    KBDLLHOOKSTRUCT {
+        vkCode: if syn.unicode { u32::from(keys::VK_PACKET) } else { u32::from(syn.vk) },
+        scanCode: u32::from(syn.scan),
+        flags: KBDLLHOOKSTRUCT_FLAGS(if syn.up { 0x80 } else { 0 }),
+        time: 0,
+        dwExtraInfo: extra,
+    }
 }
 
 impl Driver {
     fn apply(&mut self, settings: &Settings) {
         if self.applied.as_ref() != Some(settings) {
-            *self.shared.write() = config_for(settings);
-            vkb_windows::set_config(self.shared.clone());
-            thread::sleep(Duration::from_millis(80));
+            match self.rt.as_mut() {
+                Some(rt) => rt.apply_config(Arc::new(config_for(settings))),
+                None => {
+                    *self.shared.write() = config_for(settings);
+                    vkb_windows::set_config(self.shared.clone());
+                    thread::sleep(Duration::from_millis(80));
+                }
+            }
             self.applied = Some(settings.clone());
         }
         vkb_windows::set_enabled(true);
     }
 
-    /// Wait until every harness event is accounted for and the stream is quiet.
-    /// Returns the number of unaccounted events (0 = clean).
+    /// Live: wait until every harness event is accounted for and the stream is
+    /// quiet. Returns the number of unaccounted events (0 = clean).
     fn settle(&self) -> u64 {
         let deadline = Instant::now() + Duration::from_millis(1500);
         loop {
@@ -760,55 +893,100 @@ impl Driver {
         }
     }
 
-    fn send_step(&self, step: &Step) -> bool {
-        match step {
-            Step::Text(text) => {
-                for ch in text.chars() {
-                    if ABORT.load(Ordering::SeqCst) {
-                        return false;
-                    }
-                    send_batch(&char_events(ch), true);
-                    thread::sleep(self.pace);
-                    if self.settle() != 0 {
-                        return false;
-                    }
-                }
+    /// Feed / send a run of events. `false` = the run must stop.
+    fn send_syns(&mut self, syns: &[Syn]) -> bool {
+        if ABORT.load(Ordering::SeqCst) {
+            return false;
+        }
+        if self.rt.is_none() {
+            let inputs: Vec<INPUT> = syns.iter().map(|s| to_input(s, HARNESS_TAG)).collect();
+            send_batch(&inputs, true);
+            thread::sleep(self.pace);
+            if self.settle() != 0 {
+                return false;
             }
-            Step::Tap(vk) => {
-                send_batch(&tap_vk(*vk, false), true);
-                thread::sleep(self.pace);
-                if self.settle() != 0 {
+            drain_ring(&mut self.cursor, &mut self.events);
+            return true;
+        }
+        for syn in syns {
+            let message = if syn.up { WM_KEYUP } else { WM_KEYDOWN };
+            let info = kbd(syn, HARNESS_TAG);
+            let rt = self.rt.as_mut().expect("in-process runtime");
+            let swallow = vkb_windows::e2e::feed(rt, message, &info);
+            self.stats.fed += 1;
+            if swallow {
+                self.stats.swallowed += 1;
+            }
+            for cap in vkb_windows::e2e::take_captured() {
+                if cap.extra != TEST_TAG {
+                    eprintln!("an injection carried tag {:#x}, not the test tag", cap.extra);
+                    return false;
+                }
+                self.events.push(Ev {
+                    src: Src::Injected,
+                    vk: cap.vk,
+                    scan: cap.scan,
+                    down: !cap.up,
+                });
+                self.stats.injected += 1;
+                // The runtime must ignore its own injection when it re-enters.
+                let echo = KBDLLHOOKSTRUCT {
+                    vkCode: u32::from(cap.vk),
+                    scanCode: u32::from(cap.scan),
+                    flags: KBDLLHOOKSTRUCT_FLAGS(if cap.up { 0x80 } else { 0 }),
+                    time: 0,
+                    dwExtraInfo: cap.extra,
+                };
+                let echo_msg = if cap.up { WM_KEYUP } else { WM_KEYDOWN };
+                if rt.on_event(echo_msg, &echo).swallow {
+                    eprintln!("the runtime reacted to its own injection");
                     return false;
                 }
             }
-            Step::Down(vk) => {
-                send_batch(&[vk_event(*vk, false, HARNESS_TAG)], true);
-                thread::sleep(self.pace);
-                if self.settle() != 0 {
-                    return false;
-                }
-            }
-            Step::Up(vk) => {
-                send_batch(&[vk_event(*vk, true, HARNESS_TAG)], true);
-                thread::sleep(self.pace);
-                if self.settle() != 0 {
-                    return false;
-                }
+            if !swallow {
+                self.stats.passed += 1;
+                self.events.push(Ev {
+                    src: Src::Passed,
+                    vk: info.vkCode as u16,
+                    scan: info.scanCode as u16,
+                    down: !syn.up,
+                });
             }
         }
         true
+    }
+
+    fn send_step(&mut self, step: &Step) -> bool {
+        match step {
+            Step::Text(text) => {
+                for ch in text.chars() {
+                    if !self.send_syns(&char_syns(ch)) {
+                        return false;
+                    }
+                }
+                true
+            }
+            Step::Tap(vk) => self.send_syns(&tap_vk(*vk, false)),
+            Step::Down(vk) => self.send_syns(&[vk_syn(*vk, false)]),
+            Step::Up(vk) => self.send_syns(&[vk_syn(*vk, true)]),
+            Step::Mouse => {
+                if self.rt.is_none() {
+                    return false;
+                }
+                vkb_windows::e2e::mouse_button_down();
+                true
+            }
+        }
     }
 
     /// Run one case. Returns `(verdict, detail)`; `Err` means the run must stop.
     fn run(&mut self, case: &Case) -> Result<(bool, String), String> {
         self.apply(&case.settings);
         // A non-text key ends any half-typed word from the previous case.
-        send_batch(&tap_vk(VK_F24, false), true);
-        thread::sleep(self.pace);
-        if self.settle() != 0 {
-            return Err(format!("{}: unaccounted events before the case", case.id));
+        if !self.send_syns(&[vk_syn(VK_F24, false), vk_syn(VK_F24, true)]) {
+            return Err(format!("{}: harness events unaccounted before the case", case.id));
         }
-        LOG.lock().clear();
+        self.events.clear();
         COMMANDS.lock().clear();
         let start_leak = LOW_T.load(Ordering::SeqCst);
 
@@ -821,14 +999,14 @@ impl Driver {
             return Err(format!("{}: injected event escaped the top hook", case.id));
         }
 
-        let events = LOG.lock().clone();
-        let (actual, leaked) = rebuild(&events);
+        let (actual, _) = rebuild(&self.events);
         let mut ok = actual == case.expected;
         let mut detail = String::new();
         if !ok {
             let _ = write!(detail, "expected=[{}] actual=[{}]", case.expected, actual);
         }
-        let reached: Vec<u16> = events
+        let reached: Vec<u16> = self
+            .events
             .iter()
             .filter(|e| e.src == Src::Passed && e.down && case.forbid_passed_vks.contains(&e.vk))
             .map(|e| e.vk)
@@ -838,10 +1016,7 @@ impl Driver {
             let _ = write!(
                 detail,
                 " trigger-key-down-reached-app={:?} (would have hit the focused window)",
-                reached
-                    .iter()
-                    .map(|vk| format!("0x{vk:02X}"))
-                    .collect::<Vec<_>>()
+                reached.iter().map(|vk| format!("0x{vk:02X}")).collect::<Vec<_>>()
             );
         }
         if let Some(want) = &case.want_command {
@@ -851,7 +1026,6 @@ impl Driver {
                 let _ = write!(detail, " command {want:?} not fired (got {:?})", COMMANDS.lock());
             }
         }
-        let _ = leaked; // non-text keys that passed are reported only via forbid_passed_vks
         Ok((ok, detail))
     }
 }
@@ -903,18 +1077,13 @@ fn wait_for(ms: u64, cond: impl Fn() -> bool) -> bool {
     cond()
 }
 
-/// The safety gate. `Ok` only when every probe event is accounted for and none escaped.
-fn probe(report: &mut String) -> Result<(), String> {
+/// Live-mode safety gate. `Ok` only when every probe event is accounted for and
+/// none escaped.
+fn probe_live(report: &mut String) -> Result<(), String> {
     macro_rules! say {
         ($($arg:tt)*) => {{ let line = format!($($arg)*); println!("{line}"); report.push_str(&line); report.push('\n'); }};
     }
-    say!("PROBE start");
-
-    // 0. Pure check: every event the backend can build carries the test tag.
-    sanity_check_tags()?;
-    say!("PROBE step0 injection builders tag every event: OK");
-
-    // 1. Infrastructure with keys no application reacts to (F23 / F24).
+    say!("PROBE(live) start");
     let (h0, t0, hi_h0, hi_t0, lo_h0, lo_t0) = (
         SENT_H.load(Ordering::SeqCst),
         SENT_T.load(Ordering::SeqCst),
@@ -923,10 +1092,21 @@ fn probe(report: &mut String) -> Result<(), String> {
         LOW_H.load(Ordering::SeqCst),
         LOW_T.load(Ordering::SeqCst),
     );
-    // 1a. harness-tagged: top hook passes, backend passes (non-text), bottom hook swallows.
-    send_batch(&[vk_event(VK_F24, false, HARNESS_TAG), vk_event(VK_F24, true, HARNESS_TAG)], true);
-    // 1b. test-tagged: the top hook must swallow them; the bottom hook must never see them.
-    send_batch(&[vk_event(VK_F23, false, TEST_TAG), vk_event(VK_F23, true, TEST_TAG)], false);
+    // Keys no application reacts to (F23 / F24).
+    send_batch(
+        &[
+            to_input(&vk_syn(VK_F24, false), HARNESS_TAG),
+            to_input(&vk_syn(VK_F24, true), HARNESS_TAG),
+        ],
+        true,
+    );
+    send_batch(
+        &[
+            to_input(&vk_syn(VK_F23, false), TEST_TAG),
+            to_input(&vk_syn(VK_F23, true), TEST_TAG),
+        ],
+        false,
+    );
     let ok = wait_for(1500, || {
         LOW_H.load(Ordering::SeqCst) - lo_h0 == 2 && HIGH_T.load(Ordering::SeqCst) - hi_t0 == 2
     });
@@ -939,20 +1119,42 @@ fn probe(report: &mut String) -> Result<(), String> {
     let low_t = LOW_T.load(Ordering::SeqCst) - lo_t0;
     let (seen, swallowed) = vkb_windows::e2e::counters();
     say!(
-        "PROBE step1 sent: harness={sent_h} test={sent_t} | H_high: harness-passed={high_h} test-swallowed={high_t} | backend: seen={seen} swallowed={swallowed} | H_low: harness-swallowed={low_h} test-escaped={low_t}"
+        "PROBE sent: harness={sent_h} test={sent_t} | H_high: harness-passed={high_h} test-swallowed={high_t} | backend: seen={seen} swallowed={swallowed} | H_low: harness-swallowed={low_h} test-escaped={low_t}"
     );
     let unaccounted = (sent_h + sent_t).saturating_sub(high_t + swallowed + low_h);
     say!("PROBE escaped events (unaccounted + test-tag escapes) = {}", unaccounted + low_t);
     if !ok || unaccounted != 0 || low_t != 0 || sent_h != 2 || sent_t != 2 || high_h != 2 || high_t != 2 || low_h != 2 {
         return Err("probe: hook order or accounting wrong (see counters above)".to_string());
     }
-    say!("PROBE step1 hook order H_high -> backend -> H_low and swallow accounting: OK");
+    say!("PROBE hook order H_high -> backend -> H_low and swallow accounting: OK");
     Ok(())
 }
 
-fn main() {
+fn default_settings() -> Settings {
+    Settings {
+        method: InputMethod::Telex,
+        old_tone: false,
+        no_jfwz: false,
+        no_spell: false,
+        no_free_tone: false,
+        standard: false,
+    }
+}
+
+fn say(report: &mut String, line: String) {
+    println!("{line}");
+    report.push_str(&line);
+    report.push('\n');
+}
+
+fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
+    let live = args.iter().any(|a| a == "--live-hooks");
     let probe_only = args.iter().any(|a| a == "--probe-only");
+    if probe_only && !live {
+        eprintln!("--probe-only is a --live-hooks option");
+        return ExitCode::from(2);
+    }
     let pace = Duration::from_millis(
         arg_value(&args, "--pace-ms")
             .and_then(|v| v.parse().ok())
@@ -974,152 +1176,210 @@ fn main() {
     let out_path = manifest.join("../../target/zero-focus-e2e.txt");
     let qa_root = manifest.join("../../docs/evkey-clone-work/qa/e2e");
     let mut report = String::new();
+    let _ = EPOCH.set(Instant::now());
 
-    unsafe {
-        let _ = SetConsoleCtrlHandler(Some(ctrl_handler), true);
+    // Live hooks need the machine to themselves.
+    if live {
+        match other_vietkb_processes() {
+            Err(err) => {
+                eprintln!("refusing --live-hooks: {err}");
+                return ExitCode::from(2);
+            }
+            Ok(found) if !found.is_empty() => {
+                eprintln!(
+                    "refusing --live-hooks: {} is running. A running VietKB refreshes its keyboard hook every \
+                     30 s and can become the newest hook; it would compose the harness's keys and inject them \
+                     into the focused window with the production marker, which this harness cannot catch. \
+                     Use the default in-process mode, or quit it yourself first (this harness never stops it).",
+                    found.join(", ")
+                );
+                return ExitCode::from(2);
+            }
+            Ok(_) => {}
+        }
+        unsafe {
+            let _ = SetConsoleCtrlHandler(Some(ctrl_handler), true);
+        }
     }
-    *T0.lock() = Some(Instant::now());
 
     // Preconditions: nothing held, caps lock off (the backend seeds its modifier
-    // state from the OS at install time).
+    // state from the OS at construction time). Read-only.
     let held = [0x10u16, 0x11, 0x12, 0x5B, 0x5C]
         .iter()
         .any(|vk| (unsafe { GetAsyncKeyState(i32::from(*vk)) } as u16) & 0x8000 != 0);
     let caps = (unsafe { GetKeyState(i32::from(keys::VK_CAPITAL)) } & 1) != 0;
     if held || caps {
         eprintln!("refusing to start: a modifier is held or Caps Lock is on (retry in a moment)");
-        std::process::exit(2);
+        return ExitCode::from(2);
     }
 
-    let shared: Arc<RwLock<AppConfig>> = Arc::new(RwLock::new(config_for(&Settings {
-        method: InputMethod::Telex,
-        old_tone: false,
-        no_jfwz: false,
-        no_spell: false,
-        no_free_tone: false,
-        standard: false,
-    })));
-
-    // Install order matters: H_low, backend, H_high (newest runs first).
+    let shared: Arc<RwLock<AppConfig>> = Arc::new(RwLock::new(config_for(&default_settings())));
     vkb_windows::e2e::configure(HARNESS_TAG, TEST_TAG);
+    vkb_windows::set_command_callback(|command| COMMANDS.lock().push(command));
+
     let mut sandwich = Sandwich {
         high: None,
         low: None,
         backend_up: false,
     };
-    sandwich.low = Some(HookThread::start("h-low", low_proc));
-    vkb_windows::set_command_callback(|command| COMMANDS.lock().push(command));
-    vkb_windows::set_config(shared.clone());
-    if let Err(err) = vkb_windows::install() {
-        eprintln!("backend hook did not install: {err}");
-        std::process::exit(3);
+    let mut driver = Driver {
+        rt: None,
+        pace,
+        shared: shared.clone(),
+        applied: None,
+        events: Vec::new(),
+        cursor: 0,
+        stats: Stats::default(),
+    };
+
+    if live {
+        // Install order matters: H_low, backend, H_high (newest runs first).
+        sandwich.low = Some(HookThread::start("h-low", low_proc));
+        vkb_windows::set_config(shared.clone());
+        if let Err(err) = vkb_windows::install() {
+            eprintln!("backend hook did not install: {err}");
+            return ExitCode::from(3);
+        }
+        sandwich.backend_up = true;
+        thread::sleep(Duration::from_millis(100));
+        sandwich.reinstall_high();
+        thread::sleep(Duration::from_millis(100));
+    } else {
+        vkb_windows::e2e::set_capture(true);
+        driver.rt = Some(Box::new(HookRuntime::new(
+            Some(Arc::new(config_for(&default_settings()))),
+            None,
+        )));
+        driver.applied = Some(default_settings());
     }
-    sandwich.backend_up = true;
-    thread::sleep(Duration::from_millis(100));
-    sandwich.high = Some(HookThread::start("h-high", high_proc));
-    thread::sleep(Duration::from_millis(100));
     LAST_FG.store(fg(), Ordering::SeqCst);
 
     let outcome = (|| -> Result<String, String> {
-        probe(&mut report)?;
-        if probe_only {
-            return Ok("PROBE-ONLY clean".to_string());
+        sanity_check_tags()?;
+        say(&mut report, "PROBE injection builders tag every event with the test tag: OK".to_string());
+        if live {
+            probe_live(&mut report)?;
+            if probe_only {
+                return Ok("PROBE-ONLY clean".to_string());
+            }
+        } else {
+            say(&mut report, "MODE in-process: no hooks installed, no SendInput, zero global events".to_string());
         }
 
-        let mut driver = Driver {
-            pace,
-            shared: shared.clone(),
-            applied: None,
-        };
-
-        // Engine-level probe: the first real letters, only after the gate passed.
+        // Engine probe: the first real letters, only after the gate passed.
         let probe_case = Case::text(
             "probe/engine".to_string(),
-            Settings {
-                method: InputMethod::Telex,
-                old_tone: false,
-                no_jfwz: false,
-                no_spell: false,
-                no_free_tone: false,
-                standard: false,
-            },
+            default_settings(),
             "vieetj".to_string(),
             "việt".to_string(),
         );
         let (ok, detail) = driver.run(&probe_case)?;
-        let line = format!("PROBE step2 engine: {} {detail}", if ok { "OK" } else { "FAIL" });
-        println!("{line}");
-        report.push_str(&line);
-        report.push('\n');
+        say(&mut report, format!("PROBE engine: {} {detail}", if ok { "OK" } else { "FAIL" }));
         if !ok {
-            return Err("engine probe failed: backend inactive in the foreground app (IME/rule?) or pipeline broken".to_string());
+            return Err("engine probe failed: pipeline broken".to_string());
         }
 
-        let mut per_method: BTreeMap<String, (u32, u32)> = BTreeMap::new();
+        let mut per_group: BTreeMap<String, (u32, u32)> = BTreeMap::new();
         let mut failing = Vec::new();
         for mode in &modes {
             let standard = mode == "standard";
-            let cases = load_cases(&qa_root, &methods, standard, &only);
+            let cases = load_cases(&qa_root, &methods, standard, live, &only);
             for case in &cases {
                 if ABORT.load(Ordering::SeqCst) {
                     return Err("aborted (ctrl-c or send failure)".to_string());
                 }
+                if live {
+                    sandwich.reinstall_high();
+                    thread::sleep(Duration::from_millis(20));
+                }
                 let (ok, detail) = driver.run(case)?;
-                let group = {
-                    let parts: Vec<&str> = case.id.split('/').collect();
-                    let method = match case.settings.method {
-                        InputMethod::Vni => "vni",
-                        _ => "telex",
-                    };
-                    format!("{}-{}-{}", parts[0], method, if standard { "standard" } else { "unicode" })
+                let parts: Vec<&str> = case.id.split('/').collect();
+                let method = match case.settings.method {
+                    InputMethod::Vni => "vni",
+                    _ => "telex",
                 };
-                let entry = per_method.entry(group).or_default();
+                let group = format!("{}-{}-{}", parts[0], method, if standard { "standard" } else { "unicode" });
+                let entry = per_group.entry(group).or_default();
                 if ok {
                     entry.0 += 1;
                 } else {
                     entry.1 += 1;
                     failing.push(case.id.clone());
                 }
-                let line = format!("{} {} {}", if ok { "PASS" } else { "FAIL" }, case.id, detail);
-                println!("{line}");
-                report.push_str(&line);
-                report.push('\n');
+                say(
+                    &mut report,
+                    format!("{} {} {}", if ok { "PASS" } else { "FAIL" }, case.id, detail),
+                );
             }
+        }
+
+        // Negative control (in-process): with the pre-fix behaviour switched on,
+        // the D-E2E-03 assertion must FAIL.
+        let mut control_note = String::new();
+        if !live {
+            let cases = load_cases(&qa_root, &["telex".to_string()], false, false, &Some("hotkey/f1-enable-composes".to_string()));
+            let control = cases.first().ok_or("negative control case missing")?;
+            vkb_windows::e2e::set_legacy_trigger_leak(true);
+            let result = driver.run(control);
+            vkb_windows::e2e::set_legacy_trigger_leak(false);
+            let (ok, detail) = result?;
+            let caught = !ok && detail.contains("trigger-key-down-reached-app");
+            say(
+                &mut report,
+                format!(
+                    "CONTROL {} {} (pre-fix behaviour: {})",
+                    if caught { "PASS" } else { "FAIL" },
+                    control.id,
+                    if caught { "the F1/F2 trigger key-down reached the app and the assertion failed, as it must" } else { "assertion did NOT detect the leak" }
+                ),
+            );
+            if !caught {
+                failing.push(format!("control/{}", control.id));
+            }
+            control_note = format!(" control={}", if caught { "caught" } else { "MISSED" });
         }
 
         let mut summary = String::from("SUMMARY");
         let (mut p, mut f) = (0, 0);
-        for (group, (pass, fail)) in &per_method {
+        for (group, (pass, fail)) in &per_group {
             let _ = write!(summary, " {group}={pass}/{}", pass + fail);
             p += pass;
             f += fail;
         }
-        let (_, swallowed) = vkb_windows::e2e::counters();
-        let _ = write!(
-            summary,
-            " | PASS={p} FAIL={f} | sent_harness={} sent_test={} H_high_swallowed={} backend_swallowed={} H_low_swallowed={} escaped={} foreign_untouched={}",
-            SENT_H.load(Ordering::SeqCst),
-            SENT_T.load(Ordering::SeqCst),
-            HIGH_T.load(Ordering::SeqCst),
-            swallowed,
-            LOW_H.load(Ordering::SeqCst),
-            LOW_T.load(Ordering::SeqCst),
-            FOREIGN.load(Ordering::Relaxed),
-        );
+        if live {
+            let (_, swallowed) = vkb_windows::e2e::counters();
+            let _ = write!(
+                summary,
+                " | PASS={p} FAIL={f} | mode=live sent_harness={} H_high_swallowed={} backend_swallowed={} H_low_swallowed={} escaped={} foreign_untouched={}",
+                SENT_H.load(Ordering::SeqCst),
+                HIGH_T.load(Ordering::SeqCst),
+                swallowed,
+                LOW_H.load(Ordering::SeqCst),
+                LOW_T.load(Ordering::SeqCst),
+                FOREIGN.load(Ordering::Relaxed),
+            );
+        } else {
+            let _ = write!(
+                summary,
+                " | PASS={p} FAIL={f} |{control_note} mode=in-process events_fed={} injected_captured={} passed={} swallowed={} global_events_sent=0 hooks_installed=0",
+                driver.stats.fed, driver.stats.injected, driver.stats.passed, driver.stats.swallowed,
+            );
+        }
         if !failing.is_empty() {
             let _ = write!(summary, "\nFAILING: {}", failing.join(", "));
         }
         Ok(summary)
     })();
 
-    let final_fg = fg();
-    let fg_note = if final_fg != LAST_FG.load(Ordering::SeqCst) {
-        "foreground window changed during the run (owner switched windows; nothing was delivered to it)"
+    let fg_note = if live && fg() != LAST_FG.load(Ordering::SeqCst) {
+        "foreground window changed during the run (nothing was delivered to it)"
     } else {
-        "foreground window unchanged"
+        "no focus interaction"
     };
 
     drop(sandwich);
+    vkb_windows::e2e::set_capture(false);
+    vkb_windows::e2e::reset();
     let line = match &outcome {
         Ok(summary) => summary.clone(),
         Err(err) => format!("ABORT {err}"),
@@ -1134,7 +1394,14 @@ fn main() {
     }
     let _ = std::fs::write(&out_path, &report);
     println!("results: {}", out_path.display());
-    if outcome.is_err() {
-        std::process::exit(1);
+
+    let failed = match &outcome {
+        Err(_) => true,
+        Ok(summary) => summary.contains("FAILING:"),
+    };
+    if failed {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
     }
 }

@@ -280,6 +280,16 @@ pub fn send_detailed(inputs: &[INPUT]) -> SendResult {
     if inputs.is_empty() {
         return SendResult::default();
     }
+    #[cfg(feature = "e2e-harness")]
+    if crate::e2e::capture(inputs) {
+        let total = inputs.len() as u32;
+        return SendResult {
+            sent: total,
+            total,
+            error: 0,
+            attempts: 1,
+        };
+    }
     let size = std::mem::size_of::<INPUT>() as i32;
     let total = inputs.len() as u32;
     let mut attempts = 0u32;
