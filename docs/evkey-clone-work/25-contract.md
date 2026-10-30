@@ -258,3 +258,14 @@ in Sprint 1.
 - Hotkey capture field: focus → listens for keydown → shows canonical string as it is
   typed → Enter commits, Esc cancels, Backspace clears. It must show the exact string the
   backend will store.
+
+## 8. Change log
+
+- **2026-10-30 — WITHDRAWN: sound-pack additions.** Proposed in this round and **never applied to this
+  contract**: `[system] sound_pack` + `SoundPack`, `scheme_silent` / `schemeSilent`,
+  `preview_sound` / `api.previewSound`, and `soundPack` on `SettingsView.system` (with its TS mirror).
+  Owner ruling 2026-10-30: the toggle sound is **one embedded `go_moc` ON/OFF pair — no config key,
+  no UI, no preview command**. The command surface therefore returns to **exactly what it was before
+  this round** (§6 as written, no additions), and `[system] notification_sound` (§5) remains the only
+  persisted sound switch, untouched by this cut. Do not re-add without an owner ask; verbatim history
+  and measurements live in `22-sound-spec.md` §9.

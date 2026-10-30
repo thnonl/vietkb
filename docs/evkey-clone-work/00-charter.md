@@ -74,21 +74,23 @@ Rules:
 | Role | Agent | Model | Owns | Must not |
 |---|---|---|---|---|
 | Lead | main session | `opencode-go/deepseek-v4.1-flash` | charter, contract, gates, final report, integration | write product code beyond scaffolding |
-| BA | `general` | `opencode-go/deepseek-v4.1-flash#max` | feature inventory, spec, plan, acceptance criteria | edit product code |
-| Dev | `general` | `opencode-go/deepseek-v4.1-flash#max` | all implementation in its worktree | change the contract, change design values |
-| QA | `general` | `opencode-go/deepseek-v4.1-flash#low` | test cases, defect log, independent verification | edit product code (may add tests) |
+| BA | `general` | `anthropic/claude-opus-5-5#medium` | feature inventory, spec, plan, acceptance criteria | edit product code |
+| PO | `general` | `anthropic/claude-opus-5-5#medium` | backlog order, round scope, release go/hold recommendation to the owner | edit product code, overrule an owner decision |
+| Dev | `general` | `anthropic/claude-sonnet-5-5#medium` | all implementation in its worktree | change the contract, change design values |
+| QA | `general` | `anthropic/claude-haiku-5-5#high` | test cases, defect log, independent verification | edit product code (may add tests) |
 | Design | `general` | `anthropic/claude-opus-5-5#medium` | visual directions, tokens, screenshot-ready mocks | decide taste alone |
 | Copy | `general` | `opencode-go/deepseek-v4.1-flash#max` | every Vietnamese sentence: voice guide, About, site, release notes, string audits | edit code or layout |
 
 **Copy owns the words (owner, 2026-10-29).** No product string ships without the copywriter's pass;
-the Lead may propose facts and constraints but not final phrasing. Opus credits ran out (owner,
-2026-10-29), so **BA, Design and Copy all run on DeepSeek `max` now**; design judgement is
-unchanged in scope but its lateral-idea quality is lower — say so when a design decision matters
-more than execution.
+the Lead may propose facts and constraints but not final phrasing.
 
-**Reasoning level rule (owner, 2026-10-28):** Opus runs at **`medium`**. `high`/`xhigh` only when
-the owner asks for it by name — the cost is not justified for routine work. DeepSeek devs stay at
-`max` (they are cheap), QA at `low`.
+**Model assignment (owner, 2026-10-30)** — supersedes the 2026-10-29 "everything on DeepSeek" note:
+BA / PO / Design run on **Opus `medium`**, Dev on **Sonnet `medium`**, QA on **Haiku `high`**.
+Copy and Lead are unchanged. In Claude Code, dispatch with the Agent tool's `model`
+(`opus` / `sonnet` / `haiku`); the reasoning level goes in the agent definition or the brief.
+
+**Reasoning level rule (owner, 2026-10-28, amended 2026-10-30):** Opus and Sonnet run at
+**`medium`**, Haiku (QA) at **`high`**. Go above these only when the owner asks by name.
 
 
 Scrum, simplified: Sprint 0 = charter + inventory + spec + contract freeze.
@@ -102,8 +104,8 @@ Every change under `crates/` and `ui/` goes to a dev child; the Lead writes only
 `cargo check`) plus the commit itself. If a dev child is unavailable, the Lead stops and asks
 instead of editing.
 
-Model rule: read the model from the dispatching session's metadata at dispatch time.
-Never hardcode a model string across turns. Children inherit the same rule for their children.
+Model rule: the role table above is the source of truth for each role's model and reasoning
+level. Children inherit the same rule for their children.
 
 ## 6. Worktrees and shared resources
 
@@ -125,6 +127,13 @@ Protocol:
 - Signing/packaging and any installer run belongs to the Lead gate only.
 - Test devices: this machine is the only Windows target. Input-hook testing requires a
   real foreground app; nobody runs the app while QA is measuring. QA owns the window.
+- **The owner's own running app is off-limits (owner, 2026-10-30).** The installed build
+  (`%LOCALAPPDATA%\VietKB\vietkb.exe`, the daily driver) must never be stopped, killed,
+  restarted or replaced by an agent, and no agent may rely on Tauri single-instance
+  redirecting into it. An agent may only kill a process **it launched itself** (a binary
+  under `E:\vietkb\target\`) and must name the pid+path in its report. If the installed
+  instance is alive and a test needs the hook, the run stops and asks the owner to quit it —
+  killing it is a defect, not a convenience. Full rules: `99-agent-guardrails.md`.
 
 ## 7. Artifacts (all under `docs/evkey-clone-work/`)
 

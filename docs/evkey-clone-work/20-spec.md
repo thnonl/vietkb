@@ -271,13 +271,274 @@ A syllable is **valid** iff `C1? V C2?` parses with:
 Policy:
 - **Invalid while typing**, `spell_check = true`: the triggering key is literal (A1 #5). `spell_check = false`: transforms apply regardless.
 - **False positives (English, URLs, code):**
-  - `raw_zone`: after any of `. / : @ _ \ # = ?` (when the char is passed as punctuation) with **no
+  - ~~`raw_zone`: after any of `. / : @ _ \ # = ?` (when the char is passed as punctuation) with **no
     whitespace** before the next letter, the next word is raw (no transforms) until whitespace/Enter/Tab
-    (`github.com/user`, `a_b`, `x=y`, `me@host`).
+    (`github.com/user`, `a_b`, `x=y`, `me@host`).~~
+    **SUPERSEDED 2026-10-30** — the raw zone no longer arms on the punctuation alone: it arms only when
+    the token on the **left** of it is code-shaped. The struck rule made every word after
+    `/ . ? _ @ : = # \` literal, so `bật/tắt` came out as `bật/ta8t1`; the owner rejected that. Binding
+    text: **§A9 amendment 2026-10-30** at the end of this section.
   - A word that begins with a digit is `non_viet`.
   - Uppercase-inside-word after a lowercase letter (`iPhone`, `getX`) → `non_viet` from that key on —
     `UNVERIFIED` that this doesn't hurt real Vietnamese (method: corpus run on 10k-word VN text; expect 0 hits).
   - Everything else is handled by A10 restore at commit.
+
+#### Amendment 2026-10-30 (owner rulings D-SC-01…05) — when the raw zone may arm
+
+**Status:** binding, supersedes the `raw_zone` bullet above. **Ruling:** typing `/` (or `. ? _ @ : = # \`)
+between two Vietnamese words must not disable Vietnamese for the rest of the word — `bật/tắt` must
+compose, in Telex and in VNI — while real URLs, e-mails and paths stay literal. **Evidence:**
+`51-special-cases.md` (78 rows, 22 failures, one cause), `60-defects.md` D-SC-01…04, root
+`Engine::boundary_key` (`crates/vkb-core/src/engine.rs:421-435`) arming on the punctuation and
+`Engine::word_key` (`:225-232`) then setting `literal_from = 0` for the whole next word.
+**D-SC-05** (2026-10-30, §2b) closes the residue Dev measured: `C:\Users\nam` survived in VNI but
+Telex emitted `C:\Úe\nam`, because the `\` is a second opener with an empty left token.
+
+**1. Terms** (all engine-local; nothing is read back from the focused app).
+
+| term | definition |
+|---|---|
+| *opener* | `c ∈ { . / : @ _ \ # = ? }`, char passed as punctuation — unchanged from the struck rule |
+| *left token* | the word the engine holds when the opener arrives: `LEFT.raw` (keystrokes, `self.raw`), `LEFT.composed` (`self.composed`, letters + marks + tone), `LEFT.text` (`self.text`, what is on screen) |
+| *final left text* | the text the left token shows **once this boundary key is handled**: the A10 restore output if restore fired at this boundary, the macro expansion if a macro fired, else `LEFT.text`. Expressed as Unicode/NFC, **before** charset encoding — VIQR/TCVN3/VISCII bytes must not be used for the ASCII test |
+| *plain-ASCII* | every char of the final left text is `≤ U+007F` — i.e. no composed Vietnamese letter (`ă â đ ê ô ơ ư`) and no tone on it |
+| *valid syllable* | `spell::is_valid_syllable(LEFT.composed.letters, options.jfwz_as_consonant)` — the A9 predicate itself. `false` for an empty letter list, so a digits-only left token (`2/3`) is never a valid syllable. `false` by definition when A10 restore fired at this boundary (a restored word is an invalid one) |
+| *last_emitted* | the last character the engine emitted for this word slot (Unicode/NFC, before charset encoding) — the char on screen immediately left of the incoming punctuation. Openers are always emitted literally |
+| *previous opener armed* | `self.raw_pending` is still `true` when this boundary key starts, i.e. the immediately preceding key was a boundary that armed and no `word_key` consumed the flag since (§2b) |
+
+**2. The predicate** — total, no lookahead, no lexicon, no judgement call:
+
+```
+arm(c) =
+      options.raw_zone                                   # typing.raw_zone (default true)
+  ∧   c ∈ { '.', '/', ':', '@', '_', '\\', '#', '=', '?' }   # opener
+  ∧   ¬(c = '.' ∧ last_emitted = '.')                    # ellipsis "..."  (2nd, 3rd dot)
+  ∧   ¬(c = '.' ∧ is_ascii_digit(last_emitted))          # digit-dot "3.5"
+  ∧   ( final_left_text ≠ "" ∨ chained(c) )              # ← NEW: never arm on an empty left token,
+                                                          #   except a chained opener (§2b)
+  ∧   plain_ascii(final_left_text)                       # ← NEW: no Vietnamese letter on screen
+                                                          #   (vacuously true on an empty left token)
+  ∧   ( c ∈ { '.', '/', '?' } → ¬valid_syllable )         # ← NEW: sentence punctuation keeps a
+                                                          #   plausible Vietnamese syllable Vietnamese
+```
+
+Assignment of the result: `self.raw_pending = arm(c)` — i.e. the existing flag keeps its name and its
+one-key lifetime, but it is now set from this predicate instead of from the opener alone.
+
+Reading it in words: *the raw zone arms when code punctuation follows a token that is visibly not
+Vietnamese (plain ASCII), and — for the three characters a Vietnamese typist also uses between words
+(`. / ?`) — only when that left token is not itself a well-formed Vietnamese syllable. It never arms
+at the start of a line or after whitespace, because the left token is then empty.*
+
+**2b. Chained openers** (added 2026-10-30, ruling D-SC-05 — the `C:\Users\nam` gap). An opener that
+arrives while the **previous** opener already armed and nothing has been typed since is a **path
+continuation**, not a word boundary: it arms too, so the run keeps protecting the word after it.
+
+```
+chained(c) =
+      options.raw_zone                                     # same feature switch
+  ∧   c ∈ { '\\', '/' }                                    # path / authority continuation only
+  ∧   last_emitted ∈ { ':', '\\', '/' }                     # the char just emitted before c
+  ∧   left token empty                                     # nothing typed since that opener
+  ∧   self.raw_pending                                     # read BEFORE this boundary overwrites it
+```
+
+- *last_emitted* = the last character the engine emitted for this slot (NFC, before charset encoding)
+  — `:` in `C:\`, `\` in `C:\\`, `/` in `http://`. Openers are always emitted literally, so this is the
+  char on screen immediately left of `c`.
+- *previous opener armed* is not new state: it is `self.raw_pending` still true because no `word_key`
+  ran between the two openers. Nothing is stored, nothing is reset.
+- **Why this set and not "any two openers":** a chain is granted only where a real path continues —
+  after `:` (`C:\`, `C:/`, `http://`, `https://`), after `\` (`C:\\server`), after `/` (`http://`).
+  `_`, `@`, `=`, `#`, `?` and `.` never chain, which is what keeps `bật:_/tắt`, `bật./tắt`,
+  `x=@cof` (L1) and `e.g./i.e.` exactly as they are.
+- **Cost (declared):** a run of `:/`, `:\`, `//` keeps one *extra* word literal without evidence —
+  `a:/tắt` stays `a:/tắt`, `abc://tiếng` stays `abc://tiếng` (new L5). It cannot reach an ordinary
+  Vietnamese pair, because the word before the colon must be plain ASCII for the first opener to arm
+  (`bật:/tắt` → arm at `:` is already **no**). Protection still stops at the first non-`{:/\\/}`
+  character, so `xyz./tiếng` composes.
+
+**Expiry (one rule, inherited):** `chained` only re-sets a flag that was never consumed, so it dies
+exactly when `raw_pending` dies — consumed once by the next `word_key` (`literal_from = raw.len()`),
+forcibly `false` by any non-opener boundary key (space, Tab, Enter, other punctuation: `arm` is
+recomputed every boundary), and cleared by Backspace (`engine.rs:278`) or `reset()` (`:520`); the
+`left token empty` term additionally ends the chain the moment any character is emitted into the new
+word.
+
+**Interaction with `raw_pending` being consumed once:** harmless by construction — during an opener
+run no `word_key` runs, so the flag is never consumed and each chained opener simply re-asserts `true`.
+The run is still consumed exactly once, by the first letter after the last opener; already-emitted
+text is never retro-armed.
+
+**Scope note:** this is the whole of D-SC-05. It is not a general "two openers in a row" licence and
+it does not touch the syllable test — `https://x/y/z` protects `x` and `z` by chain/base arming, while
+the `y` segment is unarmed (`y` alone is a valid syllable, and the char before `/` is not an opener)
+and stays literal only because `z` triggers no transform. Pinned in §6.
+
+**3. Where it must be evaluated (Dev).** At the **end** of `boundary_key`, on the final left text, not at
+`:432` where the flag is set today — the macro branch (`:438-449`) and the A10 restore branch
+(`:451-462`) both rewrite what the left token shows, so the ASCII/validity terms must see their
+outcome. Concretely, before each `reset_word()` on the boundary path:
+
+```
+let (left_chars, left_valid) = if restored_here {
+    (self.raw.clone(), false)                          # A10 put the raw keystrokes back
+} else if macro_fired_here {
+    (expansion.chars().collect(), false)               # expansion is text, not a syllable
+} else {
+    (nfc_chars(&self.composed), is_valid_syllable(&self.composed.letters, opts.jfwz_as_consonant))
+};
+let arm_prev = self.raw_pending;                       # §2b: read before the overwrite below
+let chained = opts.raw_zone && matches!(c, '\\' | '/') && left_chars.is_empty()
+           && arm_prev && matches!(last_emitted, ':' | '\\' | '/');
+let armed = opts.raw_zone && opener && !ellipsis && !digit_dot
+         && (!left_chars.is_empty() || chained)
+         && left_chars.iter().all(|c| c.is_ascii())
+         && !(matches!(c, '.' | '/' | '?') && left_valid);
+self.raw_pending = armed;
+```
+
+The consumer (`word_key`) is unchanged: `raw_pending` ⇒ `literal_from = raw.len()` (= 0) once, then
+the flag clears. `nfc_chars` is the composed letters with marks and tone applied — the same value
+`render_into` uses, before `push_encoded`.
+
+**4. Must become PASSING** (`arm = no` everywhere; QA rows SC-02…75 in `51-special-cases.md`).
+
+| # | keystrokes | arm? | left term that decides | result |
+|---|---|---|---|---|
+| 1 | VNI `ba65t/ta8t1` | no | `bật` is not plain ASCII | `bật/tắt` |
+| 2 | VNI `ba65t.ta8t1` | no | not plain ASCII | `bật.tắt` |
+| 3 | VNI `ba65t?ta8t1` | no | not plain ASCII | `bật?tắt` |
+| 4 | VNI `ba65t_ta8t1` | no | not plain ASCII (no syllable test needed for `_`) | `bật_tắt` |
+| 5 | VNI `ba65t@ta8t1` | no | not plain ASCII | `bật@tắt` |
+| 6 | VNI `ba65t:ta8t1` | no | not plain ASCII | `bật:tắt` |
+| 7 | VNI `ba65t=ta8t1` | no | not plain ASCII | `bật=tắt` |
+| 8 | VNI `ba65t#ta8t1` | no | not plain ASCII | `bật#tắt` |
+| 9 | VNI `ba65t\ta8t1` | no | not plain ASCII | `bật\tắt` |
+| 10 | VNI `Ba65t/Ta8t1` | no | not plain ASCII (uppercase `Bật`) | `Bật/Tắt` |
+| 11 | VNI `/ta8t1` | no | left token empty | `/tắt` |
+| 12 | VNI `ba65t /ta8t1` | no | space reset the word ⇒ empty | `bật /tắt` |
+| 13 | VNI `ba65t//ta8t1` | no | 2nd `/`: empty left | `bật//tắt` |
+| 14 | VNI `ba65t/ta8t1/ba65t` | no, no | `bật`, then `tắt` — both non-ASCII | `bật/tắt/bật` |
+| 15 | VNI + numpad `ba65t/ta8t1` | no | same path (numpad digits are word keys) | `bật/tắt` |
+| 16 | VNI `ba65t/a8` `a61` `d9` `o7` `u7` | no | non-ASCII left | `bật/ă` `bật/ấ` `bật/đ` `bật/ơ` `bật/ư` |
+| 17 | Telex `baajt/taats` | no | non-ASCII left | `bật/tắt` |
+
+**5. Must keep PASSING** (pinned by `tests/raw_zone.rs` and `special_cases.rs::url_email_and_code_shapes_stay_literal`).
+
+| keystrokes | arm? | why | result |
+|---|---|---|---|
+| `github.cof` | yes at `.` | left `github`: plain ASCII, invalid syllable | `github.cof` |
+| `a@b.com` | yes at `@`, yes at `.` | `a` plain ASCII (the `@` is not a `. / ?`, so no syllable test); at `.` the left is `b`, invalid syllable | `a@b.com` |
+| `file_name` | yes at `_` | `file` plain ASCII, `_` needs only that | `file_name` |
+| `x=cof` | yes at `=` | `x` plain ASCII | `x=cof` |
+| `me@cof` | yes at `@` | `me` plain ASCII, `@` needs only that (this is why the syllable test is limited to `. / ?`) | `me@cof` |
+| `http://a.b/c` | yes at `:`, **yes at both `/` by chain (§2b)**, no at `.` (left `a` is a valid syllable), yes at `/` (left `b`, invalid) | `:` plus the chained `//` protect `a`; the chain and the `b` arm protect `c` | `http://a.b/c` |
+| `a. tieengs` | yes at `.` (left `a`, plain ASCII), but the space recomputes it to `no` | sentence + space is a hard separator, not a raw zone | `a. tiếng` |
+| `3.cof`, `3.5`, `1.5` | no | digit-dot | `3.cò`, `3.5`, `1.5` |
+| `2/3` | yes at `/` | `2` plain ASCII, digits are not a syllable | `2/3` |
+| `%20`, `--opt` | n/a | `%` and `-` are not openers | `%20`, `--opt` |
+| `a...cof` | no | ellipsis | `a...cò` |
+| `github.cof` with `raw_zone = false` | n/a | feature off | `github.cò` |
+| `Tha` `/` BS `s` | n/a | Backspace kills the armed flag §7 | `Thá` |
+| `ko/` → macro `không`; `ba65t/ko/`; `macro_only` `ko/` | n/a | macro runs before any arming decision, matches `LEFT.raw` | `không/`, `bật/không/` |
+
+**6. Borderline set — QA's re-verification rows** (declared outcomes, not wishes; they pin the cost).
+
+| keystrokes | arm? | result | note |
+|---|---|---|---|
+| `bật/http://x` | no at `/` (`bật` non-ASCII); yes at `:` (left `http`, plain ASCII); no at the two `/` (left empty) | `bật/http://x` | mixed Vietnamese left + URL right resolves correctly |
+| VNI `abc/d9uo7ng2` | **yes** (`abc` plain ASCII, invalid syllable) | `abc/d9uo7ng2` | **declared loss L2** — unaccented code-looking left token suppresses a Vietnamese right word |
+| `C:\Users\nam` — **Telex and VNI alike** | yes at `:` (left `C` plain ASCII); **yes at `\` by chain (§2b)**: word empty, `raw_pending` still set from `:`, `last_emitted = ':'`; yes at the final `\` (left `Users` plain ASCII, invalid syllable) | `C:\Users\nam` | the previous row of this table said "at `\` A10 restored `Users`" — impossible: the `\` arrives before any letter of `Users` exists, so nothing can be restored there; the chain, not restore, is what protects `Users` (D-SC-05) |
+| Telex `C:/Users/nam` | yes at `:`, **yes at `/` by chain** | `C:/Users/nam` | |
+| Telex + VNI `C:\\server\share` | yes at `:`, **yes at both `\` by chain** | `C:\\server\share` | two chained openers in one run |
+| Telex + VNI `https://x/y/z` | yes at `:`, **yes at both `/` by chain**, yes at `/` after `x`; **no** at `/` after `y` (`y` is a valid syllable, and `y` is not an opener) | `https://x/y/z` | `z` segment unarmed but literal: no transform trigger — same class as `e.g./i.e.` |
+| Telex `xyz./tieesng`, `bật:_/tieesng` | **no chain**: after `.` (`last_emitted` not an opener char) and after `_`/`: `:_` (`_` is not in the chain set, and `bật` never armed at `:`) | `xyz./tiếng`, `bật:_/tiếng` | chain does not fire — the negative control for §2b |
+| `a/b/c` | yes, yes | `a/b/c` | |
+| `100%/50%` | no arm anywhere | `100%/50%` | `%` is not an opener; `10`/`50` are digit-leading ⇒ `non_viet` |
+| Telex `#hashtag/tieesng` | no at `#` (empty left); at `/` the left token is plain ASCII `hashtag` either way (tone key escaped while typing, or A10 restored it), invalid syllable ⇒ **yes** | `#hashtag/tieesng` | **declared loss L2** |
+| `e.g./i.e.` | no at 1st `.` (`e` valid syllable), yes at 2nd `.` (`g` invalid) | `e.g./i.e.` | no transform trigger in any segment, text identical either way |
+| `v1.2.3/tag` | no at both dots (digit-dot), yes at `/` (left `3`, plain ASCII, not a syllable) | `v1.2.3/tag` | |
+
+**6b. Intended, not a defect (owner ruling 2026-10-30).** QA filed `D-SC-06` and `D-SC-07` as P3
+under-protection shapes; the owner ruled both are expected behaviour, so they are closed as
+**NOT A DEFECT** in `60-defects.md` and carry no fix obligation. In spec terms:
+- **one-letter left token** — the `¬valid_syllable` term uses the A9 predicate, which is deliberately
+  generous: a one-character token (`x`, `c`, `v`, `a`) is a well-formed onset-only syllable, so
+  `x/`, `c/users`, `v1/users` do **not** arm and compose (`x/cò`, `c/úe`, `v1/tiếng`) — exactly the
+  behaviour that keeps `a/b` composing, and it cannot be tightened without breaking `a/b` (L6).
+- **Telex digit-run opener** — a second consecutive digit terminates the numeric run, so the word is
+  empty when the opener arrives and §2's non-empty-left term forbids arming (`10/users` → `10/úe`,
+  `21/cof` → `21/cò`); §2b cannot rescue it because a chain needs a *previous armed opener*. VNI keeps
+  the run as keystrokes, so the same keys stay literal there — method-dependent text, accepted (L7).
+Both are declared behaviour; no test is required beyond §9's pinning of `a/b` and `2/3`.
+
+**7. Precedence and state rules — confirmed (one exception: §2b chain).**
+- Order stays **macro > restore (A10) > spell (A9) > transforms**. Arming is decided only in
+  `boundary_key` and consumed by the next `word_key`; it touches none of the three checks. Macro
+  lookup reads `LEFT.raw`, which never contains the opener, so `ko/`, `ba65t/ko/`, `macro_only ko/`
+  behave exactly as today (SC-68…71, 76, 77).
+- Spell-invalid-while-typing (A1 #5) is untouched: an armed word is literal from its first keystroke,
+  so `literal_from == 0` and `should_restore` refuses it — same as today, no new restore surface.
+- `arm` is recomputed by **every** boundary key. It never survives a boundary as text protection, but
+  `raw_pending` may survive one *armed opener* into the next key, which is what §2b's chain reads:
+  `//`, `/ `, `x=@` and `bật//` still see an empty left token and arm nothing **unless** the previous
+  opener armed *and* both chars are in `{':', '\\', '/'}` (`C:\`, `C:/`, `http://`, `C:\\server`).
+- **Backspace must clear `raw_pending`** (already true, `engine.rs:278`, before the reopen path).
+  Behaviour: the app's own BS deletes the opener character, the armed flag dies with it, and the next
+  letter composes again — `Tha` `/` BS `s` = `Thá`, and the space variant keeps working.
+  `reset()` (caret move / focus change / language toggle) also clears it (`:520`) — keep.
+
+**8. Test contract.**
+- `crates/vkb-core/tests/raw_zone.rs` — all five tests stay green unchanged (`github.cof`, `x=cof`,
+  `me@cof`, `a. tieengs`, `3.cof`, `a...cò`, `raw_zone = false`, backspace-after-opener). **Add**
+  `arming_needs_a_code_shaped_left_token` over tables §4 and §5, `raw_zone_is_recomputed_per_opener`
+  over §7's `//`, `/ `, `x=@cof`, and `chained_openers_extend_a_path` over §2b + the four §6 chained
+  rows (must-stay-literal in **both** methods: `C:\Users\nam`, `C:/Users/nam`, `C:\\server\share`,
+  `http://a.b/c`, `https://x/y/z`; must-stay-composing: `bật/tắt`, `bật//tắt`, `bật /tắt`, `/tắt`,
+  `a/b`, `2/3`, `bật.http`, `bật./tắt`, `bật:_/tắt`, `xyz./tieesng`).
+- `crates/vkb-core/tests/special_cases.rs` — the Dev **removes `#[ignore]`** from
+  `d_sc_01_slash_between_two_vni_words`, `d_sc_02_dot_and_question_between_words`,
+  `d_sc_03_underscore_at_colon_between_words`, `d_sc_04_code_punctuation_openers`; they become
+  regression tests, never deleted. `matrix()` must flip the 22 previously failing rows
+  (SC-02, 03, 06, 07, 08, 17, 21, 23, 27, 28, 29, 31, 32, 33, 54, 56, 58, 60, 62, 63, 73, 75) to PASS.
+  `url_email_and_code_shapes_stay_literal` and `vk_path_matches_char_path` stay green and gain the §6
+  rows as `amendment_2026_10_30_borderlines`, so the declared losses are pinned rather than left vague.
+- `00-charter.md` §9 guard list must not regress: engine purity (`vkb-core` still OS-free — the change
+  uses only `spell::` + `Composed`, no new crate), hotkey defaults, "never leave a stray backspace when
+  the action is a no-op" (arming changes only `literal_from`, not the emitted action), clipboard
+  restoration, config round-trip (no new key; `typing.raw_zone` keeps its name, type and default).
+- Doc-only follow-up (not this amendment's scope): `crates/vkb-core/src/lib.rs:264` still says the raw
+  zone is "not implemented yet" (O-7).
+
+**9. Known losses accepted with this ruling** (L1–L5 pinned by §6/§8 tests; L6–L7 owner-ruled
+intended 2026-10-30, needing no test beyond §8's `a/b` and `2/3`; none in the owner's list).
+- **L1** — a run of openers loses protection **outside the chain set**: `x=@cof` → `x=@cò`,
+  `a./cof` → `a./cò`. A second punctuation has an empty left token, which §2 forbids arming on; that is
+  exactly what `bật//tắt` requires. Chained runs in `{':', '\\', '/'}` are now the exception (§2b), so
+  `http://cof` no longer belongs here.
+- **L2** — a code-looking **plain-ASCII** left token followed by a Vietnamese right word stays literal
+  (`abc/đường`, `#hashtag/tiếng`). Escape: Backspace deletes the opener and disarm, or
+  `typing.raw_zone = false`. Closing it needs a lexicon, which is not in scope.
+- **L3** — code whose left token is a *valid Vietnamese syllable* loses protection for `. / ?`:
+  `ban.cof` → `ban.cò`. Inherent lexeme ambiguity; `.` is a sentence mark in Vietnamese.
+- **L5** — chained openers (§2b) carry literal protection one word further than the evidence supports:
+  `a:/tiếng` stays `a:/tiếng`, `abc://tiếng` stays `abc://tiếng`. Reachable only when the token before
+  the first opener is plain ASCII (so `bật:/tắt` is untouched), i.e. never between two Vietnamese words;
+  the alternative — a lexicon pass — is L2/L4's rejected cost. Accepted: it is the price of
+  `C:\Users\nam` in Telex.
+- **L4** — lookahead is impossible by construction: the engine decides at the opener, before the first
+  keystroke of the right word exists, so no rule may depend on the right-hand text.
+  *Rejected alternative, recorded so it is not re-litigated:* a "provisional arm, retroactive disarm
+  when the right word turns out to be a valid syllable" pass. It cannot separate `abc/cò` (typed
+  `abc/cof`, code or Vietnamese?) from `github.cof` without a lexicon, and it would break the pinned
+  `github.cof` row; it also converts a one-bit flag into a shadow buffer on every armed word.
+- **L6** — a one-letter left token is an onset-only syllable under A9, so it never protects:
+  `x/cof` → `x/cò`, `c/users` → `c/úe`, `v1/users` → `v1/tiếng` (§6b; `D-SC-06` = NOT A DEFECT).
+  **owner-accepted 2026-10-30.**
+- **L7** — in Telex a second digit ends the numeric run, so the opener arrives with an empty left token
+  and does not arm: `10/users` → `10/úe`, `21/cof` → `21/cò`; VNI keeps the run and stays literal
+  (§6b; `D-SC-07` = NOT A DEFECT). Method-dependent text. **owner-accepted 2026-10-30.**
 
 ### A10. Restore wrong word (tự động khôi phục từ gõ sai)
 
@@ -438,7 +699,7 @@ Labels marked † are verbatim from E2; ‡ owner-provided in brief, not yet see
 | `typing.auto_horn_uo` | bool | true | `ưo → ươ` auto (A1) § label |
 | `typing.macro_active_when_disabled` | bool | false | `Vẫn cho phép gõ tắt khi tắt tiếng Việt` † |
 | `typing.macro_case_follow` | bool | true | macro output follows trigger case (A8) § label |
-| `typing.raw_zone` | bool | true | URL/code protection (A9) § label |
+| `typing.raw_zone` | bool | true | URL/code protection (A9). Arms only when the punctuation follows a plain-ASCII, non-Vietnamese left token, or is a chained path opener after `:`/`\`/`/` (A9 amendment 2026-10-30 §2b) |
 | `input.send_method` | `"keyboard"\|"clipboard"\|"ime"` | `"keyboard"` | `Sử dụng Clipboard để gửi phím` † maps to `clipboard`; `ime` reserved (TSF, not Sprint 1) |
 | `compat.browser_suggestion_fix` | `"off"\|"fix1"\|"fix2"` | `"fix1"` | `Sửa lỗi dấu gợi ý (Browsers, Excel,...)` † (two variants, E3/E4). Mechanism `UNVERIFIED`: fix must dismiss the autocomplete selection before backspaces (candidate: inject a no-op char then delete it; method: Chrome omnibox with history `google.com`, type `goo` + Telex tone) |
 | `compat.metro_support` | bool | true | `Hỗ trợ ứng dụng Metro` † |

@@ -906,3 +906,18 @@ that contains the fix; corpus gaps found by a defect are added to §1 in the sam
 ## §3 note — 2026-10-29
 UI-11, UI-23, UI-26 are **N/A**: the charset feature was removed from the product by owner decision
 ("bỏ bảng mã cũ"). Recount without them: **43 pass, 3 N/A, 0 fail**.
+
+## §3 sound cases — 2026-10-30 (scope cut)
+
+Owner ruling 2026-10-30: the toggle sound is **one embedded `go_moc` ON/OFF pair** played on every
+toggle route; `system.notification_sound` is the only switch. The surface this corpus would have
+tested — pack picker, `Nghe thử`/`preview_sound`, `sound_pack` persistence, the `schemeSilent` hint,
+and the `Nâng cao` 388 → 424 growth — **never entered this corpus**, so there is no row to strike;
+any such row that surfaces later is `N/A — surface cut`. `Nâng cao` keeps its UI-19 size
+(560 × 496) and gains no row. The three cases that matter now:
+
+| id | area | precondition | steps | expected | verify | evidence |
+|---|---|---|---|---|---|---|
+| UI-47 | sound — toggle ON | baseline, `system.notification_sound=true`, speakers audible, volume > 0. The Windows scheme may be `.None` ("No Sounds") — irrelevant, both WAVs are embedded (`include_bytes!`) | (1) hotkey `Ctrl+Shift` to enable; (2) main `Bật tiếng Việt` switch off→on; (3) tray `Bật/tắt tiếng Việt` off→on; capture system output for each | every OFF→ON plays the `go_moc` **on** WAV exactly once (22 050 Hz / 16-bit / mono, `assets/sounds/go_moc/on.wav`; the pair is 8 468 B) — the same sample on all three routes, no double play, hook keeps typing, no crash | not run (new 2026-10-30) — WASAPI loopback capture per route, compare duration + waveform to the asset; silence on a `.None` scheme is a FAIL | `qa/evidence/UI-47.txt` |
+| UI-48 | sound — toggle OFF | same as UI-47, enabled | (1) hotkey `Ctrl+Shift` to disable; (2) main switch on→off; (3) tray `Bật/tắt tiếng Việt` on→off; capture each | every ON→OFF plays the `go_moc` **off** WAV once on all three routes, audibly a different sample from the ON cue (ON != OFF); switch, tooltip and config flip as before | not run (new 2026-10-30) — loopback capture, ON vs OFF compared by duration + waveform; identical ON/OFF is FAIL (the D-SND-03 shape) | `qa/evidence/UI-48.txt` |
+| UI-49 | sound — `Injection::Beep` | baseline, enabled; a keystroke path that reaches `Reject` (e.g. OQ-7 word overflow, or any key the engine rejects) | trigger the reject path twice; then toggle twice in the same session | `Reject` plays the **error/off cue** (`play_error()`, `SystemHand` alias), never the toggle pair; the toggle pair is unaffected; no config key or UI exists for this cue (Beep is deliberately asymmetric) | not run (new 2026-10-30) — loopback capture; on a `.None` scheme the alias is silent, accepted: no extra error asset ships | `qa/evidence/UI-49.txt` |

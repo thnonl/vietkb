@@ -67,3 +67,13 @@ and removing it from the shortcut row keeps that row at 46 px.
 
 Label ≤ 30 chars · description ≤ 64 · button ≤ 16 · tab ≤ 12 · toast ≤ 72 · error ≤ 110.
 One term per concept. No ALL CAPS. Explain by example (`hoangf → hoàng`) instead of by rule.
+
+## F. Withdrawn — sound picker copy (2026-10-30)
+
+The **15 strings** written for the `Kiểu âm thanh` picker (7 pack labels, 7 one-line hints, 1
+`schemeSilent` advisory) are **withdrawn, not shipped, not deleted**: owner ruling 2026-10-30 cut the
+picker, `sound_pack`, `preview_sound` and the `Nâng cao` 388 → 424 growth, leaving one embedded
+`go_moc` ON/OFF pair with `system.notification_sound` as the only switch. The verbatim text and the
+three phrasing risks are kept for the record in `22-sound-spec.md` §9 (History), marked "removed with
+the scope cut". Copy: **nothing to chase** — no new string exists for this feature, and the toggle
+keeps its existing `Âm thanh khi bật/tắt` label untouched. Do not re-open without an owner ask.

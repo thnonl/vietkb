@@ -93,6 +93,31 @@ tone digits (`Tha` + space + BS + `1` = `Thá`), and it must also hold for VNI m
 reopen; that came from reading the `0..32` class fill and missing that the punctuation list is
 written afterwards and reclaims space.
 
+## D9 — Raw zone arms on the left token, not on the punctuation (owner ruling, 2026-10-30)
+
+`20-spec.md` §A9 specified "any opener ⇒ the next word is literal". Measured on the real engine, that
+made every Vietnamese word after `/ . ? _ @ : = # \` literal (`bật/tắt` → `bật/ta8t1`, `D-SC-01…04`).
+Owner ruling: `/` between two Vietnamese words must not disable Vietnamese for the rest of the word.
+
+Ruling: an opener only arms the raw zone when the token on its **left** is visibly not Vietnamese —
+non-empty, plain ASCII on screen (no composed letter, no tone), and — for the three characters a
+Vietnamese typist also puts between words (`. / ?`) — not a valid A9 syllable. An empty left token
+(start of line, after whitespace, after a previous opener) never arms, which is what makes
+`/tắt`, `bật//tắt`, `bật /tắt` compose. The decision is made on the left token's **final** text for
+that boundary key (A10 restore / macro output included), at the end of `boundary_key`, and consumed
+by the next `word_key` exactly as before. Full predicate, decision tables, precedence and test
+contract: `20-spec.md` §A9 amendment 2026-10-30.
+
+Consequences accepted in the same ruling (pinned by tests, none in the owner's list): a plain-ASCII
+code-looking left token still
+suppresses a Vietnamese right word (`abc/đường`), and a left token that happens to be a valid
+syllable loses protection for `. / ?` (`ban.cof` → `ban.cò`). Backspace still deletes the opener and
+kills the armed flag (`engine.rs:278`), so `Tha` `/` BS `s` = `Thá` is unchanged.
+
+**Correction (2026-10-30, after §2b):** the "a run of openers loses protection" consequence no longer
+holds — §2b chains `\ /` after `:` `\` `/`, so `http://cof` stays `http://cof` (measured; it is no
+longer a declared loss). The remaining losses are L2–L5 in `20-spec.md` §9.
+
 ## Accepted nuance (QA, 2026-10-28)
 
 `COMPAT_RESTORE_RAW` — the fallback that emits raw keystrokes when a transform cannot apply
