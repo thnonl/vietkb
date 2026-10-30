@@ -31,6 +31,9 @@ pub static CONFIG: Mutex<Option<SharedConfig>> = Mutex::new(None);
 pub static SINK: Mutex<Option<Box<dyn EngineSink>>> = Mutex::new(None);
 pub static DATA_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
 
+/// Both callbacks below run on the **tap thread**, inside the event callback:
+/// they must not block (macOS disables a tap whose callback is slow). The app
+/// should only push onto a channel, as `windows_backend.rs` does.
 pub fn set_enabled_callback(cb: impl Fn(bool) + Send + 'static) {
     // A Mutex makes the closure `Sync` without requiring it of the caller.
     let slot = Mutex::new(cb);

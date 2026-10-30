@@ -2,7 +2,7 @@
 //! build ships (`assets/sounds/go_moc/{on,off}.wav`), played through `NSSound`.
 //!
 //! Every toggle route calls [`play_toggle`] with the **resulting** state. Playback
-//! happens on a spawned thread (never the tap thread); a failure is silence and
+//! happens on one dedicated sound thread (never the tap thread); a failure is silence and
 //! at most one `debug` line per session. `Injection::Beep` keeps the system
 //! alert via [`play_error`] (`NSBeep`).
 
@@ -29,21 +29,48 @@ fn log_failure_once() {
     }
 }
 
-/// Play the cue for the state that was just set.
+#[cfg(target_os = "macos")]
+enum Job {
+    Toggle(bool),
+    Beep,
+}
+
+/// One long-lived sound thread: `NSSound` objects are created and played from
+/// the same thread, and a toggle never spawns anything.
+#[cfg(target_os = "macos")]
+fn sender() -> &'static parking_lot::Mutex<std::sync::mpsc::Sender<Job>> {
+    use std::sync::OnceLock;
+    static SENDER: OnceLock<parking_lot::Mutex<std::sync::mpsc::Sender<Job>>> = OnceLock::new();
+    SENDER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<Job>();
+        let _ = std::thread::Builder::new()
+            .name("vkb-sound".into())
+            .spawn(move || {
+                while let Ok(job) = rx.recv() {
+                    match job {
+                        Job::Toggle(enabled) => {
+                            if !crate::sys::play_wav(enabled, wav_for(enabled)) {
+                                log_failure_once();
+                            }
+                        }
+                        Job::Beep => crate::sys::beep(),
+                    }
+                }
+            });
+        parking_lot::Mutex::new(tx)
+    })
+}
+
+/// Play the cue for the state that was just set (queued; never blocks).
 #[cfg(target_os = "macos")]
 pub fn play_toggle(enabled: bool) {
-    let wav = wav_for(enabled);
-    std::thread::spawn(move || {
-        if !crate::sys::play_wav(enabled, wav) {
-            log_failure_once();
-        }
-    });
+    let _ = sender().lock().send(Job::Toggle(enabled));
 }
 
 /// `Injection::Beep` signals *error*: the system alert, never the toggle pair.
 #[cfg(target_os = "macos")]
 pub fn play_error() {
-    std::thread::spawn(crate::sys::beep);
+    let _ = sender().lock().send(Job::Beep);
 }
 
 #[cfg(not(target_os = "macos"))]

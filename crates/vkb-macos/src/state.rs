@@ -37,6 +37,8 @@ pub fn is_injected(user_data: i64) -> bool {
 const APP_TTL: Duration = Duration::from_millis(1500);
 /// A swallowed trigger counts as still held (a repeat is swallowed) only while
 /// its last swallowed down is this recent.
+/// Minimum gap between two "secure input blocks the tap" warnings.
+const SECURE_LOG_INTERVAL: Duration = Duration::from_secs(60);
 const TRIGGER_REPEAT_WINDOW: Duration = Duration::from_millis(1200);
 
 /// What the tap callback received.
@@ -90,6 +92,9 @@ pub trait Host: Send {
     fn secure_input(&mut self) -> bool;
     /// Delete `deletes` characters backwards, then type `text`, in one batch.
     fn replace(&mut self, deletes: u32, text: &str);
+    /// Re-post a physical key as a tagged press (down + up) with empty flags.
+    /// Used after a macro expansion so the original Enter/Tab lands after the text.
+    fn repost_key(&mut self, keycode: u16);
     fn toggle_sound(&mut self, enabled: bool);
     fn error_sound(&mut self);
 }
@@ -145,6 +150,7 @@ pub struct Runtime {
     last_global: bool,
     config_enabled: Option<bool>,
     sink: Option<Box<dyn EngineSink>>,
+    secure_logged: Option<Instant>,
 }
 
 impl Runtime {
@@ -179,6 +185,7 @@ impl Runtime {
             last_global: globals::enabled(),
             config_enabled: None,
             sink,
+            secure_logged: None,
         };
         match cfg {
             Some(cfg) => runtime.apply_config(cfg),
@@ -231,11 +238,17 @@ impl Runtime {
     }
 
     /// Forget the word and every latched hotkey (tap re-enabled after a timeout).
+    /// `trigger_swallowed` is kept: the key-up of a swallowed trigger must still
+    /// be swallowed, or the app would see an orphan key-up.
     pub fn reset(&mut self) {
         self.reset_engine();
         self.hotkeys.discard_latches();
-        self.trigger_swallowed = [0; 4];
         self.down = [0; 4];
+    }
+
+    /// Hand the injection sink back (tap creation failed before it was used).
+    pub fn take_sink(&mut self) -> Option<Box<dyn EngineSink>> {
+        self.sink.take()
     }
 
     /// Feed one tap event. The returned decision says whether to swallow it.
@@ -251,7 +264,15 @@ impl Runtime {
             return Decision::PASS;
         }
         if ev.kind == EventKind::KeyDown && self.host.secure_input() {
-            // Password fields: never convert, never swallow.
+            // Password fields: never convert, never swallow new keys. A trigger
+            // already swallowed keeps its key-up swallowed (bits are kept).
+            if self
+                .secure_logged
+                .map_or(true, |at| at.elapsed() >= SECURE_LOG_INTERVAL)
+            {
+                self.secure_logged = Some(Instant::now());
+                tracing::warn!("secure event input is on; VietKB is passing keys through");
+            }
             self.reset_engine();
             self.hotkeys.discard_latches();
             return Decision::PASS;
@@ -386,7 +407,15 @@ impl Runtime {
         }
 
         let decision = decide(&action, ch);
-        if decision.swallow || matches!(decision.injection, Injection::Replace { .. }) {
+        if matches!(action, EngineAction::ReplaceThenPass { .. }) {
+            // Macro committed by Enter/Tab: swallow the physical key, type the
+            // expansion, then re-inject the key as a tagged event so the order
+            // never depends on how the OS interleaves our posts with the key.
+            self.deliver(action, &decision);
+            self.host.repost_key(ev.keycode);
+            return Decision::SWALLOW;
+        }
+        if decision.swallow {
             self.deliver(action, &decision);
         }
         decision
@@ -784,6 +813,7 @@ mod tests {
     struct Log {
         replaced: Vec<(u32, String)>,
         toggles: Vec<bool>,
+        reposted: Vec<u16>,
         errors: u32,
     }
 
@@ -806,6 +836,9 @@ mod tests {
         }
         fn replace(&mut self, deletes: u32, text: &str) {
             self.log.lock().replaced.push((deletes, text.to_string()));
+        }
+        fn repost_key(&mut self, keycode: u16) {
+            self.log.lock().reposted.push(keycode);
         }
         fn toggle_sound(&mut self, enabled: bool) {
             self.log.lock().toggles.push(enabled);
@@ -1131,6 +1164,7 @@ mod tests {
             fn replace(&mut self, d: u32, t: &str) {
                 self.1.lock().replaced.push((d, t.to_string()));
             }
+            fn repost_key(&mut self, _: u16) {}
             fn toggle_sound(&mut self, _: bool) {}
             fn error_sound(&mut self) {}
         }
@@ -1157,6 +1191,53 @@ mod tests {
         press(&mut rig.rt, 'a');
         assert!(press(&mut rig.rt, '1').swallow);
         assert_eq!(rig.log.lock().replaced, vec![(1, "á".to_string())]);
+    }
+
+    #[test]
+    fn macro_commit_on_enter_swallows_the_physical_key() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut cfg = quiet_config();
+        cfg.typing.macro_enabled = true;
+        cfg.macros.insert("vn".to_string(), "Việt Nam".to_string());
+        let mut rig = rig(Some(cfg));
+        press(&mut rig.rt, 'v');
+        press(&mut rig.rt, 'n');
+        let enter = RawEvent::key(EventKind::KeyDown, keys::MAC_RETURN, 0, Some('\r'));
+        // The engine currently commits a macro as `Replace` with the Enter in the
+        // text (`ReplaceThenPass` is never produced); either way the physical key
+        // is swallowed and exactly one copy of Enter reaches the app.
+        assert!(rig.rt.on_event(&enter).swallow);
+        let log = rig.log.lock();
+        let (_, text) = log.replaced.last().expect("macro injected");
+        assert!(text.starts_with("Việt Nam"), "got {text:?}");
+        assert!(log.reposted.len() <= 1);
+    }
+
+    #[test]
+    fn swallowed_trigger_keyup_is_swallowed_even_under_secure_input() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut cfg = quiet_config();
+        cfg.hotkeys.macro_panel = CfgHotkey::parse("F5").ok();
+        let mut rig = rig(Some(cfg));
+        let f5 = 96;
+        assert_eq!(
+            rig.rt.on_event(&RawEvent::key(EventKind::KeyDown, f5, 0, None)),
+            Decision::SWALLOW
+        );
+        *rig.secure.lock() = true;
+        // Key-up is not gated by secure input and must not leak.
+        assert_eq!(
+            rig.rt.on_event(&RawEvent::key(EventKind::KeyUp, f5, 0, None)),
+            Decision::SWALLOW
+        );
+        // After a tap reset the bit still holds.
+        *rig.secure.lock() = false;
+        rig.rt.on_event(&RawEvent::key(EventKind::KeyDown, f5, 0, None));
+        rig.rt.reset();
+        assert_eq!(
+            rig.rt.on_event(&RawEvent::key(EventKind::KeyUp, f5, 0, None)),
+            Decision::SWALLOW
+        );
     }
 
     #[test]

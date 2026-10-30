@@ -360,6 +360,10 @@ impl Host for MacHost {
     fn replace(&mut self, deletes: u32, text: &str) {
         send_replace(deletes, text);
     }
+    fn repost_key(&mut self, keycode: u16) {
+        post_key(keycode, true, None);
+        post_key(keycode, false, None);
+    }
     fn toggle_sound(&mut self, enabled: bool) {
         crate::sound::play_toggle(enabled);
     }
@@ -467,6 +471,15 @@ extern "C" fn tap_callback(
     }
 }
 
+/// Tap creation failed: free the context and give the injection sink back so a
+/// later `install()` can still use it.
+fn restore_sink(ctx: *mut TapContext) {
+    let mut ctx = unsafe { Box::from_raw(ctx) };
+    if let Some(sink) = ctx.runtime.take_sink() {
+        *globals::SINK.lock() = Some(sink);
+    }
+}
+
 fn tap_thread(ready: mpsc::Sender<std::result::Result<(), String>>) {
     let cfg = globals::snapshot();
     let sink = globals::SINK.lock().take();
@@ -490,16 +503,16 @@ fn tap_thread(ready: mpsc::Sender<std::result::Result<(), String>>) {
         )
     };
     if tap.is_null() {
-        drop(unsafe { Box::from_raw(ctx) });
+        restore_sink(ctx);
         let _ = ready.send(Err(
-            "CGEventTapCreate failed: grant VietKB Accessibility in System Settings -> Privacy & Security".into(),
+            "CGEventTapCreate failed: grant VietKB both Accessibility and Input Monitoring in System Settings -> Privacy & Security".into(),
         ));
         return;
     }
     let source = unsafe { CFMachPortCreateRunLoopSource(ptr::null(), tap, 0) };
     if source.is_null() {
         unsafe { CFRelease(tap.cast_const()) };
-        drop(unsafe { Box::from_raw(ctx) });
+        restore_sink(ctx);
         let _ = ready.send(Err("CFMachPortCreateRunLoopSource failed".into()));
         return;
     }
@@ -546,9 +559,22 @@ fn install_inner() -> Result<()> {
     if !has_accessibility_permission() {
         bail!("Accessibility permission is not granted");
     }
-    // Reap a previous thread that ended on its own.
-    if let Some(handle) = THREAD.lock().take() {
-        let _ = handle.join();
+    // A previous thread: reap it if it ended, refuse a second tap while it lives.
+    {
+        let mut slot = THREAD.lock();
+        match slot.take() {
+            Some(handle) if handle.is_finished() => {
+                let _ = handle.join();
+            }
+            Some(handle) => {
+                *slot = Some(handle);
+                if globals::READY.load(Ordering::SeqCst) {
+                    return Ok(());
+                }
+                bail!("a previous event tap thread is still starting or stopping");
+            }
+            None => {}
+        }
     }
     globals::STOP.store(false, Ordering::SeqCst);
     let (tx, rx) = mpsc::channel();
@@ -566,6 +592,9 @@ fn install_inner() -> Result<()> {
             Err(anyhow!(message))
         }
         Err(_) => {
+            // Keep the handle: the thread may still come up (it then sees STOP and
+            // exits) and a second install must not create a second tap.
+            *THREAD.lock() = Some(handle);
             globals::STOP.store(true, Ordering::SeqCst);
             Err(anyhow!("event tap thread did not start in time"))
         }
