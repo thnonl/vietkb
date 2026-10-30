@@ -26,31 +26,29 @@ pub fn autostart_command(exe: &std::path::Path) -> String {
     format!("\"{}\" {AUTOSTART_FLAG}", exe.display())
 }
 
-/// Create or remove the `Run` entry. Idempotent.
-pub fn set_autostart(enabled: bool) -> Result<()> {
-    let subkey = wide(RUN_KEY);
-    let name = wide(VALUE_NAME);
-
-    if enabled {
-        let exe = std::env::current_exe().context("locating the current executable")?;
-        let command = autostart_command(&exe);
-        let data = wide(&command);
-        let status = unsafe {
-            RegSetKeyValueW(
-                HKEY_CURRENT_USER,
-                PCWSTR(subkey.as_ptr()),
-                PCWSTR(name.as_ptr()),
-                REG_SZ.0,
-                Some(data.as_ptr().cast()),
-                (data.len() * std::mem::size_of::<u16>()) as u32,
-            )
-        };
-        if !status.is_ok() {
-            bail!("RegSetKeyValueW failed: {:?}", status);
-        }
-        return Ok(());
+fn write_value(subkey: &str, value_name: &str, data: &str) -> Result<()> {
+    let subkey = wide(subkey);
+    let name = wide(value_name);
+    let data = wide(data);
+    let status = unsafe {
+        RegSetKeyValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(subkey.as_ptr()),
+            PCWSTR(name.as_ptr()),
+            REG_SZ.0,
+            Some(data.as_ptr().cast()),
+            (data.len() * std::mem::size_of::<u16>()) as u32,
+        )
+    };
+    if !status.is_ok() {
+        bail!("RegSetKeyValueW failed: {:?}", status);
     }
+    Ok(())
+}
 
+fn delete_value(subkey: &str, value_name: &str) -> Result<()> {
+    let subkey = wide(subkey);
+    let name = wide(value_name);
     let status = unsafe {
         RegDeleteKeyValueW(
             HKEY_CURRENT_USER,
@@ -65,10 +63,9 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
     Ok(())
 }
 
-/// The command line currently registered, if any.
-pub fn autostart_entry() -> Option<String> {
-    let subkey = wide(RUN_KEY);
-    let name = wide(VALUE_NAME);
+fn read_value(subkey: &str, value_name: &str) -> Option<String> {
+    let subkey = wide(subkey);
+    let name = wide(value_name);
     let mut buffer = [0u16; 1024];
     let mut bytes = (buffer.len() * std::mem::size_of::<u16>()) as u32;
     let status = unsafe {
@@ -89,6 +86,25 @@ pub fn autostart_entry() -> Option<String> {
     Some(String::from_utf16_lossy(&buffer[..units]))
 }
 
+/// `set_autostart` against an arbitrary key/value; the public one pins both.
+fn set_in(subkey: &str, value_name: &str, enabled: bool) -> Result<()> {
+    if enabled {
+        let exe = std::env::current_exe().context("locating the current executable")?;
+        return write_value(subkey, value_name, &autostart_command(&exe));
+    }
+    delete_value(subkey, value_name)
+}
+
+/// Create or remove the `Run` entry. Idempotent.
+pub fn set_autostart(enabled: bool) -> Result<()> {
+    set_in(RUN_KEY, VALUE_NAME, enabled)
+}
+
+/// The command line currently registered, if any.
+pub fn autostart_entry() -> Option<String> {
+    read_value(RUN_KEY, VALUE_NAME)
+}
+
 /// A `Run` value means "autostart on" whether or not it carries the flag: an
 /// entry written by an older build is the bare quoted path, and an empty value
 /// is not an entry at all.
@@ -104,6 +120,7 @@ pub fn is_autostart_enabled() -> bool {
 mod tests {
     use super::*;
     use std::path::Path;
+    use windows::Win32::System::Registry::RegDeleteKeyW;
 
     #[test]
     fn command_is_quoted_for_spaces() {
@@ -139,38 +156,65 @@ mod tests {
     #[test]
     fn registry_paths_match_the_documented_ones() {
         assert_eq!(
-            RUN_KEY,
-            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            RUN_KEY, r"Software\Microsoft\Windows\CurrentVersion\Run",
             "contract: HKCU Run, nothing else"
         );
         assert_eq!(VALUE_NAME, "VietKB");
     }
 
+    /// Test-only key: not under `Run`, so nothing here can ever be launched
+    /// by Windows, even if the test is killed midway.
+    fn test_subkey() -> String {
+        format!(r"Software\VietKB\test-autostart-{}", std::process::id())
+    }
+
+    const TEST_VALUE: &str = "autostart";
+
+    /// Removes the value, then the leaf test key, even if an assert panics.
+    struct KeyGuard(String);
+
+    impl Drop for KeyGuard {
+        fn drop(&mut self) {
+            if let Err(error) = delete_value(&self.0, TEST_VALUE) {
+                eprintln!("cleanup: deleting test value failed: {error:#}");
+            }
+            let subkey = wide(&self.0);
+            let status = unsafe { RegDeleteKeyW(HKEY_CURRENT_USER, PCWSTR(subkey.as_ptr())) };
+            // 2 = ERROR_FILE_NOT_FOUND: never created, nothing to remove.
+            if !status.is_ok() && status.0 != 2 {
+                eprintln!("cleanup: RegDeleteKeyW({}) failed: {:?}", self.0, status);
+            }
+        }
+    }
+
     #[test]
     fn registry_write_round_trip() {
-        // Writes only under HKCU; restores the previous value so a developer
-        // machine keeps its state.
-        let previous = autostart_entry();
-        set_autostart(true).expect("write Run entry");
-        let written = autostart_entry().expect("entry present");
-        assert!(written.contains("vkb"), "unexpected entry: {written}");
+        // Never touches `Run`: the real `VietKB` value belongs to the user.
+        let key = test_subkey();
+        assert_ne!(key, RUN_KEY);
+        assert!(!key.starts_with(RUN_KEY));
+        let _guard = KeyGuard(key.clone());
+        let exe = std::env::current_exe().expect("current exe");
+        let expected = autostart_command(&exe);
+
+        // enable: quoted exe plus the flag, read back unchanged.
+        set_in(&key, TEST_VALUE, true).expect("write entry");
+        let written = read_value(&key, TEST_VALUE).expect("entry present");
         assert!(written.starts_with('"'));
         assert!(
             written.ends_with(" --autostart"),
             "the app needs the flag to know it was started by Windows: {written}"
         );
         assert_eq!(
-            Some(written.clone()),
-            std::env::current_exe().ok().map(|exe| autostart_command(&exe)),
+            written, expected,
             "the value must be the quoted exe plus the flag, nothing else"
         );
-        assert!(is_autostart_enabled());
-        set_autostart(false).expect("remove Run entry");
-        assert_eq!(autostart_entry(), None);
-        assert!(!is_autostart_enabled());
-        if let Some(previous) = previous {
-            set_autostart(true).ok();
-            let _ = previous;
-        }
+        assert!(entry_enables_autostart(&written));
+
+        // disable removes it; a second disable is still Ok (ERROR_FILE_NOT_FOUND).
+        set_in(&key, TEST_VALUE, false).expect("remove entry");
+        assert_eq!(read_value(&key, TEST_VALUE), None);
+        set_in(&key, TEST_VALUE, false).expect("second disable is idempotent");
+        assert_eq!(read_value(&key, TEST_VALUE), None);
     }
 }
