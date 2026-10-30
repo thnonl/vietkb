@@ -432,6 +432,9 @@ enum Step {
     Up(u16),
     /// A mouse button goes down (in-process mode only).
     Mouse,
+    /// Key events fed back to back in one run, `(vk, up)`, with nothing between
+    /// them: a Shift press and the letter that follows it.
+    Burst(Vec<(u16, bool)>),
 }
 
 
@@ -442,15 +445,23 @@ enum Step {
 fn rebuild(events: &[Ev]) -> (String, Vec<u16>) {
     let mut text: Vec<char> = Vec::new();
     let mut leaked_vks: Vec<u16> = Vec::new();
-    let mut shift = [false; 2]; // per source
+    // One `Shift` for both sources, like the desktop: an injected `Shift` up
+    // clears a `Shift` the user still holds (D-E2E-06). A state per source hid
+    // that for as long as the harness has existed.
+    let mut shift = false;
+    let mut caps = false;
     let mut pending_high: [Option<u16>; 2] = [None, None];
     for ev in events {
         let idx = if ev.src == Src::Injected { 0 } else { 1 };
         if matches!(ev.vk, keys::VK_SHIFT | VK_LSHIFT | keys::VK_RSHIFT) {
-            shift[idx] = ev.down;
+            shift = ev.down;
             continue;
         }
         if !ev.down {
+            continue;
+        }
+        if ev.vk == keys::VK_CAPITAL {
+            caps = !caps;
             continue;
         }
         match ev.vk {
@@ -472,7 +483,7 @@ fn rebuild(events: &[Ev]) -> (String, Vec<u16>) {
                 }
             }
             vk => {
-                if let Some(ch) = keys::us_char(vk, shift[idx], false) {
+                if let Some(ch) = keys::us_char(vk, shift, caps) {
                     text.push(ch);
                 } else if ev.src == Src::Passed {
                     // A non-text key (F-key, modifier chord) reached the app side.
@@ -603,6 +614,8 @@ struct Settings {
     no_spell: bool,
     no_free_tone: bool,
     standard: bool,
+    /// Output charset `unicode_nfd`: marks are separate combining characters.
+    nfd: bool,
 }
 
 struct Case {
@@ -657,6 +670,7 @@ fn load_cases(
         no_spell: false,
         no_free_tone: false,
         standard,
+        nfd: false,
     };
 
     // --- edge cases ---
@@ -793,6 +807,83 @@ fn load_cases(
                 forbid_passed_vks: Vec::new(),
                 want_command: None,
             });
+
+            // D-E2E-06 / review item 11: capitals, held Shift and Caps Lock go
+            // through the real Held path (the injector reads the simulated keys).
+            let (upper, lower, mixed, marks) = if vni {
+                ("VIE6T5", "vie6t5", "Vie6t5", "Vie\u{302}\u{323}t")
+            } else {
+                ("VIEETJ", "vieetj", "Vieetj", "Vie\u{302}\u{323}t")
+            };
+            let caps_tap = Step::Tap(keys::VK_CAPITAL);
+            let case = |name: &str, settings: Settings, steps: Vec<Step>, expected: &str| Case {
+                id: format!("shift/{name}/{method}/{mode}"),
+                settings,
+                steps,
+                expected: expected.to_string(),
+                forbid_passed_vks: Vec::new(),
+                want_command: None,
+            };
+            cases.push(case(
+                "caps-on-shift-letters",
+                base(method_of(method)),
+                vec![caps_tap.clone(), typed(upper), caps_tap.clone()],
+                "việt",
+            ));
+            cases.push(case(
+                "caps-on-bare-letters",
+                base(method_of(method)),
+                vec![caps_tap.clone(), typed(lower), caps_tap.clone()],
+                "VIỆT",
+            ));
+            cases.push(case(
+                "caps-on-capital-head",
+                base(method_of(method)),
+                vec![caps_tap.clone(), typed(mixed), caps_tap],
+                "vIỆT",
+            ));
+            cases.push(case(
+                "capital-head",
+                base(method_of(method)),
+                vec![typed(mixed)],
+                "Việt",
+            ));
+            // Ruling D: Shift down and the letter right behind it, in one run.
+            let (v_vk, rest) = (0x56u16, if vni { "ie6t5" } else { "ieejt" });
+            cases.push(case(
+                "shift-then-letter-no-gap",
+                base(method_of(method)),
+                vec![
+                    Step::Burst(vec![(VK_LSHIFT, false), (v_vk, false), (v_vk, true), (VK_LSHIFT, true)]),
+                    typed(rest),
+                ],
+                "Việt",
+            ));
+            cases.push(case(
+                "right-shift-then-letter-no-gap",
+                base(method_of(method)),
+                vec![
+                    Step::Burst(vec![(keys::VK_RSHIFT, false), (v_vk, false), (v_vk, true), (keys::VK_RSHIFT, true)]),
+                    typed(rest),
+                ],
+                "Việt",
+            ));
+            let mut nfd = base(method_of(method));
+            nfd.nfd = true;
+            cases.push(case("nfd-capital-head", nfd, vec![typed(mixed)], marks));
+            if !vni {
+                for (side, vk) in [("left", VK_LSHIFT), ("right", keys::VK_RSHIFT)] {
+                    let mut steps = vec![Step::Down(vk)];
+                    steps.extend("VIEETJ".chars().map(|c| Step::Tap(c as u16)));
+                    steps.push(Step::Up(vk));
+                    cases.push(case(
+                        &format!("held-{side}-shift"),
+                        base(method_of(method)),
+                        steps,
+                        "VIỆT",
+                    ));
+                }
+            }
         }
     }
 
@@ -855,6 +946,9 @@ fn config_for(settings: &Settings) -> AppConfig {
     cfg.typing.spell_check = !settings.no_spell;
     cfg.typing.free_tone = !settings.no_free_tone;
     cfg.typing.send_standard = settings.standard;
+    if settings.nfd {
+        cfg.input.charset = vkb_core::Charset::UnicodeNfd;
+    }
     cfg.typing.use_clipboard = false;
     cfg.apps.remember_per_app = false;
     // Never make a sound on the owner's machine.
@@ -864,6 +958,10 @@ fn config_for(settings: &Settings) -> AppConfig {
 
 #[derive(Default)]
 struct Stats {
+    /// Injected `VK_PACKET` key-downs that carry an ASCII letter, and the cases
+    /// that produced them (ruling C: they should be rare).
+    ascii_packets: u64,
+    ascii_packet_cases: Vec<(String, u64)>,
     fed: u64,
     injected: u64,
     passed: u64,
@@ -1002,6 +1100,10 @@ impl Driver {
             Step::Tap(vk) => self.send_syns(&tap_vk(*vk, false)),
             Step::Down(vk) => self.send_syns(&[vk_syn(*vk, false)]),
             Step::Up(vk) => self.send_syns(&[vk_syn(*vk, true)]),
+            Step::Burst(events) => {
+                let syns: Vec<Syn> = events.iter().map(|(vk, up)| vk_syn(*vk, *up)).collect();
+                self.send_syns(&syns)
+            }
             Step::Mouse => {
                 if self.rt.is_none() {
                     return false;
@@ -1032,6 +1134,16 @@ impl Driver {
             return Err(format!("{}: injected event escaped the top hook", case.id));
         }
 
+        let ascii_packets = self
+            .events
+            .iter()
+            .filter(|e| e.src == Src::Injected && e.vk == keys::VK_PACKET && e.down)
+            .filter(|e| char::from_u32(u32::from(e.scan)).is_some_and(|c| c.is_ascii_alphabetic()))
+            .count() as u64;
+        if ascii_packets > 0 {
+            self.stats.ascii_packets += ascii_packets;
+            self.stats.ascii_packet_cases.push((case.id.clone(), ascii_packets));
+        }
         let (actual, _) = rebuild(&self.events);
         let mut ok = actual == case.expected;
         let mut detail = String::new();
@@ -1171,6 +1283,7 @@ fn default_settings() -> Settings {
         no_spell: false,
         no_free_tone: false,
         standard: false,
+        nfd: false,
     }
 }
 
@@ -1370,6 +1483,20 @@ fn main() -> ExitCode {
                 failing.push(format!("control/{}", control.id));
             }
             control_note = format!(" control={}", if caught { "caught" } else { "MISSED" });
+        }
+
+        // Ruling C: ASCII letters sent as packets (a held Shift and a letter of
+        // the other case). Reported, with the inputs that caused them.
+        say(
+            &mut report,
+            format!(
+                "ASCII-LETTER PACKETS total={} in {} of the cases run",
+                driver.stats.ascii_packets,
+                driver.stats.ascii_packet_cases.len()
+            ),
+        );
+        for (id, count) in driver.stats.ascii_packet_cases.clone() {
+            say(&mut report, format!("  ascii-packets {count} {id}"));
         }
 
         let mut summary = String::from("SUMMARY");

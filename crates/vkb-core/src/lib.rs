@@ -308,6 +308,12 @@ pub trait VietnameseEngine: Send {
     fn can_restore(&self) -> bool;
     /// The caret moved / focus changed: flush history but emit nothing.
     fn boundary(&mut self);
+    /// The text the engine has put on screen for the current word, in charset
+    /// units. A backend snapshots it before a key to tell how much of a
+    /// `Replace` the app already shows. Empty when the engine does not track it.
+    fn on_screen(&self) -> &[char] {
+        &[]
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -82,6 +82,7 @@ mod tests {
             alt: true,
             win: false,
             caps_lock: true,
+            ..ModifierState::default()
         };
         let state = keyboard_state(&mods);
         assert_eq!(state[crate::keys::VK_SHIFT as usize], 0x80);

@@ -14,7 +14,7 @@ use vkb_core::{
     Engine, EngineAction, EngineOptions, InputMethod, KeyInput, Modifiers, VietnameseEngine,
 };
 use vkb_platform::hotkeys::Matcher;
-use vkb_platform::plan::{decide, Decision, Injection};
+use vkb_platform::plan::{decide, keep_unchanged_head, Decision, Injection};
 use vkb_platform::rules::{self, BaseSettings, EffectiveSettings};
 use vkb_platform::{BackendCommand, EngineSink, Hotkey};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -313,8 +313,9 @@ impl HookRuntime {
             let decision = decide(&action, Some(ch));
             trace.stage(if decision.swallow { "engine-swallow" } else { "engine-pass" });
             if decision.swallow {
+                let held = self.held();
                 if let Some(sink) = self.sink.as_mut() {
-                    if let Err(err) = sink.emit(action) {
+                    if let Err(err) = sink.emit_with(action, held) {
                         tracing::warn!(error = %err, "engine sink failed");
                     }
                 } else {
@@ -479,8 +480,9 @@ impl HookRuntime {
         if decision.swallow {
             let has_sink = self.sink.is_some();
             if has_sink {
+                let held = self.held();
                 if let Some(sink) = self.sink.as_mut() {
-                    if let Err(err) = sink.emit(action) {
+                    if let Err(err) = sink.emit_with(action, held) {
                         tracing::warn!(error = %err, "engine sink failed");
                     }
                 }
@@ -607,15 +609,17 @@ impl HookRuntime {
         }
         let engine = &mut self.engine;
         let action = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            engine.restore_word()
+            let shown: vkb_core::charset::TextBuf = engine.on_screen().iter().copied().collect();
+            keep_unchanged_head(&shown, engine.restore_word())
         }))
         .unwrap_or(EngineAction::Noop);
         let decision = decide(&action, None);
         if !decision.swallow {
             return false;
         }
+        let held = self.held();
         if let Some(sink) = self.sink.as_mut() {
-            if let Err(err) = sink.emit(action) {
+            if let Err(err) = sink.emit_with(action, held) {
                 tracing::warn!(error = %err, "engine sink failed");
             }
         } else {
@@ -662,7 +666,11 @@ impl HookRuntime {
         }
         let engine = &mut self.engine;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            engine.process_key(key)
+            // The word the app shows before this key, so the rewrite can leave
+            // its unchanged head alone (D-E2E-06): no allocation, a short copy.
+            // `TextBuf` is an inline buffer: a short copy on the stack, no heap.
+            let shown: vkb_core::charset::TextBuf = engine.on_screen().iter().copied().collect();
+            keep_unchanged_head(&shown, engine.process_key(key))
         }));
         match result {
             Ok(action) => action,
@@ -713,11 +721,13 @@ impl HookRuntime {
             }
             return SendResult::default();
         }
+        // One source of truth: the hook's own ordered modifier tracking.
+        let held = self.held();
         let build = |deletes: u32, text: &str, mode: SendMode| {
             if chord == Modifiers::NONE {
-                input::build_segment(deletes, text, mode)
+                input::build_segment_held(deletes, text, mode, held)
             } else {
-                input::build_restore(deletes, text, mode, chord)
+                input::build_restore(deletes, text, mode, chord, held)
             }
         };
         let inputs = build(deletes, text, self.send_mode);
@@ -727,15 +737,42 @@ impl HookRuntime {
             // this app: Standard scancodes first, then exclude it, so the user
             // keeps typing raw instead of losing characters.
             self.on_short_send();
-            if !self.auto_excluded {
+            if result.sent > 0 {
+                // Part of the batch is already in the app. Rebuilding it would
+                // delete and type that part twice, so finish the same batch
+                // from the first event the OS did not take.
+                let rest = input::send_detailed(&inputs[result.sent as usize..]);
+                result.sent += rest.sent;
+                result.error = rest.error;
+                result.attempts += rest.attempts;
+                if rest.sent < rest.total {
+                    self.auto_excluded = true;
+                    // Stopped halfway: release only the Shift keys this batch
+                    // pressed and did not release (never one the user pressed).
+                    input::resync_shift(&inputs, result.sent as usize, held.shift);
+                }
+            } else if !self.auto_excluded {
+                // Nothing was delivered, so nothing can be duplicated: rebuild
+                // for the stepped-down strategy.
                 let retry = build(deletes, text, self.send_mode);
                 result = input::send_detailed(&retry);
                 if result.total > 0 && result.sent < result.total {
                     self.auto_excluded = true;
+                    if result.sent > 0 {
+                        input::resync_shift(&retry, result.sent as usize, held.shift);
+                    }
                 }
             }
         }
         result
+    }
+
+    /// The Shift keys and Caps Lock the user holds at the event being handled.
+    fn held(&self) -> input::Held {
+        input::Held {
+            shift: self.mods.shift_keys,
+            caps: self.mods.caps_lock,
+        }
     }
 
     /// After a short `SendInput`, decide what this app gets next.
@@ -1186,7 +1223,11 @@ mod tests {
     struct Recorder(Arc<Mutex<Vec<EngineAction>>>);
 
     impl vkb_platform::EngineSink for Recorder {
-        fn emit(&mut self, action: EngineAction) -> anyhow::Result<()> {
+        fn emit_with(
+            &mut self,
+            action: EngineAction,
+            _held: vkb_platform::plan::HeldKeys,
+        ) -> anyhow::Result<()> {
             self.0.lock().unwrap().push(action);
             Ok(())
         }
@@ -1253,10 +1294,10 @@ toggle_mode = "release"
         assert_eq!(
             *last,
             EngineAction::Replace {
-                delete_units: 3,
-                insert: "ba6t5".to_string()
+                delete_units: 2,
+                insert: "a6t5".to_string()
             },
-            "the chord must rewrite `bật` back to the raw keystrokes"
+            "the chord must rewrite `bật` back to the raw keystrokes (the unchanged `b` stays)"
         );
         drop(actions);
 
@@ -1275,8 +1316,8 @@ toggle_mode = "release"
         assert_eq!(
             actions.last(),
             Some(&EngineAction::Replace {
-                delete_units: 3,
-                insert: "ba6t5".to_string()
+                delete_units: 2,
+                insert: "a6t5".to_string()
             }),
             "the chord must survive a config republish"
         );

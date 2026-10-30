@@ -80,10 +80,21 @@ pub fn is_modifier(vk: u16) -> bool {
 pub struct ModifierState {
     pub ctrl: bool,
     pub alt: bool,
+    /// Any Shift key is down (`shift_keys != 0`).
     pub shift: bool,
+    /// Which Shift keys the stream says are down ([`SHIFT_L`] | [`SHIFT_R`] |
+    /// [`SHIFT_ANY`]): a rewrite that has to put a Shift back must press the
+    /// same key the user holds, or releasing theirs would leave ours stuck.
+    pub shift_keys: u8,
     pub win: bool,
     pub caps_lock: bool,
 }
+
+/// Bits of [`ModifierState::shift_keys`].
+pub const SHIFT_L: u8 = 1;
+pub const SHIFT_R: u8 = 2;
+/// The generic `VK_SHIFT`, as synthetic senders emit it.
+pub const SHIFT_ANY: u8 = 4;
 
 impl ModifierState {
     /// Apply one transition. Caps Lock toggles on key-down.
@@ -91,7 +102,22 @@ impl ModifierState {
         match modifier_of(vk) {
             Some(ModifierKey::Ctrl) => self.ctrl = down,
             Some(ModifierKey::Alt) => self.alt = down,
-            Some(ModifierKey::Shift) => self.shift = down,
+            Some(ModifierKey::Shift) => {
+                let bit = match vk {
+                    VK_LSHIFT => SHIFT_L,
+                    VK_RSHIFT => SHIFT_R,
+                    _ => SHIFT_ANY,
+                };
+                if down {
+                    self.shift_keys |= bit;
+                } else if bit == SHIFT_ANY {
+                    // A generic key-up releases whichever Shift is down.
+                    self.shift_keys = 0;
+                } else {
+                    self.shift_keys &= !bit;
+                }
+                self.shift = self.shift_keys != 0;
+            }
             Some(ModifierKey::Win) => self.win = down,
             None => {
                 if vk == VK_CAPITAL && down {
@@ -128,10 +154,14 @@ pub fn seed_from_os() -> ModifierState {
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, GetKeyState};
 
     let pressed = |vk: u16| -> bool { (unsafe { GetAsyncKeyState(vk as i32) } as u16) & 0x8000 != 0 };
+    let shift_keys = (if pressed(VK_LSHIFT) { SHIFT_L } else { 0 })
+        | (if pressed(VK_RSHIFT) { SHIFT_R } else { 0 })
+        | (if pressed(VK_SHIFT) && !pressed(VK_LSHIFT) && !pressed(VK_RSHIFT) { SHIFT_ANY } else { 0 });
     ModifierState {
         ctrl: pressed(VK_CONTROL) || pressed(VK_LCONTROL) || pressed(VK_RCONTROL),
         alt: pressed(VK_MENU) || pressed(VK_LMENU) || pressed(VK_RMENU),
-        shift: pressed(VK_SHIFT) || pressed(VK_LSHIFT) || pressed(VK_RSHIFT),
+        shift: shift_keys != 0,
+        shift_keys,
         win: pressed(VK_LWIN) || pressed(VK_RWIN),
         caps_lock: (unsafe { GetKeyState(VK_CAPITAL as i32) } & 1) != 0,
     }
@@ -384,6 +414,22 @@ mod tests {
         m.apply(VK_RSHIFT, false);
         assert_eq!(m.modifiers(), Modifiers::NONE);
         assert!(!m.has_shortcut_modifier());
+    }
+
+    #[test]
+    fn shift_keys_remember_which_side_is_down() {
+        let mut m = ModifierState::default();
+        m.apply(VK_RSHIFT, true);
+        assert_eq!(m.shift_keys, SHIFT_R);
+        m.apply(VK_LSHIFT, true);
+        m.apply(VK_LSHIFT, false);
+        assert!(m.shift && m.shift_keys == SHIFT_R, "right Shift is still held");
+        m.apply(VK_RSHIFT, false);
+        assert!(!m.shift && m.shift_keys == 0);
+        m.apply(VK_SHIFT, true);
+        assert_eq!(m.shift_keys, SHIFT_ANY);
+        m.apply(VK_SHIFT, false);
+        assert!(!m.shift);
     }
 
     #[test]
