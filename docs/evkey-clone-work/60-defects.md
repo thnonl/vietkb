@@ -377,3 +377,25 @@ Owner checks, 2026-10-30, after the 0.2.4 release:
 - Toggle sound audibility: **VERIFIED by owner**.
 - D-GUARD-02 (`EVKey64.lnk` in Startup): **WON'T FIX (owner)**. Leave it. Host runs must keep checking that EVKey is not running.
 
+
+## Editing scenarios — 2026-10-30 (owner report + QA sweep)
+
+Owner report: after a non-Vietnamese word, a space and Backspace back into it, the next Vietnamese word stayed raw even when the bad word was deleted completely; only a new word after a space recovered. QA then added `crates/vkb-core/tests/editing_scenarios.rs` (about 300 000 generated edit sequences, Telex and VNI × `spell_check` × `restore_wrong_word`), which found the classes below on `main` at `980ea44`.
+
+Rule adopted for all of them: after a Backspace the word behaves as if its surviving keystrokes had been typed fresh (same composing, spell-check verdict and tone placement), provided that fresh typing reproduces a screen no longer than before; otherwise the surviving text stays frozen and the screen does not change.
+
+| id | severity | area | repro | expected | actual (before fix) | status |
+|---|---|---|---|---|---|---|
+| D-BS-LIT-01 | P1 | a frozen word kept `literal_from = 0` through Backspace, across the reopen memory, and even after it was fully deleted, so every new key was raw | Telex `pass⌫⌫⌫dduwowcj`; VNI `d99`␠`⌫⌫⌫` then `d9e6m`; spell on: `test⌫⌫⌫⌫hif` | `được`, `đêm`, `hì` | `dduwowcj`, `d9e6m`, `hif` | FIXED (`6d654a5`, `94797b4`, `300a08a`) |
+| D-BS-LIT-02 | P1 | a typo that made the word invalid froze it; Backspace over the typo did not recover it | spell on: `dduwowcjk⌫`, `gifk⌫`, `ddk⌫uwowcj` | `được`, `gì`, `được` | `dduwowcj`, `gif`, raw | FIXED (`94797b4`) — the frozen word is re-judged from the kept keystrokes |
+| D-BS-LIT-03 | P2 | a digit ended the word without reopening it, so Backspace over the digit lost the word | Telex `d9⌫deei` | `đêi` (spell off) | `ddêi` | FIXED (`94797b4`) |
+| D-BS-LIT-04 | P2 | the D-TN-06 tone pin also applied to a word that was never a valid syllable | spell off: `hoafk⌫` | `hòa` (modern tone) | `hoà` | FIXED (`94797b4`, `300a08a`) — the pin applies only when the old word was valid |
+| D-BS-LIT-05 | P2 | spell check treated Telex `j` before a stop coda as English | spell on: `hojc`, `nhajt` | `học`, `nhặt` | `hojc`, `nhajt` | FIXED (`94797b4`, `300a08a`) — exemption limited to `j` + `c`/`ch`/`p`/`t` |
+| D-BS-LIT-06 | P3 | the `edited` flag bypassed spell check for keys typed after an edit, so the same keys gave different words | spell on, VNI: fresh `d9e6i` vs `dog⌫⌫9e6i` | both raw `d9e6i` (`êi` is not a syllable) | fresh raw, edited `đêi` | FIXED (`94797b4`, `300a08a`) — `edit_len` protects only keystrokes that survived a Backspace |
+| D-BS-LIT-07 | P3 | `Ctrl+Shift+Z` was swallowed with nothing to restore after an un-frozen remnant | `dxcv⌫⌫⌫` then `Ctrl+Shift+Z` | chord reaches the app (redo) | swallowed | FIXED (`94797b4`) — `can_restore()` is false when raw equals the screen |
+| D-BS-LIT-08 | P3 | a frozen remnant longer than `MAX_WORD` in `unicode_nfd` spills its `SmallVec` to the heap on Backspace | `engine.rs` `backspace()` frozen fallback | allocation-free | heap allocation possible | OPEN (pre-existing, low impact) |
+
+Owner rulings, 2026-10-30:
+- A digit typed directly before letters does not block composing: `1dduwowcj` → `1được`, `3giowf` → `3giờ`, VNI `2d9e6m` → `2đêm` (spec A9 updated).
+- VNI `d9e6i` with spell check on stays `d9e6i` (correct: `êi` is not a syllable), but deleting it fully or back to its first letter and retyping must compose — pinned by the `owner_*` tests in `editing.rs`.
+- Accepted consequence of the re-judge rule: one Backspace may rewrite the word to what its surviving keys compose to (`test⌫` → `té`, `d9e6i⌫` → `đê`).
