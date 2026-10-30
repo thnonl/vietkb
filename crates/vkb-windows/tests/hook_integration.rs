@@ -12,6 +12,8 @@
 //! Run it on an interactive desktop (not a service session): a headless session
 //! never delivers hook events.
 
+#![cfg(windows)]
+
 use std::sync::mpsc;
 use std::time::Duration;
 

@@ -471,11 +471,13 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
 /// itself. `/UPDATE` is Tauri's in-place mode: the reinstall page skips the
 /// "uninstall before installing" branch, the old uninstaller never runs, and
 /// WebView2/shortcut work is skipped — files are simply overwritten.
+#[cfg(any(windows, test))]
 const INSTALLER_ARGS: [&str; 2] = ["/S", "/UPDATE"];
 
 /// The batch the app hands itself to before quitting: run the setup, then bring
 /// VietKB back. The installer kills this process (silent mode, Restart Manager),
 /// so nothing inside the app can do the relaunch itself.
+#[cfg(any(windows, test))]
 fn update_script(installer: &std::path::Path, exe: &std::path::Path) -> String {
     let setup = installer.display();
     let app = exe.display();

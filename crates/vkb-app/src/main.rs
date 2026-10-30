@@ -142,7 +142,17 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     // Owned by the main window: no orphan in the taskbar, and Windows tears it
     // down first when the owner goes away.
     if let Some(main) = &main {
-        builder = builder.owner(main).map_err(|error| error.to_string())?;
+        #[cfg(windows)]
+        {
+            builder = builder.owner(main).map_err(|error| error.to_string())?;
+        }
+        // macOS has no owner/owned notion; `parent` adds it as a child window.
+        #[cfg(target_os = "macos")]
+        {
+            builder = builder.parent(main).map_err(|error| error.to_string())?;
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
+        let _ = main;
     }
 
     let window = builder.build().map_err(|error| error.to_string())?;

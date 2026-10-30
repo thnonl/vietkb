@@ -28,6 +28,7 @@ fn shared() -> &'static vkb_platform::SharedConfig {
 
 /// The config cell as the backend expects it; cloning the `Arc` is the whole
 /// hand-off.
+#[cfg(windows)]
 pub fn shared_config() -> vkb_platform::SharedConfig {
     shared().clone()
 }
