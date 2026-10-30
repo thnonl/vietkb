@@ -4,8 +4,10 @@ mod commands;
 mod running_apps;
 mod tray;
 mod update;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod autostart;
+#[cfg(target_os = "macos")]
+mod macos_backend;
 #[cfg(windows)]
 mod windows_backend;
 
@@ -410,8 +412,10 @@ pub fn quit(app: &tauri::AppHandle) {
         // No-op unless the app was started with `VKB_PERF=1`.
         vkb_windows::perf::finish();
     }
-    // TODO(mac-backend): `vkb_macos::uninstall_hook()` here once the backend is
-    // wired (same idempotent unhook-on-the-way-out as Windows).
+    #[cfg(target_os = "macos")]
+    if let Err(error) = vkb_macos::uninstall_hook() {
+        tracing::warn!(%error, "could not remove the event tap");
+    }
     app.exit(0);
 }
 
@@ -438,7 +442,7 @@ fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "vietkb=info,vkb_windows=info".into()),
+                .unwrap_or_else(|_| "vietkb=info,vkb_windows=info,vkb_macos=info".into()),
         )
         .init();
 
@@ -452,8 +456,8 @@ fn main() {
         vkb_windows::set_data_dir(vkb_config::paths::config_dir());
         vkb_windows::perf::init_from_env();
     }
-    // TODO(mac-backend): `vkb_macos::set_data_dir(vkb_config::paths::config_dir());`
-    // (M1) once the backend crate exports it.
+    #[cfg(target_os = "macos")]
+    vkb_macos::set_data_dir(vkb_config::paths::config_dir());
 
     let app = tauri::Builder::default()
         // Second launch: same rule as a first one, so `Chạy ẩn` also keeps a
@@ -502,9 +506,11 @@ fn main() {
             // exists (a hotkey can flip it) and after the config load.
             #[cfg(windows)]
             windows_backend::start();
-            // TODO(mac-backend): start the macOS backend here (`macos_backend::start()`:
-            // event tap, config hand-off, both callbacks). Not wired yet; the
-            // `mod macos_backend;` declaration is added together with the call.
+            // Event tap, config hand-off, both callbacks. Without Accessibility
+            // the install fails quietly, the banner shows, and `ensure_installed`
+            // retries when the grant appears.
+            #[cfg(target_os = "macos")]
+            macos_backend::start();
 
             // No window exists before the first open: `tauri.conf.json` no
             // longer lists one, so a tray-only start never pays for WebView2.
@@ -626,7 +632,10 @@ fn main() {
                 }
                 vkb_windows::perf::finish();
             }
-            // TODO(mac-backend): `vkb_macos::uninstall_hook()` (idempotent).
+            #[cfg(target_os = "macos")]
+            if let Err(error) = vkb_macos::uninstall_hook() {
+                tracing::warn!(%error, "could not remove the event tap");
+            }
         }
         _ => {}
     });

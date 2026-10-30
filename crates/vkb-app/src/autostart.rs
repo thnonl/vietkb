@@ -8,8 +8,21 @@
 //! unquoted command line and picks `HKLM` first when the process may write
 //! there. The channel value has to stay exactly `"<exe>" --autostart`.
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use imp::{is_enabled, set};
+
+/// macOS: the LaunchAgent `~/Library/LaunchAgents/vn.vietkb.app.plist` owned by
+/// `vkb-macos` (decision M1).
+#[cfg(target_os = "macos")]
+mod imp {
+    pub fn set(enabled: bool) -> Result<(), String> {
+        vkb_macos::set_autostart(enabled).map_err(|error| error.to_string())
+    }
+
+    pub fn is_enabled() -> bool {
+        vkb_macos::is_autostart_enabled()
+    }
+}
 
 #[cfg(all(windows, not(feature = "dev-channel")))]
 mod imp {

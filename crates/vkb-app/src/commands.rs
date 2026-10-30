@@ -28,7 +28,7 @@ fn shared() -> &'static vkb_platform::SharedConfig {
 
 /// The config cell as the backend expects it; cloning the `Arc` is the whole
 /// hand-off.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub fn shared_config() -> vkb_platform::SharedConfig {
     shared().clone()
 }
@@ -52,7 +52,11 @@ pub fn hook_ready_now() -> bool {
     {
         vkb_windows::is_hook_ready()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        vkb_macos::is_hook_ready()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         false
     }
@@ -286,6 +290,8 @@ fn after_change() {
     // reinstall, and the enabled flag rides along inside the config.
     #[cfg(windows)]
     crate::windows_backend::push_config();
+    #[cfg(target_os = "macos")]
+    crate::macos_backend::push_config();
 
     if let Some(app) = app_handle() {
         crate::tray::refresh(app, &status);
@@ -304,7 +310,7 @@ fn sync_autostart(enabled: bool) {
     // Dev channel: write the `VietKB Dev` value ourselves, HKCU only, quoted
     // exe plus the flag. The plugin would use an unquoted command line and may
     // pick HKLM, so the two channels must not share that writer.
-    #[cfg(all(windows, feature = "dev-channel"))]
+    #[cfg(any(target_os = "macos", all(windows, feature = "dev-channel")))]
     {
         match crate::autostart::set(enabled) {
             Ok(()) => {
@@ -313,10 +319,9 @@ fn sync_autostart(enabled: bool) {
             }
             Err(error) => tracing::warn!(%error, enabled, "autostart update failed"),
         }
-        return;
     }
 
-    #[cfg(not(all(windows, feature = "dev-channel")))]
+    #[cfg(not(any(target_os = "macos", all(windows, feature = "dev-channel"))))]
     {
         use tauri_plugin_autostart::ManagerExt;
 
@@ -338,11 +343,12 @@ fn sync_autostart(enabled: bool) {
 /// What the `Run` key says, independent of `config.toml`. `None` when the
 /// platform cannot answer, so callers fall back to the saved value.
 fn autostart_registry_state() -> Option<bool> {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     {
+        // macOS: the LaunchAgent plist is the truth, like the `Run` key.
         Some(crate::autostart::is_enabled())
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         use tauri_plugin_autostart::ManagerExt;
         app_handle()?.autolaunch().is_enabled().ok()
@@ -391,10 +397,10 @@ pub fn autostart_state() -> bool {
 /// fails.
 #[tauri::command]
 pub fn set_autostart(enabled: bool) -> Result<bool, String> {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     crate::autostart::set(enabled)?;
 
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         use tauri_plugin_autostart::ManagerExt;
         let app = app_handle().ok_or("ứng dụng chưa sẵn sàng")?;
@@ -705,6 +711,8 @@ pub fn toggle_enabled() -> StatusView {
             // here too so the very next keystroke sees it, not the next tick.
             #[cfg(windows)]
             vkb_windows::set_enabled(enabled);
+            #[cfg(target_os = "macos")]
+            vkb_macos::set_enabled(enabled);
             if play_sound {
                 play_notification(enabled);
             }
@@ -725,7 +733,11 @@ fn play_notification(enabled: bool) {
     {
         vkb_windows::sound::play_toggle(enabled);
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        vkb_macos::sound::play_toggle(enabled);
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = enabled;
     }
@@ -1116,7 +1128,13 @@ pub fn platform() -> &'static str {
 pub fn accessibility_status() -> bool {
     #[cfg(target_os = "macos")]
     {
-        vkb_macos::has_accessibility_permission()
+        let granted = vkb_macos::has_accessibility_permission();
+        // The banner polls this. The moment the grant appears, install the tap
+        // (no-op when it already runs) so no restart is needed.
+        if granted {
+            crate::macos_backend::ensure_installed();
+        }
+        granted
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -1130,7 +1148,11 @@ pub fn accessibility_status() -> bool {
 pub fn request_accessibility() -> bool {
     #[cfg(target_os = "macos")]
     {
-        vkb_macos::request_accessibility_permission()
+        let granted = vkb_macos::request_accessibility_permission();
+        if granted {
+            crate::macos_backend::ensure_installed();
+        }
+        granted
     }
     #[cfg(not(target_os = "macos"))]
     {

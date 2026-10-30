@@ -32,3 +32,4 @@ docs/evkey-clone-work/qa/e2e/sandbox-e2e.log
 
 # agent worktrees
 .claude/worktrees/
+qa-build/
