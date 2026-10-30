@@ -77,6 +77,9 @@ pub struct HookRuntime {
     mods: ModifierState,
     /// Bitset of physical keys currently down (autorepeat detection).
     down: [u64; 4],
+    /// Bitset of physical keys whose key-down was swallowed as a hotkey trigger,
+    /// so the matching key-up is swallowed too (no orphan key-up for the app).
+    trigger_swallowed: [u64; 4],
     cfg: Option<Arc<AppConfig>>,
     base: BaseSettings,
     rule: Option<vkb_config::AppRule>,
@@ -115,6 +118,7 @@ impl HookRuntime {
             hotkeys,
             mods: keys::seed_from_os(),
             down: [0; 4],
+            trigger_swallowed: [0; 4],
             cfg: None,
             base: BaseSettings::default(),
             rule: None,
@@ -227,7 +231,7 @@ impl HookRuntime {
         let vk = info.vkCode as u16;
 
         // Our own injections re-enter the hook; never feed them back.
-        if info.dwExtraInfo == input::INJECTED_MAGIC {
+        if info.dwExtraInfo == input::injected_tag() {
             trace.stage("own-injection");
             return Decision::PASS;
         }
@@ -308,11 +312,33 @@ impl HookRuntime {
         if let Some(hotkey) = self.hotkeys.on_key(vk, down, modifiers, is_modifier) {
             trace.stage("hotkey");
             let handled = self.on_hotkey(hotkey);
-            if down && !is_modifier && handled {
-                return Decision::SWALLOW;
+            if !is_modifier {
+                if down {
+                    if handled {
+                        self.set_trigger_swallowed(vk, true);
+                        return Decision::SWALLOW;
+                    }
+                } else if self.take_trigger_swallowed(vk) {
+                    return Decision::SWALLOW;
+                }
             }
             // Modifier-only combos (Ctrl+Shift) are matched but passed through:
             // swallowing bare modifiers would break Ctrl+Shift+X in the target.
+        } else if !is_modifier {
+            // Release-mode combos fire on key-up, but the trigger must be kept
+            // from the app on the way down as well (D-E2E-03: VS Code opened its
+            // command palette on `F1` and ate the keys that followed), and the
+            // key-up of a swallowed key-down must not arrive on its own.
+            if down {
+                if self.hotkeys.swallows_trigger(vk) {
+                    trace.stage("hotkey-trigger");
+                    self.set_trigger_swallowed(vk, true);
+                    return Decision::SWALLOW;
+                }
+            } else if self.take_trigger_swallowed(vk) {
+                trace.stage("hotkey-trigger-up");
+                return Decision::SWALLOW;
+            }
         }
 
         if !down {
@@ -369,6 +395,13 @@ impl HookRuntime {
         // 5. Text keys plus the boundary keys the engine cares about.
         let ch = self.char_for(vk, info.scanCode as u16);
         trace.ch(ch);
+        if ch.is_none() && is_modifier {
+            // A bare Shift types nothing and must not end the word: `aS` is `á`
+            // and `DD` is `Đ` (20-spec A12). A Ctrl/Alt/Win chord was already
+            // handled above, where it does reset.
+            trace.stage("modifier");
+            return Decision::PASS;
+        }
         if ch.is_none() && !keys::is_word_boundary(vk) {
             trace.stage("non-text");
             self.reset_engine();
@@ -677,6 +710,14 @@ impl HookRuntime {
         }
     }
 
+    /// The zero-focus harness must not depend on (or be disturbed by) which
+    /// window the owner happens to have focused: no app rules, no IME state.
+    #[cfg(feature = "e2e-harness")]
+    fn refresh_app(&mut self) {
+        self.ime_active = false;
+    }
+
+    #[cfg(not(feature = "e2e-harness"))]
     fn refresh_app(&mut self) {
         let now = Instant::now();
         let hwnd = foreground::foreground_hwnd();
@@ -835,6 +876,25 @@ impl HookRuntime {
     fn is_down(&self, vk: u16) -> bool {
         let index = vk as usize;
         self.down[index / 64] & (1u64 << (index % 64)) != 0
+    }
+
+    fn set_trigger_swallowed(&mut self, vk: u16, on: bool) {
+        let index = vk as usize;
+        let bit = 1u64 << (index % 64);
+        if on {
+            self.trigger_swallowed[index / 64] |= bit;
+        } else {
+            self.trigger_swallowed[index / 64] &= !bit;
+        }
+    }
+
+    /// `true` once, for the key-up that closes a swallowed trigger key-down.
+    fn take_trigger_swallowed(&mut self, vk: u16) -> bool {
+        let index = vk as usize;
+        let bit = 1u64 << (index % 64);
+        let was = self.trigger_swallowed[index / 64] & bit != 0;
+        self.trigger_swallowed[index / 64] &= !bit;
+        was
     }
 
     fn set_down(&mut self, vk: u16, down: bool) {
