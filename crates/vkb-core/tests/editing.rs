@@ -580,3 +580,66 @@ fn simulate_keys_matches_simulate_on_plain_text() {
         simulate(EngineOptions::default(), text)
     );
 }
+
+// ---------------------------------------------------------------------------
+// D-BS-LIT-01: literal mode must not outlive the word's last vowel
+// ---------------------------------------------------------------------------
+
+fn vni_options() -> EngineOptions {
+    EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    }
+}
+
+/// Type `first`, a space, Backspace back into the word, then delete until
+/// `keep` characters of it remain on screen.
+fn reopen_and_trim(options: EngineOptions, first: &str, keep: usize) -> Session {
+    let mut session = Session::new(options);
+    session.text(first);
+    session.text(" ");
+    session.backspace();
+    while session.out.chars().count() > keep {
+        session.backspace();
+    }
+    session
+}
+
+#[test]
+fn vni_word_after_a_frozen_word_composes_once_back_at_its_consonant() {
+    // Owner report: a non-Vietnamese word, space, Backspace into it, deleted
+    // down to `d`; `9e6m` must then compose to `đêm`, not stay raw.
+    for first in ["da11", "d99", "da66"] {
+        let mut session = reopen_and_trim(vni_options(), first, 1);
+        assert_eq!(session.out, "d", "{first}");
+        assert_eq!(session.text("9e6m"), "đêm", "{first}");
+    }
+}
+
+#[test]
+fn vni_word_after_a_fully_deleted_frozen_word_composes() {
+    for first in ["a11", "a66", "d99"] {
+        let mut session = reopen_and_trim(vni_options(), first, 0);
+        assert_eq!(session.out, "", "{first}");
+        assert_eq!(session.text("d9e6m"), "đêm", "{first}");
+    }
+}
+
+#[test]
+fn telex_word_after_a_fully_deleted_frozen_word_composes() {
+    for first in ["dass", "daaa", "dddd"] {
+        let mut session = reopen_and_trim(EngineOptions::default(), first, 0);
+        assert_eq!(session.out, "", "{first}");
+        assert_eq!(session.text("ddeem"), "đêm", "{first}");
+    }
+}
+
+#[test]
+fn a_frozen_dd_remnant_stays_literal_after_backspace() {
+    // `dddd` shows `ddd`; one Backspace leaves `dd`, which would turn into `đ`
+    // if it were recomposed. The screen must not move and the word stays raw.
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("dddd"), "ddd");
+    assert_eq!(session.backspace(), "dd");
+    assert_eq!(session.text("e"), "dde");
+}

@@ -382,11 +382,28 @@ impl Engine {
             self.raw = frozen;
         }
 
+        // `D-BS-LIT-01`: literal mode is only worth keeping while the word still
+        // has a vowel to protect. A fully deleted word is fresh again, and a
+        // bare consonant that composes the same either way goes back to normal,
+        // so the next keys compose (`d9e6i` = `đêi`) instead of staying raw.
+        let emptied = self.raw.is_empty();
+        if emptied {
+            literal_from = usize::MAX;
+        } else if literal_from != usize::MAX && !composed.letters.iter().any(|l| l.is_vowel()) {
+            let mut fresh = Composed::default();
+            let mut fresh_text = TextBuf::new();
+            method::compose(&self.raw, &self.options, usize::MAX, &mut fresh);
+            self.render_into(&fresh.letters, fresh.tone, fresh.tone_slot, &mut fresh_text);
+            if fresh_text.as_slice() == next.as_slice() {
+                literal_from = usize::MAX;
+                composed = fresh;
+            }
+        }
         self.literal_from = literal_from;
         self.composed = composed;
         // The word survived an edit: later keys keep its marks when they only
-        // append (`D-TN-07`/`D-TN-08`).
-        self.edited = true;
+        // append (`D-TN-07`/`D-TN-08`); an emptied word has nothing to keep.
+        self.edited = !emptied;
         self.settle_deletion(next)
     }
 
