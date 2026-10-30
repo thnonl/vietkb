@@ -261,7 +261,9 @@ pub struct EngineOptions {
     /// when the key was typed (`hoafn` → `hòan`).
     pub free_tone: bool,
     pub auto_horn_uo: bool,
-    /// Reserved: URL/code raw zone (spec §A9) is not implemented yet; the value is ignored.
+    /// URL/code protection (spec §A9 + amendment 2026-10-30): a word that follows
+    /// code-shaped text is typed literally. Arms only when the token on the left
+    /// of the opener is plain ASCII and — for `. / ?` — not a valid syllable.
     pub raw_zone: bool,
 }
 
@@ -297,6 +299,13 @@ pub trait VietnameseEngine: Send {
     fn set_macro_only(&mut self, _on: bool) {}
     /// Pure and allocation-free on the `Noop` path. O(1) in word length up to [`MAX_WORD`].
     fn process_key(&mut self, key: KeyInput) -> EngineAction;
+    /// `Khôi phục từ gõ sai`: rewrite the current word back to the raw
+    /// keystrokes the user typed. `Noop` when there is nothing to restore.
+    fn restore_word(&mut self) -> EngineAction;
+    /// `true` when [`Self::restore_word`] would produce a rewrite. The hook asks
+    /// before swallowing the chord, so a chord with nothing to restore keeps its
+    /// meaning in the app (`Ctrl+Shift+Z` is also *redo*).
+    fn can_restore(&self) -> bool;
     /// The caret moved / focus changed: flush history but emit nothing.
     fn boundary(&mut self);
 }

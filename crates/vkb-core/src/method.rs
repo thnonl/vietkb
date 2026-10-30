@@ -32,6 +32,11 @@ pub struct Composed {
     /// render (`free_tone = true`); `Some` = `free_tone = false`, the tone stays
     /// on the vowel it hit when the key was typed.
     pub tone_slot: Option<usize>,
+    /// The next tone key must not be read as a repeated trigger: the tone on
+    /// screen sits where A4 would no longer place it (the last character was
+    /// deleted, §A7 step 4). Set by the engine for the first key after such a
+    /// Backspace; consumed by the first same-tone press.
+    pub(crate) tone_stale: bool,
 }
 
 impl Composed {
@@ -43,6 +48,7 @@ impl Composed {
         self.tone_at = usize::MAX;
         self.mark_at = usize::MAX;
         self.tone_slot = None;
+        self.tone_stale = false;
     }
 }
 
@@ -51,7 +57,23 @@ impl Composed {
 /// `literal_from` is the index from which the caller already forced raw text
 /// (the "phục hồi từ" hotkey); `usize::MAX` disables it.
 pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: &mut Composed) {
+    compose_word(raw, options, literal_from, false, false, out);
+}
+
+/// [`compose`] with the engine's per-word notes: `tone_stale` marks a tone that
+/// the screen shows where A4 would no longer place it (§A7 step 4), `edited`
+/// marks a word that has survived a Backspace (it keeps its marks when a later
+/// key only appends).
+pub(crate) fn compose_word(
+    raw: &[char],
+    options: &EngineOptions,
+    literal_from: usize,
+    tone_stale: bool,
+    edited: bool,
+    out: &mut Composed,
+) {
     out.clear();
+    out.tone_stale = tone_stale;
 
     for (i, &ch) in raw.iter().enumerate() {
         // Compat shim, ported from the reference implementation: with
@@ -75,6 +97,18 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
             continue;
         }
 
+        // Snapshot for the post-deletion refusal below: a doubled key that would
+        // leave an invalid syllable is typed as text instead of applied.
+        let before = (options.spell_check && edited && !out.literal && !out.escaped).then(|| {
+            (
+                out.letters.clone(),
+                out.tone,
+                out.tone_at,
+                out.mark_at,
+                out.tone_slot,
+            )
+        });
+
         if ch.is_ascii_digit() {
             step_digit(out, raw, i, options);
         } else if !ch.is_ascii_alphabetic() {
@@ -96,17 +130,48 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
             }
         }
 
-        // A word that stops looking Vietnamese shows the raw keystrokes instead
-        // of a wrong accent (`Kiểm tra chính tả`), which is both what the user
-        // typed and what `restore_wrong_word` would produce at the boundary.
-        if options.spell_check
-            && !out.literal
-            && !out.escaped
-            && (!crate::spell::is_valid_syllable(&out.letters, options.jfwz_as_consonant)
-                || (matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
-                    && crate::spell::english_stop_cluster(&raw[..=i], &out.letters)))
-        {
-            literalize(out, raw, i);
+        if options.spell_check && !out.literal && !out.escaped {
+            let transformed = out.tone_at == i || out.mark_at == i;
+            let doubled = i > 0 && raw[i - 1].eq_ignore_ascii_case(&ch);
+            let keeps_the_marks = edited
+                && !transformed
+                && {
+                    // A plain letter appends: a vowel, a new coda after a vowel,
+                    // or a doubled coda. A third consonant after an existing coda
+                    // is a different word (`tiếnt`), so it shows the raw keys.
+                    let vowel = Letter::literal(ch).is_vowel();
+                    let previous = out
+                        .letters
+                        .len()
+                        .checked_sub(2)
+                        .map(|idx| out.letters[idx]);
+                    vowel
+                        || previous.is_some_and(|letter| {
+                            letter.is_vowel() || letter.base() == ch.to_ascii_lowercase()
+                        })
+                };
+            let invalid =
+                !crate::spell::is_valid_syllable(&out.letters, options.jfwz_as_consonant)
+                    || (matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
+                        && crate::spell::english_stop_cluster(&raw[..=i], &out.letters));
+            if invalid && !keeps_the_marks {
+                if transformed && doubled {
+                    // §A1 rule 5 inside a word that survived a deletion: the
+                    // doubled key is literal text, the marks already on screen
+                    // stay (`Nguyễ` + `ee` = `Nguyễee`).
+                    if let Some((letters, tone, tone_at, mark_at, tone_slot)) = before {
+                        out.letters = letters;
+                        out.tone = tone;
+                        out.tone_at = tone_at;
+                        out.mark_at = mark_at;
+                        out.tone_slot = tone_slot;
+                        out.literal = true;
+                    }
+                    out.letters.push(Letter::literal(ch));
+                } else {
+                    literalize(out, raw, i);
+                }
+            }
         }
     }
 }
@@ -223,16 +288,13 @@ fn escape_to_raw(out: &mut Composed, raw: &[char], upto: usize, drop: Option<usi
     }
 }
 
-/// Raw index of the most recent `key` typed before `upto`.
-fn previous_trigger(raw: &[char], upto: usize, key: char) -> Option<usize> {
-    raw[..upto]
-        .iter()
-        .rposition(|ch| ch.eq_ignore_ascii_case(&key))
-}
-
 /// The raw index to drop when a transform is escaped by repeating its trigger.
+///
+/// The escape is the *immediately repeated* press (§A1 escape table, §A2 "same
+/// digit repeated immediately after its own transform"): a trigger typed after
+/// other keys is a new transform, not an escape (`baajtj` keeps `bật`).
 fn drop_for(raw: &[char], i: usize, key: char, at: usize) -> Option<usize> {
-    if at != usize::MAX && at < i && raw[at].eq_ignore_ascii_case(&key) {
+    if at != usize::MAX && at + 1 == i && raw[at].eq_ignore_ascii_case(&key) {
         Some(at)
     } else {
         None
@@ -274,10 +336,15 @@ fn double_letter(out: &mut Composed, raw: &[char], i: usize, base: char, mark: M
         return;
     }
     if out.letters.last().is_some_and(|last| last.base() == base) {
-        // The same key again: escape the whole word to its literal keystrokes.
-        let drop = drop_for(raw, i, base, out.mark_at);
-        escape_to_raw(out, raw, i, drop);
-        return;
+        // The same *letter key* pressed again — right after the press that made
+        // the mark — escapes the whole word to its literal keystrokes. A letter
+        // typed later, after a tone key or a coda, is a plain letter and appends
+        // (`D-TN-08`: `Nguyễ` + `e` is `Nguyễe`, not `Nguyexe`).
+        if out.mark_at != usize::MAX && out.mark_at + 1 == i {
+            let drop = drop_for(raw, i, base, out.mark_at);
+            escape_to_raw(out, raw, i, drop);
+            return;
+        }
     }
     out.letters.push(Letter::literal(ch));
 }
@@ -400,9 +467,23 @@ fn apply_tone(out: &mut Composed, raw: &[char], i: usize, tone: Tone, key: char,
         return;
     };
     if out.tone == tone {
-        // The same trigger again: the word reverts to the literal keystrokes.
-        let drop = drop_for(raw, i, key, out.tone_at).or_else(|| previous_trigger(raw, i, key));
-        escape_to_raw(out, raw, i, drop);
+        // The tone is already in force. After a Backspace the display can be
+        // stale (`toán` BS shows `toá`, the deleted coda no longer forces T3):
+        // §A7 step 4 says the next key re-runs A4, so re-place instead of
+        // escaping.
+        if out.tone_stale {
+            out.tone_stale = false;
+            out.tone_slot = None;
+            return;
+        }
+        // The word reverts to the literal keystrokes only when the trigger is
+        // *immediately repeated* (§A1 escape table, §A2 "same digit repeated
+        // immediately after its own transform"): `ass` escapes, but a tone key
+        // typed after other keys (`baajtj`) leaves the word alone.
+        if let Some(drop) = drop_for(raw, i, key, out.tone_at) {
+            escape_to_raw(out, raw, i, Some(drop));
+            return;
+        }
         return;
     }
     out.tone = tone;

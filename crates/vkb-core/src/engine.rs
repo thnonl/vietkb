@@ -54,9 +54,15 @@ pub struct Engine {
     caps_pending: bool,
     /// The last character the engine produced, used by the raw-zone rules.
     last_emitted: Option<char>,
-    /// A raw-zone opener was just typed; the next key decides whether the word
-    /// that follows is typed literally (spec §A9).
+    /// The opener that just ended a word armed the raw zone: the next key decides
+    /// whether the word that follows is typed literally (spec §A9 amendment).
     raw_pending: bool,
+    /// The tone on screen is not where A4 would place it: set by a Backspace that
+    /// kept a stale tone slot, read by the very next key (spec §A7 step 4).
+    tone_stale: bool,
+    /// The word has survived a Backspace: a later key that only appends keeps the
+    /// surviving marks instead of reverting the word (`D-TN-07`/`D-TN-08`).
+    edited: bool,
     /// The word the last separator committed, live for exactly one key:
     /// `Tha` + space + Backspace + `s` = `Thá`.
     reopen: Option<CommittedWord>,
@@ -76,6 +82,8 @@ impl Engine {
             caps_pending: false,
             last_emitted: None,
             raw_pending: false,
+            tone_stale: false,
+            edited: false,
             reopen: None,
             macro_only: false,
         }
@@ -109,6 +117,9 @@ impl Engine {
     pub fn set_macro_only(&mut self, on: bool) {
         self.macro_only = on;
         self.reset_word();
+        // The armed raw zone never survives a mode switch (spec §A9 §7): the
+        // next word is composed by the new mode, not frozen by the old opener.
+        self.raw_pending = false;
     }
 
     fn macro_only_key(&mut self, key: KeyInput) -> EngineAction {
@@ -178,6 +189,8 @@ impl Engine {
         self.composed.clear();
         self.text.clear();
         self.literal_from = usize::MAX;
+        self.tone_stale = false;
+        self.edited = false;
     }
 
     /// Compose `letters` with the word tone placed per the tone rules.
@@ -245,7 +258,17 @@ impl Engine {
         };
         self.caps_pending = false;
         self.raw.push(ch);
-        method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
+        // §A7 step 4: the first key after a deletion that left a stale tone
+        // display re-runs A4 instead of being read as a repeated tone trigger.
+        let tone_stale = std::mem::take(&mut self.tone_stale);
+        method::compose_word(
+            &self.raw,
+            &self.options,
+            self.literal_from,
+            tone_stale,
+            self.edited,
+            &mut self.composed,
+        );
         let mut next = TextBuf::new();
         self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
         let action = self.diff(&next, Some(ch));
@@ -276,6 +299,7 @@ impl Engine {
     fn backspace(&mut self, reopening: Option<CommittedWord>) -> EngineAction {
         // Backspace removes the opener itself: the pending raw zone is dead.
         self.raw_pending = false;
+        self.tone_stale = false;
         if self.raw.is_empty() {
             if let Some(word) = reopening {
                 // The app deletes the boundary itself; the word comes back so
@@ -296,6 +320,11 @@ impl Engine {
 
         let target = self.text_without_last_character();
         let kept = self.raw_without_letter(self.composed.letters.len() - 1);
+        // The letter that carries the tone on screen right now (before the press).
+        let carrier = self
+            .composed
+            .tone_slot
+            .or_else(|| place::target(&self.composed.letters, self.options.modern_tone));
 
         let mut literal_from = self.literal_from;
         if literal_from != usize::MAX && literal_from > kept.len() {
@@ -310,6 +339,23 @@ impl Engine {
             composed.tone_slot,
             &mut next,
         );
+
+        // The tone on screen can sit on a letter A4 would no longer choose: the
+        // deleted character may have been the coda that forced T3 (`toán` BS →
+        // `toá`, while `toa` alone takes the tone on `o`). §A7 step 4 keeps the
+        // display unchanged, so pin the tone to the letter that shows it; the
+        // next key re-runs A4 from raw anyway, and the word keeps composing.
+        if next.as_slice() != target.as_slice() && composed.tone != Tone::None {
+            if let Some(slot) = carrier.filter(|&slot| slot < composed.letters.len()) {
+                let mut pinned = TextBuf::new();
+                self.render_into(&composed.letters, composed.tone, Some(slot), &mut pinned);
+                if pinned.as_slice() == target.as_slice() {
+                    composed.tone_slot = Some(slot);
+                    next = pinned;
+                    self.tone_stale = true;
+                }
+            }
+        }
 
         if next.as_slice() == target.as_slice() {
             self.raw = kept;
@@ -331,6 +377,9 @@ impl Engine {
 
         self.literal_from = literal_from;
         self.composed = composed;
+        // The word survived an edit: later keys keep its marks when they only
+        // append (`D-TN-07`/`D-TN-08`).
+        self.edited = true;
         self.settle_deletion(next)
     }
 
@@ -381,7 +430,14 @@ impl Engine {
         let mut prev = Composed::default();
         let mut cur = Composed::default();
         for end in 0..self.raw.len() {
-            method::compose(&self.raw[..=end], &self.options, self.literal_from, &mut cur);
+            method::compose_word(
+                &self.raw[..=end],
+                &self.options,
+                self.literal_from,
+                false,
+                self.edited,
+                &mut cur,
+            );
             owners.push(owner_of(&prev, &cur, self.options.modern_tone));
             std::mem::swap(&mut prev, &mut cur);
         }
@@ -422,15 +478,24 @@ impl Engine {
         if self.options.auto_capitalize && matches!(ch, '.' | '!' | '?' | '\r' | '\n') {
             self.caps_pending = true;
         }
-        // Raw zone (spec §A9): the opener only arms; the next key decides. An
-        // ellipsis or a digit-dot never arms, and whitespace disarms it again.
+        // Raw zone (spec §A9 + amendment 2026-10-30): the opener only arms; the
+        // next key decides. The decision is taken at the end of this key, on the
+        // *final* left text, because the macro and A10 restore branches below
+        // rewrite what the left token shows.
         let previous = self.last_emitted;
         self.last_emitted = Some(ch);
-        let opener = matches!(ch, '.' | '/' | ':' | '@' | '_' | '\\' | '#' | '=' | '?')
-            && !(ch == '.' && previous == Some('.'))
-            && !(ch == '.' && previous.is_some_and(|c| c.is_ascii_digit()));
-        self.raw_pending = self.options.raw_zone && opener;
+        let opener = is_raw_zone_opener(ch, previous);
+        // §2b: the previous opener armed and nothing has been typed since.
+        let arm_prev = self.raw_pending;
+        let chain_ready = self.options.raw_zone
+            && matches!(ch, '\\' | '/')
+            && arm_prev
+            && matches!(previous, Some(':') | Some('\\') | Some('/'));
         if self.raw.is_empty() {
+            // Empty left token (start of line, after whitespace, after another
+            // opener): never arms, so `/tắt`, `bật//tắt`, `bật /tắt` compose —
+            // unless this opener continues a path (`C:\`, `C:/`, `http://`).
+            self.raw_pending = opener && chain_ready;
             return EngineAction::Noop;
         }
         let old_len = self.text.len();
@@ -440,6 +505,16 @@ impl Engine {
                 let mut insert = TextBuf::new();
                 self.push_expansion(&mut insert, &expansion);
                 push_encoded(ch, self.options.charset, &mut insert);
+                // The expansion is text, not a syllable, and it is what the left
+                // token shows once this key is handled.
+                self.raw_pending = self.arm_raw_zone(
+                    ch,
+                    opener,
+                    expansion.is_empty(),
+                    expansion.chars().all(|c| c.is_ascii()),
+                    false,
+                    chain_ready && expansion.is_empty(),
+                );
                 self.reset_word();
                 return EngineAction::Replace {
                     delete_units: old_len as u32,
@@ -454,12 +529,30 @@ impl Engine {
                 push_encoded(raw_ch, self.options.charset, &mut insert);
             }
             push_encoded(ch, self.options.charset, &mut insert);
+            // A10 put the raw keystrokes back: that is the final left text, and a
+            // restored word is by definition not a valid syllable.
+            self.raw_pending = self.arm_raw_zone(
+                ch,
+                opener,
+                self.raw.is_empty(),
+                plain_ascii(&self.raw),
+                false,
+                chain_ready && self.raw.is_empty(),
+            );
             self.reset_word();
             return EngineAction::Replace {
                 delete_units: old_len as u32,
                 insert: insert.iter().collect(),
             };
         }
+
+        // Nothing rewrote the word, so the final left text is `self.text` as it
+        // renders from the composed letters (NFC, before charset encoding). Taken
+        // before the reopen block below moves the word out.
+        let left_empty = self.composed.letters.is_empty();
+        let left_plain_ascii = self.composed_plain_ascii();
+        let left_valid = !left_empty
+            && spell::is_valid_syllable(&self.composed.letters, self.options.jfwz_as_consonant);
 
         // The word on screen is already correct: let the boundary key through.
         //
@@ -479,8 +572,62 @@ impl Engine {
                 literal_from: self.literal_from,
             });
         }
+        // Nothing rewrote the word, so the final left text is `self.text` as it
+        // renders from the composed letters (NFC, before charset encoding).
+        self.raw_pending = self.arm_raw_zone(
+            ch,
+            opener,
+            left_empty,
+            left_plain_ascii,
+            left_valid,
+            chain_ready && left_empty,
+        );
         self.reset_word();
         EngineAction::Noop
+    }
+
+    /// Spec §A9 amendment 2026-10-30: the raw zone arms only when the token left
+    /// of the opener is visibly not Vietnamese.
+    ///
+    /// `empty`, `plain_ascii` and `valid_syllable` describe the **final** left
+    /// text for this boundary key — the macro expansion or A10 restore output
+    /// when those fired, the rendered word otherwise. `chained` is §2b: this
+    /// opener continues a path run (`C:\`, `C:/`, `http://`) after an armed
+    /// opener with nothing typed since, so the empty left token is allowed.
+    fn arm_raw_zone(
+        &self,
+        ch: char,
+        opener: bool,
+        empty: bool,
+        plain_ascii: bool,
+        valid_syllable: bool,
+        chained: bool,
+    ) -> bool {
+        self.options.raw_zone
+            && opener
+            && (!empty || chained)
+            && plain_ascii
+            && !(needs_syllable_test(ch) && valid_syllable)
+    }
+
+    /// The word on screen is plain ASCII: every letter renders to a `≤ U+007F`
+    /// char, so no composed Vietnamese letter (`ă â đ ê ô ơ ư`) and no tone.
+    fn composed_plain_ascii(&self) -> bool {
+        let letters = &self.composed.letters;
+        let target = self
+            .composed
+            .tone_slot
+            .or_else(|| place::target(letters, self.options.modern_tone));
+        letters.iter().enumerate().all(|(idx, letter)| {
+            let tone = if Some(idx) == target {
+                self.composed.tone
+            } else {
+                Tone::None
+            };
+            compose_letter(letter.ch, letter.mark, tone)
+                .unwrap_or(letter.ch)
+                .is_ascii()
+        })
     }
 
     fn push_expansion(&self, out: &mut TextBuf, expansion: &str) {
@@ -525,6 +672,9 @@ impl VietnameseEngine for Engine {
             self.reset_word();
             self.reopen = None;
         }
+        // Config change is a boundary for the armed flag: turning `raw_zone` off
+        // (or changing anything else) must not freeze the next word (spec §A9 §7).
+        self.raw_pending = false;
         self.options = options;
     }
 
@@ -563,7 +713,14 @@ impl VietnameseEngine for Engine {
         }
         let ch = match key.ch {
             Some(ch) => ch,
-            None => return EngineAction::Noop,
+            None => {
+                // A key with no character and no word/boundary role of its own —
+                // arrows, Home/End, PgUp/PgDn, Delete, F-keys — is a caret move or
+                // a window command: it ends the armed window (spec §A9 §7), so an
+                // opener typed before it cannot freeze the next word.
+                self.raw_pending = false;
+                return EngineAction::Noop;
+            }
         };
         match ch {
             '\u{8}' | '\u{7f}' => self.backspace(reopening),
@@ -583,6 +740,14 @@ impl VietnameseEngine for Engine {
         }
     }
 
+    fn restore_word(&mut self) -> EngineAction {
+        Engine::restore_word(self)
+    }
+
+    fn can_restore(&self) -> bool {
+        !self.raw.is_empty() && !self.composed.literal && self.literal_from != 0
+    }
+
     fn boundary(&mut self) {
         self.reset_word();
         self.reopen = None;
@@ -595,6 +760,25 @@ impl VietnameseEngine for Engine {
 /// (`0x140039740`) and hard-reset the word, so they never re-open.
 fn is_reopening_separator(ch: char) -> bool {
     ch == ' ' || ch == '\t' || ch.is_ascii_punctuation()
+}
+
+/// The raw-zone opener set (spec §A9), minus the two shapes that never arm: an
+/// ellipsis (`...`) and a digit-dot (`3.5`).
+fn is_raw_zone_opener(ch: char, previous: Option<char>) -> bool {
+    matches!(ch, '.' | '/' | ':' | '@' | '_' | '\\' | '#' | '=' | '?')
+        && !(ch == '.' && previous == Some('.'))
+        && !(ch == '.' && previous.is_some_and(|c| c.is_ascii_digit()))
+}
+
+/// The three openers a Vietnamese typist also puts between two words. For these
+/// only, a valid syllable on the left keeps composing (`bật/tắt`, `ban.`, `sao?`).
+fn needs_syllable_test(ch: char) -> bool {
+    matches!(ch, '.' | '/' | '?')
+}
+
+/// Every char of a fixed left text is `≤ U+007F`.
+fn plain_ascii(chars: &[char]) -> bool {
+    chars.iter().all(|c| c.is_ascii())
 }
 
 fn is_word_key(method: InputMethod, ch: char) -> bool {
@@ -731,6 +915,103 @@ mod tests {
         assert_eq!(letters[1].mark, Mark::Horn);
         assert_eq!(letters[2].mark, Mark::Horn);
         assert_eq!(engine.composed.tone, Tone::Grave);
+    }
+
+    // -- raw-zone predicate (spec §A9 amendment 2026-10-30) ------------------
+
+    fn vni() -> EngineOptions {
+        EngineOptions {
+            method: InputMethod::Vni,
+            ..EngineOptions::default()
+        }
+    }
+
+    fn type_keys(engine: &mut Engine, keys: &str) {
+        for ch in keys.chars() {
+            engine.process_key(KeyInput::char(ch));
+        }
+    }
+
+    /// Type `keys` and report the armed flag the last key left behind — the flag
+    /// the next `word_key` consumes.
+    fn armed_after(options: EngineOptions, keys: &str) -> bool {
+        let mut engine = Engine::new(options);
+        type_keys(&mut engine, keys);
+        engine.raw_pending
+    }
+
+    #[test]
+    fn raw_zone_never_arms_on_an_empty_left_token() {
+        // `/tắt`: the opener is the first key, so there is nothing on its left.
+        assert!(!armed_after(EngineOptions::default(), "/"));
+        // `bật /tắt`: the space already reset the word.
+        assert!(!armed_after(EngineOptions::default(), "baajt /"));
+        // `bật//tắt`: the second `/` sees an empty left token as well.
+        assert!(!armed_after(vni(), "ba65t//"));
+    }
+
+    #[test]
+    fn raw_zone_never_arms_after_a_vietnamese_letter() {
+        // `bật` renders a composed letter, so it is not plain ASCII — for every
+        // opener, not just the `. / ?` three.
+        for opener in ['.', '/', '?', '_', '@', ':', '=', '#', '\\'] {
+            assert!(
+                !armed_after(EngineOptions::default(), &format!("baajt{opener}")),
+                "{opener} must not arm after `bật`"
+            );
+        }
+    }
+
+    #[test]
+    fn sentence_punctuation_keeps_a_valid_syllable_vietnamese() {
+        // `ban` is a well-formed syllable: `. / ?` leave it Vietnamese.
+        for opener in ['.', '/', '?'] {
+            assert!(!armed_after(EngineOptions::default(), &format!("ban{opener}")), "{opener}");
+        }
+        // The same left token under a code-only opener still arms: those three
+        // are the only characters a Vietnamese typist also puts between words.
+        for opener in ['_', '@', ':', '=', '#', '\\'] {
+            assert!(armed_after(EngineOptions::default(), &format!("ban{opener}")), "{opener}");
+        }
+    }
+
+    #[test]
+    fn raw_zone_arms_after_a_plain_ascii_identifier() {
+        for opener in ['_', '@', ':', '=', '#', '\\'] {
+            assert!(armed_after(vni(), &format!("file{opener}")), "{opener}");
+        }
+        // `github` is ASCII and not a syllable, so `/` arms too.
+        assert!(armed_after(vni(), "github/"));
+        // A digits-only left token is not a syllable either (`2/3`).
+        assert!(armed_after(vni(), "2/"));
+    }
+
+    #[test]
+    fn digit_dot_and_ellipsis_never_arm() {
+        // Digit-dot: a decimal separator, never a word boundary.
+        assert!(!armed_after(vni(), "3."));
+        assert!(!armed_after(vni(), "1."));
+        // Ellipsis: the second and third dot. `github` arms on the first dot, so
+        // the drop is the ellipsis rule and not the syllable test.
+        assert!(armed_after(vni(), "github."));
+        assert!(!armed_after(vni(), "github.."));
+        assert!(!armed_after(vni(), "github..."));
+    }
+
+    #[test]
+    fn the_syllable_term_covers_exactly_dot_slash_question() {
+        for opener in ['.', '/', '?'] {
+            assert!(needs_syllable_test(opener), "{opener}");
+        }
+        for opener in [':', '@', '_', '\\', '#', '=', 'a', ' ', '-'] {
+            assert!(!needs_syllable_test(opener), "{opener}");
+        }
+        // Ellipsis and digit-dot are opener-level exclusions, not predicate terms.
+        assert!(is_raw_zone_opener('.', Some('a')));
+        assert!(!is_raw_zone_opener('.', Some('.')));
+        assert!(!is_raw_zone_opener('.', Some('5')));
+        assert!(is_raw_zone_opener('/', Some('a')));
+        assert!(!is_raw_zone_opener(',', Some('a')));
     }
 }
 
