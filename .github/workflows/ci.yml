@@ -70,3 +70,22 @@ jobs:
       - name: Release build (no installer)
         working-directory: crates/vkb-app
         run: "& ../../ui/node_modules/.bin/tauri.cmd build --no-bundle"
+
+  # macOS: engine/app tests and clippy in one job (the Mac runner is the slow,
+  # scarce one). Same commands as the Windows jobs above. No installer here; the
+  # universal .dmg is built by release.yml.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Engine and backend tests
+        run: cargo test --workspace --quiet
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings

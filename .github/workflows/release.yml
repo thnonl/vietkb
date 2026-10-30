@@ -1,7 +1,9 @@
 name: release
 
-# Builds and publishes the Windows installer. scripts/verify-update.ps1 verifies
-# the update on a real machine or in Windows Sandbox.
+# Builds and publishes the Windows installer and the macOS universal .dmg to the
+# same GitHub release. scripts/verify-update.ps1 verifies the Windows update on a
+# real machine or in Windows Sandbox. The macOS app is ad-hoc signed, not
+# notarized (docs/evkey-clone-work/27-mac-decisions.md M5).
 
 on:
   push:
@@ -16,28 +18,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Plain bash + jq on Linux: every job (Windows and macOS) reads these outputs,
+  # and none of them should need PowerShell for a version check.
   meta:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
       tag_ok: ${{ steps.v.outputs.tag_ok }}
     steps:
       - uses: actions/checkout@v4
       - id: v
-        shell: pwsh
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          $conf = Get-Content crates/vkb-app/tauri.conf.json -Raw | ConvertFrom-Json
-          $version = $conf.version
-          "version=$version" >> $env:GITHUB_OUTPUT
-          $tag = "${{ github.ref_name }}"
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            if ($tag -ne "v$version") {
-              throw "tag $tag does not match tauri.conf.json version $version"
-            }
-            "tag_ok=true" >> $env:GITHUB_OUTPUT
-          } else {
-            "tag_ok=false" >> $env:GITHUB_OUTPUT
-          }
+          version="$(jq -r .version crates/vkb-app/tauri.conf.json)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            if [ "$REF_NAME" != "v$version" ]; then
+              echo "tag $REF_NAME does not match tauri.conf.json version $version" >&2
+              exit 1
+            fi
+            echo "tag_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_ok=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # test, clippy and build run in parallel; release waits for all three. The
   # shared keys match ci.yml, whose main-branch runs keep these caches warm
@@ -115,8 +120,70 @@ jobs:
           path: target/release/bundle/nsis/*x64-setup.exe
           if-no-files-found: error
 
+  # macOS: tests + clippy, then the universal .dmg. `--features custom-protocol`
+  # embeds the UI like the Windows release build does.
+  test-macos:
+    needs: meta
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Engine and backend tests
+        run: cargo test --workspace --quiet
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  build-macos:
+    needs: meta
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm --prefix ui ci
+
+      # Ad-hoc signed (`signingIdentity: "-"` in tauri.macos.conf.json), so the
+      # Accessibility grant sticks to the bundle. Not notarized.
+      - name: Build the universal .app and .dmg
+        working-directory: crates/vkb-app
+        run: ../../ui/node_modules/.bin/tauri build --target universal-apple-darwin --features custom-protocol
+
+      - name: Locate the .dmg
+        shell: bash
+        run: |
+          file="$(ls -t target/universal-apple-darwin/release/bundle/dmg/VietKB_*_universal.dmg | head -n 1)"
+          [ -n "$file" ] || { echo "no .dmg was produced" >&2; exit 1; }
+          echo "$file - $(stat -f %z "$file") bytes"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: target/universal-apple-darwin/release/bundle/dmg/VietKB_*_universal.dmg
+          if-no-files-found: error
+
   release:
-    needs: [meta, test, clippy, build]
+    needs: [meta, test, clippy, build, test-macos, build-macos]
     if: needs.meta.outputs.tag_ok == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -127,9 +194,16 @@ jobs:
           name: installer
           path: dist
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: dmg
+          path: dist
+
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*x64-setup.exe
+          files: |
+            dist/*x64-setup.exe
+            dist/*.dmg
           name: VietKB ${{ needs.meta.outputs.version }}
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
