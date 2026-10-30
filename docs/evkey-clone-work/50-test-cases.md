@@ -275,7 +275,7 @@ Row ids are stable — quote them in defect reports.
 | E-VN-041 | vni | `thuy3` | `thủy` | vni | modern `uy` open → tone on u |
 | E-VN-042 | vni | `khuyu3` | `khuỷu` | vni | `uyu` nucleus, tone on y |
 | E-VN-043 | vni | `uynh2` | `uỳnh` | vni | `uy` + coda → tone on y |
-| E-VN-044 | vni | `nghie6ng0` | `nghieng` | vni | 0 removes the tone of the current word |
+| E-VN-044 | vni | `nghie6ng0` | `nghiêng` | vni | 0 removes only the tone; circumflex/breve/horn and `đ` stay (D-TN-03, 2026-10-30) |
 | E-VN-045 | vni | `d9i` | `đi` | vni | 9 alone = đ, no vowel mark |
 | E-VN-046 | vni | `d9a4` | `đã` | vni | đ + ngã |
 | E-VN-047 | vni | `ca6n2` | `cần` | vni | â + coda + huyền |
@@ -878,7 +878,7 @@ that contains the fix; corpus gaps found by a defect are added to §1 in the sam
 | OQ-3 | `ww` escape output. Corpus pins `w`; `uw` is equally defensible from the `ass`→`as` rule. Needs one EVKey screenshot. | E-TW-002 |
 | OQ-4 | Does `w` after **any** consonant produce ư (`tw`→`tư`), or only after `u`/`o`/`a`/word start? Corpus pins `tư` pending confirmation. | E-TW-018 |
 | OQ-5 | VNI: is `8` accepted on the `uo` nucleus (`thuong8` → `thương`) as legacy tolerated, or must users type `7` twice? | E-VN-030..033 |
-| OQ-6 | VNI `0`: removes only the tone, or also `đ`/`ă`/`â`? Legacy `di90` → `di` implies it strips đ, which is surprising. | E-VN-044 |
+| OQ-6 | **Resolved 2026-10-30 (D-TN-03):** VNI `0` removes only the tone; `đ`/`ă`/`â`/`ơ`/`ư` stay (`di90` → `đi`, `ta8t10` → `tăt`). | E-VN-044 |
 | OQ-7 | `MAX_WORD` (32) overflow: commit-then-reset, or `Reject`? And does the boundary fire with the 33rd key emitted literally? | not yet in corpus (needs an answer) |
 | OQ-8 | English passthrough algorithm: validity table, and which table? What exactly makes `test` pass through while a genuine misspelling like `tét` must not be "corrected"? | §1.17 |
 | OQ-9 | Spell-check syllable inventory: which list is authoritative and what is its licence? Does `ngi` + vowel count as invalid (corpus pins raw)? | E-SC-015 |
