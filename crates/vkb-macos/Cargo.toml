@@ -5,9 +5,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
-[target.'cfg(target_os = "macos")'.dependencies]
+# The pure logic (keycode mapping, event translation, hotkeys, the runtime
+# state machine, LaunchAgent plist) compiles and is tested on every platform;
+# only the Apple FFI layer (`sys`) and the public backend API are macOS-only.
+[dependencies]
 vkb-core = { path = "../vkb-core" }
 vkb-config = { path = "../vkb-config" }
 vkb-platform = { path = "../vkb-platform" }
 anyhow.workspace = true
+parking_lot.workspace = true
 tracing.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"

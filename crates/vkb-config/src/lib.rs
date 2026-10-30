@@ -191,7 +191,40 @@ surprise = "kept"
         let cfg = AppConfig::from_toml("version = 1\n[hotkeys]\nenable = \"Ctrl+Shift\"\n").unwrap();
         assert_eq!(cfg.hotkeys.enable.as_ref().unwrap().as_str(), "Ctrl+Shift");
         // Unspecified hotkeys fall back to the documented defaults, not to None.
-        assert_eq!(cfg.hotkeys.disable.as_ref().unwrap().as_str(), "F2");
+        assert_eq!(cfg.hotkeys.disable, HotkeySet::default().disable);
+        assert_eq!(
+            cfg.hotkeys.open_settings.as_ref().unwrap().as_str(),
+            "Ctrl+Alt+S"
+        );
+    }
+
+    #[test]
+    fn platform_hotkey_defaults_follow_decision_m2() {
+        let set = HotkeySet::default();
+        assert_eq!(set.toggle.as_ref().unwrap().as_str(), "Ctrl+Shift");
+        assert_eq!(set.restore_word.as_ref().unwrap().as_str(), "Ctrl+Shift+Z");
+        assert_eq!(set.open_settings.as_ref().unwrap().as_str(), "Ctrl+Alt+S");
+        let function_keys = [
+            &set.enable,
+            &set.disable,
+            &set.app_exclude,
+            &set.macro_panel,
+            &set.macro_toggle,
+        ];
+        for slot in function_keys {
+            // macOS: function keys are media keys, unbound; elsewhere F-keys are bound.
+            assert_eq!(slot.is_none(), cfg!(target_os = "macos"));
+        }
+        if !cfg!(target_os = "macos") {
+            assert_eq!(set.enable.as_ref().unwrap().as_str(), "F1");
+            assert_eq!(set.disable.as_ref().unwrap().as_str(), "F2");
+            assert_eq!(set.app_exclude.as_ref().unwrap().as_str(), "F11");
+            assert_eq!(set.macro_panel.as_ref().unwrap().as_str(), "F8");
+            assert_eq!(set.macro_toggle.as_ref().unwrap().as_str(), "F9");
+        }
+        // Serde defaults (missing keys) agree with `Default`.
+        let parsed = AppConfig::from_toml("version = 1\n").unwrap();
+        assert_eq!(parsed.hotkeys, set);
     }
 
     #[test]
@@ -201,7 +234,7 @@ surprise = "kept"
         let text = cfg.to_toml().unwrap();
         let back = AppConfig::from_toml(&text).unwrap();
         assert!(back.hotkeys.disable.is_none(), "unbinding must survive a round-trip");
-        assert!(back.hotkeys.enable.is_some(), "other defaults stay");
+        assert!(back.hotkeys.toggle.is_some(), "other defaults stay");
     }
 
     #[test]

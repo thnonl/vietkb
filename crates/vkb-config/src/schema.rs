@@ -206,20 +206,31 @@ pub enum ToggleMode {
     Press,
 }
 
+/// Platform default for a hotkey: Windows/Linux string, macOS string (`None` = unbound).
+/// Decision M2 (`27-mac-decisions.md`): function keys are brightness/media keys on
+/// Mac laptops (and `F11` is Show Desktop), so they are not bound by default there.
+fn platform_hotkey(other: &str, mac: Option<&str>) -> Option<Hotkey> {
+    if cfg!(target_os = "macos") {
+        mac.and_then(|text| Hotkey::parse(text).ok())
+    } else {
+        Hotkey::parse(other).ok()
+    }
+}
+
 fn hk_enable() -> Option<Hotkey> {
-    Hotkey::parse("F1").ok()
+    platform_hotkey("F1", None)
 }
 fn hk_disable() -> Option<Hotkey> {
-    Hotkey::parse("F2").ok()
+    platform_hotkey("F2", None)
 }
 fn hk_app_exclude() -> Option<Hotkey> {
-    Hotkey::parse("F11").ok()
+    platform_hotkey("F11", None)
 }
 fn hk_macro_panel() -> Option<Hotkey> {
-    Hotkey::parse("F8").ok()
+    platform_hotkey("F8", None)
 }
 fn hk_macro_toggle() -> Option<Hotkey> {
-    Hotkey::parse("F9").ok()
+    platform_hotkey("F9", None)
 }
 fn hk_toggle() -> Option<Hotkey> {
     Hotkey::parse("Ctrl+Shift").ok()
@@ -237,13 +248,13 @@ fn hk_unbound() -> Option<Hotkey> {
 impl Default for HotkeySet {
     fn default() -> Self {
         Self {
-            enable: Hotkey::parse("F1").ok(),
-            disable: Hotkey::parse("F2").ok(),
+            enable: hk_enable(),
+            disable: hk_disable(),
             toggle: Hotkey::parse("Ctrl+Shift").ok(),
             restore_word: Hotkey::parse("Ctrl+Shift+Z").ok(),
-            app_exclude: Hotkey::parse("F11").ok(),
-            macro_panel: Hotkey::parse("F8").ok(),
-            macro_toggle: Hotkey::parse("F9").ok(),
+            app_exclude: hk_app_exclude(),
+            macro_panel: hk_macro_panel(),
+            macro_toggle: hk_macro_toggle(),
             open_settings: Hotkey::parse("Ctrl+Alt+S").ok(),
             cycle_method: None,
             toggle_mode: ToggleMode::Release,

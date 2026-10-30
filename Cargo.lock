@@ -4855,6 +4855,8 @@ name = "vkb-macos"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "objc2",
+ "parking_lot",
  "tracing",
  "vkb-config",
  "vkb-core",
