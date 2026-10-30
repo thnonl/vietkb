@@ -39,6 +39,38 @@ jobs:
             "tag_ok=false" >> $env:GITHUB_OUTPUT
           }
 
+  # test, clippy and build run in parallel; release waits for all three. The
+  # shared keys match ci.yml, whose main-branch runs keep these caches warm
+  # (a tag run can only restore caches saved on the default branch, and its
+  # own saves are never reused, so it does not save).
+  test:
+    needs: meta
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Engine and backend tests
+        run: cargo test --workspace --quiet
+
+  clippy:
+    needs: meta
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
   build:
     needs: meta
     runs-on: windows-latest
@@ -46,12 +78,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -61,12 +92,6 @@ jobs:
 
       - name: Install UI dependencies
         run: npm --prefix ui ci
-
-      - name: Engine and backend tests
-        run: cargo test --workspace --quiet
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Build the NSIS installer
         working-directory: crates/vkb-app
@@ -91,7 +116,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [meta, build]
+    needs: [meta, test, clippy, build]
     if: needs.meta.outputs.tag_ok == 'true'
     runs-on: ubuntu-latest
     permissions:
