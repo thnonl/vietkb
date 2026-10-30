@@ -9,6 +9,8 @@
 //! `is_hook_ready`) that the Tauri layer may use.
 
 #![cfg(windows)]
+// The harness build bypasses the foreground probe, which leaves its helpers unused.
+#![cfg_attr(feature = "e2e-harness", allow(dead_code, unused_imports))]
 
 use anyhow::Result;
 use vkb_config::HotkeySet;
@@ -19,6 +21,9 @@ pub mod autostart;
 pub mod clipboard;
 /// Opt-in keystroke trace (`VKB_DEBUG_KEYS=1`) → `<data dir>\keys.log`.
 pub mod debuglog;
+/// Zero-focus E2E test seam (feature `e2e-harness`, never in a release build).
+#[cfg(feature = "e2e-harness")]
+pub mod e2e;
 pub mod foreground;
 mod globals;
 pub mod hook;

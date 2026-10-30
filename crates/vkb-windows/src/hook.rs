@@ -133,6 +133,11 @@ pub fn notify_config_changed() {
 #[derive(Default)]
 struct HookSlot {
     handle: Cell<Option<HHOOK>>,
+    /// `WH_MOUSE_LL` on its own thread (button-down boundary only). Optional: a
+    /// refused mouse hook never blocks typing. Not part of the harness build,
+    /// which must not observe the owner's mouse.
+    #[cfg(not(feature = "e2e-harness"))]
+    mouse: std::cell::RefCell<Option<mouse::MouseThread>>,
 }
 
 impl HookSlot {
@@ -154,24 +159,192 @@ impl HookSlot {
         self.handle.get().is_some()
     }
 
-    fn refresh(&self) -> Result<()> {
+    /// Start the mouse thread, or restart it when it died. Its own check: the
+    /// keyboard hook's state says nothing about the mouse hook.
+    fn ensure_mouse(&self) {
+        #[cfg(not(feature = "e2e-harness"))]
+        {
+            let mut slot = self.mouse.borrow_mut();
+            if slot.as_ref().is_some_and(|thread| !thread.is_alive()) {
+                *slot = None; // joins the dead thread
+            }
+            if slot.is_none() {
+                *slot = mouse::MouseThread::start();
+            }
+        }
+    }
+
+    fn unhook_keyboard(&self) {
         if let Some(old) = self.handle.take() {
             unsafe {
                 let _ = UnhookWindowsHookEx(old);
             }
         }
+    }
+
+    /// Re-install the keyboard hook (the mouse thread refreshes itself).
+    fn refresh(&self) -> Result<()> {
+        self.unhook_keyboard();
         self.install()
     }
 }
 
 impl Drop for HookSlot {
     fn drop(&mut self) {
-        if let Some(old) = self.handle.take() {
+        self.unhook_keyboard();
+        // The mouse thread is torn down together with the keyboard hook.
+        #[cfg(not(feature = "e2e-harness"))]
+        {
+            self.mouse.borrow_mut().take();
+        }
+    }
+}
+
+/// `WH_MOUSE_LL` on a thread of its own, so a stall on the keyboard side
+/// (foreground probe, `SendInput` retries, engine work) can never lag the pointer
+/// or count against the system's low-level hook timeout.
+#[cfg(not(feature = "e2e-harness"))]
+mod mouse {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{mpsc, Arc};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::System::Threading::GetCurrentThreadId;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CallNextHookEx, DispatchMessageW, HHOOK, MSG, MWMO_INPUTAVAILABLE,
+        MsgWaitForMultipleObjectsEx, PM_NOREMOVE, PM_REMOVE, PeekMessageW, PostThreadMessageW,
+        QS_ALLINPUT, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, WH_MOUSE_LL,
+        WM_QUIT,
+    };
+
+    use crate::globals;
+
+    const REFRESH: Duration = Duration::from_secs(30);
+    const RETRY: Duration = Duration::from_secs(5);
+
+    pub(super) struct MouseThread {
+        thread_id: u32,
+        alive: Arc<AtomicBool>,
+        join: Option<thread::JoinHandle<()>>,
+    }
+
+    impl MouseThread {
+        pub(super) fn start() -> Option<Self> {
+            let alive = Arc::new(AtomicBool::new(false));
+            let flag = alive.clone();
+            let (tx, rx) = mpsc::channel::<u32>();
+            let join = thread::Builder::new()
+                .name("vkb-mouse".to_string())
+                .spawn(move || run(flag, tx))
+                .map_err(|err| tracing::error!(error = %err, "cannot spawn the mouse hook thread"))
+                .ok()?;
+            let thread_id = rx.recv_timeout(Duration::from_millis(1000)).ok()?;
+            Some(Self {
+                thread_id,
+                alive,
+                join: Some(join),
+            })
+        }
+
+        pub(super) fn is_alive(&self) -> bool {
+            self.alive.load(Ordering::SeqCst)
+        }
+    }
+
+    impl Drop for MouseThread {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = PostThreadMessageW(self.thread_id, WM_QUIT, WPARAM(0), LPARAM(0));
+            }
+            if let Some(join) = self.join.take() {
+                let _ = join.join();
+            }
+        }
+    }
+
+    fn install() -> Option<HHOOK> {
+        match unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(proc_), HINSTANCE::default(), 0) } {
+            Ok(hook) => Some(hook),
+            Err(err) => {
+                tracing::warn!(error = %err, "mouse hook refused; clicks will not end a word");
+                None
+            }
+        }
+    }
+
+    fn run(alive: Arc<AtomicBool>, tx: mpsc::Sender<u32>) {
+        let mut msg = MSG::default();
+        let _ = unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE) };
+        let _ = tx.send(unsafe { GetCurrentThreadId() });
+        alive.store(true, Ordering::SeqCst);
+
+        let mut hook = install();
+        let mut stamp = Instant::now();
+        'pump: loop {
+            unsafe {
+                MsgWaitForMultipleObjectsEx(None, 200, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+            }
+            while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
+                if msg.message == WM_QUIT {
+                    break 'pump;
+                }
+                unsafe {
+                    let _ = TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+            // Own handle check: re-install when missing, refresh when old (the
+            // OS can drop a hook silently after a timeout).
+            match hook {
+                None if stamp.elapsed() >= RETRY => {
+                    hook = install();
+                    stamp = Instant::now();
+                }
+                Some(old) if stamp.elapsed() >= REFRESH => {
+                    unsafe {
+                        let _ = UnhookWindowsHookEx(old);
+                    }
+                    hook = install();
+                    stamp = Instant::now();
+                }
+                _ => {}
+            }
+        }
+        if let Some(old) = hook {
             unsafe {
                 let _ = UnhookWindowsHookEx(old);
             }
         }
+        alive.store(false, Ordering::SeqCst);
     }
+
+    /// Mouse button-down ends the current word. Nothing else happens here: no
+    /// allocation, no lock, never swallowed; the keyboard path consumes the flag.
+    unsafe extern "system" fn proc_(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if code >= 0 {
+            // WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN, WM_XBUTTONDOWN.
+            if matches!(wparam.0 as u32, 0x0201 | 0x0204 | 0x0207 | 0x020B) {
+                globals::note_mouse_down();
+            }
+        }
+        unsafe { CallNextHookEx(None, code, wparam, lparam) }
+    }
+}
+
+/// One keyboard event through the runtime: perf probe, panic guard, decision.
+/// Shared by the real hook procedure and the in-process harness.
+pub(crate) fn process_event(runtime: &mut HookRuntime, message: u32, info: &KBDLLHOOKSTRUCT) -> bool {
+    // P2 probe: this is the single env-gated check on the hot path. `enabled()`
+    // is a cached relaxed bool; with `VKB_PERF` unset the body is skipped, so no
+    // clock read and no allocation happen for this keystroke.
+    if crate::perf::enabled() {
+        crate::perf::begin();
+    }
+    // A panic must never cross the FFI boundary (or kill the hook thread).
+    std::panic::catch_unwind(AssertUnwindSafe(|| runtime.on_event(message, info).swallow))
+        .unwrap_or(false)
 }
 
 fn spawn_worker() {
@@ -253,13 +426,18 @@ fn worker_main() {
             }
         }
 
+        // The mouse hook lives on its own thread; keep that thread alive.
+        hook.ensure_mouse();
+
         // Re-install when the OS dropped the hook or a refresh failed.
         if !hook.is_installed() {
             if hook.install().is_ok() {
                 globals::READY.store(true, Ordering::SeqCst);
                 tracing::info!("keyboard hook re-installed");
             }
-        } else if last_refresh.elapsed() >= HOOK_REFRESH {
+        } else if !cfg!(feature = "e2e-harness") && last_refresh.elapsed() >= HOOK_REFRESH {
+            // (Skipped under the harness: a refresh re-installs the hook as the
+            // newest one and would reorder the sandwich.)
             last_refresh = Instant::now();
             if let Err(err) = hook.refresh() {
                 tracing::warn!(error = %err, "hook refresh failed; retrying");
@@ -294,19 +472,28 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
-    // A panic must never cross the FFI boundary (or kill the hook thread).
-    // P2 probe: this is the single env-gated check on the hot path. `enabled()`
-    // is a cached relaxed bool; with `VKB_PERF` unset the body is skipped, so no
-    // clock read and no allocation happen for this keystroke.
-    if crate::perf::enabled() {
-        crate::perf::begin();
-    }
-    let swallow = std::panic::catch_unwind(AssertUnwindSafe(|| {
+    // Zero-focus harness: only events carrying the harness tag are ours; every
+    // other event (physical keys, another VietKB's injections) is passed on
+    // untouched.
+    #[cfg(feature = "e2e-harness")]
+    let harness_event = {
+        let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
+        if !crate::e2e::admit(info.dwExtraInfo) {
+            return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+        }
+        true
+    };
+
+    let swallow = {
         let runtime = unsafe { &mut *runtime_ptr };
         let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
-        runtime.on_event(wparam.0 as u32, info).swallow
-    }))
-    .unwrap_or(false);
+        process_event(runtime, wparam.0 as u32, info)
+    };
+
+    #[cfg(feature = "e2e-harness")]
+    if harness_event {
+        crate::e2e::note_decision(swallow);
+    }
 
     if swallow {
         LRESULT(1)
@@ -368,5 +555,14 @@ fn watchdog_loop() {
             }
             stale_since = Instant::now();
         }
+    }
+}
+
+#[cfg(all(test, not(feature = "e2e-harness")))]
+mod tests {
+    /// A shipped build stamps the production marker on its injections.
+    #[test]
+    fn default_build_uses_the_production_marker() {
+        assert_eq!(crate::input::injected_tag(), crate::input::INJECTED_MAGIC);
     }
 }

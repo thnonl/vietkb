@@ -29,6 +29,23 @@ use vkb_platform::plan::Injection;
 /// never feed it back into the engine.
 pub const INJECTED_MAGIC: usize = 0x5649_454B; // "VIEK"
 
+/// The `dwExtraInfo` stamped on the backend's own injections.
+///
+/// Always [`INJECTED_MAGIC`] in a default build (a constant the optimiser folds
+/// away). With the `e2e-harness` feature it is configurable so a test process can
+/// tell its backend's injections from those of an installed VietKB.
+#[cfg(not(feature = "e2e-harness"))]
+#[inline(always)]
+pub fn injected_tag() -> usize {
+    INJECTED_MAGIC
+}
+
+#[cfg(feature = "e2e-harness")]
+#[inline]
+pub fn injected_tag() -> usize {
+    crate::e2e::inject_tag()
+}
+
 /// How text is delivered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SendMode {
@@ -181,7 +198,7 @@ fn push_unicode_char(out: &mut Vec<INPUT>, ch: char) {
 }
 
 fn push_key(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
-    push_key_tagged(out, vk, scan, up, INJECTED_MAGIC);
+    push_key_tagged(out, vk, scan, up, injected_tag());
 }
 
 /// Same, for a key that lives on the extended scan-code set (`RCONTROL`,
@@ -200,7 +217,7 @@ fn push_key_ext(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
                 wScan: scan,
                 dwFlags: flags,
                 time: 0,
-                dwExtraInfo: INJECTED_MAGIC,
+                dwExtraInfo: injected_tag(),
             },
         },
     });
@@ -239,7 +256,7 @@ fn push_unicode(out: &mut Vec<INPUT>, unit: u16, up: bool) {
                 wScan: unit,
                 dwFlags: flags,
                 time: 0,
-                dwExtraInfo: INJECTED_MAGIC,
+                dwExtraInfo: injected_tag(),
             },
         },
     });
@@ -262,6 +279,16 @@ pub struct SendResult {
 pub fn send_detailed(inputs: &[INPUT]) -> SendResult {
     if inputs.is_empty() {
         return SendResult::default();
+    }
+    #[cfg(feature = "e2e-harness")]
+    if crate::e2e::capture(inputs) {
+        let total = inputs.len() as u32;
+        return SendResult {
+            sent: total,
+            total,
+            error: 0,
+            attempts: 1,
+        };
     }
     let size = std::mem::size_of::<INPUT>() as i32;
     let total = inputs.len() as u32;
@@ -384,7 +411,7 @@ mod tests {
         let inputs = bake(&Injection::Type("Việt".to_string()), SendMode::Unicode);
         assert!(!inputs.is_empty());
         for input in &inputs {
-            assert_eq!(field(input).3, INJECTED_MAGIC);
+            assert_eq!(field(input).3, injected_tag());
         }
     }
 
@@ -794,7 +821,7 @@ mod tests {
             ]
         );
         for input in &inputs {
-            assert_eq!(field(input).3, INJECTED_MAGIC, "every event stays tagged");
+            assert_eq!(field(input).3, injected_tag(), "every event stays tagged");
         }
     }
 

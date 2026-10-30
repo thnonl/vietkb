@@ -168,6 +168,32 @@ impl Matcher {
         })
     }
 
+    /// `true` while a combo that is bound to the non-modifier key `vk` is held
+    /// (its latch is set), so the key-down must not reach the application.
+    ///
+    /// In [`FireMode::Release`] the combo only fires when the key comes back up,
+    /// but the application must not see the trigger on the way down either: `F1`
+    /// is VS Code's command palette and `F2` its rename box, and a trigger that
+    /// leaks opens them and steals the following keystrokes (D-E2E-03).
+    ///
+    /// `RestoreWord` is deliberately excluded: `20-spec.md` ("Manual hotkey
+    /// `restore_word`") says the chord is passed to the application when there
+    /// is nothing to restore (`Ctrl+Shift+Z` = redo), which is only known to the
+    /// application layer after the action fires.
+    pub fn swallows_trigger(&self, vk: u16) -> bool {
+        let len = self.len as usize;
+        for i in 0..len {
+            let Some(combo) = self.combos[i] else { continue };
+            if self.latched & (1u16 << i) != 0
+                && combo.vk == Some(vk)
+                && combo.hotkey != Hotkey::RestoreWord
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Feed one key transition.
     ///
     /// * `vk` — the virtual key that changed.
@@ -418,6 +444,35 @@ mod tests {
             m.on_key(VK_F1, true, Modifiers::NONE, false),
             Some(Hotkey::Enable)
         );
+    }
+
+    #[test]
+    fn release_mode_trigger_is_swallowed_on_the_way_down() {
+        let mut m = f1_combo();
+        m.set_mode(FireMode::Release);
+        assert!(!m.swallows_trigger(VK_F1), "nothing held yet");
+        assert_eq!(m.on_key(VK_F1, true, Modifiers::NONE, false), None);
+        assert!(m.swallows_trigger(VK_F1), "F1 down must not reach the app");
+        assert_eq!(m.on_key(VK_F1, true, Modifiers::NONE, false), None);
+        assert!(m.swallows_trigger(VK_F1), "autorepeat too");
+        assert_eq!(
+            m.on_key(VK_F1, false, Modifiers::NONE, false),
+            Some(Hotkey::Enable)
+        );
+        assert!(!m.swallows_trigger(VK_F1), "released: latch cleared");
+    }
+
+    #[test]
+    fn restore_word_and_modifier_only_combos_are_never_swallowed() {
+        let mut m = matcher_with(&[
+            Combo::new(Hotkey::RestoreWord, mods(true, false, true, false), Some(0x5A)),
+            Combo::new(Hotkey::Toggle, mods(true, false, true, false), None),
+        ]);
+        m.on_key(VK_CONTROL, true, mods(true, false, false, false), true);
+        m.on_key(VK_SHIFT, true, mods(true, false, true, false), true);
+        m.on_key(0x5A, true, mods(true, false, true, false), false);
+        assert!(!m.swallows_trigger(0x5A), "redo must reach the app when nothing is restored");
+        assert!(!m.swallows_trigger(VK_SHIFT));
     }
 
     #[test]
