@@ -799,3 +799,217 @@ fn trigger_key_remnant_followed_by_a_vowel_composes_like_fresh_typing() {
         assert_eq!(typed_script(o, &format!("d{digit}an⌫⌫a")), fresh_word, "d{digit}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Owner: fresh `d9e6i` stays raw (êi is no syllable), but deleting from it and
+// retyping Vietnamese must compose.
+// ---------------------------------------------------------------------------
+
+/// (label, options, keys of the raw word, keys that finish `đêm`, `đến`)
+fn owner_cfgs() -> Vec<(String, EngineOptions, &'static str, &'static str, &'static str)> {
+    let mut v = Vec::new();
+    for restore in [false, true] {
+        let vni = EngineOptions {
+            method: InputMethod::Vni,
+            spell_check: true,
+            restore_wrong_word: restore,
+            ..EngineOptions::default()
+        };
+        let telex = EngineOptions {
+            spell_check: true,
+            restore_wrong_word: restore,
+            ..EngineOptions::default()
+        };
+        v.push((format!("VNI restore={restore}"), vni, "d9e6i", "d9e6m", "d9e6n1"));
+        v.push((format!("Telex restore={restore}"), telex, "ddeei", "ddeem", "ddeens"));
+    }
+    v
+}
+
+/// Screen after every key of `script` (`⌫` = Backspace), joined with ` | `.
+fn trace(options: EngineOptions, script: &str) -> (String, String) {
+    let mut session = Session::new(options);
+    let mut steps = Vec::new();
+    for ch in script.chars() {
+        if ch == '\u{232B}' {
+            session.backspace();
+        } else {
+            session.key(KeyInput::char(ch));
+        }
+        steps.push(format!("{:?}", session.out));
+    }
+    (session.out.clone(), steps.join(" | "))
+}
+
+/// Backspaces needed to bring the screen after `base` down to `len` chars.
+fn presses_down_to(options: EngineOptions, base: &str, len: usize) -> usize {
+    let mut session = Session::new(options);
+    for ch in base.chars() {
+        session.key(KeyInput::char(ch));
+    }
+    let mut n = 0;
+    while session.out.chars().count() > len && n < 32 {
+        session.backspace();
+        n += 1;
+    }
+    n
+}
+
+fn bs_n(n: usize) -> String {
+    "\u{232B}".repeat(n)
+}
+
+#[test]
+fn owner_raw_word_is_still_raw_when_typed_fresh() {
+    for (label, options, raw, _, _) in owner_cfgs() {
+        assert_eq!(typed_script(options, raw), raw, "{label}");
+    }
+}
+
+#[test]
+fn owner_one_backspace_then_m_composes() {
+    for (label, options, raw, _, _) in owner_cfgs() {
+        let script = format!("{raw}\u{232B}m");
+        let (out, steps) = trace(options, &script);
+        println!("{label}: {script} => {steps}");
+        assert_eq!(out, "đêm", "{label}: {steps}");
+    }
+}
+
+/// The keystrokes still missing from `em` (`d9e6m` / `ddeem`) once only
+/// `shown` is left on screen: a plain `d` still needs the bar, an `đ` does not.
+fn missing_after<'a>(shown: &str, em: &'a str) -> &'a str {
+    match shown {
+        "d" => &em[1..],
+        "đ" => &em[2..],
+        other => panic!("unexpected one-character screen {other:?}"),
+    }
+}
+
+#[test]
+fn owner_delete_to_one_character_then_complete() {
+    // Backspacing the raw `d9e6i` re-judges it: the screen goes `d9e6i` → `đê`
+    // → `đ`, so the last character is the finished `đ` (typing `9` onto it
+    // again would escape the bar, exactly like fresh `d99`). Completion is
+    // therefore `e6m`; a frozen word that really does end on a bare `d` takes
+    // the whole `9e6m`.
+    for (label, options, raw, em, _) in owner_cfgs() {
+        let n = presses_down_to(options, raw, 1);
+        let mut session = Session::new(options);
+        session.text(raw);
+        for _ in 0..n {
+            session.backspace();
+        }
+        let shown = session.out.clone();
+        let script = format!("{raw}{}{}", bs_n(n), missing_after(&shown, em));
+        let (out, steps) = trace(options, &script);
+        println!("{label}: {script} => {steps}");
+        assert_eq!(out, "đêm", "{label}: {steps}");
+        // A word frozen as plain text, deleted down to a bare `d`.
+        for first in ["dxcv", "dpqr"] {
+            let n = presses_down_to(options, first, 1);
+            let script = format!("{first}{}{}", bs_n(n), &em[1..]);
+            let (out, steps) = trace(options, &script);
+            println!("{label}: {script} => {steps}");
+            assert_eq!(out, "đêm", "{label}: {steps}");
+        }
+    }
+}
+
+#[test]
+fn owner_delete_to_empty_then_retype() {
+    for (label, options, raw, em, en) in owner_cfgs() {
+        let n = presses_down_to(options, raw, 0);
+        for word in [em, en] {
+            let script = format!("{raw}{}{word}", bs_n(n));
+            let (out, steps) = trace(options, &script);
+            println!("{label}: {script} => {steps}");
+            let expected = if word == em { "đêm" } else { "đến" };
+            assert_eq!(out, expected, "{label}: {steps}");
+        }
+    }
+}
+
+#[test]
+fn owner_every_intermediate_prefix_then_complete() {
+    for (label, options, raw, em, en) in owner_cfgs() {
+        let mut session = Session::new(options);
+        for ch in raw.chars() {
+            session.key(KeyInput::char(ch));
+        }
+        // Every screen the Backspace key passes through, from the raw word down.
+        let mut stops = vec![session.out.clone()];
+        let mut presses = vec![0usize];
+        let mut n = 0;
+        while !session.out.is_empty() && n < 32 {
+            session.backspace();
+            n += 1;
+            stops.push(session.out.clone());
+            presses.push(n);
+        }
+        println!("{label}: screens after each Backspace: {stops:?}");
+        for (k, shown) in presses.iter().zip(stops.iter()) {
+            // What is left on screen, typed as the prefix of the finished word.
+            for (word, expected) in [(em, "đêm"), (en, "đến")] {
+                // Keystrokes of the finished word that the screen does not show yet.
+                let have: String = match shown.as_str() {
+                    "" => String::new(),
+                    s if s.starts_with('d') && s.chars().count() == 1 => "d".into(),
+                    "đ" => if raw == "d9e6i" { "d9".into() } else { "dd".into() },
+                    "đê" => if raw == "d9e6i" { "d9e6".into() } else { "ddee".into() },
+                    s if s == "d9" || s == "dd" || s == "d9e" || s == "dde" || s == "d9e6" || s == "ddee" || s == "d9e6i" || s == "ddeei" => s.to_string(),
+                    other => {
+                        println!("{label}: no keystroke prefix for screen {other:?}");
+                        continue;
+                    }
+                };
+                if !word.starts_with(&have) {
+                    continue;
+                }
+                let script = format!("{raw}{}{}", bs_n(*k), &word[have.len()..]);
+                let (out, steps) = trace(options, &script);
+                println!("{label}: k={k} shown={shown:?} -> {script} => {steps}");
+                assert_eq!(out, expected, "{label} k={k}: {steps}");
+            }
+        }
+    }
+}
+
+#[test]
+fn owner_through_the_space() {
+    for (label, options, raw, em, en) in owner_cfgs() {
+        // The separator commits the word; with restore_wrong_word it also rewrites
+        // the raw word (A10), so count what is really on screen.
+        let base = format!("{raw} ");
+        let mut session = Session::new(options);
+        for ch in base.chars() {
+            session.key(KeyInput::char(ch));
+        }
+        let total = session.out.chars().count();
+        // Through the space and back into the word, to the first `d`.
+        let to_d = presses_down_to(options, &base, 1);
+        let to_empty = presses_down_to(options, &base, 0);
+        println!("{label}: screen after space {:?} ({total} chars), to_d={to_d}, to_empty={to_empty}", session.out);
+        let mut one = Session::new(options);
+        one.text(&base);
+        for _ in 0..to_d {
+            one.backspace();
+        }
+        let rest = missing_after(&one.out.clone(), em);
+        let script = format!("{base}{}{rest}", bs_n(to_d));
+        let (out, steps) = trace(options, &script);
+        println!("{label}: {script} => {steps}");
+        assert_eq!(out, "đêm", "{label}: to d: {steps}");
+        for (word, expected) in [(em, "đêm"), (en, "đến")] {
+            let script = format!("{base}{}{word}", bs_n(to_empty));
+            let (out, steps) = trace(options, &script);
+            println!("{label}: {script} => {steps}");
+            assert_eq!(out, expected, "{label}: to empty: {steps}");
+        }
+        // One Backspace through the space only reopens the word: `m` then continues it.
+        let script = format!("{base}\u{232B}\u{232B}m");
+        let (out, steps) = trace(options, &script);
+        println!("{label}: {script} => {steps}");
+        assert_eq!(out, "đêm", "{label}: through space + 1: {steps}");
+    }
+}
