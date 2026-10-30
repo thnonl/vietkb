@@ -60,9 +60,12 @@ pub struct Engine {
     /// The tone on screen is not where A4 would place it: set by a Backspace that
     /// kept a stale tone slot, read by the very next key (spec §A7 step 4).
     tone_stale: bool,
-    /// How many leading keystrokes survived a Backspace (`usize::MAX` = the word
-    /// was never edited): a later key that only appends keeps the marks those
-    /// keystrokes made instead of reverting the word (`D-TN-07`/`D-TN-08`).
+    /// How many leading keystrokes survived the *latest* Backspace (`usize::MAX`
+    /// = the word was never edited): every Backspace resets it to the kept
+    /// length, so keystrokes that survived any Backspace are protected. A later
+    /// key that only appends keeps the marks those keystrokes made instead of
+    /// reverting the word (`D-TN-07`/`D-TN-08`); keys typed after the edit get
+    /// the verdict fresh typing would give.
     edit_len: usize,
     /// The word so far is only leading digits (plain text, not in `raw`): a
     /// following opener still arms the raw zone (`2/3`).
@@ -307,8 +310,16 @@ impl Engine {
     /// user would have typed to produce the surviving text, so further typing
     /// composes on top of it. When the replay cannot reproduce the text on
     /// screen — a doubled-trigger escape (`aaa`, `ass`) rewrote the history —
-    /// the surviving characters are frozen as literal keystrokes instead: the
-    /// screen never moves, at the cost of that word no longer composing further.
+    /// the surviving text is typed fresh when it is plain letters that compose
+    /// to themselves, and is otherwise frozen as literal keystrokes: the screen
+    /// does not move, at the cost of that word no longer composing further.
+    ///
+    /// `D-BS-LIT-01` (re-judge): a word the spell check or a typo left as raw
+    /// text is judged again from the kept keystrokes, so the screen may change
+    /// by more than one character (`gifk` + BS = `gì`, `d9e6i` + BS = `đê`).
+    /// The bound: the re-judged screen is exactly the fresh typing of the kept
+    /// keystrokes and is no longer than the screen it replaces; otherwise the
+    /// frozen path above applies.
     fn backspace(&mut self, reopening: Option<CommittedWord>) -> EngineAction {
         // Backspace removes the opener itself: the pending raw zone is dead.
         self.raw_pending = false;
@@ -381,7 +392,10 @@ impl Engine {
             }
         }
 
-        if next.as_slice() == target.as_slice() || reevaluate {
+        // `D-BS-LIT-01`: `next` is the fresh typing of `kept`; the re-judge only
+        // stands when it does not grow the word.
+        let rejudged = reevaluate && next.len() <= self.text.len();
+        if next.as_slice() == target.as_slice() || rejudged {
             self.raw = kept;
         } else {
             // The kept keystrokes cannot reproduce the screen (a doubled-trigger
@@ -416,8 +430,8 @@ impl Engine {
         } else {
             // The word survived an edit: later keys keep the marks the surviving
             // keystrokes made when they only append (`D-TN-07`/`D-TN-08`).
-            self.edit_len = self.edit_len.min(self.raw.len());
-            if reevaluate && was_literal {
+            self.edit_len = self.raw.len();
+            if rejudged && was_literal {
                 // Nothing of the literal word was composed on screen, so there
                 // are no marks to protect: the kept keys are typed fresh.
                 self.edit_len = usize::MAX;

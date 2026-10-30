@@ -1013,3 +1013,69 @@ fn owner_through_the_space() {
         assert_eq!(out, "đêm", "{label}: through space + 1: {steps}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Round 3 rulings (D-BS-LIT-01)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn tone_pin_depends_on_the_old_word_being_a_syllable_not_on_spell_check() {
+    // A real coda deleted keeps the display; a word that was never a syllable
+    // re-runs A4 now. Both hold with the spell check on and off.
+    for spell in [true, false] {
+        for modern_tone in [true, false] {
+            let o = EngineOptions {
+                spell_check: spell,
+                modern_tone,
+                ..EngineOptions::default()
+            };
+            assert_eq!(typed_script(o, "toans⌫"), "toá", "spell={spell} modern={modern_tone}");
+        }
+    }
+    let off = EngineOptions {
+        spell_check: false,
+        modern_tone: true,
+        ..EngineOptions::default()
+    };
+    assert_eq!(typed_script(off, "hoafk⌫"), "hòa");
+}
+
+#[test]
+fn keystrokes_that_survived_any_backspace_keep_their_marks() {
+    // `toan` BS `s` types the tone after the first edit; BS and a second edit
+    // make those middle keys part of the surviving word, so a plain letter that
+    // only appends keeps `toá` instead of freezing the word as raw text.
+    let o = telex_spell(true);
+    assert_eq!(typed_script(o, "toan⌫sn⌫nn"), "toánn");
+    assert_eq!(typed_script(o, "toan⌫sn⌫n⌫nn"), "toánn");
+    // Without the second Backspace the tone was typed after the only edit, so the
+    // appended `nn` is judged like fresh typing: raw.
+    assert_eq!(typed_script(o, "toan⌫snnn"), "toasnnn");
+}
+
+#[test]
+fn post_edit_tone_then_repeated_trigger_matches_fresh_typing() {
+    let o = telex_spell(true);
+    // The first key after a Backspace that kept a stale tone re-runs A4.
+    assert_eq!(typed_script(o, "toans⌫s"), "tóa");
+    // The next one is a repeated trigger: the documented escape, exactly what
+    // fresh typing of `toasss` shows, and the word is not frozen by the edit.
+    assert_eq!(typed_script(o, "toans⌫ss"), "toass");
+    assert_eq!(typed_script(o, "toasss"), "toass");
+    assert_eq!(typed_script(o, "toans⌫sss"), "toasss");
+    // Adjacent repeat right after the Backspace is the plain escape.
+    assert_eq!(typed_script(o, "bans⌫s"), "bas");
+}
+
+#[test]
+fn j_before_a_stop_coda_is_not_an_english_cluster_but_the_other_tones_are() {
+    let o = telex_spell(true);
+    assert_eq!(typed_script(o, "hojc"), "học");
+    assert_eq!(typed_script(o, "nhajt"), "nhạt");
+    // `s`, `f`, `r`, `x` before a stop coda still read as English.
+    for word in ["hosc", "fast", "best", "test"] {
+        assert_eq!(typed_script(o, word), word, "{word}");
+    }
+    // A tone typed after the coda is the Vietnamese order and still works.
+    assert_eq!(typed_script(o, "hocj"), "học");
+}

@@ -67,40 +67,142 @@ struct Run {
     bs_violation: Option<String>,
 }
 
-fn run(cfg: Cfg, script: &str) -> Run {
-    let r = catch_unwind(AssertUnwindSafe(|| {
-        let mut e = Engine::new(cfg.options());
+/// Engine plus the independent bookkeeping the Backspace oracle needs: the
+/// keystrokes typed since the last word boundary (`typed`), so a re-judged word
+/// can be compared with the fresh typing of its surviving keystrokes.
+struct Stepper {
+    cfg: Cfg,
+    e: Engine,
+    out: String,
+    typed: Vec<char>,
+    /// `typed` is the word on screen's keystroke history (false after a reopen
+    /// through a separator, where the engine, not the harness, holds the word).
+    typed_known: bool,
+    /// The word the last boundary key ended (a reopening Backspace brings it back).
+    prev_word: Vec<char>,
+    last_was_boundary: bool,
+    viol: Option<String>,
+    steps: usize,
+}
+
+impl Stepper {
+    fn new(cfg: Cfg) -> Self {
+        Self {
+            cfg,
+            e: Engine::new(cfg.options()),
+            out: String::new(),
+            typed: Vec::new(),
+            typed_known: true,
+            prev_word: Vec::new(),
+            last_was_boundary: false,
+            viol: None,
+            steps: 0,
+        }
+    }
+
+    /// Fresh typing of `keys` with a brand new engine: the oracle's reference.
+    fn plain(&self, keys: &str) -> String {
+        let mut e = Engine::new(self.cfg.options());
         let mut out = String::new();
-        let mut viol = None;
-        for (i, ch) in script.chars().enumerate() {
-            let key = if ch == BS { KeyInput::backspace() } else { KeyInput::char(ch) };
-            let before = out.clone();
-            let a = e.process_key(key);
-            apply_action(&mut out, a, key);
-            if ch == BS && viol.is_none() {
-                let mut exp = before.clone();
-                exp.pop();
-                // Oracle change (D-BS-LIT-01): a Backspace may also re-judge a word
-                // the spell check had frozen as raw text (`gifk` + BS = `gì`), so
-                // the screen is allowed to be the fresh typing of the surviving
-                // keystrokes instead of the old text minus one character.
-                let rejudged = {
-                    let word: String = e.buffer().iter().collect();
-                    let mut fe = Engine::new(cfg.options());
-                    let mut fo = String::new();
-                    for c in word.chars() {
-                        let k = KeyInput::char(c);
-                        let a = fe.process_key(k);
-                        apply_action(&mut fo, a, k);
-                    }
-                    !word.is_empty() && out.ends_with(&fo) && out.chars().count() < before.chars().count()
-                };
-                if out != exp && !rejudged {
-                    viol = Some(format!("step {i}: screen {before:?} -> {out:?} (expected {exp:?})"));
+        for c in keys.chars() {
+            let k = KeyInput::char(c);
+            let a = e.process_key(k);
+            apply_action(&mut out, a, k);
+        }
+        out
+    }
+
+    fn press(&mut self, ch: char) {
+        let i = self.steps;
+        self.steps += 1;
+        if ch != BS {
+            let key = KeyInput::char(ch);
+            let a = self.e.process_key(key);
+            apply_action(&mut self.out, a, key);
+            // A letter (or a VNI digit after a letter) extends the word;
+            // anything else ends it.
+            let joins = ch.is_ascii_alphabetic() || (self.cfg.vni && ch.is_ascii_digit() && !self.typed.is_empty());
+            if joins {
+                self.typed.push(ch);
+                self.last_was_boundary = false;
+            } else {
+                self.prev_word = std::mem::take(&mut self.typed);
+                self.typed_known = true;
+                self.last_was_boundary = true;
+            }
+            return;
+        }
+        let before = self.out.clone();
+        let word_before: String = self.e.on_screen().iter().collect();
+        let key = KeyInput::backspace();
+        let a = self.e.process_key(key);
+        apply_action(&mut self.out, a, key);
+        if self.viol.is_some() {
+            return;
+        }
+        let mut popped = before.clone();
+        popped.pop();
+        if word_before.is_empty() || !before.ends_with(&word_before) {
+            // Nothing of the engine's: the application deletes one character.
+            if self.out != popped {
+                self.viol = Some(format!("step {i}: no word, screen {before:?} -> {:?} (expected {popped:?})", self.out));
+            }
+            // Backspacing the boundary key re-opens the word it ended; its
+            // keystrokes are the ones typed before that key.
+            if self.last_was_boundary {
+                self.typed = std::mem::take(&mut self.prev_word);
+                self.typed_known = true;
+            } else {
+                self.typed_known = false;
+            }
+            self.last_was_boundary = false;
+            return;
+        }
+        let prefix = &before[..before.len() - word_before.len()];
+        if !self.out.starts_with(prefix) {
+            self.viol = Some(format!("step {i}: text before the word changed: {before:?} -> {:?}", self.out));
+            return;
+        }
+        let rest = self.out[prefix.len()..].to_string();
+        let mut word_popped = word_before.clone();
+        word_popped.pop();
+        if rest == word_popped {
+            // One character gone: the surviving keystrokes are `typed` minus the
+            // last one when that really types the same text.
+            if self.typed_known && !self.typed.is_empty() {
+                let surviving: String = self.typed[..self.typed.len() - 1].iter().collect();
+                if self.plain(&surviving) == rest {
+                    self.typed.pop();
+                } else {
+                    self.typed_known = false;
                 }
             }
+            return;
         }
-        (out, viol)
+        // Documented re-judge (D-BS-LIT-01): the screen is the fresh typing of
+        // the surviving keystrokes (all but the last typed key) and the word did
+        // not grow.
+        if self.typed_known && !self.typed.is_empty() {
+            let surviving: String = self.typed[..self.typed.len() - 1].iter().collect();
+            if rest == self.plain(&surviving) && rest.chars().count() <= word_before.chars().count() {
+                self.typed.pop();
+                return;
+            }
+        }
+        self.viol = Some(format!(
+            "step {i}: word {word_before:?} -> {rest:?}: neither one character shorter nor the fresh typing of the surviving keys {:?}",
+            self.typed.iter().collect::<String>()
+        ));
+    }
+}
+
+fn run(cfg: Cfg, script: &str) -> Run {
+    let r = catch_unwind(AssertUnwindSafe(|| {
+        let mut st = Stepper::new(cfg);
+        for ch in script.chars() {
+            st.press(ch);
+        }
+        (st.out, st.viol)
     }));
     match r {
         Ok((out, bs_violation)) => Run { out, panicked: false, bs_violation },
@@ -109,7 +211,7 @@ fn run(cfg: Cfg, script: &str) -> Run {
 }
 
 fn fresh(cfg: Cfg, keys: &str) -> String {
-    run(cfg, keys).out
+    Stepper::new(cfg).plain(keys)
 }
 
 fn show(s: &str) -> String {
@@ -310,7 +412,13 @@ fn variants(w: (&str, &str, &str), vni: bool) -> Vec<Tok> {
 }
 
 fn vn_tokens(cfg: Cfg) -> Vec<Tok> {
-    VN_WORDS.iter().flat_map(|w| variants(*w, cfg.vni)).collect()
+    // `đêi` is a test string, not a syllable (`êi` fails the A9 spell check), so
+    // it is only part of the table while spell_check is off.
+    VN_WORDS
+        .iter()
+        .filter(|w| !(cfg.spell && w.0 == "đêi"))
+        .flat_map(|w| variants(*w, cfg.vni))
+        .collect()
 }
 
 /// Vietnamese tokens whose fresh typing yields exactly the expected text.
@@ -329,19 +437,19 @@ fn all_tokens(cfg: Cfg) -> Vec<Tok> {
 }
 
 /// Backspaces needed to bring the screen after `base` down to `len` chars.
+/// Every press is checked: exactly one character shorter, or a documented
+/// re-judge (fresh typing of the surviving keys, never longer).
 fn bs_until(cfg: Cfg, base: &str, len: usize) -> String {
-    let mut e = Engine::new(cfg.options());
-    let mut out = String::new();
+    let mut st = Stepper::new(cfg);
     for ch in base.chars() {
-        let key = KeyInput::char(ch);
-        let a = e.process_key(key);
-        apply_action(&mut out, a, key);
+        st.press(ch);
     }
     let mut n = 0;
-    while chars(&out) > len && n < 64 {
-        let key = KeyInput::backspace();
-        let a = e.process_key(key);
-        apply_action(&mut out, a, key);
+    while chars(&st.out) > len && n < 64 {
+        let before = chars(&st.out);
+        st.press(BS);
+        assert!(st.viol.is_none(), "{base:?} press {n}: {:?}", st.viol);
+        assert!(chars(&st.out) < before, "{base:?} press {n}: Backspace did not shrink the screen");
         n += 1;
     }
     bs(n)
@@ -371,13 +479,6 @@ fn sanity_fresh_typing_of_word_table() {
     let mut sw = Sweep::default();
     for cfg in Cfg::all() {
         for t in vn_tokens(cfg) {
-            // Oracle change: `êi` is not a Vietnamese syllable (A9 spell check),
-            // so with spell_check on `đêi` is correctly left raw. The word is
-            // only a test string; it stays in the table for spell_check off.
-            if cfg.spell && t.vis.to_lowercase() == "đêi" {
-                sw.check("fresh-word-invalid-syllable-stays-raw", cfg, &t.keys, Some(&t.keys));
-                continue;
-            }
             sw.check("fresh-word", cfg, &t.keys, Some(&t.vis));
         }
     }
@@ -438,9 +539,9 @@ fn s2_delete_to_prefix_then_continue() {
                 let base = if with_space { format!("{} ", x.keys) } else { x.keys.clone() };
                 let screen = run(cfg, &base).out;
                 // Oracle change: the reopen memory is one word (spec D8). When
-                // the word is followed by a digit/symbol AND a space, Backspacing
-                // both leaves nothing to reopen, so only pure-letter words apply.
-                if with_space && !screen.trim_end().chars().all(char::is_alphabetic) {
+                // the word after the last digit/symbol is empty (`d9␣`), there is
+                // nothing left to reopen.
+                if with_space && screen.trim_end().chars().last().is_some_and(|c| !c.is_alphabetic()) {
                     continue;
                 }
                 for k in 1..=chars(&screen) {
@@ -488,7 +589,7 @@ fn s2b_owner_vni_9e6i_after_deleted_word() {
                 // becomes `dé`), so press Backspace until the screen has one
                 // character instead of counting presses; and the reopen memory is
                 // one word (spec D8), so `d9` + space has no word left to reopen.
-                let reopenable = !with_space || shown.chars().all(char::is_alphabetic);
+                let reopenable = !with_space || shown.chars().last().is_some_and(char::is_alphabetic);
                 if shown.starts_with('d') && chars(&run(cfg, &base).out) > 1 && reopenable {
                     sw.check(
                         "owner-9e6i-to-first-d",
@@ -512,10 +613,15 @@ fn reopen_generic(name: &str, sep: char, tag: &str) {
             let exp = fresh(cfg, &t.keys);
             for i in 1..=chars(&t.keys) {
                 let (a, b) = split_at_char(&t.keys, i);
-                // Oracle change: with restore_wrong_word the separator already
-                // rewrote `a` to its raw keys (A10, owner: `pass␣⌫` shows `pass`),
-                // so there is no composed word to reopen; not a fresh-typing case.
+                // With restore_wrong_word the separator rewrites `a` to its raw
+                // keys (A10, owner: `pass␣⌫` shows `pass`). Nothing composed is
+                // left to reopen: after the Backspace the screen is exactly the
+                // raw keys `a`, and `b` then starts a new word.
                 if cfg.restore && run(cfg, &format!("{a}{sep}")).out != format!("{}{sep}", fresh(cfg, a)) {
+                    sw.check("restored-token-after-bs", cfg, &format!("{a}{sep}{BS}"), Some(a));
+                    let exp = format!("{a}{}", fresh(cfg, b));
+                    sw.check("restored-token-then-rest", cfg, &format!("{a}{sep}{BS}{b}"), Some(&exp));
+                    sw.check("restored-token-then-rest", cfg, &format!("{a}{sep}{BS}{sep}{BS}{b}"), Some(&exp));
                     continue;
                 }
                 let s = format!("{a}{sep}{BS}{b}");
@@ -670,12 +776,13 @@ fn u2_double_tone_toggle_then_bs_then_other_tone_unclear() {
                     continue;
                 }
                 let t2 = if last.is_ascii_uppercase() { t2.to_ascii_uppercase() } else { t2 };
-                // Oracle change: the toggle-off escape rewrote the whole word to raw
-                // keys, so after Backspace the screen shows e.g. `dduwowc`. If those
-                // characters typed fresh would compose into something else, the
-                // screen text cannot be reproduced by keystrokes and the word
-                // stays frozen (lead ruling: the screen never changes on
-                // Backspace); the new key is then plain text after it.
+                // The toggle-off escape rewrote the whole word to raw keys, so after
+                // Backspace the screen shows e.g. `dduwowc`. If those characters
+                // typed fresh would compose into something else they cannot be
+                // reproduced by keystrokes: the word is frozen as text (the
+                // frozen path of the re-judge rule, D-BS-LIT-01) and the new key
+                // is plain text after it. Concrete strings are pinned in
+                // `u2_pinned_concrete_strings`.
                 let shown = fresh(cfg, &format!("{base}{last}{last}"));
                 let mut remnant = shown.clone();
                 remnant.pop();
@@ -722,4 +829,55 @@ fn s7_caps_reopen_examples() {
         sw.check("caps-tha-space-bs-tone", cfg, &format!("tha {BS}{tone}"), Some("thá"));
     }
     finish("s7", sw);
+}
+
+/// The same double-toggle cases with every expected string written out.
+#[test]
+fn u2_pinned_concrete_strings() {
+    let telex = |spell| Cfg { vni: false, spell, restore: false };
+    let vni = |spell| Cfg { vni: true, spell, restore: false };
+    for spell in [true, false] {
+        // Plain letters: the remnant types itself, so the new tone composes.
+        assert_eq!(run(telex(spell), &format!("giff{BS}s")).out, "gí");
+        assert_eq!(run(telex(spell), &format!("hoaff{BS}s")).out, "hóa");
+        assert_eq!(run(vni(spell), &format!("gi11{BS}2")).out, "gì");
+        assert_eq!(run(vni(spell), &format!("hoa11{BS}2")).out, "hòa");
+        // Marked letters: the escape left raw text that cannot be retyped, so it
+        // stays frozen and the new key is plain text after it.
+        assert_eq!(run(telex(spell), &format!("ddepjj{BS}s")).out, "ddeps");
+        assert_eq!(run(telex(spell), &format!("dduwowcjj{BS}s")).out, "dduwowcs");
+        assert_eq!(run(telex(spell), &format!("nguwowiff{BS}s")).out, "nguwowis");
+    }
+}
+
+/// Hard-coded re-judge results (D-BS-LIT-01): a Backspace on a word the spell
+/// check left raw judges the kept keystrokes again.
+#[test]
+fn rejudge_hard_asserted_examples() {
+    for restore in [false, true] {
+        let telex = Cfg { vni: false, spell: true, restore };
+        let vni = Cfg { vni: true, spell: true, restore };
+        assert_eq!(run(telex, &format!("test{BS}")).out, "té");
+        assert_eq!(run(telex, &format!("gifk{BS}")).out, "gì");
+        assert_eq!(run(telex, &format!("dduwowcjk{BS}")).out, "được");
+        assert_eq!(run(vni, &format!("d9e6i{BS}")).out, "đê");
+        // And every one of those presses passes the per-press oracle.
+        for (cfg, script) in [
+            (telex, format!("test{BS}")),
+            (telex, format!("gifk{BS}")),
+            (telex, format!("dduwowcjk{BS}")),
+            (vni, format!("d9e6i{BS}")),
+        ] {
+            assert!(run(cfg, &script).bs_violation.is_none(), "{script:?}");
+        }
+    }
+}
+
+/// A restored word is raw text after the separator: pinned strings.
+#[test]
+fn restored_word_after_backspace_is_pinned() {
+    let cfg = Cfg { vni: false, spell: true, restore: true };
+    assert_eq!(run(cfg, &format!("pass {BS}")).out, "pass");
+    assert_eq!(run(cfg, &format!("pass {BS}s")).out, "passs");
+    assert_eq!(run(cfg, &format!("pass {BS}{BS}ddeem")).out, "pasđêm");
 }

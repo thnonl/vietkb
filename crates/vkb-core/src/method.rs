@@ -62,9 +62,10 @@ pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: 
 
 /// [`compose`] with the engine's per-word notes: `tone_stale` marks a tone that
 /// the screen shows where A4 would no longer place it (§A7 step 4). `edit_len`
-/// is how many leading keystrokes survived a Backspace (`usize::MAX` = none):
-/// marks those keystrokes made stay when a later key only appends, while marks
-/// typed after the edit get the same verdict as fresh typing (`D-BS-LIT-01`).
+/// is how many leading keystrokes survived the latest Backspace (`usize::MAX` =
+/// none): marks those keystrokes made stay when a later key only appends, while
+/// marks typed after that Backspace get the same verdict as fresh typing
+/// (`D-BS-LIT-01`).
 pub(crate) fn compose_word(
     raw: &[char],
     options: &EngineOptions,
