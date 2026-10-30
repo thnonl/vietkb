@@ -48,7 +48,7 @@ use std::sync::{mpsc, Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use vkb_config::AppConfig;
 use vkb_core::InputMethod;
 use vkb_platform::BackendCommand;
@@ -806,7 +806,40 @@ fn load_cases(
 // Driver
 // ---------------------------------------------------------------------------
 
-static COMMANDS: Mutex<Vec<BackendCommand>> = Mutex::new(Vec::new());
+/// Commands the backend fired, as small codes in a fixed ring (the callback runs
+/// on the hook thread: no lock, no allocation).
+const CMD_RING: usize = 256;
+const CMD_EMPTY: AtomicU32 = AtomicU32::new(0);
+static CMDS: [AtomicU32; CMD_RING] = [CMD_EMPTY; CMD_RING];
+static CMD_HEAD: AtomicU64 = AtomicU64::new(0);
+static CMD_MARK: AtomicU64 = AtomicU64::new(0);
+
+fn command_code(command: &BackendCommand) -> u32 {
+    match command {
+        BackendCommand::Enable(true) => 1,
+        BackendCommand::Enable(false) => 2,
+        BackendCommand::RestoreWord => 3,
+        _ => 99,
+    }
+}
+
+fn note_command(command: &BackendCommand) {
+    let idx = CMD_HEAD.fetch_add(1, Ordering::SeqCst) as usize % CMD_RING;
+    CMDS[idx].store(command_code(command), Ordering::SeqCst);
+}
+
+fn commands_clear() {
+    CMD_MARK.store(CMD_HEAD.load(Ordering::SeqCst), Ordering::SeqCst);
+}
+
+/// Codes fired since the last [`commands_clear`].
+fn commands_since_clear() -> Vec<u32> {
+    let head = CMD_HEAD.load(Ordering::SeqCst);
+    let from = CMD_MARK.load(Ordering::SeqCst).max(head.saturating_sub(CMD_RING as u64));
+    (from..head)
+        .map(|i| CMDS[i as usize % CMD_RING].load(Ordering::SeqCst))
+        .collect()
+}
 static LAST_FG: AtomicU32 = AtomicU32::new(0);
 
 fn fg() -> u32 {
@@ -987,7 +1020,7 @@ impl Driver {
             return Err(format!("{}: harness events unaccounted before the case", case.id));
         }
         self.events.clear();
-        COMMANDS.lock().clear();
+        commands_clear();
         let start_leak = LOW_T.load(Ordering::SeqCst);
 
         for step in &case.steps {
@@ -1020,10 +1053,10 @@ impl Driver {
             );
         }
         if let Some(want) = &case.want_command {
-            let seen = COMMANDS.lock().iter().any(|c| c == want);
-            if !seen {
+            let fired = commands_since_clear();
+            if !fired.contains(&command_code(want)) {
                 ok = false;
-                let _ = write!(detail, " command {want:?} not fired (got {:?})", COMMANDS.lock());
+                let _ = write!(detail, " command {want:?} not fired (codes fired: {fired:?})");
             }
         }
         Ok((ok, detail))
@@ -1215,7 +1248,7 @@ fn main() -> ExitCode {
 
     let shared: Arc<RwLock<AppConfig>> = Arc::new(RwLock::new(config_for(&default_settings())));
     vkb_windows::e2e::configure(HARNESS_TAG, TEST_TAG);
-    vkb_windows::set_command_callback(|command| COMMANDS.lock().push(command));
+    vkb_windows::set_command_callback(|command| note_command(&command));
 
     let mut sandwich = Sandwich {
         high: None,

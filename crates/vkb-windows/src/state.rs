@@ -33,6 +33,10 @@ use crate::sound;
 /// How long a foreground probe is reused even when the HWND does not change
 /// (HWNDs are recycled by the OS).
 const APP_TTL: Duration = Duration::from_millis(1500);
+/// A swallowed trigger key counts as still held (so a repeat is swallowed) only
+/// while its last swallowed down is this recent. Longer than the slowest
+/// keyboard repeat delay (about 1 s).
+const TRIGGER_REPEAT_WINDOW: Duration = Duration::from_millis(1200);
 /// IMM composition checks are cheap but not free; throttle them.
 const IME_TTL: Duration = Duration::from_millis(60);
 
@@ -92,6 +96,9 @@ pub struct HookRuntime {
     /// Bitset of physical keys whose key-down was swallowed as a hotkey trigger,
     /// so the matching key-up is swallowed too (no orphan key-up for the app).
     trigger_swallowed: [u64; 4],
+    /// The trigger key whose key-down was swallowed last, and when (it is
+    /// refreshed by every swallowed repeat).
+    trigger_last: Option<(u16, Instant)>,
     cfg: Option<Arc<AppConfig>>,
     base: BaseSettings,
     rule: Option<vkb_config::AppRule>,
@@ -131,6 +138,7 @@ impl HookRuntime {
             mods: keys::seed_from_os(),
             down: [0; 4],
             trigger_swallowed: [0; 4],
+            trigger_last: None,
             cfg: None,
             base: BaseSettings::default(),
             rule: None,
@@ -331,7 +339,13 @@ impl HookRuntime {
         // chord's modifier may already be up). A fresh key-down never inherits a
         // stale bit left by a lost key-up.
         if down && !is_modifier && self.trigger_is_swallowed(vk) {
-            if repeat {
+            // `repeat` comes from the down bit, which a lost key-up leaves stale
+            // too, so a repeat only counts while the held key is recent.
+            let held = self
+                .trigger_last
+                .is_some_and(|(key, at)| key == vk && at.elapsed() < TRIGGER_REPEAT_WINDOW);
+            if repeat && held {
+                self.trigger_last = Some((vk, Instant::now()));
                 trace.stage("hotkey-trigger-repeat");
                 return Decision::SWALLOW;
             }
@@ -912,6 +926,7 @@ impl HookRuntime {
         let index = vk as usize;
         let bit = 1u64 << (index % 64);
         if on {
+            self.trigger_last = Some((vk, Instant::now()));
             self.trigger_swallowed[index / 64] |= bit;
         } else {
             self.trigger_swallowed[index / 64] &= !bit;
@@ -1379,6 +1394,19 @@ toggle_mode = "release"
         let decision = key(&mut rt, 0x41, true);
         assert!(!decision.swallow, "a fresh key-down must pass");
         assert!(!rt.trigger_is_swallowed(0x41), "and drop the stale bit");
+    }
+
+    #[test]
+    fn fresh_down_passes_when_both_the_down_and_trigger_bits_are_stale() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        // A lost key-up left both bits set, long ago.
+        rt.set_trigger_swallowed(0x41, true);
+        rt.set_down(0x41, true);
+        rt.trigger_last = Some((0x41, Instant::now() - Duration::from_secs(5)));
+        let decision = key(&mut rt, 0x41, true);
+        assert!(!decision.swallow, "looks like a repeat but is not recent: must pass");
+        assert!(!rt.trigger_is_swallowed(0x41));
     }
 
     #[test]
