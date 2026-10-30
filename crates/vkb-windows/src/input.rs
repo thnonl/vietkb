@@ -21,6 +21,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY,
 };
 
+use std::cell::Cell;
+
 use crate::keys;
 use vkb_core::Modifiers;
 use vkb_platform::plan::Injection;
@@ -46,6 +48,34 @@ pub fn injected_tag() -> usize {
     crate::e2e::inject_tag()
 }
 
+/// Which of the keys that decide a letter's case the *user* is holding now.
+///
+/// An injected `Shift` pair cannot assume the key starts up: a user who holds
+/// `Shift` through `VIEET` would have it released by the first pair we send, so
+/// every later physical letter reaches the app lowercase (D-E2E-06); and a
+/// lowercase letter injected while `Shift` is down would arrive as a capital.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Held {
+    pub shift: bool,
+    pub caps: bool,
+}
+
+thread_local! {
+    /// Published by the hook for the thread that also builds the injection (the
+    /// batch is built inside the hook callback), so tests on other threads never
+    /// see each other's keys.
+    static HELD: Cell<Held> = const { Cell::new(Held { shift: false, caps: false }) };
+}
+
+/// Record the user's current `Shift` / `Caps Lock` state for this thread.
+pub fn note_held(held: Held) {
+    HELD.with(|cell| cell.set(held));
+}
+
+fn held_now() -> Held {
+    HELD.with(Cell::get)
+}
+
 /// How text is delivered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SendMode {
@@ -67,8 +97,13 @@ pub fn build(injection: &Injection, mode: SendMode) -> Vec<INPUT> {
 
 /// Backspaces + text in one array, so `Replace` is delivered atomically.
 pub fn build_segment(deletes: u32, text: &str, mode: SendMode) -> Vec<INPUT> {
+    build_segment_held(deletes, text, mode, held_now())
+}
+
+/// [`build_segment`] with the user's `Shift` / `Caps Lock` state given explicitly.
+pub fn build_segment_held(deletes: u32, text: &str, mode: SendMode, held: Held) -> Vec<INPUT> {
     let mut out = Vec::with_capacity((deletes as usize) * 2 + text.encode_utf16().count() * 2);
-    push_segment(&mut out, deletes, text, mode);
+    push_segment(&mut out, deletes, text, mode, held);
     out
 }
 
@@ -87,11 +122,16 @@ pub fn build_restore(deletes: u32, text: &str, mode: SendMode, chord: Modifiers)
     let mut out =
         Vec::with_capacity(8 + (deletes as usize) * 2 + text.encode_utf16().count() * 2);
     push_chord_release(&mut out, chord);
-    push_segment(&mut out, deletes, text, mode);
+    // The chord's own `Shift` is up after the release above.
+    let mut held = held_now();
+    if chord.shift {
+        held.shift = false;
+    }
+    push_segment(&mut out, deletes, text, mode, held);
     out
 }
 
-fn push_segment(out: &mut Vec<INPUT>, deletes: u32, text: &str, mode: SendMode) {
+fn push_segment(out: &mut Vec<INPUT>, deletes: u32, text: &str, mode: SendMode, held: Held) {
     for _ in 0..deletes {
         push_backspace(out, mode);
     }
@@ -105,7 +145,7 @@ fn push_segment(out: &mut Vec<INPUT>, deletes: u32, text: &str, mode: SendMode) 
     // replacement is what makes the batch survive: measured 8/8 correct for
     // `ba6t5/ta8t1` versus 0/8 on the pure packet path. Plain typing has no
     // delete block and keeps the layout-independent packet path.
-    push_text(out, text, mode, deletes > 0);
+    push_text(out, text, mode, deletes > 0, held);
 }
 
 /// Key-ups for the modifiers of the chord that just ended.
@@ -140,7 +180,7 @@ fn push_backspace(out: &mut Vec<INPUT>, mode: SendMode) {
     push_key(out, keys::VK_BACK, scan, true);
 }
 
-fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode, scancode_ascii: bool) {
+fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode, scancode_ascii: bool, held: Held) {
     let mut chars = text.chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
@@ -153,7 +193,7 @@ fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode, scancode_ascii: b
                 push_newline(out);
             }
             '\n' => push_newline(out),
-            other => push_char(out, other, mode, scancode_ascii),
+            other => push_char(out, other, mode, scancode_ascii, held),
         }
     }
 }
@@ -164,28 +204,50 @@ fn push_newline(out: &mut Vec<INPUT>) {
     push_key(out, keys::VK_RETURN, scan, true);
 }
 
-fn push_char(out: &mut Vec<INPUT>, ch: char, mode: SendMode, scancode_ascii: bool) {
+fn push_char(out: &mut Vec<INPUT>, ch: char, mode: SendMode, scancode_ascii: bool, held: Held) {
     // Both modes fall back to a Unicode packet for a character no US key
     // produces (Vietnamese diacritics), so the text is never lost.
     let via_scancode = mode == SendMode::Standard || scancode_ascii;
     match keys::us_vk_for_char(ch).filter(|_| via_scancode) {
-        Some((vk, shift)) => push_ascii_key(out, vk, shift),
+        Some((vk, shift)) => push_ascii_key(out, vk, shift, held),
         None => push_unicode_char(out, ch),
     }
 }
 
-/// One ASCII key press: optional Shift held around a VK + scancode pair.
-fn push_ascii_key(out: &mut Vec<INPUT>, vk: u16, shift: bool) {
+/// One ASCII key press with the case the text needs, given what the user holds.
+///
+/// `Shift` is only touched when the key would otherwise come out wrong, and the
+/// user's own state is put back afterwards: a held `Shift` is never left
+/// released, and an up one is never left pressed.
+fn push_ascii_key(out: &mut Vec<INPUT>, vk: u16, want_shift: bool, held: Held) {
+    // A letter's case is `Shift` xor `Caps Lock`; every other key follows `Shift`.
+    let is_letter = (0x41..=0x5A).contains(&vk);
+    let shown_shift = if is_letter { held.shift ^ held.caps } else { held.shift };
+    let wrong = want_shift != shown_shift;
+    let press_shift = wrong && !held.shift;
+    let lift_shift = wrong && held.shift;
     let shift_scan = keys::scan_for_vk(keys::VK_SHIFT);
-    if shift {
+    if press_shift {
         push_key(out, keys::VK_SHIFT, shift_scan, false);
+    }
+    if lift_shift {
+        push_shift_up(out);
     }
     let scan = keys::scan_for_vk(vk);
     push_key(out, vk, scan, false);
     push_key(out, vk, scan, true);
-    if shift {
+    if press_shift {
         push_key(out, keys::VK_SHIFT, shift_scan, true);
     }
+    if lift_shift {
+        push_key(out, keys::VK_LSHIFT, shift_scan, false);
+    }
+}
+
+/// Key-up for both `Shift` keys: the user may hold either.
+fn push_shift_up(out: &mut Vec<INPUT>) {
+    push_key(out, keys::VK_LSHIFT, keys::scan_for_vk(keys::VK_LSHIFT), true);
+    push_key(out, keys::VK_RSHIFT, keys::scan_for_vk(keys::VK_RSHIFT), true);
 }
 
 /// One character as `KEYEVENTF_UNICODE` (layout independent, surrogate-safe).
@@ -468,7 +530,7 @@ mod tests {
     #[test]
     fn macro_newline_is_typed_as_return() {
         let mut out = Vec::new();
-        push_text(&mut out, "a\nb", SendMode::Unicode, false);
+        push_text(&mut out, "a\nb", SendMode::Unicode, false, Held::default());
         assert_eq!(out.len(), 6, "a, Return down/up, b");
         assert_eq!(field(&out[2]).0, keys::VK_RETURN);
         assert!(!is_up(&out[2]));
@@ -476,7 +538,7 @@ mod tests {
         assert!(is_up(&out[3]));
 
         let mut crlf = Vec::new();
-        push_text(&mut crlf, "a\r\nb", SendMode::Unicode, false);
+        push_text(&mut crlf, "a\r\nb", SendMode::Unicode, false, Held::default());
         assert_eq!(crlf.len(), 6, "CRLF must collapse to one newline");
     }
 
@@ -536,6 +598,87 @@ mod tests {
         assert_eq!(field(&inputs[2]).0, keys::VK_SHIFT);
         assert_eq!(field(&inputs[3]).0, 0x41);
         assert!(is_up(&inputs[5]), "shift must be released last");
+    }
+
+    /// (vk, up) of every event of a one-letter replacement, without the backspace.
+    fn letter_events(text: &str, held: Held) -> Vec<(u16, bool)> {
+        build_segment_held(1, text, SendMode::Unicode, held)
+            .iter()
+            .skip(2)
+            .map(|input| (field(input).0, is_up(input)))
+            .collect()
+    }
+
+    #[test]
+    fn a_held_shift_is_never_released_for_a_capital() {
+        // D-E2E-06: the pair `Shift` down / `Shift` up cleared the user's own
+        // `Shift`, so the next physical letter arrived lowercase.
+        let held = Held { shift: true, caps: false };
+        assert_eq!(letter_events("T", held), vec![(0x54, false), (0x54, true)]);
+    }
+
+    #[test]
+    fn a_lowercase_letter_under_a_held_shift_lifts_it_and_puts_it_back() {
+        let held = Held { shift: true, caps: false };
+        assert_eq!(
+            letter_events("t", held),
+            vec![
+                (keys::VK_LSHIFT, true),
+                (keys::VK_RSHIFT, true),
+                (0x54, false),
+                (0x54, true),
+                (keys::VK_LSHIFT, false),
+            ]
+        );
+    }
+
+    #[test]
+    fn caps_lock_inverts_the_shift_a_letter_needs() {
+        let caps = Held { shift: false, caps: true };
+        assert_eq!(
+            letter_events("t", caps).first(),
+            Some(&(keys::VK_SHIFT, false)),
+            "caps on: lowercase needs Shift"
+        );
+        assert_eq!(
+            letter_events("T", caps),
+            vec![(0x54, false), (0x54, true)],
+            "caps on: a capital needs no Shift"
+        );
+        // Digits and punctuation ignore Caps Lock.
+        assert_eq!(letter_events("5", caps), vec![(0x35, false), (0x35, true)]);
+    }
+
+    #[test]
+    fn nothing_held_keeps_the_classic_shift_pair() {
+        let none = Held::default();
+        assert_eq!(
+            letter_events("T", none),
+            vec![
+                (keys::VK_SHIFT, false),
+                (0x54, false),
+                (0x54, true),
+                (keys::VK_SHIFT, true)
+            ]
+        );
+        assert_eq!(letter_events("t", none), vec![(0x54, false), (0x54, true)]);
+    }
+
+    #[test]
+    fn a_restore_chord_shift_counts_as_released() {
+        // The restore chord's own key-up is injected first; the letters after it
+        // must not assume Shift is still down.
+        note_held(Held { shift: true, caps: false });
+        let chord = Modifiers { shift: true, ctrl: true, alt: false, win: false };
+        let inputs = build_restore(1, "T", SendMode::Unicode, chord);
+        let events: Vec<(u16, bool)> = inputs.iter().map(|i| (field(i).0, is_up(i))).collect();
+        let t = events.iter().position(|e| *e == (0x54, false)).expect("T down");
+        assert_eq!(
+            events[t - 1],
+            (keys::VK_SHIFT, false),
+            "Shift pressed again for the capital"
+        );
+        note_held(Held::default());
     }
 
     #[test]

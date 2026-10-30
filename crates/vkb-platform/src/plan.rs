@@ -99,9 +99,141 @@ pub fn decide(action: &EngineAction, ch: Option<char>) -> Decision {
     }
 }
 
+/// Keep the head of the word the app already shows.
+///
+/// The engine rewrites the whole word (`delete_units == on_screen.len()`), but
+/// only its tail usually changes: `Vie` + `e` is `Viê`. Retyping the unchanged
+/// head costs nothing the user can see, except when the retyped letters are
+/// capitals: an injected `Shift` pair around a capital is not reliably honoured
+/// by every text stack (D-E2E-06, Win11 Notepad turns the retyped `V` of `Việt`
+/// into `v`), while the physical key the user pressed always was. Leaving the
+/// head alone keeps the user's own capital and shortens the batch.
+///
+/// `on_screen` is the engine's text *before* the key. Actions that do not
+/// rewrite exactly that text are returned untouched.
+pub fn keep_unchanged_head(on_screen: &[char], action: EngineAction) -> EngineAction {
+    let (delete_units, insert, pass) = match action {
+        EngineAction::Replace {
+            delete_units,
+            insert,
+        } => (delete_units, insert, false),
+        EngineAction::ReplaceThenPass {
+            delete_units,
+            insert,
+        } => (delete_units, insert, true),
+        other => return other,
+    };
+    let keep = if delete_units as usize == on_screen.len() {
+        on_screen
+            .iter()
+            .zip(insert.chars())
+            .take_while(|(shown, new)| shown == &new)
+            .count()
+    } else {
+        0
+    };
+    let insert: String = insert.chars().skip(keep).collect();
+    let delete_units = delete_units - keep as u32;
+    match (pass, delete_units == 0 && insert.is_empty()) {
+        // The word is already what the engine wants: nothing to rewrite.
+        (false, true) => EngineAction::Swallow,
+        (true, true) => EngineAction::Noop,
+        (false, false) => EngineAction::Replace {
+            delete_units,
+            insert,
+        },
+        (true, false) => EngineAction::ReplaceThenPass {
+            delete_units,
+            insert,
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shown(text: &str) -> Vec<char> {
+        text.chars().collect()
+    }
+
+    fn replace(delete_units: u32, insert: &str) -> EngineAction {
+        EngineAction::Replace {
+            delete_units,
+            insert: insert.to_string(),
+        }
+    }
+
+    #[test]
+    fn head_is_kept_when_only_the_tail_changes() {
+        assert_eq!(
+            keep_unchanged_head(&shown("Vie"), replace(3, "Viê")),
+            replace(1, "ê"),
+            "the capital V is never retyped"
+        );
+        assert_eq!(
+            keep_unchanged_head(&shown("Viêt"), replace(4, "Việt")),
+            replace(2, "ệt")
+        );
+        assert_eq!(
+            keep_unchanged_head(&shown("đep"), replace(3, "đẹp")),
+            replace(2, "ẹp")
+        );
+    }
+
+    #[test]
+    fn nothing_in_common_is_a_full_rewrite() {
+        assert_eq!(keep_unchanged_head(&shown("dd"), replace(2, "đ")), replace(2, "đ"));
+        assert_eq!(keep_unchanged_head(&shown("a"), replace(1, "")), replace(1, ""));
+    }
+
+    #[test]
+    fn a_replace_that_is_not_the_whole_word_is_left_alone() {
+        // Delete count differs from the word on screen: the engine knows
+        // something this helper does not.
+        assert_eq!(keep_unchanged_head(&shown("Vie"), replace(2, "Viê")), replace(2, "Viê"));
+        assert_eq!(keep_unchanged_head(&[], replace(0, "x")), replace(0, "x"));
+    }
+
+    #[test]
+    fn an_identical_rewrite_swallows_the_key() {
+        assert_eq!(
+            keep_unchanged_head(&shown("ab"), replace(2, "ab")),
+            EngineAction::Swallow
+        );
+        let pass = EngineAction::ReplaceThenPass {
+            delete_units: 2,
+            insert: "ab".to_string(),
+        };
+        assert_eq!(keep_unchanged_head(&shown("ab"), pass), EngineAction::Noop);
+    }
+
+    #[test]
+    fn replace_then_pass_keeps_its_pass() {
+        let pass = EngineAction::ReplaceThenPass {
+            delete_units: 3,
+            insert: "tắt!".to_string(),
+        };
+        assert_eq!(
+            keep_unchanged_head(&shown("tat"), pass),
+            EngineAction::ReplaceThenPass {
+                delete_units: 2,
+                insert: "ắt!".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn other_actions_are_untouched() {
+        for action in [
+            EngineAction::Noop,
+            EngineAction::Swallow,
+            EngineAction::Reject,
+            EngineAction::Commit("x".to_string()),
+        ] {
+            assert_eq!(keep_unchanged_head(&shown("x"), action.clone()), action);
+        }
+    }
 
     #[test]
     fn noop_and_toggle_pass_through() {

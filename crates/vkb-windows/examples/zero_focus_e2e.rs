@@ -442,12 +442,15 @@ enum Step {
 fn rebuild(events: &[Ev]) -> (String, Vec<u16>) {
     let mut text: Vec<char> = Vec::new();
     let mut leaked_vks: Vec<u16> = Vec::new();
-    let mut shift = [false; 2]; // per source
+    // One `Shift` for both sources, like the desktop: an injected `Shift` up
+    // clears a `Shift` the user still holds (D-E2E-06). A state per source hid
+    // that for as long as the harness has existed.
+    let mut shift = false;
     let mut pending_high: [Option<u16>; 2] = [None, None];
     for ev in events {
         let idx = if ev.src == Src::Injected { 0 } else { 1 };
         if matches!(ev.vk, keys::VK_SHIFT | VK_LSHIFT | keys::VK_RSHIFT) {
-            shift[idx] = ev.down;
+            shift = ev.down;
             continue;
         }
         if !ev.down {
@@ -472,7 +475,7 @@ fn rebuild(events: &[Ev]) -> (String, Vec<u16>) {
                 }
             }
             vk => {
-                if let Some(ch) = keys::us_char(vk, shift[idx], false) {
+                if let Some(ch) = keys::us_char(vk, shift, false) {
                     text.push(ch);
                 } else if ev.src == Src::Passed {
                     // A non-text key (F-key, modifier chord) reached the app side.

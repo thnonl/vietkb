@@ -98,6 +98,13 @@ impl Engine {
         &self.raw
     }
 
+    /// The text on screen for the current word, in charset units, without
+    /// allocating. A backend snapshots it before a key to learn which part of a
+    /// `Replace` the app already shows.
+    pub fn on_screen(&self) -> &[char] {
+        &self.text
+    }
+
     /// The text the engine believes is on screen for the current word.
     pub fn current_text(&self) -> String {
         self.text.iter().collect()
@@ -684,6 +691,10 @@ impl VietnameseEngine for Engine {
 
     fn set_macro_only(&mut self, on: bool) {
         Engine::set_macro_only(self, on);
+    }
+
+    fn on_screen(&self) -> &[char] {
+        Engine::on_screen(self)
     }
 
     fn process_key(&mut self, key: KeyInput) -> EngineAction {

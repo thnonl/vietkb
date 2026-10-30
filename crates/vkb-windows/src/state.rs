@@ -14,7 +14,7 @@ use vkb_core::{
     Engine, EngineAction, EngineOptions, InputMethod, KeyInput, Modifiers, VietnameseEngine,
 };
 use vkb_platform::hotkeys::Matcher;
-use vkb_platform::plan::{decide, Decision, Injection};
+use vkb_platform::plan::{decide, keep_unchanged_head, Decision, Injection};
 use vkb_platform::rules::{self, BaseSettings, EffectiveSettings};
 use vkb_platform::{BackendCommand, EngineSink, Hotkey};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -277,6 +277,7 @@ impl HookRuntime {
 
         if let Some(ch) = packet_char {
             let modifiers = self.mods.modifiers();
+            self.publish_held();
             trace.mods(modifiers, self.mods.caps_lock);
             trace.ch(Some(ch));
             if !down {
@@ -329,6 +330,7 @@ impl HookRuntime {
         let was_down = self.is_down(vk);
         self.set_down(vk, down);
         self.mods.apply(vk, down);
+        self.publish_held();
         let modifiers = self.mods.modifiers();
         trace.mods(modifiers, self.mods.caps_lock);
         let repeat = down && was_down;
@@ -662,7 +664,10 @@ impl HookRuntime {
         }
         let engine = &mut self.engine;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            engine.process_key(key)
+            // The word the app shows before this key, so the rewrite can leave
+            // its unchanged head alone (D-E2E-06): no allocation, a short copy.
+            let shown: vkb_core::charset::TextBuf = engine.on_screen().iter().copied().collect();
+            keep_unchanged_head(&shown, engine.process_key(key))
         }));
         match result {
             Ok(action) => action,
@@ -892,6 +897,15 @@ impl HookRuntime {
         }
         // Toggling Vietnamese on/off changes whether macros still run.
         self.engine.set_macro_only(self.macro_only_active());
+    }
+
+    /// Tell the injector which case keys the user holds right now, so a batch
+    /// built inside this callback leaves them as it found them (D-E2E-06).
+    fn publish_held(&self) {
+        input::note_held(input::Held {
+            shift: self.mods.shift,
+            caps: self.mods.caps_lock,
+        });
     }
 
     fn char_for(&mut self, vk: u16, scan: u16) -> Option<char> {
