@@ -2,6 +2,7 @@
   import TitleBar from "../components/TitleBar.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
+  import { parseChangelog, type Block, type Inline } from "../lib/changelog";
   // The keycap mark at 48 px: the app icon itself, so About carries the same
   // mark as the title bar and the installer.
   import markSrc from "../assets/keycap-v-128.png";
@@ -37,10 +38,22 @@
     status?.state === "error" ? "warn" : status?.state === "available" ? "acc" : "dim",
   );
 
+  // With a changelog on screen the story folds into one row to free height;
+  // without one the story is the page and has no toggle.
+  let storyOpen = $state(false);
+  const showStory = $derived(!info || storyOpen);
+  const blocks = $derived<Block[]>(info ? parseChangelog(info.changelog) : []);
+
   const check = () => void app.checkForUpdate();
   const install = () => void app.installUpdate();
   const open = (url: string) => void api.openUrl(url).catch(() => {});
 </script>
+
+{#snippet spans(list: Inline[])}
+  {#each list as sp}
+    {#if sp.kind === "code"}<code>{sp.text}</code>{:else if sp.kind === "bold"}<b>{sp.text}</b>{:else}{sp.text}{/if}
+  {/each}
+{/snippet}
 
 <div class="v4win">
   <TitleBar title="Giới thiệu" subtitle="VietKB" showMark={false} showMinimize={false} />
@@ -55,27 +68,46 @@
 
       <p class="about-lead">Bộ gõ tiếng Việt cho Windows. Nhẹ, nhanh, và không làm phiền bạn.</p>
 
-      <section class="about-story">
-        <h2>Vì sao có VietKB</h2>
-        <p>
-          Những bộ gõ đang có vẫn gõ đúng, nhưng mang theo cả một thời phần mềm cũ: bảng mã 8-bit,
-          hàng chục tuỳ chọn, nhiều tab.
-        </p>
-        <p>
-          VietKB có mặt vì phần dùng hằng ngày thì ít, phần phải mang theo thì nhiều. Ở đây chỉ có
-          Telex, VNI, gõ tắt và loại trừ ứng dụng, không có mục nào để bạn phải đoán.
-        </p>
-        <p>
-          Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ. Cả bộ gõ nằm trong
-          khay, tốn 14 MB; bộ cài khoảng 3 MB; mở cửa sổ mất khoảng 0,3 giây.
-        </p>
+      <section class="about-story" class:folded={!!info}>
+        {#if info}
+          <h2 class="fold-h">
+            <button
+              type="button"
+              class="about-fold"
+              aria-expanded={storyOpen}
+              aria-controls="about-story-body"
+              onclick={() => (storyOpen = !storyOpen)}
+            >
+              <span>Vì sao có VietKB</span>
+              <svg class="about-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </h2>
+        {:else}
+          <h2>Vì sao có VietKB</h2>
+        {/if}
+        <div id="about-story-body" hidden={!showStory}>
+          <p>
+            Những bộ gõ đang có vẫn gõ đúng, nhưng mang theo cả một thời phần mềm cũ: bảng mã 8-bit,
+            hàng chục tuỳ chọn, nhiều tab.
+          </p>
+          <p>
+            VietKB có mặt vì phần dùng hằng ngày thì ít, phần phải mang theo thì nhiều. Ở đây chỉ có
+            Telex, VNI, gõ tắt và loại trừ ứng dụng, không có mục nào để bạn phải đoán.
+          </p>
+          <p>
+            Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ. Cả bộ gõ nằm trong
+            khay, tốn 14 MB; bộ cài khoảng 3 MB; mở cửa sổ mất khoảng 0,3 giây.
+          </p>
 
-        <p class="about-close">Một bộ gõ tốt là bộ gõ bạn không phải nghĩ tới.</p>
+          <p class="about-close">Một bộ gõ tốt là bộ gõ bạn không phải nghĩ tới.</p>
+        </div>
       </section>
 
       <div class="about-div"></div>
 
-      <section class="about-update">
+      <section class="about-update" class:story-open={showStory}>
         <p class="about-status" data-tone={tone} role="status">{statusText}</p>
 
         <div class="about-actions">
@@ -105,7 +137,20 @@
               <h2>Nhật ký thay đổi — v{info.version}</h2>
               {#if info.publishedAt}<span class="num">{info.publishedAt.slice(0, 10)}</span>{/if}
             </div>
-            <pre>{info.changelog.trim() || "Bản phát hành không kèm mô tả."}</pre>
+            <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+            <div class="about-cl-body" tabindex="0" role="region" aria-label="Nhật ký thay đổi">
+              {#each blocks as block}
+                {#if block.kind === "heading"}
+                  <h3 class="cl-h" data-level={block.level}>{@render spans(block.spans)}</h3>
+                {:else if block.kind === "item"}
+                  <p class="cl-li">{@render spans(block.spans)}</p>
+                {:else}
+                  <p class="cl-p">{@render spans(block.spans)}</p>
+                {/if}
+              {:else}
+                <p class="cl-p">Bản phát hành không kèm mô tả.</p>
+              {/each}
+            </div>
           </div>
         {/if}
       </section>
