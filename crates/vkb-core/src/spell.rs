@@ -148,6 +148,7 @@ pub fn english_stop_cluster(raw: &[char], letters: &[Letter]) -> bool {
     }) else {
         return false;
     };
+
     let tail = &raw[pos + 1..];
     if tail.is_empty() || tail.len() > 2 {
         return false;
@@ -166,7 +167,13 @@ pub fn english_stop_cluster(raw: &[char], letters: &[Letter]) -> bool {
         }
         coda[idx] = lower as u8;
     }
-    matches!(&coda[..tail.len()], b"c" | b"ch" | b"p" | b"t")
+    let stop = matches!(&coda[..tail.len()], b"c" | b"ch" | b"p" | b"t");
+    // Nặng is the one tone a stop coda takes, and English words do not put `j`
+    // right before one: `hojc`, `nhajt` are Vietnamese typed tone-first, which
+    // Unikey and EVKey accept. Only `j` followed by nothing but the stop coda
+    // is exempt; whether the result is a syllable is still the spell check's
+    // call (`D-BS-LIT-01`).
+    stop && !raw[pos].eq_ignore_ascii_case(&'j')
 }
 
 /// `rest` starts where the onset ended. An empty `rest` means the user is still
