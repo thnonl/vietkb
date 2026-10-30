@@ -1450,4 +1450,28 @@ toggle_mode = "release"
         globals::note_mouse_down();
         assert!(!key(&mut rt, 0x41, true).swallow, "after a click the word is over");
     }
+
+    #[test]
+    fn bare_shift_between_letters_does_not_end_the_word() {
+        // 20-spec A12: `aS` is `á` and `DD` is `Đ`. A Shift press that types
+        // nothing is not a word boundary; the shifted letter continues the word.
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = quiet_runtime();
+        assert!(!key(&mut rt, 0x41, true).swallow, "a passes");
+        key(&mut rt, 0x41, false);
+        assert!(!key(&mut rt, keys::VK_LSHIFT, true).swallow, "a bare Shift is not swallowed");
+        assert!(key(&mut rt, 0x53, true).swallow, "shifted S is the sac trigger: aS -> á");
+        key(&mut rt, 0x53, false);
+        key(&mut rt, keys::VK_LSHIFT, false);
+
+        // A new word (space commits the previous one), then DD with Shift held.
+        assert!(!key(&mut rt, keys::VK_SPACE, true).swallow);
+        key(&mut rt, keys::VK_SPACE, false);
+        assert!(!key(&mut rt, keys::VK_LSHIFT, true).swallow);
+        assert!(!key(&mut rt, 0x44, true).swallow, "first D passes");
+        key(&mut rt, 0x44, false);
+        assert!(key(&mut rt, 0x44, true).swallow, "DD -> Đ across a bare Shift");
+        key(&mut rt, 0x44, false);
+        key(&mut rt, keys::VK_LSHIFT, false);
+    }
 }
