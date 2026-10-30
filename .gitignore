@@ -29,3 +29,6 @@ verify-sounds.cmd
 # E2E scratch output
 docs/evkey-clone-work/qa/e2e/*-results.txt
 docs/evkey-clone-work/qa/e2e/sandbox-e2e.log
+
+# agent worktrees
+.claude/worktrees/
