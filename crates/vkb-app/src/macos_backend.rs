@@ -60,8 +60,12 @@ pub fn start() {
     vkb_macos::set_enabled(config.input.enabled);
 
     // Callbacks run on the tap thread: send and return.
-    vkb_macos::set_enabled_callback(|enabled| send(Event::Enabled(enabled)));
-    vkb_macos::set_command_callback(|command| send(Event::Command(command)));
+    vkb_macos::set_enabled_callback(|enabled| {
+        send(Event::Enabled(enabled));
+    });
+    vkb_macos::set_command_callback(|command| {
+        send(Event::Command(command));
+    });
 
     install_now();
 
@@ -76,6 +80,9 @@ pub fn start() {
 }
 
 fn install_now() {
+    if crate::QUITTING.load(Ordering::SeqCst) {
+        return;
+    }
     match vkb_macos::install() {
         Ok(()) => tracing::info!("event tap installed"),
         // The app must still open: the banner tells the user what is missing.
@@ -87,7 +94,7 @@ fn install_now() {
 /// queued to the worker, at most one request at a time and at most one per
 /// [`RETRY_GAP`]. Safe to call on every Accessibility poll.
 pub fn ensure_installed() {
-    if vkb_macos::is_hook_ready() || INSTALL_PENDING.load(Ordering::Acquire) {
+    if crate::QUITTING.load(Ordering::SeqCst) || vkb_macos::is_hook_ready() || INSTALL_PENDING.load(Ordering::Acquire) {
         return;
     }
     if !retry_allowed(&LAST_ATTEMPT, Instant::now()) {
@@ -96,7 +103,10 @@ pub fn ensure_installed() {
     if INSTALL_PENDING.swap(true, Ordering::AcqRel) {
         return;
     }
-    send(Event::Install);
+    if !send(Event::Install) {
+        // Nothing will run the install, so nothing would ever clear the flag.
+        INSTALL_PENDING.store(false, Ordering::Release);
+    }
 }
 
 /// Whether enough time has passed since the last attempt; records `now` when so.
@@ -111,22 +121,29 @@ fn retry_allowed(last: &Mutex<Option<Instant>>, now: Instant) -> bool {
     true
 }
 
-fn send(event: Event) {
+/// Queue an event for the worker. `false` when it was not queued.
+fn send(event: Event) -> bool {
     match EVENTS.get() {
-        Some(tx) => {
-            if let Err(error) = tx.send(event) {
+        Some(tx) => match tx.send(event) {
+            Ok(()) => true,
+            Err(error) => {
                 tracing::warn!(%error, "backend event dropped");
+                false
             }
+        },
+        None => {
+            tracing::warn!("backend event before start; ignored");
+            false
         }
-        None => tracing::warn!("backend event before start; ignored"),
     }
 }
 
-/// Push the current config into the tap; called after every save. The enabled
-/// flag is a separate atomic on macOS, so it rides along here.
+/// Push the current config into the tap; called after every save. Only the
+/// config: the enabled flag is set explicitly by `start()` and `toggle_enabled`,
+/// so a save that does not toggle (a settings patch, a hotkey-driven write)
+/// cannot overwrite the tap's own live state.
 pub fn push_config() {
     vkb_macos::set_config(commands::shared_config());
-    vkb_macos::set_enabled(commands::config_cell().read().input.enabled);
 }
 
 fn worker(events: Receiver<Event>) {

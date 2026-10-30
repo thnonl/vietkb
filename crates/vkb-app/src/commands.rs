@@ -429,6 +429,14 @@ pub(crate) fn save_and_publish(next: AppConfig) -> Result<SettingsView, String> 
     vkb_config::save(&next).map_err(|error| error.to_string())?;
     let view = {
         let mut cfg = config_cell().write();
+        // macOS: the tap's enabled flag is its own atomic, not part of the
+        // config it reads. Forward it only when this save actually changes it
+        // (the settings switch goes through here); a save that leaves it alone
+        // must not overwrite a toggle the tap just made itself.
+        #[cfg(target_os = "macos")]
+        if cfg.input.enabled != next.input.enabled {
+            vkb_macos::set_enabled(next.input.enabled);
+        }
         *cfg = next;
         to_view(&cfg)
     };
