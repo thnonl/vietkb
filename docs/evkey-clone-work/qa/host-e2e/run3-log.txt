@@ -1,0 +1,87 @@
+﻿11:16:29.594 START host E2E v3 (VS Code + Chrome) initFg=8129598 capsInit=False cursor=1603,1146 owner-Code-procs-before=14
+11:16:29.666 HASH exe match=True installer match=True
+11:16:29.850 PREFLIGHT ok
+11:16:29.853 IDLE ok idleMs=90282
+11:16:29.861 WATCHERS armed (WH_KEYBOARD_LL 0x10, WH_MOUSE_LL 0x01)
+11:16:29.871 CONFIG backup hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704
+11:16:29.877 RUNKEY VietKB before="E:\vietkb\target\debug\deps\vkb_windows-703be73b8891cfe5.exe" --autostart
+11:16:29.885 CLIPBOARD had-text=True
+11:16:29.894 CONFIG set [input] method = "telex" for this run
+11:16:35.115 LAUNCH vietkb pid=53000 path=E:\vietkb\target\release\vietkb.exe
+11:16:35.219 VSCODE launched pid=50096 flags=--new-window --disable-extensions --user-data-dir --extensions-dir (dropped, unsupported in this build: --disable-workspace-trust --skip-welcome --skip-release-notes; covered by settings.json)
+11:16:36.971 VSCODE hwnd=12389186 rect=2660,100,3428,660
+11:16:40.135 SETTLE [VS Code] attempt=1 title=[qa-vscode-14633.txt - Visual Studio Code] stableSecs=3.1
+11:16:40.139 SETTLE [VS Code] foreground is our window hwnd=12389186
+11:16:40.467 BATCH clear-VS Code try=1 prevFg=12389186 -> OK
+11:16:55.497 BATCH rows-VS Code try=1 prevFg=12389186 -> OK
+11:17:00.905 BATCH copy-VS Code try=1 prevFg=12389186 -> OK
+11:17:00.974 RESULT [VS Code] A1 FAIL keys=[dduwowcj] expected=[được] actual=[ếng việt] 
+11:17:00.976 RESULT [VS Code] A2 FAIL keys=[tieesng vieetj] expected=[tiếng việt] actual=[nghiêng] 
+11:17:00.983 RESULT [VS Code] A3 FAIL keys=[nghieeng] expected=[nghiêng] actual=[Tiếng Việt rất đẹp.] 
+11:17:00.988 RESULT [VS Code] A4 FAIL keys=[Tieesng Vieetj raast ddepj.] expected=[Tiếng Việt rất đẹp.] actual=[được được được được được được được được được được ] 
+11:17:00.995 RESULT [VS Code] A5 FAIL keys=[dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj ] expected=[được được được được được được được được được được ] actual=[ViệtViệt] 
+11:17:01.001 RESULT [VS Code] B1 PASS keys=[VIEETJ] expected=[VIỆT] actual=[VIỆT] 
+11:17:01.008 RESULT [VS Code] B2 FAIL keys=[Vieejt] expected=[Việt] actual=[VIỆT] 
+11:17:01.019 RESULT [VS Code] B4 FAIL keys=[{SHIFTDOWN}VIEETJ{SHIFTUP}] expected=[VIỆT] actual=[vieejt] 
+11:17:01.027 RESULT [VS Code] B6 FAIL keys=[{CAPS_ON}vieejt{CAPS_OFF}] expected=[VIỆT] actual=[<missing line>] 
+11:17:01.033 RESULT [VS Code] E FAIL keys=[vieejt{CTRL+SHIFT+Z}] expected=[vieejt] actual=[<missing line>] 
+11:17:01.046 RESULT [VS Code] A5x10 FAIL keys=[dduwowcj x10] expected=[10 of 10 correct] actual=[0 of 10 correct; failures=10] 
+11:17:01.048 SHIFTCHK [VS Code] B1 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:01.056 RESULT [VS Code] SHIFT-B1 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:01.063 SHIFTCHK [VS Code] B2 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:01.073 RESULT [VS Code] SHIFT-B2 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:01.081 SHIFTCHK [VS Code] B4 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:01.088 RESULT [VS Code] SHIFT-B4 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:01.095 SHIFTCHK [VS Code] B6 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:01.101 RESULT [VS Code] SHIFT-B6 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:06.416 BATCH D-F2-F1-baatj try=1 prevFg=12389186 -> OK
+11:17:11.787 BATCH copy-VS Code try=1 prevFg=12389186 -> OK
+11:17:11.790 RESULT [VS Code] D1 FAIL keys=[{F2}{F1}baatj (palette must not open)] expected=[bật] actual=[<missing>] 
+11:17:12.546 CHROME hwnd=9963388 pid=18900 rect=2660,100,3620,800
+11:17:15.687 SETTLE [Chrome] attempt=1 title=[QA textarea - Google Chrome] stableSecs=3.1
+11:17:15.688 SETTLE [Chrome] foreground is our window hwnd=9963388
+11:17:17.077 BATCH clear-Chrome try=1 prevFg=9963388 -> OK
+11:17:32.076 BATCH rows-Chrome try=1 prevFg=9963388 -> OK
+11:17:37.455 BATCH copy-Chrome try=1 prevFg=9963388 -> OK
+11:17:37.501 RESULT [Chrome] A1 PASS keys=[dduwowcj] expected=[được] actual=[được] 
+11:17:37.503 RESULT [Chrome] A2 PASS keys=[tieesng vieetj] expected=[tiếng việt] actual=[tiếng việt] 
+11:17:37.511 RESULT [Chrome] A3 PASS keys=[nghieeng] expected=[nghiêng] actual=[nghiêng] 
+11:17:37.517 RESULT [Chrome] A4 PASS keys=[Tieesng Vieetj raast ddepj.] expected=[Tiếng Việt rất đẹp.] actual=[Tiếng Việt rất đẹp.] 
+11:17:37.524 RESULT [Chrome] A5 PASS keys=[dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj ] expected=[được được được được được được được được được được ] actual=[được được được được được được được được được được ] 
+11:17:37.530 RESULT [Chrome] B1 PASS keys=[VIEETJ] expected=[VIỆT] actual=[VIỆT] 
+11:17:37.537 RESULT [Chrome] B2 PASS keys=[Vieejt] expected=[Việt] actual=[Việt] 
+11:17:37.544 RESULT [Chrome] B4 PASS keys=[{SHIFTDOWN}VIEETJ{SHIFTUP}] expected=[VIỆT] actual=[VIỆT] 
+11:17:37.550 RESULT [Chrome] B6 PASS keys=[{CAPS_ON}vieejt{CAPS_OFF}] expected=[VIỆT] actual=[VIỆT] 
+11:17:37.558 RESULT [Chrome] E PASS keys=[vieejt{CTRL+SHIFT+Z}] expected=[vieejt] actual=[vieejt] 
+11:17:37.565 RESULT [Chrome] A5x10 PASS keys=[dduwowcj x10] expected=[10 of 10 correct] actual=[10 of 10 correct; failures=0] 
+11:17:37.572 SHIFTCHK [Chrome] B1 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:37.579 RESULT [Chrome] SHIFT-B1 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:37.585 SHIFTCHK [Chrome] B2 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:37.591 RESULT [Chrome] SHIFT-B2 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:37.598 SHIFTCHK [Chrome] B4 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:37.604 RESULT [Chrome] SHIFT-B4 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:37.612 SHIFTCHK [Chrome] B6 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:17:37.621 RESULT [Chrome] SHIFT-B6 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:17:37.630 TEARDOWN begin
+11:17:38.119 KILL 2026-10-30 11:17:38 chrome pid=18900 reason=QA host E2E v3 teardown (Chrome scratch profile, launched by QA) (launched by QA host-e2e)
+11:17:38.176 KILL 2026-10-30 11:17:38 chrome pid=27836 reason=QA host E2E v3 teardown (Chrome scratch profile, launched by QA) (launched by QA host-e2e)
+11:17:38.220 KILL 2026-10-30 11:17:38  pid=29292 reason=QA host E2E v3 teardown (Chrome scratch profile, launched by QA) (launched by QA host-e2e)
+11:17:38.754 KILL 2026-10-30 11:17:38 Code pid=50096 reason=QA host E2E v3 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:17:38.812 KILL 2026-10-30 11:17:38 Code pid=4944 reason=QA host E2E v3 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:17:38.870 KILL 2026-10-30 11:17:38  pid=44356 reason=QA host E2E v3 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:17:39.245 KILL 2026-10-30 11:17:39 vietkb pid=53000 reason=QA host E2E v3 teardown: rebuilt target build path=E:\vietkb\target\release\vietkb.exe (launched by QA) (launched by QA host-e2e)
+11:17:42.191 TEARDOWN candidate processes left=0
+11:17:42.223 DELETE scratch profile C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e3\vscode-ud exists-after=False
+11:17:42.225 DELETE scratch profile C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e3\vscode-ext exists-after=False
+11:17:42.386 DELETE scratch profile C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e3\chrome-ud exists-after=False
+11:17:42.389 CAPSLOCK restored to off now=off
+11:17:42.401 CURSOR restored to 1603,1146
+11:17:42.413 CONFIG restored hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 identical=True
+11:17:42.423 RUNKEY VietKB after=E:\vietkb\target\release\vietkb.exe --autostart unchanged=False
+11:17:42.433 RUNKEY VietKB restored to original value
+11:17:42.437 RUNKEY VietKB final byte-identical=True
+11:17:42.445 CLIPBOARD restored (had-text=True)
+11:17:42.455 FOREGROUND restored to 8129598 now=66808
+11:17:42.470 OWNER VS Code processes before=14 after=14 (owner windows not touched by QA)
+11:17:42.475 OVERALL RAN
+11:17:42.487 END

@@ -1,0 +1,35 @@
+﻿11:29:27.050 START host E2E v6 (VS Code only, suggestions off, final) initFg=66808 cursor=3162,772 owner-Code-before=14
+11:29:27.113 HASH exe match=True installer match=True
+11:29:27.315 PREFLIGHT ok
+11:29:27.318 IDLE ok idleMs=65640
+11:29:27.332 WATCHERS armed (WH_KEYBOARD_LL 0x10, WH_MOUSE_LL 0x01)
+11:29:27.345 CONFIG backup hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704
+11:29:27.357 RUNKEY VietKB before="E:\vietkb\target\debug\deps\vkb_windows-703be73b8891cfe5.exe" --autostart
+11:29:27.368 CLIPBOARD had-text=True
+11:29:27.380 CONFIG set [input] method = "telex" for this run
+11:29:32.763 LAUNCH vietkb pid=49324 path=E:\vietkb\target\release\vietkb.exe
+11:29:32.800 VSCODE launched pid=35068
+11:29:34.574 VSCODE hwnd=20319180 rect=2660,100,3428,660 onDISPLAY1=True
+11:29:37.784 SETTLE attempt=1 title=[qa-vscode-71609.txt - Visual Studio Code]
+11:29:37.785 SETTLE foreground is our window
+11:29:38.607 ABORT ABORT before click: physical mouse event (no LLMHF_INJECTED) msg=0x200
+11:29:38.609 TEARDOWN begin
+11:29:39.208 KILL 2026-10-30 11:29:39 Code pid=35068 reason=QA host E2E v6 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:29:39.258 KILL 2026-10-30 11:29:39 Code pid=50780 reason=QA host E2E v6 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:29:39.316 KILL 2026-10-30 11:29:39  pid=43512 reason=QA host E2E v6 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:29:39.359 KILL 2026-10-30 11:29:39 Code pid=29604 reason=QA host E2E v6 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:29:39.709 KILL 2026-10-30 11:29:39 vietkb pid=49324 reason=QA host E2E v6 teardown: rebuilt target build path=E:\vietkb\target\release\vietkb.exe (launched by QA) (launched by QA host-e2e)
+11:29:42.654 TEARDOWN candidate processes left=0
+11:29:42.685 DELETE scratch profile C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e6\vscode-ud exists-after=False
+11:29:42.688 DELETE scratch profile C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e6\vscode-ext exists-after=False
+11:29:42.698 CAPSLOCK restored to off now=off
+11:29:42.708 CURSOR restored to 3162,772
+11:29:42.728 CONFIG restored hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 identical=True
+11:29:42.733 RUNKEY VietKB after="E:\vietkb\target\release\vietkb.exe" --autostart unchanged=False
+11:29:42.742 RUNKEY VietKB restored to original value
+11:29:42.748 RUNKEY VietKB final byte-identical=True
+11:29:42.758 CLIPBOARD restored (had-text=True)
+11:29:42.768 FOREGROUND restored to 66808 now=66808
+11:29:42.786 OWNER VS Code processes before=14 after=14
+11:29:42.791 OVERALL ABORTED: ABORT before click: physical mouse event (no LLMHF_INJECTED) msg=0x200
+11:29:42.803 END

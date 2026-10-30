@@ -1,0 +1,2 @@
+﻿"app"	"id"	"keys"	"expected"	"actual"	"verdict"	"note"
+"VS Code"	"focus-sentinel"	"x"	"x in editor"	"<clipboard-no-change>"	"FAIL"	"focus check before rows"

@@ -61,6 +61,7 @@ public static class QN2
     public static int MouseOwnIgnored = 0;
     public static volatile uint MouseGraceUntil = 0;
     public static uint LastInjectTick = (uint)Environment.TickCount;
+    public static uint LastPhysTick = (uint)Environment.TickCount;
     public static List<string> Checks = new List<string>();
 
     static HookProc _kbp, _msp;
@@ -74,6 +75,7 @@ public static class QN2
     // ---------- watchers: the ONLY physical-input detector ----------
     public static void StartWatcher()
     {
+        LastPhysTick = (uint)Environment.TickCount;
         ManualResetEvent ready = new ManualResetEvent(false);
         _th = new Thread(() =>
         {
@@ -102,6 +104,7 @@ public static class QN2
             KBDLLHOOKSTRUCT k = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(l, typeof(KBDLLHOOKSTRUCT));
             if ((k.flags & 0x10) == 0)
             {
+                LastPhysTick = (uint)Environment.TickCount;
                 KbPhysical++;
                 Abort = true;
                 AbortReason = "physical key event (no LLKHF_INJECTED) vk=0x" + k.vkCode.ToString("X2") + " flags=0x" + k.flags.ToString("X");
@@ -117,6 +120,7 @@ public static class QN2
             MSLLHOOKSTRUCT m = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(l, typeof(MSLLHOOKSTRUCT));
             if ((m.flags & 0x01) == 0)
             {
+                LastPhysTick = (uint)Environment.TickCount;
                 if ((uint)Environment.TickCount <= MouseGraceUntil) { MouseOwnIgnored++; }
                 else
                 {
@@ -258,6 +262,7 @@ public static class QN2
             case "END": return 0x23;
             case "TAB": return 0x09;
             case "SPACE": return 0x20;
+            case "BACKSPACE": return 0x08;
         }
         int n;
         if (p.Length >= 2 && p[0] == 'F' && int.TryParse(p.Substring(1), out n) && n >= 1 && n <= 24) return (ushort)(0x70 + n - 1);
@@ -401,4 +406,32 @@ public static class QN2
     }
 
     public static void SetCursor(int x, int y) { SetCursorPos(x, y); }
+
+    // ---- v7 additions ----
+    // Milliseconds since the last NON-injected key or mouse event seen by our watchers (injected input does not count).
+    public static uint PhysIdleMs() { return (uint)Environment.TickCount - LastPhysTick; }
+    public static void ResetAbort() { Abort = false; AbortReason = ""; }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+    // Visible top-level windows owned by any of the given pids: "hwnd|class|title".
+    public static string[] ListTopWindows(uint[] pids)
+    {
+        List<string> outp = new List<string>();
+        EnumWindows((h, l) =>
+        {
+            if (!IsWindowVisible(h)) return true;
+            uint p;
+            GetWindowThreadProcessId(h, out p);
+            bool mine = false;
+            foreach (uint x in pids) { if (x == p) { mine = true; break; } }
+            if (!mine) return true;
+            int len = GetWindowTextLength(h);
+            StringBuilder t = new StringBuilder(len + 1);
+            GetWindowText(h, t, len + 1);
+            StringBuilder c = new StringBuilder(256);
+            GetClassName(h, c, 256);
+            outp.Add(h.ToInt64().ToString() + "|" + c.ToString() + "|" + t.ToString());
+            return true;
+        }, IntPtr.Zero);
+        return outp.ToArray();
+    }
 }

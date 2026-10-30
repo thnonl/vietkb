@@ -1,0 +1,60 @@
+11:33:39.077 START host E2E v7 (VS Code only, final) initFg=66808 cursor=3356,714 owner-Code-before=14
+11:33:39.135 HASH exe match=True installer match=True
+11:33:39.319 PREFLIGHT ok
+11:33:39.322 WATCHERS armed (WH_KEYBOARD_LL 0x10, WH_MOUSE_LL 0x01)
+11:34:39.570 IDLE ok (start) physIdleMs=60250
+11:34:39.577 CONFIG backup hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704
+11:34:39.583 RUNKEY VietKB before="E:\vietkb\target\debug\deps\vkb_windows-703be73b8891cfe5.exe" --autostart
+11:34:39.592 CLIPBOARD had-text=True
+11:34:39.606 CONFIG set [input] method = "telex" for this run
+11:34:44.664 LAUNCH vietkb pid=38500 path=E:\vietkb\target\release\vietkb.exe
+11:34:44.700 VSCODE launched pid=53976
+11:34:46.278 VSCODE hwnd=15995150 rect=2660,100,3428,660 onDISPLAY1=True
+11:34:49.461 SETTLE attempt=1 title=[qa-vscode-2161.txt - Visual Studio Code]
+11:34:49.463 SETTLE foreground is our window
+11:34:53.915 CLEANUP clean: title=[qa-vscode-2161.txt - Visual Studio Code] no extra windows for 3 s
+11:34:53.917 IDLE ok (before click) physIdleMs=74594
+11:34:54.728 CLICK line 1 -> OK
+11:34:59.718 BATCH sentinel-x try=1 prevFg=15995150 -> OK
+11:35:00.355 SENTINEL confirmed=True via=pixel diff 17 px
+11:35:00.368 RESULT [VS Code] focus-sentinel PASS keys=[x] expected=[x in our editor] actual=[pixel diff 17 px] UIA or pixel diff, no clipboard
+11:35:04.959 BATCH sentinel-delete try=1 prevFg=15995150 -> OK
+11:35:10.255 BATCH clear-vscode try=1 prevFg=15995150 -> OK
+11:35:17.874 BATCH rows-A1-B4 try=1 prevFg=15995150 -> OK
+11:35:17.878 SHIFTCHK B1 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:35:17.886 RESULT [VS Code] SHIFT-B1 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:35:17.894 SHIFTCHK B2 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:35:17.902 RESULT [VS Code] SHIFT-B2 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:35:17.909 SHIFTCHK B4 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:35:17.920 RESULT [VS Code] SHIFT-B4 PASS keys=[after row] expected=[no Shift stuck down] actual=[LSHIFT=up RSHIFT=up SHIFT=up] capsLock=off
+11:35:23.439 BATCH D-F2-F1-baatj try=1 prevFg=15995150 -> OK
+11:35:28.722 BATCH D-close-line try=1 prevFg=15995150 -> OK
+11:35:34.343 BATCH E-restore try=1 prevFg=15995150 -> OK
+11:35:39.733 BATCH verdict-select-copy try=1 prevFg=15995150 -> OK
+11:35:39.784 VERDICT doc=[được|tiếng việt|VIỆT|Việt|VIỆT|bật|vieejt]
+11:35:39.790 RESULT [VS Code] A1 PASS keys=[dduwowcj] expected=[được] actual=[được] own line 1
+11:35:39.793 RESULT [VS Code] A2 PASS keys=[tieesng vieetj] expected=[tiếng việt] actual=[tiếng việt] own line 2
+11:35:39.804 RESULT [VS Code] B1 PASS keys=[VIEETJ] expected=[VIỆT] actual=[VIỆT] own line 3
+11:35:39.811 RESULT [VS Code] B2 PASS keys=[Vieejt] expected=[Việt] actual=[Việt] own line 4
+11:35:39.821 RESULT [VS Code] B4 PASS keys=[{SHIFTDOWN}VIEETJ{SHIFTUP}] expected=[VIỆT] actual=[VIỆT] own line 5
+11:35:39.830 RESULT [VS Code] D PASS keys=[{F2}{F1}baatj] expected=[bật] actual=[bật] own line 6
+11:35:39.838 RESULT [VS Code] E PASS keys=[vieejt{CTRL+SHIFT+Z}] expected=[vieejt] actual=[vieejt] own line 7
+11:35:40.059 TEARDOWN begin
+11:35:40.520 KILL 2026-10-30 11:35:40 Code pid=53976 reason=QA host E2E v7 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:35:40.564 KILL 2026-10-30 11:35:40 Code pid=25812 reason=QA host E2E v7 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:35:40.610 KILL 2026-10-30 11:35:40  pid=47436 reason=QA host E2E v7 teardown (VS Code isolated profile, launched by QA) (launched by QA host-e2e)
+11:35:40.938 KILL 2026-10-30 11:35:40 vietkb pid=38500 reason=QA host E2E v7 teardown: rebuilt target build path=E:\vietkb\target\release\vietkb.exe (launched by QA) (launched by QA host-e2e)
+11:35:43.112 TEARDOWN candidate processes left=0
+11:35:43.143 DELETE scratch profile C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e7\vscode-ud exists-after=False
+11:35:43.146 DELETE scratch profile C:\Users\namth\AppData\Local\Temp\claude\E--vietkb\9a85ac6a-ade5-453b-9010-44a303edbc97\scratchpad\host-e2e7\vscode-ext exists-after=False
+11:35:43.156 CAPSLOCK restored to off now=off
+11:35:43.163 CURSOR restored to 3356,714
+11:35:43.176 CONFIG restored hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 identical=True
+11:35:43.186 RUNKEY VietKB after=E:\vietkb\target\release\vietkb.exe --autostart unchanged=False
+11:35:43.198 RUNKEY VietKB restored to original value
+11:35:43.206 RUNKEY VietKB final byte-identical=True
+11:35:43.214 CLIPBOARD restored (had-text=True)
+11:35:43.222 FOREGROUND restored to 66808 now=66808
+11:35:43.238 OWNER VS Code processes before=14 after=14
+11:35:43.242 OVERALL RAN
+11:35:43.247 END

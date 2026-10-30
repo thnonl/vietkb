@@ -120,3 +120,124 @@ Notepad screenshot: `shots2\Notepad-rows.png`. Settings screenshot: `shots2\H-se
 1. The VS Code abort is a foreground-check abort, not a physical-input abort. Either wait for VS Code to finish starting before the first Force, or allow one re-focus within the batch.
 2. The settings-window rect readout does not match the screen; the harness should read the rect of the Tauri top-level window, not a child.
 3. Chrome and D (VS Code F1/F2) still need a run.
+
+---
+
+## Build 0D39D42F: run v3, VS Code and Chrome rows (11:16–11:17 UTC, owner-approved)
+
+**Status: COMPLETE for the requested rows. VS Code output is wrong in the first rows (a product finding, not a harness artefact: the screenshot shows the same text).** Teardown clean.
+
+### Isolation and focus
+- VS Code: separate instance, `--new-window --disable-extensions --user-data-dir <scratch>\vscode-ud --extensions-dir <scratch>\vscode-ext`, pre-created `User\settings.json` with the owner's seven settings. **Dropped and unsupported in this build (not in CLI help or app code):** `--disable-workspace-trust`, `--skip-welcome`, `--skip-release-notes`; covered by the settings file. No GitLens tab opened; the owner's 14 VS Code processes were unchanged before and after.
+- Settle: VS Code title stable 3.1 s, foreground ours on attempt 1. Chrome title stable 3.1 s, foreground ours on attempt 1. **No FOCUS-TAKEN event in this run** (the earlier abort is consistent with the extension tabs).
+- Chrome: fresh `--user-data-dir`, `--no-first-run --no-default-browser-check`.
+
+### Results
+| Row | VS Code | Chrome |
+|---|---|---|
+| A1 `dduwowcj` → `được` | FAIL: line absent | PASS |
+| A2 `tieesng vieetj` → `tiếng việt` | FAIL: shows `ếng việt` | PASS |
+| A3 `nghieeng` → `nghiêng` | PASS (content) | PASS |
+| A4 sentence → `Tiếng Việt rất đẹp.` | PASS (content) | PASS |
+| A5 `dduwowcj` ×10 | content 10/10 correct; harness index verdict FAIL (line shift) | PASS, 10/10, 0 failures |
+| B1 `VIEETJ` → `VIỆT` | FAIL: merged into `ViệtViệt` | PASS |
+| B2 `Vieejt` → `Việt` | FAIL: merged | PASS |
+| B4 Shift held through `VIEETJ` → `VIỆT` | PASS (content) | PASS |
+| B6 Caps on `vieejt` → `VIỆT` | PASS (content) | PASS |
+| E `vieejt` + Ctrl+Shift+Z → `vieejt` | PASS (content) | PASS |
+| Shift stuck after B rows | PASS: all up after B1, B2, B4, B6 | PASS: all up |
+| D F2, F1, `baatj` → `bật`, palette must not open | PASS by screenshot: palette not open, `bật` typed in editor. Harness index verdict FAIL (line shift). | — |
+
+"Content" means the expected text is present in the screenshot at a different line number. The harness reads by line index, and the VS Code merges shifted every later index, so the harness verdicts for VS Code are unreliable at row level. Screenshots: `shots3\VS Code-rows.png`, `shots3\vscode-D-after-F1.png`, `shots3\Chrome-rows.png`.
+
+### Product finding (VS Code)
+In VS Code, on this build, the first two rows are damaged: the first `được` line disappears, `tiếng việt` loses `ti`, and the B1/B2 lines merge. Chrome, with the same keys, has no such damage. Root cause not investigated; likely the whole-word rewrite path in VS Code (the D-E2E-06 area). Needs a dev look before the VS Code result is accepted.
+
+### Teardown
+- KILL: chrome pids 18900, 27836, 29292; Code pids 50096, 4944, 44356; candidate pid 53000.
+- Candidate processes left: 0. Scratch profiles `vscode-ud`, `vscode-ext`, `chrome-ud` deleted (exists-after=False).
+- Caps Lock off. Cursor restored. Config SHA `58EB422E…C704` identical. Run key byte-identical to original `…\target\debug\deps\vkb_windows-703be73b8891cfe5.exe --autostart`. Clipboard text restored. Foreground restored.
+
+---
+
+## Build 0D39D42F: run v4, VS Code (suggestions off) — ABORTED before rows (11:24–11:25 UTC)
+
+**Status: no VS Code rows were run.** The run stopped at the focus sentinel. The sentinel did land in the editor, so this was a harness bug (my check), not a focus failure. The one approved rerun is used; the fixed script is ready but needs a go-ahead.
+
+### What ran
+- Suggestion settings added to the isolated `settings.json` (quickSuggestions off, wordBasedSuggestions off, suggestOnTriggerCharacters false, acceptSuggestionOnEnter off, parameterHints off, inlineSuggest off, auto-closing brackets/quotes never, chat command center off, secondary sidebar hidden, Copilot off, chat AI features disabled).
+- VS Code window on DISPLAY1 at 2660,100,3428,660 (onDISPLAY1=True). Settle: title stable 3.1 s, foreground ours on attempt 1, no focus taken.
+- Screenshot `shots4\vscode-v4-settled.png`: editor empty, Chat panel not open (the settings did keep it closed), status shows "Ln 1, Col 1", only the benign "All installed extensions are temporarily disabled" notice.
+- Click into the editor and sentinel `x` typed. Readback `"\nx"`: the x was in the editor, on line 2. Cause: `Set-Content -Value ''` wrote a blank line, and the click below the content put the caret on line 2.
+
+### Fix for the next run (already in host-e2e4.ps1)
+1. The scratch file is written with `[IO.File]::WriteAllText($fileV,'')` (one empty line, no extra newline).
+2. The sentinel check trims surrounding newlines before comparing with `x`.
+
+### Teardown (clean)
+- KILL lines in `log.md` for the v4 VS Code instance and the candidate pid 20124 (logged by the run).
+- Candidate processes left: 0. Scratch profiles `vscode-ud` and `vscode-ext` deleted.
+- Caps Lock off, cursor restored to 118,885, config SHA `58EB422E…C704` identical, Run key byte-identical to original, clipboard restored, foreground restored, owner VS Code processes 14 before and 14 after.
+
+---
+
+## Build 0D39D42F: run v5, VS Code (suggestions off, fixed harness) — ABORTED before rows (11:26–11:27 UTC)
+
+**Status: no VS Code rows were run. B1/B2 merge with suggestions off is still UNANSWERED.**
+
+### What ran
+- Same isolated profile and suggestion-off settings as v4. Hashes matched, idle gate 61.6 s, VS Code window on DISPLAY1 at 2660,100,3428,660 (onDISPLAY1=True), settled 3.1 s on attempt 1, no focus taken.
+- Click into the editor at 2852,296 (OK). Sentinel `x` sent (OK). The whole-document copy batch sent (OK), but the clipboard did not change within 4 s, so the readback recorded `<clipboard-no-change>`. Recorded as a harness check; per the coordinator's rule the rows were allowed to continue.
+- Between 11:27:31 and 11:27:36 the mouse watcher recorded a non-injected mouse move (WM_MOUSEMOVE, no LLMHF_INJECTED). Per the hard rules this is physical input and the run aborted at the next batch (sentinel-delete, 11:27:36.15). The move was about 10 s after my own click, outside the 1.5 s grace window. Most likely the owner moving the pointer; not verified.
+
+### Teardown (clean)
+- KILL lines for the v5 VS Code instance and the candidate pid 40948 (in log.md). Candidate processes left: 0.
+- Scratch profiles `vscode-ud`, `vscode-ext` deleted.
+- Caps Lock off; cursor restored to 3375,810; config SHA `58EB422E…C704` identical; Run key byte-identical to original; foreground restored; owner VS Code processes 14 before and 14 after.
+
+### Open
+- The clipboard copy did not update in this run. Whether that is the harness or VS Code needs a look before any further VS Code run.
+- B1/B2 merge with suggestions off has not been tested. Earlier evidence (run v3 screenshot, suggestions on) showed merges; v4 and v5 never reached the rows.
+
+---
+
+## Build 0D39D42F: run v6, VS Code (suggestions off, final) — ABORTED before the click (11:29 UTC)
+
+**Status: no keys, click or rows were sent. B1/B2 merge with suggestions off is still UNANSWERED.**
+
+- Hashes matched. Idle gate 65.6 s. VS Code window on DISPLAY1 (2660,100,3428,660), settled 3.1 s, foreground ours.
+- During the 60 s idle wait before the click, the mouse watcher recorded a non-injected mouse move at 11:29:38 (msg 0x200). Per the hard rules this is physical input and the run stopped before any injection. The owner appears to be using the machine.
+- Teardown clean: candidate processes left 0; scratch profiles deleted; Caps Lock off; cursor restored; config identical; Run key byte-identical; foreground restored; owner VS Code processes 14 before and 14 after. KILL lines for the v6 VS Code instance and candidate pid 49324 are in log.md.
+- Note: a 60 s quiet period immediately before the click cannot be met while the owner is at the machine. Either the owner steps away for the run, or the run is scheduled for a quiet period.
+
+---
+
+## Build 0D39D42F: run v7, VS Code — NOT STARTED (EVKey64 running)
+
+- Pre-flight check before launch: EVKey64 is running again (pid 42488, `D:\Software\EVKey\EVKey64.exe`), the owner's IME. Per the hard rules, QA does not stop it and does not start the run.
+- Done before stopping: the isolated v7 `settings.json` written to `scratchpad\host-e2e7\vscode-ud\User\settings.json` (full list from the owner, 28 entries; `globalStorage` not pre-created). QN2 helper extended (non-injected physical-input timestamp, PhysIdle, top-level window enumeration for the sign-in/Welcome cleanup). Neither was run against the desktop.
+- Nothing launched, nothing stopped, config and Run key untouched (no launch happened). No KILL lines for this attempt.
+- B1/B2 merge with suggestions off: still UNANSWERED.
+- To continue: the owner quits EVKey64, then gives a go-ahead. The v7 orchestrator is not written yet (it will need the settings path above and the cleanup loop).
+
+---
+
+## Build 0D39D42F: run v7, VS Code (suggestions off, isolated profile) — COMPLETE (11:33–11:35 UTC)
+
+**Result: all rows PASS. B1 and B2 do NOT merge with suggestions off.**
+
+- Pre-flight: EVKey64, Unikey and installed VietKB not running (owner had quit EVKey64). Parse check and dry-run of host-e2e7.ps1 passed before the run.
+- Idle waits: 60.3 s before start, 74.6 s before the click (both within the 15 min limit). Mouse guard not triggered.
+- Cleanup: no extra top-level windows appeared (no sign-in or Welcome window to close). Title stable, clean in about 4 s.
+- Sentinel: x confirmed by pixel diff (17 px) within 1 s.
+- Rows (verdict from one Ctrl+A, Ctrl+C in our window; screenshot agrees):
+  - A1 dduwowcj → `được`: PASS (line 1)
+  - A2 tieesng vieetj → `tiếng việt`: PASS (line 2)
+  - B1 VIEETJ → `VIỆT`: PASS (line 3)
+  - B2 Vieejt → `Việt`: PASS (line 4)
+  - B4 Shift held through VIEETJ → `VIỆT`: PASS (line 5)
+  - D F2, F1, baatj → `bật`: PASS (line 6); palette did not open (screenshot vscode-v7-D-after-F1.png)
+  - E vieejt + Ctrl+Shift+Z → `vieejt`: PASS (line 7)
+- Shift stuck after B1, B2, B4: none (all up, caps off).
+- Teardown: candidate left 0; VS Code instance killed (KILL lines in log.md); scratch profiles deleted; Caps Lock off; config identical; Run key byte-identical; clipboard and focus restored; owner VS Code processes 14 before and 14 after.
+- Screenshots: shots7\vscode-v7-final.png, shots7\vscode-v7-D-after-F1.png.
