@@ -148,6 +148,12 @@ pub fn english_stop_cluster(raw: &[char], letters: &[Letter]) -> bool {
     }) else {
         return false;
     };
+    // Nặng is the one tone a stop coda takes, and English words do not put `j`
+    // before one: `hojc`, `nhajt` are Vietnamese typed tone-first, which
+    // Unikey and EVKey accept (`D-BS-LIT-01` round 2).
+    if raw[pos].eq_ignore_ascii_case(&'j') {
+        return false;
+    }
     let tail = &raw[pos + 1..];
     if tail.is_empty() || tail.len() > 2 {
         return false;

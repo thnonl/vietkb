@@ -643,3 +643,159 @@ fn a_frozen_dd_remnant_stays_literal_after_backspace() {
     assert_eq!(session.backspace(), "dd");
     assert_eq!(session.text("e"), "dde");
 }
+
+fn telex_spell(spell: bool) -> EngineOptions {
+    EngineOptions {
+        spell_check: spell,
+        ..EngineOptions::default()
+    }
+}
+
+/// Typed with `⌫` (U+232B) standing for Backspace.
+fn typed_script(options: EngineOptions, script: &str) -> String {
+    let mut session = Session::new(options);
+    for ch in script.chars() {
+        if ch == '\u{232B}' {
+            session.backspace();
+        } else {
+            session.key(KeyInput::char(ch));
+        }
+    }
+    session.out
+}
+
+#[test]
+fn a_fully_deleted_frozen_word_is_a_fresh_word() {
+    let o = telex_spell(true);
+    assert_eq!(typed_script(o, "pass⌫⌫⌫dduwowcj"), "được");
+    assert_eq!(typed_script(o, "test⌫⌫⌫⌫hif"), "hì");
+    assert_eq!(typed_script(o, "class⌫⌫⌫⌫⌫dduwowcj"), "được");
+}
+
+#[test]
+fn emptied_word_then_an_invalid_syllable_is_judged_fresh() {
+    // After the word is gone, `hoafk` is typed raw by the spell check, and a
+    // Backspace on it re-judges it like any other fresh word.
+    let o = telex_spell(true);
+    assert_eq!(typed_script(o, "class⌫⌫⌫⌫⌫hoafk"), "hoafk");
+    assert_eq!(typed_script(o, "class⌫⌫⌫⌫⌫hoafk⌫"), "hòa");
+}
+
+#[test]
+fn a_typo_then_backspace_rejudges_the_word() {
+    let o = telex_spell(true);
+    assert_eq!(typed_script(o, "dduwowcjk⌫"), "được");
+    assert_eq!(typed_script(o, "gifk⌫"), "gì");
+    assert_eq!(typed_script(o, "owk⌫n"), "ơn");
+    assert_eq!(typed_script(o, "ddk⌫uwowcj"), "được");
+    assert_eq!(typed_script(vni_options(), "a1k⌫"), "á");
+}
+
+#[test]
+fn backspace_re_runs_tone_placement_for_a_word_that_was_not_a_syllable() {
+    let o = EngineOptions {
+        spell_check: false,
+        modern_tone: true,
+        ..EngineOptions::default()
+    };
+    assert_eq!(typed_script(o, "hoafk⌫"), "hòa");
+    // A real coda deleted keeps the display (A7 step 4, D-TN-06).
+    assert_eq!(typed_script(o, "toans⌫"), "toá");
+}
+
+#[test]
+fn tone_before_a_final_stop_consonant_composes() {
+    let o = telex_spell(true);
+    for (keys, word) in [("hojc", "học"), ("nhajt", "nhạt"), ("cajc", "cạc"), ("bojc", "bọc"), ("thojc", "thọc")] {
+        assert_eq!(typed_script(o, keys), word, "{keys}");
+    }
+    // English still passes through: `test` is t-e-s-t, not `tét`.
+    assert_eq!(typed_script(o, "test"), "test");
+}
+
+#[test]
+fn a_word_after_an_edit_gets_the_fresh_spell_verdict() {
+    // `êi` is no syllable: fresh typing leaves it raw, and so does a word whose
+    // first letters were deleted and retyped.
+    let v = vni_options();
+    assert_eq!(typed_script(v, "d9e6i"), "d9e6i");
+    assert_eq!(typed_script(v, "dog⌫⌫9e6i"), "d9e6i");
+    let t = telex_spell(true);
+    assert_eq!(typed_script(t, "dog⌫⌫deei"), "ddeei");
+    // With the spell check off the same keys compose.
+    assert_eq!(typed_script(telex_spell(false), "dog⌫⌫deei"), "đêi");
+}
+
+#[test]
+fn a_digit_ends_a_word_and_backspace_reopens_it() {
+    assert_eq!(typed_script(telex_spell(false), "d9⌫deei"), "đêi");
+    assert_eq!(typed_script(EngineOptions::default(), "a1⌫s"), "á");
+}
+
+#[test]
+fn double_toggle_then_backspace_revalidates() {
+    let o = telex_spell(true);
+    assert_eq!(typed_script(o, "giff⌫s"), "gí");
+    assert_eq!(typed_script(vni_options(), "gi11⌫1"), "gí");
+}
+
+#[test]
+fn vni_tone_digit_then_backspace_deletes_the_whole_letter() {
+    // `á` is one character, so one Backspace empties the word; a digit with no
+    // letter before it is plain text.
+    assert_eq!(typed_script(vni_options(), "a1⌫1"), "1");
+}
+
+#[test]
+fn doubled_key_after_a_kept_consonant_composes() {
+    assert_eq!(typed_script(EngineOptions::default(), "dd9⌫ejp"), "đẹp");
+    assert_eq!(typed_script(telex_spell(true), "dass⌫⌫d"), "đ");
+}
+
+#[test]
+fn digits_before_letters_are_plain_text() {
+    // Owner ruling: leading digits never block composing (Telex `duowcj` is
+    // `dược`; `dduwowcj` is `được`).
+    let t = telex_spell(true);
+    assert_eq!(typed_script(t, "1dduwowcj"), "1được");
+    assert_eq!(typed_script(t, "1duowcj"), "1dược");
+    assert_eq!(typed_script(t, "3giowf"), "3giờ");
+    assert_eq!(typed_script(t, "1⌫dduwowcj"), "được");
+    assert_eq!(typed_script(vni_options(), "2d9e6m"), "2đêm");
+    assert_eq!(typed_script(vni_options(), "12d9e6m"), "12đêm");
+    assert_eq!(typed_script(vni_options(), "1⌫d9e6m"), "đêm");
+    // A word that starts with letters and carries a digit later is unchanged.
+    assert_eq!(typed_script(t, "mp3"), "mp3");
+    assert_eq!(typed_script(t, "a1b"), "a1b");
+    // The code zone still freezes what follows it.
+    assert_eq!(typed_script(t, "C:\\dduwowcj"), "C:\\dduwowcj");
+}
+
+#[test]
+fn restore_hotkey_does_not_claim_a_word_it_would_not_change() {
+    let mut session = Session::new(telex_spell(true));
+    session.text("dass");
+    session.backspace();
+    session.backspace();
+    assert_eq!(session.out, "d");
+    // A bare `d` restores to `d`: let Ctrl+Shift+Z reach the application.
+    assert!(!session.engine.can_restore());
+    session.text("d");
+    assert_eq!(session.out, "đ");
+    assert!(session.engine.can_restore());
+}
+
+#[test]
+fn trigger_key_remnant_followed_by_a_vowel_composes_like_fresh_typing() {
+    // A consonant-only remnant made of trigger keys is just letters.
+    for key in ['s', 'f', 'r', 'x', 'j'] {
+        let o = telex_spell(true);
+        let fresh_word = typed_script(o, &format!("{key}a"));
+        assert_eq!(typed_script(o, &format!("{key}an⌫⌫a")), fresh_word, "{key}");
+    }
+    for digit in ['1', '2', '3', '4', '5'] {
+        let o = vni_options();
+        let fresh_word = typed_script(o, &format!("d{digit}a"));
+        assert_eq!(typed_script(o, &format!("d{digit}an⌫⌫a")), fresh_word, "d{digit}");
+    }
+}

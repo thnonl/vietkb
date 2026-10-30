@@ -57,19 +57,20 @@ impl Composed {
 /// `literal_from` is the index from which the caller already forced raw text
 /// (the "phục hồi từ" hotkey); `usize::MAX` disables it.
 pub fn compose(raw: &[char], options: &EngineOptions, literal_from: usize, out: &mut Composed) {
-    compose_word(raw, options, literal_from, false, false, out);
+    compose_word(raw, options, literal_from, false, usize::MAX, out);
 }
 
 /// [`compose`] with the engine's per-word notes: `tone_stale` marks a tone that
-/// the screen shows where A4 would no longer place it (§A7 step 4), `edited`
-/// marks a word that has survived a Backspace (it keeps its marks when a later
-/// key only appends).
+/// the screen shows where A4 would no longer place it (§A7 step 4). `edit_len`
+/// is how many leading keystrokes survived a Backspace (`usize::MAX` = none):
+/// marks those keystrokes made stay when a later key only appends, while marks
+/// typed after the edit get the same verdict as fresh typing (`D-BS-LIT-01`).
 pub(crate) fn compose_word(
     raw: &[char],
     options: &EngineOptions,
     literal_from: usize,
     tone_stale: bool,
-    edited: bool,
+    edit_len: usize,
     out: &mut Composed,
 ) {
     out.clear();
@@ -97,9 +98,13 @@ pub(crate) fn compose_word(
             continue;
         }
 
+        // Marks the surviving keystrokes (before the edit) already put on screen.
+        let protected = edit_len != usize::MAX
+            && ((out.mark_at != usize::MAX && out.mark_at < edit_len)
+                || (out.tone_at != usize::MAX && out.tone_at < edit_len));
         // Snapshot for the post-deletion refusal below: a doubled key that would
         // leave an invalid syllable is typed as text instead of applied.
-        let before = (options.spell_check && edited && !out.literal && !out.escaped).then(|| {
+        let before = (options.spell_check && protected && !out.literal && !out.escaped).then(|| {
             (
                 out.letters.clone(),
                 out.tone,
@@ -133,7 +138,7 @@ pub(crate) fn compose_word(
         if options.spell_check && !out.literal && !out.escaped {
             let transformed = out.tone_at == i || out.mark_at == i;
             let doubled = i > 0 && raw[i - 1].eq_ignore_ascii_case(&ch);
-            let keeps_the_marks = edited
+            let keeps_the_marks = protected
                 && !transformed
                 && {
                     // A plain letter appends: a vowel, a new coda after a vowel,
@@ -155,7 +160,7 @@ pub(crate) fn compose_word(
                     || (matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
                         && crate::spell::english_stop_cluster(&raw[..=i], &out.letters));
             if invalid && !keeps_the_marks {
-                if transformed && doubled {
+                if transformed && doubled && protected {
                     // §A1 rule 5 inside a word that survived a deletion: the
                     // doubled key is literal text, the marks already on screen
                     // stay (`Nguyễ` + `ee` = `Nguyễee`).

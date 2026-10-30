@@ -144,7 +144,7 @@ fn numeric_words_are_not_transformed() {
     check(
         vni(),
         &[
-            ("123 1thuong82 2Tie6ng1", "123 1thuong82 2Tie6ng1"),
+            ("123 1thuong82 2Tie6ng1", "123 1thuong82 2Tiếng"),
             ("2026", "2026"),
         ],
     );

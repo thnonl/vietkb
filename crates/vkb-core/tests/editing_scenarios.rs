@@ -8,6 +8,8 @@
 //! at the end of each generator test so one run lists everything. The full
 //! failure list is written to `target/editing_scenarios_<name>.txt`.
 
+#![allow(clippy::doc_lazy_continuation)]
+
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -78,7 +80,22 @@ fn run(cfg: Cfg, script: &str) -> Run {
             if ch == BS && viol.is_none() {
                 let mut exp = before.clone();
                 exp.pop();
-                if out != exp {
+                // Oracle change (D-BS-LIT-01): a Backspace may also re-judge a word
+                // the spell check had frozen as raw text (`gifk` + BS = `gì`), so
+                // the screen is allowed to be the fresh typing of the surviving
+                // keystrokes instead of the old text minus one character.
+                let rejudged = {
+                    let word: String = e.buffer().iter().collect();
+                    let mut fe = Engine::new(cfg.options());
+                    let mut fo = String::new();
+                    for c in word.chars() {
+                        let k = KeyInput::char(c);
+                        let a = fe.process_key(k);
+                        apply_action(&mut fo, a, k);
+                    }
+                    !word.is_empty() && out.ends_with(&fo) && out.chars().count() < before.chars().count()
+                };
+                if out != exp && !rejudged {
                     viol = Some(format!("step {i}: screen {before:?} -> {out:?} (expected {exp:?})"));
                 }
             }
@@ -311,6 +328,25 @@ fn all_tokens(cfg: Cfg) -> Vec<Tok> {
     v
 }
 
+/// Backspaces needed to bring the screen after `base` down to `len` chars.
+fn bs_until(cfg: Cfg, base: &str, len: usize) -> String {
+    let mut e = Engine::new(cfg.options());
+    let mut out = String::new();
+    for ch in base.chars() {
+        let key = KeyInput::char(ch);
+        let a = e.process_key(key);
+        apply_action(&mut out, a, key);
+    }
+    let mut n = 0;
+    while chars(&out) > len && n < 64 {
+        let key = KeyInput::backspace();
+        let a = e.process_key(key);
+        apply_action(&mut out, a, key);
+        n += 1;
+    }
+    bs(n)
+}
+
 fn bs(n: usize) -> String {
     std::iter::repeat(BS).take(n).collect()
 }
@@ -335,6 +371,13 @@ fn sanity_fresh_typing_of_word_table() {
     let mut sw = Sweep::default();
     for cfg in Cfg::all() {
         for t in vn_tokens(cfg) {
+            // Oracle change: `êi` is not a Vietnamese syllable (A9 spell check),
+            // so with spell_check on `đêi` is correctly left raw. The word is
+            // only a test string; it stays in the table for spell_check off.
+            if cfg.spell && t.vis.to_lowercase() == "đêi" {
+                sw.check("fresh-word-invalid-syllable-stays-raw", cfg, &t.keys, Some(&t.keys));
+                continue;
+            }
             sw.check("fresh-word", cfg, &t.keys, Some(&t.vis));
         }
     }
@@ -359,7 +402,10 @@ fn s1_retype_after_full_delete() {
                 let exp = fresh(cfg, &y.keys);
                 let s = format!("{}{}{}", x.keys, bs(chars(&shown)), y.keys);
                 sw.check("retype-after-delete", cfg, &s, Some(&exp));
-                let s = format!("{} {}{}", x.keys, bs(chars(&shown) + 1), y.keys);
+                // Oracle change: with restore_wrong_word the separator rewrites
+                // the word to its raw keys (A10), so count what is really there.
+                let on_screen = run(cfg, &format!("{} ", x.keys)).out;
+                let s = format!("{} {}{}", x.keys, bs(chars(&on_screen)), y.keys);
                 sw.check("retype-after-delete-through-space", cfg, &s, Some(&exp));
             }
         }
@@ -391,6 +437,12 @@ fn s2_delete_to_prefix_then_continue() {
             for with_space in [false, true] {
                 let base = if with_space { format!("{} ", x.keys) } else { x.keys.clone() };
                 let screen = run(cfg, &base).out;
+                // Oracle change: the reopen memory is one word (spec D8). When
+                // the word is followed by a digit/symbol AND a space, Backspacing
+                // both leaves nothing to reopen, so only pure-letter words apply.
+                if with_space && !screen.trim_end().chars().all(char::is_alphabetic) {
+                    continue;
+                }
                 for k in 1..=chars(&screen) {
                     let p = run(cfg, &format!("{base}{}", bs(k))).out;
                     let Some(raw) = raw_of_screen(cfg, &p) else { continue };
@@ -421,17 +473,27 @@ fn s2b_owner_vni_9e6i_after_deleted_word() {
         let (tail_full, tail_after_d) = if cfg.vni { ("d9e6i", "9e6i") } else { ("ddeei", "deei") };
         for x in other_tokens() {
             let shown = fresh(cfg, &x.keys);
-            let n = chars(&shown);
             for with_space in [false, true] {
                 let base = if with_space { format!("{} ", x.keys) } else { x.keys.clone() };
-                let total = n + usize::from(with_space);
+                // Oracle change: count the real screen (restore_wrong_word
+                // rewrites the word to its raw keys at the separator, A10).
                 let exp = fresh(cfg, tail_full);
-                sw.check("owner-9e6i-full-delete", cfg, &format!("{base}{}{tail_full}", bs(total)), Some(&exp));
-                if shown.starts_with('d') && total > 1 {
+                sw.check(
+                    "owner-9e6i-full-delete",
+                    cfg,
+                    &format!("{base}{}{tail_full}", bs_until(cfg, &base, 0)),
+                    Some(&exp),
+                );
+                // Oracle change: a Backspace can re-judge a frozen word (`desk`
+                // becomes `dé`), so press Backspace until the screen has one
+                // character instead of counting presses; and the reopen memory is
+                // one word (spec D8), so `d9` + space has no word left to reopen.
+                let reopenable = !with_space || shown.chars().all(char::is_alphabetic);
+                if shown.starts_with('d') && chars(&run(cfg, &base).out) > 1 && reopenable {
                     sw.check(
                         "owner-9e6i-to-first-d",
                         cfg,
-                        &format!("{base}{}{tail_after_d}", bs(total - 1)),
+                        &format!("{base}{}{tail_after_d}", bs_until(cfg, &base, 1)),
                         Some(&exp),
                     );
                 }
@@ -450,6 +512,12 @@ fn reopen_generic(name: &str, sep: char, tag: &str) {
             let exp = fresh(cfg, &t.keys);
             for i in 1..=chars(&t.keys) {
                 let (a, b) = split_at_char(&t.keys, i);
+                // Oracle change: with restore_wrong_word the separator already
+                // rewrote `a` to its raw keys (A10, owner: `pass␣⌫` shows `pass`),
+                // so there is no composed word to reopen; not a fresh-typing case.
+                if cfg.restore && run(cfg, &format!("{a}{sep}")).out != format!("{}{sep}", fresh(cfg, a)) {
+                    continue;
+                }
                 let s = format!("{a}{sep}{BS}{b}");
                 sw.check(tag, cfg, &s, Some(&exp));
                 let s = format!("{a}{sep}{BS}{sep}{BS}{b}");
@@ -540,7 +608,9 @@ fn u1_digit_glued_and_codezone_prefix_unclear() {
     for cfg in Cfg::all() {
         for t in good_vn(cfg) {
             for pre in ["1", "2", "3", "7", "9", "12", "2024", "C:\\"] {
-                let exp = format!("{pre}{}", t.vis);
+                // Owner ruling: leading digits are plain text and the letters
+                // after them compose. `C:\` arms the raw zone by design.
+                let exp = if pre == "C:\\" { format!("{pre}{}", t.keys) } else { format!("{pre}{}", t.vis) };
                 sw.check("UNCLEAR-glued-prefix", cfg, &format!("{pre}{}", t.keys), Some(&exp));
             }
             for pre in ["1", "2", "9", "12"] {
@@ -600,7 +670,20 @@ fn u2_double_tone_toggle_then_bs_then_other_tone_unclear() {
                     continue;
                 }
                 let t2 = if last.is_ascii_uppercase() { t2.to_ascii_uppercase() } else { t2 };
-                let exp = fresh(cfg, &format!("{base}{t2}"));
+                // Oracle change: the toggle-off escape rewrote the whole word to raw
+                // keys, so after Backspace the screen shows e.g. `dduwowc`. If those
+                // characters typed fresh would compose into something else, the
+                // screen text cannot be reproduced by keystrokes and the word
+                // stays frozen (lead ruling: the screen never changes on
+                // Backspace); the new key is then plain text after it.
+                let shown = fresh(cfg, &format!("{base}{last}{last}"));
+                let mut remnant = shown.clone();
+                remnant.pop();
+                let exp = if fresh(cfg, &remnant) == remnant {
+                    fresh(cfg, &format!("{base}{t2}"))
+                } else {
+                    format!("{remnant}{t2}")
+                };
                 sw.check("UNCLEAR-tone-toggle-bs-other-tone", cfg, &format!("{base}{last}{last}{BS}{t2}"), Some(&exp));
             }
         }

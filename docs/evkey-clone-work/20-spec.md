@@ -91,7 +91,7 @@ Escape: `w` immediately after a W-transform reverts that transform and emits a l
 **A trigger is literal text (no transformation) when ANY holds:**
 1. word has no vowel (tone keys, `z`, `w` with `jfwz_as_consonant`): `s`, `str`, `x`.
 2. `sticky_literal[key]` is set in this word.
-3. `non_viet` is set: word began with a digit; or contains a letter not legal in its slot after
+3. `non_viet` is set: contains a letter not legal in its slot after
    spell analysis (only when `spell_check = true`); or `raw_zone` is set.
 4. Applying it would produce more than one tone in the word (impossible by construction — tone moves instead).
 5. `spell_check = true` and the result is invalid (A9), e.g. `f r x` on a C2 ∈ `{c ch p t}` (`tacf → tacf`).
@@ -117,7 +117,7 @@ Note: the task brief lists `6 ư/ơ`. Standard VNI (E9) is `6 = mũ (â ê ô)`,
 digit + `sticky_literal[digit]` (`a11 → a1`, `a111 → a11`, `d99 → d9`).
 **Collision rule (user wants digits):**
 1. Digit is literal when the word has no target (`2026`, `x2`, `k8` if no vowel).
-2. A word whose first key is a digit is `non_viet` (`1a1 → 1a1`, `3g → 3g`).
+2. **Owner ruling 2026-10-30:** digits typed before any letter are plain text, in VNI too (a digit with no letter before it is never a tone key). They do not make the word `non_viet`: the letters after the digit run compose as a fresh word (`1duowcj → 1dược`, `3giowf → 3giờ`, VNI `2d9e6m → 2đêm`). A word that *starts with a letter* and has a digit later (`a1b`, `mp3`) is unchanged. A digits-only left token still arms the raw zone (`2/3`).
 3. Once any digit was literal in a word, all later digits in that word are literal (`x2a1 → x2a1`:
    `2` literal (no vowel) ⇒ `1` literal too). A digit that applies does not set this flag (`ab1 → áb`).
 4. Numpad digits (`VK_NUMPAD0..9`, `vk 0x60–0x69`) are **always** literal and act as word-commit (they are typed numbers).
@@ -278,7 +278,7 @@ Policy:
     the token on the **left** of it is code-shaped. The struck rule made every word after
     `/ . ? _ @ : = # \` literal, so `bật/tắt` came out as `bật/ta8t1`; the owner rejected that. Binding
     text: **§A9 amendment 2026-10-30** at the end of this section.
-  - A word that begins with a digit is `non_viet`.
+  - ~~A word that begins with a digit is `non_viet`.~~ Superseded by the owner ruling in A2 collision rule 2: leading digits are plain text and the letters after them compose.
   - Uppercase-inside-word after a lowercase letter (`iPhone`, `getX`) → `non_viet` from that key on —
     `UNVERIFIED` that this doesn't hurt real Vietnamese (method: corpus run on 10k-word VN text; expect 0 hits).
   - Everything else is handled by A10 restore at commit.
@@ -455,7 +455,7 @@ the flag clears. `nfc_chars` is the composed letters with marks and tone applied
 | Telex + VNI `https://x/y/z` | yes at `:`, **yes at both `/` by chain**, yes at `/` after `x`; **no** at `/` after `y` (`y` is a valid syllable, and `y` is not an opener) | `https://x/y/z` | `z` segment unarmed but literal: no transform trigger — same class as `e.g./i.e.` |
 | Telex `xyz./tieesng`, `bật:_/tieesng` | **no chain**: after `.` (`last_emitted` not an opener char) and after `_`/`: `:_` (`_` is not in the chain set, and `bật` never armed at `:`) | `xyz./tiếng`, `bật:_/tiếng` | chain does not fire — the negative control for §2b |
 | `a/b/c` | yes, yes | `a/b/c` | |
-| `100%/50%` | no arm anywhere | `100%/50%` | `%` is not an opener; `10`/`50` are digit-leading ⇒ `non_viet` |
+| `100%/50%` | no arm anywhere | `100%/50%` | `%` is not an opener; `10`/`50` are plain-text digit runs and `%` ends them |
 | Telex `#hashtag/tieesng` | no at `#` (empty left); at `/` the left token is plain ASCII `hashtag` either way (tone key escaped while typing, or A10 restored it), invalid syllable ⇒ **yes** | `#hashtag/tieesng` | **declared loss L2** |
 | `e.g./i.e.` | no at 1st `.` (`e` valid syllable), yes at 2nd `.` (`g` invalid) | `e.g./i.e.` | no transform trigger in any segment, text identical either way |
 | `v1.2.3/tag` | no at both dots (digit-dot), yes at `/` (left `3`, plain ASCII, not a syllable) | `v1.2.3/tag` | |

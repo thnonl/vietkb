@@ -215,7 +215,7 @@ fn numeric_words_are_not_transformed() {
     check(
         telex(),
         &[
-            ("123 1thuongwf 2Tieengs", "123 1thuongwf 2Tieengs"),
+            ("123 1thuongwf 2Tieengs", "123 1thường 2Tiếng"),
             ("2026", "2026"),
             ("x2", "x2"),
         ],

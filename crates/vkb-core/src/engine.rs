@@ -60,9 +60,13 @@ pub struct Engine {
     /// The tone on screen is not where A4 would place it: set by a Backspace that
     /// kept a stale tone slot, read by the very next key (spec §A7 step 4).
     tone_stale: bool,
-    /// The word has survived a Backspace: a later key that only appends keeps the
-    /// surviving marks instead of reverting the word (`D-TN-07`/`D-TN-08`).
-    edited: bool,
+    /// How many leading keystrokes survived a Backspace (`usize::MAX` = the word
+    /// was never edited): a later key that only appends keeps the marks those
+    /// keystrokes made instead of reverting the word (`D-TN-07`/`D-TN-08`).
+    edit_len: usize,
+    /// The word so far is only leading digits (plain text, not in `raw`): a
+    /// following opener still arms the raw zone (`2/3`).
+    digit_prefix: bool,
     /// The word the last separator committed, live for exactly one key:
     /// `Tha` + space + Backspace + `s` = `Thá`.
     reopen: Option<CommittedWord>,
@@ -83,7 +87,8 @@ impl Engine {
             last_emitted: None,
             raw_pending: false,
             tone_stale: false,
-            edited: false,
+            edit_len: usize::MAX,
+            digit_prefix: false,
             reopen: None,
             macro_only: false,
         }
@@ -197,7 +202,7 @@ impl Engine {
         self.text.clear();
         self.literal_from = usize::MAX;
         self.tone_stale = false;
-        self.edited = false;
+        self.edit_len = usize::MAX;
     }
 
     /// Compose `letters` with the word tone placed per the tone rules.
@@ -242,6 +247,7 @@ impl Engine {
     }
 
     fn word_key(&mut self, ch: char) -> EngineAction {
+        self.digit_prefix = false;
         if self.raw_pending {
             // The opener was followed straight by a letter: this whole word is
             // raw, so freeze it from its first keystroke (spec §A9).
@@ -273,7 +279,7 @@ impl Engine {
             &self.options,
             self.literal_from,
             tone_stale,
-            self.edited,
+            self.edit_len,
             &mut self.composed,
         );
         let mut next = TextBuf::new();
@@ -306,6 +312,7 @@ impl Engine {
     fn backspace(&mut self, reopening: Option<CommittedWord>) -> EngineAction {
         // Backspace removes the opener itself: the pending raw zone is dead.
         self.raw_pending = false;
+        self.digit_prefix = false;
         self.tone_stale = false;
         if self.raw.is_empty() {
             if let Some(word) = reopening {
@@ -332,7 +339,15 @@ impl Engine {
             .composed
             .tone_slot
             .or_else(|| place::target(&self.composed.letters, self.options.modern_tone));
+        let old_valid =
+            spell::is_valid_syllable(&self.composed.letters, self.options.jfwz_as_consonant);
+        // `D-BS-LIT-01`: a word the spell check (or a typo) turned into raw text
+        // is judged again once a keystroke is gone: `gifk` + BS is `gì`.
+        let reevaluate = self.literal_from == usize::MAX
+            && !self.composed.escaped
+            && (self.composed.literal || !old_valid);
 
+        let was_literal = self.composed.literal;
         let mut literal_from = self.literal_from;
         if literal_from != usize::MAX && literal_from > kept.len() {
             literal_from = usize::MAX;
@@ -351,8 +366,10 @@ impl Engine {
         // deleted character may have been the coda that forced T3 (`toán` BS →
         // `toá`, while `toa` alone takes the tone on `o`). §A7 step 4 keeps the
         // display unchanged, so pin the tone to the letter that shows it; the
-        // next key re-runs A4 from raw anyway, and the word keeps composing.
-        if next.as_slice() != target.as_slice() && composed.tone != Tone::None {
+        // next key re-runs A4 from raw anyway, and the word keeps composing. A
+        // word that was not a syllable to begin with (`hoafk`) has no display
+        // worth keeping: it re-runs A4 now.
+        if old_valid && next.as_slice() != target.as_slice() && composed.tone != Tone::None {
             if let Some(slot) = carrier.filter(|&slot| slot < composed.letters.len()) {
                 let mut pinned = TextBuf::new();
                 self.render_into(&composed.letters, composed.tone, Some(slot), &mut pinned);
@@ -364,46 +381,48 @@ impl Engine {
             }
         }
 
-        if next.as_slice() == target.as_slice() {
+        if next.as_slice() == target.as_slice() || reevaluate {
             self.raw = kept;
         } else {
-            let mut frozen: SmallVec<[char; MAX_WORD]> = SmallVec::new();
+            // The kept keystrokes cannot reproduce the screen (a doubled-trigger
+            // escape rewrote the history). If the surviving text is plain
+            // letters that type themselves, it is just that word, typed fresh.
+            // Otherwise the characters are frozen as literal keystrokes: the
+            // screen never moves, at the cost of no further composing.
+            let mut chars: SmallVec<[char; MAX_WORD]> = SmallVec::new();
             for &ch in &target {
-                frozen.push(ch);
+                chars.push(ch);
             }
-            literal_from = 0;
-            method::compose(&frozen, &self.options, literal_from, &mut composed);
-            self.render_into(
-                &composed.letters,
-                composed.tone,
-                composed.tone_slot,
-                &mut next,
-            );
-            self.raw = frozen;
+            literal_from = usize::MAX;
+            let retypable = chars.iter().all(|ch| ch.is_ascii_alphabetic());
+            if retypable {
+                method::compose(&chars, &self.options, literal_from, &mut composed);
+                self.render_into(&composed.letters, composed.tone, composed.tone_slot, &mut next);
+            }
+            if !retypable || next.as_slice() != target.as_slice() {
+                literal_from = 0;
+                method::compose(&chars, &self.options, literal_from, &mut composed);
+                self.render_into(&composed.letters, composed.tone, composed.tone_slot, &mut next);
+            }
+            self.raw = chars;
         }
 
-        // `D-BS-LIT-01`: literal mode is only worth keeping while the word still
-        // has a vowel to protect. A fully deleted word is fresh again, and a
-        // bare consonant that composes the same either way goes back to normal,
-        // so the next keys compose (`d9e6i` = `đêi`) instead of staying raw.
-        let emptied = self.raw.is_empty();
-        if emptied {
-            literal_from = usize::MAX;
-        } else if literal_from != usize::MAX && !composed.letters.iter().any(|l| l.is_vowel()) {
-            let mut fresh = Composed::default();
-            let mut fresh_text = TextBuf::new();
-            method::compose(&self.raw, &self.options, usize::MAX, &mut fresh);
-            self.render_into(&fresh.letters, fresh.tone, fresh.tone_slot, &mut fresh_text);
-            if fresh_text.as_slice() == next.as_slice() {
-                literal_from = usize::MAX;
-                composed = fresh;
-            }
-        }
         self.literal_from = literal_from;
         self.composed = composed;
-        // The word survived an edit: later keys keep its marks when they only
-        // append (`D-TN-07`/`D-TN-08`); an emptied word has nothing to keep.
-        self.edited = !emptied;
+        if self.raw.is_empty() {
+            // A fully deleted word is a fresh word (`D-BS-LIT-01`).
+            self.literal_from = usize::MAX;
+            self.edit_len = usize::MAX;
+        } else {
+            // The word survived an edit: later keys keep the marks the surviving
+            // keystrokes made when they only append (`D-TN-07`/`D-TN-08`).
+            self.edit_len = self.edit_len.min(self.raw.len());
+            if reevaluate && was_literal {
+                // Nothing of the literal word was composed on screen, so there
+                // are no marks to protect: the kept keys are typed fresh.
+                self.edit_len = usize::MAX;
+            }
+        }
         self.settle_deletion(next)
     }
 
@@ -459,7 +478,7 @@ impl Engine {
                 &self.options,
                 self.literal_from,
                 false,
-                self.edited,
+                self.edit_len,
                 &mut cur,
             );
             owners.push(owner_of(&prev, &cur, self.options.modern_tone));
@@ -507,6 +526,7 @@ impl Engine {
         // *final* left text, because the macro and A10 restore branches below
         // rewrite what the left token shows.
         let previous = self.last_emitted;
+        let digits_left = std::mem::take(&mut self.digit_prefix);
         self.last_emitted = Some(ch);
         let opener = is_raw_zone_opener(ch, previous);
         // §2b: the previous opener armed and nothing has been typed since.
@@ -519,7 +539,7 @@ impl Engine {
             // Empty left token (start of line, after whitespace, after another
             // opener): never arms, so `/tắt`, `bật//tắt`, `bật /tắt` compose —
             // unless this opener continues a path (`C:\`, `C:/`, `http://`).
-            self.raw_pending = opener && chain_ready;
+            self.raw_pending = opener && (chain_ready || (digits_left && self.options.raw_zone));
             return EngineAction::Noop;
         }
         let old_len = self.text.len();
@@ -588,7 +608,7 @@ impl Engine {
         // class table initialiser `FUN_140036b10` puts space, Tab and ASCII
         // punctuation in class 1, and Enter with the other control characters in
         // class 3 — so Enter ends the line and never re-opens.
-        if is_reopening_separator(ch) {
+        if is_reopening_separator(ch) || ch.is_ascii_digit() {
             self.reopen = Some(CommittedWord {
                 raw: std::mem::take(&mut self.raw),
                 composed: std::mem::take(&mut self.composed),
@@ -689,6 +709,7 @@ impl VietnameseEngine for Engine {
         self.caps_pending = false;
         self.last_emitted = None;
         self.raw_pending = false;
+        self.digit_prefix = false;
     }
 
     fn set_options(&mut self, options: EngineOptions) {
@@ -754,6 +775,15 @@ impl VietnameseEngine for Engine {
             '\u{8}' | '\u{7f}' => self.backspace(reopening),
             '\r' | '\n' => self.boundary_key('\r'),
             _ if ch.is_control() => self.boundary_key(ch),
+            // Owner ruling: digits typed before any letter are plain text, in VNI
+            // too (`1duowcj` = `1được`); the letters after them are a fresh
+            // word. Only an armed raw zone (`C:\` + digit) still swallows them.
+            _ if ch.is_ascii_digit() && self.raw.is_empty() && !self.raw_pending => {
+                self.caps_pending = false;
+                let action = self.boundary_key(ch);
+                self.digit_prefix = true;
+                action
+            }
             _ if is_word_key(self.options.method, ch) => self.word_key(ch),
             _ if ch.is_ascii_digit() => {
                 // A digit joins the word only when it starts a numeric run or
@@ -773,7 +803,16 @@ impl VietnameseEngine for Engine {
     }
 
     fn can_restore(&self) -> bool {
-        !self.raw.is_empty() && !self.composed.literal && self.literal_from != 0
+        // `D-BS-LIT-01`: only when the restore would change the screen, so a
+        // bare `d` lets Ctrl+Shift+Z through to the application.
+        if self.raw.is_empty() || self.composed.literal || self.literal_from == 0 {
+            return false;
+        }
+        let mut raw_word = Composed::default();
+        method::compose(&self.raw, &self.options, 0, &mut raw_word);
+        let mut raw_text = TextBuf::new();
+        self.render_into(&raw_word.letters, raw_word.tone, raw_word.tone_slot, &mut raw_text);
+        raw_text.as_slice() != self.text.as_slice()
     }
 
     fn boundary(&mut self) {
@@ -829,7 +868,9 @@ fn owner_of(prev: &Composed, cur: &Composed, modern_tone: bool) -> u8 {
     let Some(last) = cur.letters.len().checked_sub(1) else {
         return 0;
     };
-    if cur.letters.len() == prev.letters.len() + 1 {
+    // A literal word (spell-check freeze) shows one letter per keystroke, even
+    // when the key that froze it rewrote the letters before it.
+    if cur.literal || cur.letters.len() == prev.letters.len() + 1 {
         return last as u8;
     }
     if let Some(idx) = cur
