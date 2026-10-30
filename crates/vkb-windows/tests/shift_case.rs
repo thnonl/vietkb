@@ -3,9 +3,8 @@
 //! The zero-focus harness used to keep a separate `Shift` per event source, so it
 //! could not see what a real desktop does: the user's keys and the injected keys
 //! are *one* state, and an injected `Shift` release clears a `Shift` the user is
-//! still holding. This test models that one shared state, answers the injector's
-//! `GetAsyncKeyState` / `GetKeyState` reads from it (`input::set_key_probe`), feeds
-//! the hook the event shapes the QA script (`qa/host-e2e/QN.cs`: `SendInput`,
+//! still holding. This test models that one shared state, feeds the hook the
+//! event shapes the QA script (`qa/host-e2e/QN.cs`: `SendInput`,
 //! virtual keys, `Shift` down / letter / `Shift` up) and a physical keyboard
 //! produce, and applies whatever the hook injects, in order.
 //!
@@ -16,7 +15,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use vkb_windows::e2e;
-use vkb_windows::input::{self, KeyProbe};
 use vkb_windows::keys::{self, VK_CAPITAL, VK_LSHIFT, VK_PACKET, VK_RSHIFT, VK_SHIFT};
 use vkb_windows::state::HookRuntime;
 use windows::Win32::UI::WindowsAndMessaging::{KBDLLHOOKSTRUCT, WM_KEYDOWN, WM_KEYUP};
@@ -34,6 +32,8 @@ struct Desktop {
     text: Vec<char>,
     /// Every injected key event, for assertions about what the hook sent.
     injected: Vec<(u16, bool)>,
+    /// The character of every injected `VK_PACKET` key-down.
+    packets: Vec<char>,
 }
 
 impl Desktop {
@@ -70,35 +70,15 @@ impl Desktop {
         }
     }
 
-    /// Take in what the injector has sent so far, as `SendInput` would have
-    /// applied it by the time the injector reads the key state again.
+    /// Take in what the injector has sent so far.
     fn absorb(&mut self) {
         for event in e2e::take_captured() {
             self.apply(event.vk, event.scan, !event.up);
             self.injected.push((event.vk, !event.up));
+            if event.vk == VK_PACKET && !event.up {
+                self.packets.extend(char::from_u32(u32::from(event.scan)));
+            }
         }
-    }
-}
-
-/// The injector's view of the desktop.
-struct Probe(Rc<RefCell<Desktop>>);
-
-impl KeyProbe for Probe {
-    fn down(&self, vk: u16) -> bool {
-        let mut os = self.0.borrow_mut();
-        os.absorb();
-        match vk {
-            VK_LSHIFT => os.left_shift,
-            VK_RSHIFT => os.right_shift,
-            VK_SHIFT => os.shift(),
-            _ => false,
-        }
-    }
-
-    fn toggled(&self, vk: u16) -> bool {
-        let mut os = self.0.borrow_mut();
-        os.absorb();
-        vk == VK_CAPITAL && os.caps
     }
 }
 
@@ -113,7 +93,6 @@ struct Rig {
 
 impl Drop for Rig {
     fn drop(&mut self) {
-        input::set_key_probe(None);
         e2e::set_capture(false);
     }
 }
@@ -124,7 +103,6 @@ impl Rig {
         e2e::configure(TAG, INJECT_TAG);
         e2e::set_capture(true);
         let os = Rc::new(RefCell::new(Desktop::default()));
-        input::set_key_probe(Some(Box::new(Probe(os.clone()))));
         Self {
             rt: HookRuntime::new(None, None),
             os,
@@ -345,4 +323,95 @@ fn nfd_output_never_splits_a_base_letter_from_its_marks() {
     rig.rt.apply_config(Arc::new(config));
     rig.type_per_letter_shift(VK_SHIFT, "Vieejt");
     assert_eq!(rig.shown(), "Vie\u{302}\u{323}t");
+}
+
+fn config(method: vkb_core::InputMethod) -> std::sync::Arc<vkb_config::AppConfig> {
+    let mut config = vkb_config::AppConfig::default();
+    config.input.enabled = true;
+    config.input.method = method;
+    config.system.notification_sound = false;
+    std::sync::Arc::new(config)
+}
+
+fn ascii_letter_packets(rig: &Rig) -> Vec<char> {
+    rig.os
+        .borrow()
+        .packets
+        .iter()
+        .copied()
+        .filter(char::is_ascii_alphabetic)
+        .collect()
+}
+
+#[test]
+fn common_cases_send_no_ascii_letter_as_a_packet() {
+    // Review ruling C: ASCII letters stay VK + scancode in the cases people type
+    // all day. Per-letter Shift, a held Shift, and plain lowercase, Telex and VNI.
+    {
+        let mut rig = Rig::new();
+        rig.type_per_letter_shift(VK_SHIFT, "Vieejt");
+        assert!(ascii_letter_packets(&rig).is_empty(), "Vieejt");
+    }
+    {
+        let mut rig = Rig::new();
+        rig.key(VK_LSHIFT, true);
+        rig.tap_text("VIEETJ");
+        rig.key(VK_LSHIFT, false);
+        assert_eq!(rig.shown(), "VIỆT");
+        assert!(ascii_letter_packets(&rig).is_empty(), "VIEETJ held");
+    }
+    {
+        let mut rig = Rig::new();
+        rig.tap_text("baajt");
+        assert_eq!(rig.shown(), "bật");
+        assert!(ascii_letter_packets(&rig).is_empty(), "baajt");
+    }
+    {
+        let mut rig = Rig::new();
+        rig.rt.apply_config(config(vkb_core::InputMethod::Vni));
+        for ch in "ba6t5".chars() {
+            rig.tap(u16::from(ch.to_ascii_uppercase() as u8));
+        }
+        assert_eq!(rig.shown(), "bật");
+        assert!(ascii_letter_packets(&rig).is_empty(), "ba6t5");
+    }
+}
+
+#[test]
+fn an_ascii_letter_packet_needs_a_held_shift_and_a_letter_of_the_other_case() {
+    // The one trigger: the user holds Shift while pressing a key that rewrites
+    // a word whose changed part contains lowercase ASCII letters, e.g. a tone key
+    // pressed with Shift still down after `duong`. The same keys without Shift
+    // send no ASCII packet.
+    {
+        let mut rig = Rig::new();
+        rig.tap_text("duong");
+        rig.key(VK_LSHIFT, true);
+        rig.tap(u16::from(b'J'));
+        rig.key(VK_LSHIFT, false);
+        let triggered = ascii_letter_packets(&rig);
+        println!("shift-held tone key after `duong`: ascii packets {triggered:?}");
+        assert!(!triggered.is_empty(), "this is the documented trigger");
+        assert!(triggered.iter().all(char::is_ascii_lowercase));
+        assert!(!rig.shift_down());
+    }
+    {
+        let mut rig = Rig::new();
+        rig.tap_text("duongj");
+        assert!(ascii_letter_packets(&rig).is_empty());
+    }
+}
+
+#[test]
+fn shift_and_the_letter_after_it_in_one_run_need_no_os_key_state() {
+    // Review ruling D / A: Shift and the letter arrive back to back. The hook
+    // decides from its own ordered tracking; nothing reads the OS, so the answer
+    // cannot depend on whether the OS has applied the Shift yet.
+    let mut rig = Rig::new();
+    rig.key(VK_LSHIFT, true);
+    rig.key(u16::from(b'V'), true);
+    rig.key(u16::from(b'V'), false);
+    rig.key(VK_LSHIFT, false);
+    rig.tap_text("ieejt");
+    assert_eq!(rig.shown(), "Việt");
 }

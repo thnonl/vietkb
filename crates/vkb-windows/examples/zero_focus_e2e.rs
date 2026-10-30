@@ -327,85 +327,6 @@ fn other_vietkb_processes() -> Result<Vec<String>, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Simulated key state (in-process mode)
-// ---------------------------------------------------------------------------
-
-/// The injector reads `GetAsyncKeyState` / `GetKeyState` to build a batch around
-/// the keys the user holds. In-process there is no desktop, so the harness keeps
-/// the one key state the desktop would have, applies every key it feeds and every
-/// event the backend injects, and answers those reads from it
-/// (`input::set_key_probe`). Without this the injector would read the owner's
-/// real keyboard and the Held / Caps Lock path would go unexercised.
-static SIM_SHIFT_L: AtomicBool = AtomicBool::new(false);
-static SIM_SHIFT_R: AtomicBool = AtomicBool::new(false);
-static SIM_SHIFT_ANY: AtomicBool = AtomicBool::new(false);
-static SIM_CAPS: AtomicBool = AtomicBool::new(false);
-/// Injected events the probe has already applied but the driver has not yet recorded.
-static SIM_PENDING: parking_lot::Mutex<Vec<vkb_windows::e2e::Captured>> =
-    parking_lot::Mutex::new(Vec::new());
-
-fn sim_apply(vk: u16, down: bool) {
-    match vk {
-        VK_LSHIFT => SIM_SHIFT_L.store(down, Ordering::SeqCst),
-        keys::VK_RSHIFT => SIM_SHIFT_R.store(down, Ordering::SeqCst),
-        keys::VK_SHIFT => {
-            SIM_SHIFT_ANY.store(down, Ordering::SeqCst);
-            if !down {
-                // A generic key-up releases whichever Shift is down.
-                SIM_SHIFT_L.store(false, Ordering::SeqCst);
-                SIM_SHIFT_R.store(false, Ordering::SeqCst);
-            }
-        }
-        keys::VK_CAPITAL if down => {
-            SIM_CAPS.fetch_xor(true, Ordering::SeqCst);
-        }
-        _ => {}
-    }
-}
-
-/// Apply what the backend has injected so far and hand it to the driver once.
-fn sim_absorb() -> Vec<vkb_windows::e2e::Captured> {
-    for cap in vkb_windows::e2e::take_captured() {
-        if cap.vk != keys::VK_PACKET {
-            sim_apply(cap.vk, !cap.up);
-        }
-        SIM_PENDING.lock().push(cap);
-    }
-    std::mem::take(&mut *SIM_PENDING.lock())
-}
-
-fn sim_reset() {
-    for flag in [&SIM_SHIFT_L, &SIM_SHIFT_R, &SIM_SHIFT_ANY, &SIM_CAPS] {
-        flag.store(false, Ordering::SeqCst);
-    }
-}
-
-struct SimProbe;
-
-impl vkb_windows::input::KeyProbe for SimProbe {
-    fn down(&self, vk: u16) -> bool {
-        // Injected events reach the desktop the moment they are sent.
-        let mut sent = sim_absorb();
-        SIM_PENDING.lock().append(&mut sent);
-        let l = SIM_SHIFT_L.load(Ordering::SeqCst);
-        let r = SIM_SHIFT_R.load(Ordering::SeqCst);
-        let any = SIM_SHIFT_ANY.load(Ordering::SeqCst);
-        match vk {
-            VK_LSHIFT => l,
-            keys::VK_RSHIFT => r,
-            keys::VK_SHIFT => l || r || any,
-            _ => false,
-        }
-    }
-
-    fn toggled(&self, vk: u16) -> bool {
-        let mut sent = sim_absorb();
-        SIM_PENDING.lock().append(&mut sent);
-        vk == keys::VK_CAPITAL && SIM_CAPS.load(Ordering::SeqCst)
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Building events
 // ---------------------------------------------------------------------------
 
@@ -511,6 +432,9 @@ enum Step {
     Up(u16),
     /// A mouse button goes down (in-process mode only).
     Mouse,
+    /// Key events fed back to back in one run, `(vk, up)`, with nothing between
+    /// them: a Shift press and the letter that follows it.
+    Burst(Vec<(u16, bool)>),
 }
 
 
@@ -924,6 +848,26 @@ fn load_cases(
                 vec![typed(mixed)],
                 "Việt",
             ));
+            // Ruling D: Shift down and the letter right behind it, in one run.
+            let (v_vk, rest) = (0x56u16, if vni { "ie6t5" } else { "ieejt" });
+            cases.push(case(
+                "shift-then-letter-no-gap",
+                base(method_of(method)),
+                vec![
+                    Step::Burst(vec![(VK_LSHIFT, false), (v_vk, false), (v_vk, true), (VK_LSHIFT, true)]),
+                    typed(rest),
+                ],
+                "Việt",
+            ));
+            cases.push(case(
+                "right-shift-then-letter-no-gap",
+                base(method_of(method)),
+                vec![
+                    Step::Burst(vec![(keys::VK_RSHIFT, false), (v_vk, false), (v_vk, true), (keys::VK_RSHIFT, true)]),
+                    typed(rest),
+                ],
+                "Việt",
+            ));
             let mut nfd = base(method_of(method));
             nfd.nfd = true;
             cases.push(case("nfd-capital-head", nfd, vec![typed(mixed)], marks));
@@ -1014,6 +958,10 @@ fn config_for(settings: &Settings) -> AppConfig {
 
 #[derive(Default)]
 struct Stats {
+    /// Injected `VK_PACKET` key-downs that carry an ASCII letter, and the cases
+    /// that produced them (ruling C: they should be rare).
+    ascii_packets: u64,
+    ascii_packet_cases: Vec<(String, u64)>,
     fed: u64,
     injected: u64,
     passed: u64,
@@ -1100,7 +1048,7 @@ impl Driver {
             if swallow {
                 self.stats.swallowed += 1;
             }
-            for cap in sim_absorb() {
+            for cap in vkb_windows::e2e::take_captured() {
                 if cap.extra != TEST_TAG {
                     eprintln!("an injection carried tag {:#x}, not the test tag", cap.extra);
                     return false;
@@ -1128,9 +1076,6 @@ impl Driver {
             }
             if !swallow {
                 self.stats.passed += 1;
-                if !syn.unicode {
-                    sim_apply(syn.vk, !syn.up);
-                }
                 self.events.push(Ev {
                     src: Src::Passed,
                     vk: info.vkCode as u16,
@@ -1155,6 +1100,10 @@ impl Driver {
             Step::Tap(vk) => self.send_syns(&tap_vk(*vk, false)),
             Step::Down(vk) => self.send_syns(&[vk_syn(*vk, false)]),
             Step::Up(vk) => self.send_syns(&[vk_syn(*vk, true)]),
+            Step::Burst(events) => {
+                let syns: Vec<Syn> = events.iter().map(|(vk, up)| vk_syn(*vk, *up)).collect();
+                self.send_syns(&syns)
+            }
             Step::Mouse => {
                 if self.rt.is_none() {
                     return false;
@@ -1185,6 +1134,16 @@ impl Driver {
             return Err(format!("{}: injected event escaped the top hook", case.id));
         }
 
+        let ascii_packets = self
+            .events
+            .iter()
+            .filter(|e| e.src == Src::Injected && e.vk == keys::VK_PACKET && e.down)
+            .filter(|e| char::from_u32(u32::from(e.scan)).is_some_and(|c| c.is_ascii_alphabetic()))
+            .count() as u64;
+        if ascii_packets > 0 {
+            self.stats.ascii_packets += ascii_packets;
+            self.stats.ascii_packet_cases.push((case.id.clone(), ascii_packets));
+        }
         let (actual, _) = rebuild(&self.events);
         let mut ok = actual == case.expected;
         let mut detail = String::new();
@@ -1433,8 +1392,6 @@ fn main() -> ExitCode {
         thread::sleep(Duration::from_millis(100));
     } else {
         vkb_windows::e2e::set_capture(true);
-        sim_reset();
-        vkb_windows::input::set_key_probe(Some(Box::new(SimProbe)));
         driver.rt = Some(Box::new(HookRuntime::new(
             Some(Arc::new(config_for(&default_settings()))),
             None,
@@ -1526,6 +1483,20 @@ fn main() -> ExitCode {
                 failing.push(format!("control/{}", control.id));
             }
             control_note = format!(" control={}", if caught { "caught" } else { "MISSED" });
+        }
+
+        // Ruling C: ASCII letters sent as packets (a held Shift and a letter of
+        // the other case). Reported, with the inputs that caused them.
+        say(
+            &mut report,
+            format!(
+                "ASCII-LETTER PACKETS total={} in {} of the cases run",
+                driver.stats.ascii_packets,
+                driver.stats.ascii_packet_cases.len()
+            ),
+        );
+        for (id, count) in driver.stats.ascii_packet_cases.clone() {
+            say(&mut report, format!("  ascii-packets {count} {id}"));
         }
 
         let mut summary = String::from("SUMMARY");

@@ -7,7 +7,7 @@
 
 use anyhow::Result;
 use vkb_core::EngineAction;
-use vkb_platform::plan::{decide, Injection};
+use vkb_platform::plan::{decide, HeldKeys, Injection};
 use vkb_platform::{AppInfo, EngineSink, PlatformBackend, SharedConfig};
 
 use crate::foreground;
@@ -49,6 +49,10 @@ impl Injector {
 
 impl EngineSink for Injector {
     fn emit(&mut self, action: EngineAction) -> Result<()> {
+        self.emit_with(action, HeldKeys::default())
+    }
+
+    fn emit_with(&mut self, action: EngineAction, held: HeldKeys) -> Result<()> {
         // The action is already final: `ch` is irrelevant here.
         let decision = decide(&action, None);
         match decision.injection {
@@ -57,8 +61,8 @@ impl EngineSink for Injector {
             // error alias and never the Vietnamese-on cue (`22-sound-spec.md`
             // §5; the ON/OFF symmetry covers the three toggle routes).
             Injection::Beep => sound::play_error(),
-            Injection::Type(text) => self.type_text(&text, 0),
-            Injection::Replace { deletes, insert } => self.type_text(&insert, deletes),
+            Injection::Type(text) => self.type_text(&text, 0, held),
+            Injection::Replace { deletes, insert } => self.type_text(&insert, deletes, held),
         }
         Ok(())
     }
@@ -69,7 +73,7 @@ impl EngineSink for Injector {
 }
 
 impl Injector {
-    fn type_text(&self, text: &str, deletes: u32) {
+    fn type_text(&self, text: &str, deletes: u32, held: HeldKeys) {
         if self.clipboard {
             if deletes > 0 {
                 let inputs = input::build_segment(deletes, "", self.mode);
@@ -80,7 +84,7 @@ impl Injector {
             }
             return;
         }
-        let inputs = input::build_segment(deletes, text, self.mode);
+        let inputs = input::build_segment_held(deletes, text, self.mode, held);
         input::send(&inputs);
     }
 }

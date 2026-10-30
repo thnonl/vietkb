@@ -313,8 +313,9 @@ impl HookRuntime {
             let decision = decide(&action, Some(ch));
             trace.stage(if decision.swallow { "engine-swallow" } else { "engine-pass" });
             if decision.swallow {
+                let held = self.held();
                 if let Some(sink) = self.sink.as_mut() {
-                    if let Err(err) = sink.emit(action) {
+                    if let Err(err) = sink.emit_with(action, held) {
                         tracing::warn!(error = %err, "engine sink failed");
                     }
                 } else {
@@ -479,8 +480,9 @@ impl HookRuntime {
         if decision.swallow {
             let has_sink = self.sink.is_some();
             if has_sink {
+                let held = self.held();
                 if let Some(sink) = self.sink.as_mut() {
-                    if let Err(err) = sink.emit(action) {
+                    if let Err(err) = sink.emit_with(action, held) {
                         tracing::warn!(error = %err, "engine sink failed");
                     }
                 }
@@ -615,8 +617,9 @@ impl HookRuntime {
         if !decision.swallow {
             return false;
         }
+        let held = self.held();
         if let Some(sink) = self.sink.as_mut() {
-            if let Err(err) = sink.emit(action) {
+            if let Err(err) = sink.emit_with(action, held) {
                 tracing::warn!(error = %err, "engine sink failed");
             }
         } else {
@@ -718,17 +721,15 @@ impl HookRuntime {
             }
             return SendResult::default();
         }
-        let user_shift = self.mods.shift_keys;
+        // One source of truth: the hook's own ordered modifier tracking.
+        let held = self.held();
         let build = |deletes: u32, text: &str, mode: SendMode| {
             if chord == Modifiers::NONE {
-                input::build_segment(deletes, text, mode)
+                input::build_segment_held(deletes, text, mode, held)
             } else {
-                input::build_restore(deletes, text, mode, chord, user_shift)
+                input::build_restore(deletes, text, mode, chord, held)
             }
         };
-        // What the user held when the batch was built: a Shift that is down
-        // afterwards and was not theirs is ours, and must not stay down.
-        let held = input::held_now();
         let inputs = build(deletes, text, self.send_mode);
         let mut result = input::send_detailed(&inputs);
         if result.total > 0 && result.sent < result.total {
@@ -746,8 +747,9 @@ impl HookRuntime {
                 result.attempts += rest.attempts;
                 if rest.sent < rest.total {
                     self.auto_excluded = true;
-                    // Stopped halfway: our own half-pressed Shift must not stay down.
-                    input::resync_shift(held);
+                    // Stopped halfway: release only the Shift keys this batch
+                    // pressed and did not release (never one the user pressed).
+                    input::resync_shift(&inputs, result.sent as usize, held.shift);
                 }
             } else if !self.auto_excluded {
                 // Nothing was delivered, so nothing can be duplicated: rebuild
@@ -757,12 +759,20 @@ impl HookRuntime {
                 if result.total > 0 && result.sent < result.total {
                     self.auto_excluded = true;
                     if result.sent > 0 {
-                        input::resync_shift(held);
+                        input::resync_shift(&retry, result.sent as usize, held.shift);
                     }
                 }
             }
         }
         result
+    }
+
+    /// The Shift keys and Caps Lock the user holds at the event being handled.
+    fn held(&self) -> input::Held {
+        input::Held {
+            shift: self.mods.shift_keys,
+            caps: self.mods.caps_lock,
+        }
     }
 
     /// After a short `SendInput`, decide what this app gets next.

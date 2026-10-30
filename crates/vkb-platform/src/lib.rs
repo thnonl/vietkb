@@ -34,6 +34,12 @@ impl AppInfo {
 pub trait EngineSink: Send {
     /// Apply an action to the live target window.
     fn emit(&mut self, action: EngineAction) -> anyhow::Result<()>;
+    /// [`Self::emit`] with the Shift keys and Caps Lock the user holds at this
+    /// event, so the injection can leave them exactly as it found them. A sink
+    /// that does not care ignores `held`.
+    fn emit_with(&mut self, action: EngineAction, _held: plan::HeldKeys) -> anyhow::Result<()> {
+        self.emit(action)
+    }
     fn active_app(&self) -> Option<AppInfo>;
 }
 

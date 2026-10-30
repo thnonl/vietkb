@@ -99,6 +99,24 @@ pub fn decide(action: &EngineAction, ch: Option<char>) -> Decision {
     }
 }
 
+/// The case keys the user holds at the event being decided, taken from the
+/// hook's own ordered modifier tracking (it sees every event, in order, inside
+/// the callback; the OS key-state reads can lag one event there).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HeldKeys {
+    /// Shift keys down, as a bit set: 1 = left, 2 = right, 4 = the generic
+    /// `VK_SHIFT` that synthetic senders emit.
+    pub shift: u8,
+    /// Caps Lock is on.
+    pub caps: bool,
+}
+
+impl HeldKeys {
+    pub fn shift_down(self) -> bool {
+        self.shift != 0
+    }
+}
+
 /// Keep the head of the word the app already shows.
 ///
 /// The engine rewrites the whole word (`delete_units == on_screen.len()`), but

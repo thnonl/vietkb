@@ -17,12 +17,9 @@
 //! in [`crate::clipboard`].
 
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, GetKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY,
 };
-
-#[cfg(any(test, feature = "e2e-harness"))]
-use std::cell::RefCell;
 
 use crate::keys;
 use vkb_core::Modifiers;
@@ -49,120 +46,72 @@ pub fn injected_tag() -> usize {
     crate::e2e::inject_tag()
 }
 
-/// Which of the keys that decide a letter's case the *user* holds right now.
+/// The Shift keys and Caps Lock the *user* holds, from the hook's own ordered
+/// modifier tracking ([`keys::ModifierState`]). The OS key-state reads are not
+/// used to build a batch: inside the low-level callback they can lag one event.
 ///
-/// An injected `Shift` pair must not touch a `Shift` the user holds: the
-/// key-up clears it in the OS (D-E2E-06: every later physical letter then
-/// arrives lowercase). A letter that needs the other case while `Shift` is held
-/// is therefore typed as a Unicode packet, which does not depend on `Shift`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Held {
-    /// Shift keys down, as [`keys::SHIFT_L`] | [`keys::SHIFT_R`] | [`keys::SHIFT_ANY`].
-    pub shift: u8,
-    /// Caps Lock is on.
-    pub caps: bool,
-}
+/// An injected `Shift` pair must not touch a `Shift` the user holds: the key-up
+/// clears it in the OS (D-E2E-06: every later physical letter then arrives
+/// lowercase). A letter that needs the other case while `Shift` is held is
+/// therefore typed as a Unicode packet, which does not depend on `Shift`.
+pub use vkb_platform::plan::HeldKeys as Held;
 
-impl Held {
-    pub fn shift_down(self) -> bool {
-        self.shift != 0
-    }
-}
-
-/// The OS key state a batch is built against. Abstracted so tests can run the
-/// real build path against a simulated desktop.
-pub trait KeyProbe {
-    /// `GetAsyncKeyState` high bit: the key is down now (physical or injected).
-    fn down(&self, vk: u16) -> bool;
-    /// `GetKeyState` low bit: the toggle (Caps Lock) is on.
-    fn toggled(&self, vk: u16) -> bool;
-}
-
-/// The real thing. Reads the OS at build time, on whatever thread builds the
-/// batch, so nothing ambient (no per-thread copy of the hook's model) can go
-/// stale between the key event and `SendInput`.
-struct OsProbe;
-
-impl KeyProbe for OsProbe {
-    fn down(&self, vk: u16) -> bool {
-        (unsafe { GetAsyncKeyState(i32::from(vk)) } as u16) & 0x8000 != 0
-    }
-
-    fn toggled(&self, vk: u16) -> bool {
-        (unsafe { GetKeyState(i32::from(vk)) } & 1) != 0
-    }
-}
-
-#[cfg(any(test, feature = "e2e-harness"))]
-thread_local! {
-    /// Test seam: a simulated desktop for this thread. Never set in a shipped build.
-    static TEST_PROBE: RefCell<Option<Box<dyn KeyProbe>>> = const { RefCell::new(None) };
-}
-
-/// Install (or clear) the simulated key state for the current thread.
-#[cfg(any(test, feature = "e2e-harness"))]
-pub fn set_key_probe(probe: Option<Box<dyn KeyProbe>>) {
-    TEST_PROBE.with(|slot| *slot.borrow_mut() = probe);
-}
-
-fn with_probe<R>(f: impl FnOnce(&dyn KeyProbe) -> R) -> R {
-    #[cfg(any(test, feature = "e2e-harness"))]
-    {
-        let mut f = Some(f);
-        let simulated = TEST_PROBE.with(|slot| {
-            slot.borrow()
-                .as_ref()
-                .and_then(|probe| f.take().map(|f| f(probe.as_ref())))
-        });
-        match (simulated, f) {
-            (Some(result), _) => result,
-            (None, Some(f)) => f(&OsProbe),
-            (None, None) => unreachable!("the closure runs once"),
+/// Shift key-ups and key-downs a batch needs after it stopped halfway.
+///
+/// Ownership is explicit, never inferred from the OS: the events of the part of
+/// the batch the OS accepted (`sent`) are replayed per Shift key.
+///
+/// * a key **we pressed** and did not release is released;
+/// * a key we **released** that the *user* holds (`user_shift`, from the hook's
+///   model) because the restore chord lifted it, and did not press again, is
+///   pressed again.
+///
+/// A Shift the user pressed is never released.
+pub fn repair_shift(sent: &[INPUT], user_shift: u8) -> Vec<INPUT> {
+    // [left, right, generic]: pressed by us / released by us.
+    let mut pressed = [false; 3];
+    let mut lifted = [false; 3];
+    let slot = |vk: u16| match vk {
+        keys::VK_LSHIFT => Some(0),
+        keys::VK_RSHIFT => Some(1),
+        keys::VK_SHIFT => Some(2),
+        _ => None,
+    };
+    for input in sent {
+        let ki = unsafe { input.Anonymous.ki };
+        if ki.dwFlags.0 & KEYEVENTF_UNICODE.0 != 0 || ki.dwExtraInfo != injected_tag() {
+            continue;
+        }
+        let Some(i) = slot(ki.wVk.0) else { continue };
+        if ki.dwFlags.0 & KEYEVENTF_KEYUP.0 != 0 {
+            if pressed[i] {
+                pressed[i] = false;
+            } else {
+                lifted[i] = true;
+            }
+        } else if lifted[i] {
+            lifted[i] = false;
+        } else {
+            pressed[i] = true;
         }
     }
-    #[cfg(not(any(test, feature = "e2e-harness")))]
-    f(&OsProbe)
-}
-
-/// The user's Shift / Caps Lock state, read from the probe.
-pub fn held_from(probe: &dyn KeyProbe) -> Held {
-    let l = probe.down(keys::VK_LSHIFT);
-    let r = probe.down(keys::VK_RSHIFT);
-    let any = probe.down(keys::VK_SHIFT) && !l && !r;
-    Held {
-        shift: (if l { keys::SHIFT_L } else { 0 })
-            | (if r { keys::SHIFT_R } else { 0 })
-            | (if any { keys::SHIFT_ANY } else { 0 }),
-        caps: probe.toggled(keys::VK_CAPITAL),
-    }
-}
-
-/// What the user holds now.
-pub fn held_now() -> Held {
-    with_probe(held_from)
-}
-
-/// Key-ups for any Shift that is down now although the user did not hold one
-/// when the batch was built: a batch that stopped halfway can leave our own
-/// injected `Shift` pressed. Empty when the user held Shift to begin with (then
-/// whatever is down is theirs).
-pub fn stray_shift_release(before: Held, probe: &dyn KeyProbe) -> Vec<INPUT> {
     let mut out = Vec::new();
-    if before.shift_down() {
-        return out;
-    }
-    for vk in [keys::VK_LSHIFT, keys::VK_RSHIFT, keys::VK_SHIFT] {
-        if probe.down(vk) {
-            push_key(&mut out, vk, keys::scan_for_vk(vk), true);
+    for (i, vk) in [keys::VK_LSHIFT, keys::VK_RSHIFT, keys::VK_SHIFT].into_iter().enumerate() {
+        let scan = keys::scan_for_vk(vk);
+        if pressed[i] {
+            push_key(&mut out, vk, scan, true);
+        }
+        if lifted[i] && user_shift & (1 << i) != 0 {
+            push_key(&mut out, vk, scan, false);
         }
     }
     out
 }
 
-/// Release a stray injected `Shift` after a short send (see [`stray_shift_release`]).
-pub fn resync_shift(before: Held) {
-    let inputs = with_probe(|probe| stray_shift_release(before, probe));
-    send_detailed(&inputs);
+/// Send the repair for a batch that stopped after `sent` events.
+pub fn resync_shift(batch: &[INPUT], sent: usize, user_shift: u8) {
+    let repair = repair_shift(&batch[..sent.min(batch.len())], user_shift);
+    send_detailed(&repair);
 }
 
 /// How text is delivered.
@@ -184,12 +133,13 @@ pub fn build(injection: &Injection, mode: SendMode) -> Vec<INPUT> {
     }
 }
 
-/// Backspaces + text in one array, so `Replace` is delivered atomically.
+/// Backspaces + text in one array, so `Replace` is delivered atomically, for a
+/// user who holds no Shift and has Caps Lock off.
 pub fn build_segment(deletes: u32, text: &str, mode: SendMode) -> Vec<INPUT> {
-    build_segment_held(deletes, text, mode, held_now())
+    build_segment_held(deletes, text, mode, Held::default())
 }
 
-/// [`build_segment`] against an explicit key state.
+/// [`build_segment`] against the keys the user holds.
 pub fn build_segment_held(deletes: u32, text: &str, mode: SendMode, held: Held) -> Vec<INPUT> {
     let mut out = Vec::with_capacity((deletes as usize) * 2 + text.encode_utf16().count() * 2);
     push_segment(&mut out, deletes, text, mode, held);
@@ -208,28 +158,28 @@ pub fn build_segment_held(deletes: u32, text: &str, mode: SendMode, held: Held) 
 /// chord's own modifiers here is safe: it only runs when the user has already
 /// let go of every key of the chord. Plain typing never uses this path.
 ///
-/// `user_shift` is what the *user* still holds once the chord is released
-/// ([`keys::ModifierState::shift_keys`], after the key-up that fired it). That
-/// Shift was lifted for the batch, so the batch ends by pressing exactly those
-/// keys again: the OS must agree with the keyboard afterwards.
+/// `held` is what the *user* still holds once the chord is released (the hook's
+/// model after the key-up that fired it). That Shift was lifted for the batch,
+/// so the batch ends by pressing exactly those keys again: the OS must agree
+/// with the keyboard afterwards.
 pub fn build_restore(
     deletes: u32,
     text: &str,
     mode: SendMode,
     chord: Modifiers,
-    user_shift: u8,
+    held: Held,
 ) -> Vec<INPUT> {
     let mut out =
         Vec::with_capacity(10 + (deletes as usize) * 2 + text.encode_utf16().count() * 2);
     push_chord_release(&mut out, chord);
-    let held = Held {
-        // The chord's own `Shift` is up for the rest of the batch.
-        shift: if chord.shift { 0 } else { user_shift },
-        caps: with_probe(|probe| probe.toggled(keys::VK_CAPITAL)),
+    // The chord's own `Shift` is up for the rest of the batch.
+    let during = Held {
+        shift: if chord.shift { 0 } else { held.shift },
+        caps: held.caps,
     };
-    push_segment(&mut out, deletes, text, mode, held);
+    push_segment(&mut out, deletes, text, mode, during);
     if chord.shift {
-        push_shift_down(&mut out, user_shift);
+        push_shift_down(&mut out, held.shift);
     }
     out
 }
@@ -727,22 +677,6 @@ mod tests {
     const LEFT: Held = Held { shift: keys::SHIFT_L, caps: false };
     const RIGHT: Held = Held { shift: keys::SHIFT_R, caps: false };
 
-    /// A simulated desktop for `held_now` / `resync_shift`.
-    struct Fake {
-        down: Vec<u16>,
-        caps: bool,
-    }
-
-    impl KeyProbe for Fake {
-        fn down(&self, vk: u16) -> bool {
-            self.down.contains(&vk)
-        }
-
-        fn toggled(&self, _vk: u16) -> bool {
-            self.caps
-        }
-    }
-
     #[test]
     fn a_held_shift_is_never_released_for_a_capital() {
         // D-E2E-06: the pair `Shift` down / `Shift` up cleared the user's own
@@ -798,20 +732,6 @@ mod tests {
     }
 
     #[test]
-    fn held_state_is_read_from_the_probe() {
-        let probe = Fake { down: vec![keys::VK_RSHIFT], caps: true };
-        assert_eq!(held_from(&probe), Held { shift: keys::SHIFT_R, caps: true });
-        let generic = Fake { down: vec![keys::VK_SHIFT], caps: false };
-        assert_eq!(held_from(&generic).shift, keys::SHIFT_ANY);
-        let both = Fake { down: vec![keys::VK_SHIFT, keys::VK_LSHIFT], caps: false };
-        assert_eq!(held_from(&both).shift, keys::SHIFT_L, "the sided key wins over the generic one");
-        // The same read through the seam `held_now` uses.
-        set_key_probe(Some(Box::new(Fake { down: vec![keys::VK_LSHIFT], caps: false })));
-        assert_eq!(held_now(), LEFT);
-        set_key_probe(None);
-    }
-
-    #[test]
     fn restore_chord_shift_is_pressed_again_for_exactly_the_keys_the_user_holds() {
         let chord = Modifiers { shift: true, ctrl: true, alt: false, win: false };
         for (mask, vk) in [
@@ -819,7 +739,7 @@ mod tests {
             (keys::SHIFT_R, keys::VK_RSHIFT),
             (keys::SHIFT_ANY, keys::VK_SHIFT),
         ] {
-            let inputs = build_restore(1, "T", SendMode::Unicode, chord, mask);
+            let inputs = build_restore(1, "T", SendMode::Unicode, chord, Held { shift: mask, caps: false });
             let events: Vec<(u16, bool)> = inputs.iter().map(|i| (field(i).0, is_up(i))).collect();
             assert_eq!(events.last(), Some(&(vk, false)), "the held key is pressed last");
             let presses = events.iter().filter(|e| !e.1 && matches!(e.0, 0xA0 | 0xA1 | 0x10)).count();
@@ -829,22 +749,137 @@ mod tests {
             assert_eq!(events[t - 1], (keys::VK_SHIFT, false), "the capital still gets its pair");
         }
         // The user holds nothing once the chord is released: nothing is re-pressed.
-        let inputs = build_restore(1, "T", SendMode::Unicode, chord, 0);
+        let inputs = build_restore(1, "T", SendMode::Unicode, chord, Held::default());
         let last = inputs.last().map(|i| (field(i).0, is_up(i)));
         assert_eq!(last, Some((keys::VK_SHIFT, true)));
     }
 
+    /// (vk, up) of every event.
+    fn events(inputs: &[INPUT]) -> Vec<(u16, bool)> {
+        inputs.iter().map(|i| (field(i).0, is_up(i))).collect()
+    }
+
     #[test]
-    fn a_stray_injected_shift_is_released_but_the_users_is_not() {
-        let stuck = Fake { down: vec![keys::VK_SHIFT], caps: false };
-        let ups = stray_shift_release(Held::default(), &stuck);
-        assert_eq!(ups.len(), 1);
-        assert_eq!((field(&ups[0]).0, is_up(&ups[0])), (keys::VK_SHIFT, true));
-        // The user holds right Shift: whatever is down is theirs.
-        let theirs = Fake { down: vec![keys::VK_RSHIFT], caps: false };
-        assert!(stray_shift_release(RIGHT, &theirs).is_empty());
-        // Nothing down: nothing to send.
-        assert!(stray_shift_release(Held::default(), &Fake { down: vec![], caps: false }).is_empty());
+    fn repair_releases_only_the_shift_we_pressed() {
+        // Capital pair `Shift` down, T down, T up, `Shift` up; the OS took the
+        // first two events only.
+        let batch = build_segment_held(0, "T", SendMode::Standard, Held::default());
+        let repair = repair_shift(&batch[..2], 0);
+        assert_eq!(events(&repair), vec![(keys::VK_SHIFT, true)]);
+        // The whole pair went through: nothing to repair.
+        assert!(repair_shift(&batch, 0).is_empty());
+        // The OS took nothing: nothing to repair.
+        assert!(repair_shift(&batch[..0], 0).is_empty());
+    }
+
+    #[test]
+    fn repair_never_releases_a_shift_the_user_pressed() {
+        // The user holds right Shift; the batch is a capital, which presses no
+        // Shift at all, so there is nothing of ours to release however far it got.
+        let batch = build_segment_held(1, "T", SendMode::Unicode, RIGHT);
+        for cut in 0..=batch.len() {
+            assert!(repair_shift(&batch[..cut], keys::SHIFT_R).is_empty(), "cut at {cut}");
+        }
+    }
+
+    #[test]
+    fn repair_presses_again_a_user_shift_the_restore_chord_lifted() {
+        let chord = Modifiers { shift: true, ctrl: true, alt: false, win: false };
+        let held = Held { shift: keys::SHIFT_R, caps: false };
+        let batch = build_restore(1, "a", SendMode::Unicode, chord, held);
+        // Stopped after the chord release, before the closing press.
+        let cut = batch.len() - 1;
+        let repair = repair_shift(&batch[..cut], keys::SHIFT_R);
+        assert_eq!(events(&repair), vec![(keys::VK_RSHIFT, false)]);
+        // The user let go meanwhile (the hook's model says so): leave it up.
+        assert!(repair_shift(&batch[..cut], 0).is_empty());
+        // Whole batch: balanced.
+        assert!(repair_shift(&batch, keys::SHIFT_R).is_empty());
+    }
+
+    /// An independent statement of the batch `main` built before the Shift
+    /// changes: every key as written out by hand, nothing shared with the code
+    /// under test except the VK / scancode tables.
+    fn main_batch(deletes: u32, text: &str, mode: SendMode) -> Vec<(u16, u16, u32, usize)> {
+        let tag = injected_tag();
+        let down = 0u32;
+        let up = KEYEVENTF_KEYUP.0;
+        let mut out = Vec::new();
+        let back = if mode == SendMode::Standard { keys::scan_for_vk(keys::VK_BACK) } else { 0 };
+        for _ in 0..deletes {
+            out.push((keys::VK_BACK, back, down, tag));
+            out.push((keys::VK_BACK, back, up, tag));
+        }
+        let scancode_ascii = mode == SendMode::Standard || deletes > 0;
+        for ch in text.chars() {
+            if ch == '\n' {
+                let scan = keys::scan_for_vk(keys::VK_RETURN);
+                out.push((keys::VK_RETURN, scan, down, tag));
+                out.push((keys::VK_RETURN, scan, up, tag));
+                continue;
+            }
+            match keys::us_vk_for_char(ch).filter(|_| scancode_ascii) {
+                Some((vk, shift)) => {
+                    let shift_scan = keys::scan_for_vk(keys::VK_SHIFT);
+                    if shift {
+                        out.push((keys::VK_SHIFT, shift_scan, down, tag));
+                    }
+                    out.push((vk, keys::scan_for_vk(vk), down, tag));
+                    out.push((vk, keys::scan_for_vk(vk), up, tag));
+                    if shift {
+                        out.push((keys::VK_SHIFT, shift_scan, up, tag));
+                    }
+                }
+                None => {
+                    let mut units = [0u16; 2];
+                    for unit in ch.encode_utf16(&mut units).iter().copied() {
+                        out.push((0, unit, KEYEVENTF_UNICODE.0, tag));
+                        out.push((0, unit, KEYEVENTF_UNICODE.0 | up, tag));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn with_no_shift_held_every_batch_is_byte_identical_to_main() {
+        // Ruling C: without a held Shift (and Caps Lock off) nothing changes,
+        // for `send_standard` and for the packet default, with and without a
+        // delete block.
+        let text = "Việt Nam ăâđêôơư ABC xyz 019 !@#$ .,;:'\"[]{}|\\-=_+<>?/`~\n😀 tAs Đ";
+        for mode in [SendMode::Standard, SendMode::Unicode] {
+            for deletes in [0, 1, 4] {
+                let built: Vec<_> = build_segment_held(deletes, text, mode, Held::default())
+                    .iter()
+                    .map(field)
+                    .collect();
+                assert_eq!(built, main_batch(deletes, text, mode), "{mode:?} deletes={deletes}");
+                // The no-argument entry point is the same batch.
+                let plain: Vec<_> = build_segment(deletes, text, mode).iter().map(field).collect();
+                assert_eq!(plain, built);
+            }
+        }
+    }
+
+    #[test]
+    fn a_packet_for_an_ascii_letter_needs_a_held_shift_and_the_other_case() {
+        for mode in [SendMode::Standard, SendMode::Unicode] {
+            for held in [Held::default(), Held { shift: 0, caps: true }] {
+                // Nothing held: never a packet for a letter in a delete block.
+                let inputs = build_segment_held(1, "AbCd", mode, held);
+                assert!(
+                    inputs.iter().skip(2).all(|i| field(i).0 != 0),
+                    "{mode:?} {held:?}: no packet without a held Shift"
+                );
+            }
+            // Shift held, the letter shows the case it needs: still a key.
+            let inputs = build_segment_held(1, "AB", mode, LEFT);
+            assert!(inputs.iter().skip(2).all(|i| field(i).0 != 0));
+            // Shift held, other case: the one packet.
+            let inputs = build_segment_held(1, "a", mode, LEFT);
+            assert!(inputs.iter().skip(2).all(|i| field(i).0 == 0));
+        }
     }
 
     #[test]
@@ -1017,7 +1052,7 @@ mod tests {
 
     #[test]
     fn restore_of_ba6t5_keeps_every_character_unshifted() {
-        let inputs = build_restore(5, "ba6t5", SendMode::Unicode, chord_ctrl_shift(), 0);
+        let inputs = build_restore(5, "ba6t5", SendMode::Unicode, chord_ctrl_shift(), Held::default());
         assert_eq!(
             typed(&inputs, Modifiers::NONE),
             vec![('b', false), ('a', false), ('6', false), ('t', false), ('5', false)],
@@ -1038,25 +1073,25 @@ mod tests {
             ]),
         ];
         for (text, want) in cases {
-            let inputs = build_restore(1, text, SendMode::Unicode, chord_ctrl_shift(), 0);
+            let inputs = build_restore(1, text, SendMode::Unicode, chord_ctrl_shift(), Held::default());
             assert_eq!(typed(&inputs, Modifiers::NONE), want, "text {text:?}");
         }
     }
 
     #[test]
     fn restore_keeps_diacritics_and_surrogate_pairs_on_the_packet_path() {
-        let inputs = build_restore(3, "ăâđêôơư", SendMode::Unicode, chord_ctrl_shift(), 0);
+        let inputs = build_restore(3, "ăâđêôơư", SendMode::Unicode, chord_ctrl_shift(), Held::default());
         let want: Vec<(char, bool)> = "ăâđêôơư".chars().map(|ch| (ch, false)).collect();
         assert_eq!(typed(&inputs, Modifiers::NONE), want);
 
-        let emoji = build_restore(1, "😀", SendMode::Unicode, chord_ctrl_shift(), 0);
+        let emoji = build_restore(1, "😀", SendMode::Unicode, chord_ctrl_shift(), Held::default());
         assert_eq!(typed(&emoji, Modifiers::NONE), vec![('😀', false)]);
     }
 
     #[test]
     fn restore_of_mixed_text_types_it_verbatim() {
         let text = "Ba6t5 100% ^ăâđêôơư 😀";
-        let inputs = build_restore(9, text, SendMode::Unicode, chord_ctrl_shift(), 0);
+        let inputs = build_restore(9, text, SendMode::Unicode, chord_ctrl_shift(), Held::default());
         assert_eq!(
             replay(&inputs, Modifiers::NONE),
             text,
@@ -1068,7 +1103,7 @@ mod tests {
     /// chord's key-up was still in flight, so the whole batch was shifted.
     #[test]
     fn restore_neutralises_a_chord_that_is_still_held() {
-        let inputs = build_restore(5, "ba6t5", SendMode::Unicode, chord_ctrl_shift(), 0);
+        let inputs = build_restore(5, "ba6t5", SendMode::Unicode, chord_ctrl_shift(), Held::default());
         let shift_only = Modifiers {
             shift: true,
             ctrl: false,
@@ -1105,13 +1140,13 @@ mod tests {
             "…the old batch is eaten as `Ctrl+letter` shortcuts"
         );
         // Nothing extra is released for a chord that has no modifiers.
-        let plain = build_restore(5, "ba6t5", SendMode::Unicode, Modifiers::NONE, 0);
+        let plain = build_restore(5, "ba6t5", SendMode::Unicode, Modifiers::NONE, Held::default());
         assert_eq!(plain.len(), 5 * 2 + 5 * 2, "no prefix events");
     }
 
     #[test]
     fn restore_prefix_is_key_ups_only() {
-        let inputs = build_restore(1, "a", SendMode::Unicode, chord_ctrl_shift(), 0);
+        let inputs = build_restore(1, "a", SendMode::Unicode, chord_ctrl_shift(), Held::default());
         // Shift (both sides) and Ctrl (both sides), all key-ups, all ours.
         assert_eq!(inputs.len(), 4 + 2 + 2, "4 release events, backspace, 'a'");
         let released: Vec<(u16, bool, u32)> =
