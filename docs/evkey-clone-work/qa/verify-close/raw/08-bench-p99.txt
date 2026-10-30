@@ -1,0 +1,18 @@
+keys:      1000000
+method:    telex
+p50:       300 ns  (0.300 µs)
+p95:       900 ns  (0.900 µs)
+p99:       1000 ns  (1.000 µs)   budget 50000 ns
+max:       321800 ns  (321.800 µs)
+throughput:   2354802 keys/sec
+P1 (p99 ≤ 50 µs): PASS
+EXIT=0
+keys:      1000000
+method:    vni
+p50:       300 ns  (0.300 µs)
+p95:       500 ns  (0.500 µs)
+p99:       600 ns  (0.600 µs)   budget 50000 ns
+max:       767800 ns  (767.800 µs)
+throughput:   3123177 keys/sec
+P1 (p99 ≤ 50 µs): PASS
+EXIT=0

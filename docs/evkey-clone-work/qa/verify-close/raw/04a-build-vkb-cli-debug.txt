@@ -1,0 +1,4 @@
+   Compiling vkb-core v0.1.0 (E:\vietkb\crates\vkb-core)
+   Compiling vkb-config v0.1.0 (E:\vietkb\crates\vkb-config)
+   Compiling vkb-cli v0.1.0 (E:\vietkb\crates\vkb-cli)
+    Finished `dev` profile [optimized + debuginfo] target(s) in 3.41s

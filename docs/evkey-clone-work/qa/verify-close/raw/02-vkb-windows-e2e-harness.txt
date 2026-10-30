@@ -1,0 +1,123 @@
+   Compiling vkb-core v0.1.0 (E:\vietkb\crates\vkb-core)
+   Compiling windows v0.58.0
+   Compiling vkb-config v0.1.0 (E:\vietkb\crates\vkb-config)
+   Compiling vkb-platform v0.1.0 (E:\vietkb\crates\vkb-platform)
+   Compiling vkb-windows v0.1.0 (E:\vietkb\crates\vkb-windows)
+    Finished `test` profile [optimized + debuginfo] target(s) in 11.68s
+     Running unittests src\lib.rs (target\debug\deps\vkb_windows-18ada6564214f860.exe)
+
+running 96 tests
+test clipboard::tests::text_round_trip_restores_previous_contents ... ignored, clobbers the clipboard; run with --ignored on an idle desktop
+test autostart::tests::command_is_quoted_for_spaces ... ok
+test autostart::tests::registry_paths_match_the_documented_ones ... ok
+test autostart::tests::entry_counts_as_enabled_with_or_without_the_flag ... ok
+test autostart::tests::wide_strings_are_nul_terminated ... ok
+test backend::tests::backend_reports_not_running_before_start ... ok
+test globals::tests::command_callback_maps_backend_commands ... ok
+test backend::tests::injector_ignores_noop_actions ... ok
+test hotkeys::tests::ctrl_alt_letter_combo_maps_to_the_letter_key ... ok
+test hotkeys::tests::default_config_fires_on_release ... ok
+test foreground::tests::invalid_key_detection ... ok
+test backend::tests::injector_defaults_are_the_safe_path ... ok
+test globals::tests::enabled_flag_round_trips ... ok
+test hotkeys::tests::combo_is_a_copy_type ... ok
+test hotkeys::tests::cycle_hotkey_compiles_and_fires ... ok
+test autostart::tests::registry_write_round_trip ... ok
+test hotkeys::tests::default_hotkeys_compile_and_fire ... ok
+test globals::tests::callbacks_are_invoked_and_can_be_replaced ... ok
+test hotkeys::tests::function_and_named_keys_have_virtual_codes ... ok
+test hotkeys::tests::letters_do_not_gain_shift ... ok
+test foreground::tests::foreground_probe_returns_a_process_on_a_live_session ... ok
+test hotkeys::tests::default_config_toggles_on_ctrl_shift_in_every_release_order ... ok
+test hotkeys::tests::default_restore_chord_beats_the_toggle_in_press_mode ... ok
+test hotkeys::tests::shifted_punctuation_hotkey_requires_shift ... ok
+test hotkeys::tests::owner_config_restore_chord_fires_when_the_chord_is_up ... ok
+test hotkeys::tests::modifier_only_toggle_compiles_without_a_key ... ok
+test hotkeys::tests::the_run_config_binds_alt_shift_and_not_ctrl_shift ... ok
+test hotkeys::tests::unbound_hotkeys_are_skipped ... ok
+test ime::tests::keyboard_state_reflects_modifiers ... ok
+test ime::tests::no_window_means_no_composition ... ok
+test input::tests::ctrl_v_presses_and_releases_in_order ... ok
+test input::tests::every_event_is_tagged_as_ours ... ok
+test input::tests::empty_send_is_a_no_op ... ok
+test input::tests::macro_newline_is_typed_as_return ... ok
+test input::tests::nothing_is_built_for_noop_and_beep ... ok
+test input::tests::replace_is_one_batch_backspaces_then_text ... ok
+test input::tests::replace_keeps_surrogate_pairs_whole ... ok
+test input::tests::replace_order_is_all_deletes_then_all_text ... ok
+test input::tests::replace_types_ascii_with_scancodes_in_unicode_mode ... ok
+test input::tests::replace_wraps_shifted_ascii_in_shift ... ok
+test input::tests::restore_keeps_diacritics_and_surrogate_pairs_on_the_packet_path ... ok
+test input::tests::restore_neutralises_a_chord_that_is_still_held ... ok
+test input::tests::restore_of_ba6t5_keeps_every_character_unshifted ... ok
+test input::tests::restore_of_mixed_text_types_it_verbatim ... ok
+test input::tests::restore_prefix_is_key_ups_only ... ok
+test input::tests::restore_shift_decision_is_per_character_not_per_batch ... ok
+test input::tests::standard_mode_backspace_has_scan_code ... ok
+test input::tests::standard_mode_falls_back_to_unicode_for_diacritics ... ok
+test input::tests::standard_mode_replace_is_unchanged ... ok
+test input::tests::standard_mode_uses_scancodes_for_ascii ... ok
+test input::tests::standard_mode_wraps_uppercase_in_shift ... ok
+test input::tests::type_keeps_unicode_packets_in_unicode_mode ... ok
+test input::tests::unicode_mode_splits_surrogate_pairs ... ok
+test keys::tests::boundary_and_mover_sets ... ok
+test keys::tests::caps_lock_toggles_only_on_key_down ... ok
+test keys::tests::digits_map_to_shifted_symbols ... ok
+test keys::tests::every_standard_mode_char_has_a_scancode ... ok
+test keys::tests::letters_follow_shift_and_caps ... ok
+test keys::tests::modifier_classification ... ok
+test keys::tests::modifier_state_tracks_press_and_release ... ok
+test keys::tests::non_ascii_has_no_standard_vk ... ok
+test keys::tests::punctuation_and_control_keys ... ok
+test keys::tests::scancodes_cover_the_typing_alphabet ... ok
+test keys::tests::us_char_and_vk_round_trip ... ok
+test perf::tests::budget_verdict_needs_enough_samples ... ok
+test perf::tests::civil_dates_match_known_days ... ok
+test perf::tests::nearest_rank_percentiles_are_exact_on_a_ramp ... ok
+test perf::tests::probe_is_off_unless_the_environment_says_so ... ok
+test perf::tests::report_lands_under_appdata_vietkb ... ok
+test sound::tests::durations_and_peaks_match_spec ... ok
+test sound::tests::levels_dc_offset_and_fades ... ok
+test sound::tests::on_and_off_are_a_distinct_pair ... ok
+test sound::tests::packs_are_pcm16_22k_mono ... ok
+test state::tests::context_change_flushes_the_pending_word ... ok
+test state::tests::apply_config_clears_the_swallowed_bits ... ok
+test state::tests::auto_repeat_follows_the_bit_not_the_latch ... ok
+test state::tests::method_cycle_wraps_between_two_methods ... ok
+test state::tests::numpad_stays_non_text ... ok
+test state::tests::bit_is_set_only_when_the_key_down_was_swallowed ... ok
+test state::tests::remember_per_app_off_writes_nothing ... ok
+test state::tests::packet_w_transforms_with_empty_word ... ok
+test state::tests::explicit_rule_beats_everything ... ok
+test state::tests::fresh_down_passes_when_both_the_down_and_trigger_bits_are_stale ... ok
+test state::tests::key_bitset_tracks_autorepeat ... ok
+test state::tests::mouse_button_down_ends_the_word ... ok
+test state::tests::control_packet_is_not_text ... ok
+test state::tests::plain_packet_with_empty_word_is_noop ... ok
+test state::tests::release_mode_trigger_down_and_up_are_swallowed ... ok
+test state::tests::remember_per_app_keeps_state_per_process ... ok
+test state::tests::remembered_app_rule_round_trips_through_config ... ok
+test state::tests::restore_releases_the_configured_chord ... ok
+test state::tests::restore_word_hotkey_rewrites_the_word_on_release ... ok
+test state::tests::short_send_switches_to_standard_then_excludes ... ok
+test state::tests::stale_bit_is_cleared_by_a_fresh_key_down ... ok
+test state::tests::startup_honours_a_persisted_disabled_rule ... ok
+test state::tests::toggle_twice_returns_to_previous_state ... ok
+
+test result: ok. 95 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\hook_integration.rs (target\debug\deps\hook_integration-81442a070949ec08.exe)
+
+running 3 tests
+test hook_installs_fires_hotkey_and_uninstalls ... ignored, installs a global keyboard hook; run manually on an interactive desktop
+test install_is_idempotent_and_stop_is_safe ... ignored, installs a global keyboard hook; run manually on an interactive desktop
+test enabled_flag_never_sticks ... ok
+
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vkb_windows
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

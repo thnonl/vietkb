@@ -1,0 +1,37 @@
+   Compiling vkb-core v0.1.0 (E:\vietkb\crates\vkb-core)
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.90s
+     Running tests\tone_change.rs (target\debug\deps\tone_change-b878961de6efc6c0.exe)
+
+running 29 tests
+test d_tn_02_z_without_a_tone_is_literal ... ok
+test d_tn_01_same_tone_key_with_a_coda_in_between_keeps_the_tone ... ok
+test d_tn_01_adjacent_repeat_is_still_the_documented_escape ... ok
+test d_tn_01_same_tone_with_a_coda_mid_word_keeps_the_marks ... ok
+test d_tn_02_z_removes_the_tone ... ok
+test d_tn_02_z_keeps_the_circumflex ... ok
+test d_tn_02_a_tone_can_be_typed_again_after_z ... ok
+test d_tn_04_legal_changes_still_apply ... ok
+test d_tn_05_adjacent_digit_escape_is_unchanged ... ok
+test d_tn_03_zero_keeps_the_marks ... ok
+test d_tn_06_owner_repro_after_enter_does_not_reopen ... ok
+test d_tn_04_the_fresh_word_sibling_is_literal_too ... ok
+test d_tn_04_illegal_tone_change_before_a_stop_coda_is_literal ... ok
+test d_tn_06_owner_repro_telex_tone_key_after_deleted_space ... ok
+test d_tn_03_zero_with_nothing_to_remove_is_a_literal_digit ... ok
+test d_tn_05_digit_with_no_target_is_literal ... ok
+test d_tn_06_backspace_keeps_the_display_unchanged ... ok
+test d_tn_06_vni_tone_digit_after_backspace ... ok
+test d_tn_04_spell_check_off_applies_the_tone ... ok
+test d_tn_06_owner_repro_every_tone_on_a_real_word ... ok
+test d_tn_06_owner_repro_reopens_only_the_immediately_preceding_word ... ok
+test d_tn_06_owner_repro_reopen_a_two_unit_tone_target ... ok
+test d_tn_06_owner_repro_vni_tone_digit_after_deleted_space ... ok
+test d_tn_06_owner_repro_works_after_every_separator ... ok
+test d_tn_06_tone_key_after_backspace_replaces_the_tone ... ok
+test d_tn_07_plain_letter_after_backspace_appends_with_marks_intact ... ok
+test d_tn_08_letter_after_a_tone_key_appends_instead_of_escaping_the_mark ... ok
+test d_tn_08_the_real_doubled_letter_escape_still_fires ... ok
+test documented_adjacent_escapes_after_backspace_are_unchanged ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

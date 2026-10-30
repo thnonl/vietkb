@@ -1,0 +1,17 @@
+   Compiling vkb-core v0.1.0 (E:\vietkb\crates\vkb-core)
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.58s
+     Running tests\raw_zone.rs (target\debug\deps\raw_zone-430b479a1947b396.exe)
+
+running 9 tests
+test backspace_after_an_opener_restores_the_word ... ok
+test raw_zone_does_not_fire_after_whitespace ... ok
+test ellipsis_and_digit_dot_do_not_arm_the_raw_zone ... ok
+test raw_zone_can_be_disabled ... ok
+test arming_needs_a_code_shaped_left_token ... ok
+test caret_keys_clear_the_armed_raw_zone ... ok
+test raw_zone_keeps_paths_and_emails_literal ... ok
+test raw_zone_is_recomputed_per_opener ... ok
+test set_options_clears_the_armed_raw_zone ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

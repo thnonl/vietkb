@@ -1,0 +1,9 @@
+   Compiling vkb-windows v0.1.0 (E:\vietkb\crates\vkb-windows)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.56s
+     Running unittests src\lib.rs (target\debug\deps\vkb_windows-0f2822a163672b56.exe)
+
+running 1 test
+test state::tests::bare_shift_between_letters_does_not_end_the_word ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 97 filtered out; finished in 0.00s
+

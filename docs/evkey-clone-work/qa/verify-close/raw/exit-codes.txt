@@ -1,0 +1,17 @@
+01-cargo-test-workspace EXIT=0 CMD=cargo test --workspace
+02-vkb-windows-e2e-harness EXIT=0 CMD=cargo test -p vkb-windows --features e2e-harness
+03a-vkb-core-no_alloc EXIT=0 CMD=cargo test -p vkb-core --test no_alloc
+03b-vkb-core-raw_zone EXIT=0 CMD=cargo test -p vkb-core --test raw_zone
+03c-vkb-core-tone_change EXIT=0 CMD=cargo test -p vkb-core --test tone_change
+04a-build-vkb-cli-debug EXIT=0 CMD=cargo build -p vkb-cli
+04b-build-vkb-cli-release EXIT=0 CMD=cargo build -p vkb-cli --release
+DONE
+05-tone-matrix EXIT=127 CMD=powershell -NoProfile -File docs\evkey-clone-work\qa\tone\run.ps1
+05-tone-matrix EXIT=1 CMD=powershell -NoProfile -File docs/evkey-clone-work/qa/tone/run.ps1
+05-tone-matrix EXIT=0 CMD=powershell -NoProfile -ExecutionPolicy Bypass -File docs/evkey-clone-work/qa/tone/run.ps1
+06-check-corpus EXIT=0 CMD=powershell -NoProfile -ExecutionPolicy Bypass -File docs/evkey-clone-work/qa/e2e/check-corpus.ps1
+07-check-edge-cases EXIT=0 CMD=powershell -NoProfile -ExecutionPolicy Bypass -File docs/evkey-clone-work/qa/e2e/check-edge-cases.ps1
+08-bench-p99 EXIT=0 CMD=target/release/vkb.exe bench --keys 1000000 --method telex|vni
+09-zero-focus-e2e EXIT=0 CMD=cargo run -p vkb-windows --features e2e-harness --example zero_focus_e2e --release (default in-process mode, no --live-hooks)
+10-new-bare-shift-test EXIT=0 CMD=cargo test -p vkb-windows --lib bare_shift (test added by QA to state.rs tests)
+11-cargo-test-workspace-after-qa-test EXIT=0 CMD=cargo test --workspace (re-run after QA added state.rs test)

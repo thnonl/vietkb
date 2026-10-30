@@ -1,0 +1,5 @@
+rows: 123   PASS: 123   FAIL: 0
+failing ids: 
+build: E:\vietkb\target\debug\vkb.exe  1050112 B  sha256 19782BB99E7D808DDB265B9A023A67BA6E8198CC83A4FC6C9AEE9F018F74241F
+head: b418c21 (+ uncommitted working tree)
+harness: docs/evkey-clone-work/qa/tone/run.ps1

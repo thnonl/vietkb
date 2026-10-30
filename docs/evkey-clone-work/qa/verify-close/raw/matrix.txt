@@ -1,0 +1,130 @@
+﻿rows: 123   PASS: 123   FAIL: 0
+failing ids: 
+build: E:\vietkb\target\debug\vkb.exe  1050112 B  sha256 19782BB99E7D808DDB265B9A023A67BA6E8198CC83A4FC6C9AEE9F018F74241F
+head: b418c21 (+ uncommitted working tree)
+harness: docs/evkey-clone-work/qa/tone/run.ps1
+
+id	method	charset	options	keystrokes	expected	actual	verdict	source
+A-01	telex	unicode		baajts	bất	bất	PASS	A4+A9: s replaces nang, sac legal before coda t
+A-02	telex	unicode		baajtj	bật	bật	PASS	EVKey: the same tone key on a finished word changes nothing; A1 escape table / E-TE-002 pin only the ADJACENT repeat
+A-03	telex	unicode		baajtf	bậtf	bậtf	PASS	A1 rule 5 + A9: huyen is illegal before coda t -> trigger literal
+A-04	telex	unicode		baajtr	bậtr	bậtr	PASS	A1 rule 5 + A9: hoi illegal before coda t
+A-05	telex	unicode		baajtx	bậtx	bậtx	PASS	A1 rule 5 + A9: nga illegal before coda t
+A-06	telex	unicode		basf	bà	bà	PASS	A4: no coda, huyen legal
+A-07	telex	unicode		basr	bả	bả	PASS	A4: no coda, hoi legal
+A-08	telex	unicode		basx	bã	bã	PASS	A4: no coda, nga legal
+A-09	telex	unicode		basj	bạ	bạ	PASS	A4: no coda, nang legal
+A-10	telex	unicode		bass	bas	bas	PASS	A1 escape table / 50-test E-TE-002: adjacent repeat is the documented escape
+A-11	telex	unicode		basz	ba	ba	PASS	A1: z removes the tone
+A-12	telex	unicode		az	az	az	PASS	A1: z with no tone present is literal
+A-13	telex	unicode		toansz	toan	toan	PASS	A1: z removes the tone of a coda word
+A-14	telex	unicode		baajz	bâ	bâ	PASS	A1+A5: z removes the tone, the circumflex stays
+A-15	telex	unicode		bans<BS>s	bas	bas	PASS	A7 rebuilds raw bas; the repeated s is the documented ADJACENT escape (A-10 / E-TE-002 analogue)
+A-16	telex	unicode		hoangff	hoangf	hoangf	PASS	documented adjacent escape: raw hoangf is what E-TE-002 pins for a double press
+A-17	telex	unicode		hoangfj	hoạng	hoạng	PASS	A4: different tone replaces, tone on a of ang
+A-18	telex	unicode		hoangfs	hoáng	hoáng	PASS	A4: different tone replaces
+A-19	telex	unicode		baajt<SP>f	bật f	bật f	PASS	A6: the space committed the word; f starts a new word with no vowel -> literal
+A-20	telex	unicode		baajt<SP>s	bật s	bật s	PASS	A6: same, s is literal in the next word
+A-21	telex	unicode		baajt<SP><SP>as	bật  á	bật  á	PASS	A6: the tone key still reaches the new word
+A-22	telex	unicode		baajt.f	bật.f	bật.f	PASS	A6: punctuation commits; f is literal in the next word
+A-23	telex	unicode		baajt.<BS>s	bất	bất	PASS	A7 step 1: BS after a separator re-opens the word, s changes the tone
+A-24	telex	unicode		Baajtf	Bậtf	Bậtf	PASS	A12 + A1 rule 5: case of the base key, trigger still illegal
+A-25	telex	unicode		Baajts	Bất	Bất	PASS	A12: capital first letter, legal tone change
+A-26	telex	unicode		BAATJf	BẬTf	BẬTf	PASS	A12 + A1 rule 5
+A-27	telex	unicode		BAATJs	BẤT	BẤT	PASS	A12
+A-28	telex	unicode		bas<BS>as	bá	bá	PASS	A7: delete the toned char, retype it with the same tone
+A-29	telex	unicode		bas<BS>af	bà	bà	PASS	A7: retype the vowel, then a different tone key
+A-30	telex	unicode		bans<BS>f	bà	bà	PASS	A7 step 4: the next key re-places the tone on the surviving word
+A-31	telex	unicode		dduowcjf	đượcf	đượcf	PASS	A9: huyen illegal before coda c
+A-32	telex	unicode		dduowcjs	đước	đước	PASS	A9: sac legal before coda c
+A-33	telex	unicode		kieemsf	kiềm	kiềm	PASS	A9: m is not in {c ch p t}, huyen legal
+A-34	telex	unicode		dduowcjj	dduowcj	dduowcj	PASS	documented adjacent escape (raw minus the first trigger)
+A-35	vni	unicode		ba65t1	bất	bất	PASS	A2: 1 = sac, legal before t
+A-36	vni	unicode		ba65t2	bật2	bật2	PASS	A2 rule 5 + A9: huyen illegal before t -> digit literal
+A-37	vni	unicode		ba65t3	bật3	bật3	PASS	A2 rule 5 + A9: hoi illegal before t
+A-38	vni	unicode		ba65t4	bật4	bật4	PASS	A2 rule 5 + A9: nga illegal before t
+A-39	vni	unicode		ba65t5	bật	bật	PASS	EVKey: the tone digit already in force changes nothing
+A-40	vni	unicode		ba11	ba1	ba1	PASS	A2 digit escape: same digit repeated reverts + literal
+A-41	vni	unicode		ba12	bà	bà	PASS	A2: 2 = huyen
+A-42	vni	unicode		ba15	bạ	bạ	PASS	A2: 5 = nang
+A-43	vni	unicode		a60	â	â	PASS	A2: 0 removes the tone only
+A-44	vni	unicode		ba650	bâ	bâ	PASS	A2+A5: 0 removes the tone, the circumflex stays
+A-45	vni	unicode		ba65t0	bât	bât	PASS	A2+A5: same with a coda
+A-46	vni	unicode		ba10	ba	ba	PASS	A2: 0 with no mark present leaves the word alone
+A-47	vni	unicode		ba65t6	bật6	bật6	PASS	A2 rule 1: a digit with no target is literal (the 6 cannot mark an already-circumflexed a)
+A-48	vni	unicode	--no-free-tone	ba65t1	bất	bất	PASS	A2 + free_tone off: different tone still replaces
+A-49	vni	unicode	--no-free-tone	ba65t5	bật	bật	PASS	free_tone off must not change the same-tone rule
+A-50	telex	unicode	--old-tone-style	baajts	bất	bất	PASS	tone style does not affect a coda word
+A-51	telex	unicode	--no-free-tone	baajts	bất	bất	PASS	free_tone off: tone change still works
+A-52	telex	unicode	--no-spell-check	baajtf	bầt	bầt	PASS	A9: with spell check off the transform applies (control row)
+A-53	telex	unicode_nfd		baajts	bất	bất	PASS	same as A-01 in NFD
+A-54	telex	unicode_nfd		baajtj	bật	bật	PASS	same as A-02 in NFD
+A-55	telex	unicode_nfd		baajtz	bât	bât	PASS	same as A-14 in NFD
+B-01	telex	unicode		baajt<BS>	bậ	bậ	PASS	A7 step 3: the press removes t, the tone stays on a
+B-02	telex	unicode		baajt<BS>s	bấ	bấ	PASS	A7 step 4: the next key re-places the tone
+B-03	telex	unicode		baajt<BS>st	bất	bất	PASS	A7 step 4 + A4
+B-04	telex	unicode		baajt<BS>f	bầ	bầ	PASS	A7 step 4: huyen legal on the surviving open syllable
+B-05	telex	unicode		baajt<BS>n	bận	bận	PASS	A7 step 4: an unrelated letter continues the word
+B-06	telex	unicode		baajt<BS>b	bậb	bậb	PASS	A9: a plain letter is not a trigger, it appends
+B-07	telex	unicode		baajt<BS>z	bâ	bâ	PASS	A1: z removes the tone of the surviving word
+B-08	telex	unicode		baajt<BS><BS>	b	b	PASS	A7 step 2-3: one displayed character per press (b-a-t: a and its tone are one character)
+B-09	telex	unicode		baajt<BS><BS>t	bt	bt	PASS	A7 step 2-3: the second press also removes a
+B-10	telex	unicode		baajt<BS><BS>b	bb	bb	PASS	A7: a plain letter continues the two-letter onset
+B-11	telex	unicode		Nguyeexn<BS>	Nguyễ	Nguyễ	PASS	A7 step 3: the press removes n, the tone char is one character
+B-12	telex	unicode		Nguyeexn<BS>n	Nguyễn	Nguyễn	PASS	A7 step 4: retype the deleted letter
+B-13	telex	unicode		Nguyeexn<BS>nn	Nguyễnn	Nguyễnn	PASS	A9: a plain letter appends
+B-14	telex	unicode		Nguyeexn<BS>e	Nguyễe	Nguyễe	PASS	A1 escape table applies to a doubled LETTER key (ee), not to a letter typed after a tone key
+B-15	telex	unicode		Nguyeexn<BS>ee	Nguyễee	Nguyễee	PASS	A9: two more letters append
+B-16	telex	unicode		hoangf<BS>	hoàn	hoàn	PASS	A7 step 3: the press removes g, tone stays on a
+B-17	telex	unicode		hoangf<BS>g	hoàng	hoàng	PASS	A7 step 4: retype the deleted letter
+B-18	telex	unicode		hoangf<BS>s	hoán	hoán	PASS	A7 step 4 + A4: sac on the surviving syllable
+B-19	telex	unicode		hoangf<BS>f	hoanf	hoanf	PASS	documented adjacent escape: the rebuilt history ends in f, so the second f is the double press
+B-20	telex	unicode		hoangf<SP><BS>s	hoáng	hoáng	PASS	A7 step 1 + 4: reopen the committed word, then retone
+B-21	telex	unicode		hoangf<SP><BS><BS>s	hoán	hoán	PASS	A7 step 1-4: reopen, delete g, retone
+B-22	telex	unicode		hoangf<SP><BS><BS><SP>	hoàn 	hoàn 	PASS	A7 + A6: delete the last char and commit with space
+B-23	telex	unicode		ddi<BS>	đ	đ	PASS	A7 step 5: the press removes i, d stays barred
+B-24	telex	unicode		ddi<BS>i	đi	đi	PASS	A7 step 4: retype the deleted letter
+B-25	telex	unicode		ddi<BS>e	đe	đe	PASS	A9: a plain vowel after d appends
+B-26	telex	unicode		ddi<BS>d	dd	dd	PASS	A1 doubled-letter escape: ddd -> dd (documented)
+B-27	telex	unicode		dduowcj<BS>	đượ	đượ	PASS	A7 step 5: the press removes c, the horn and tone stay
+B-28	telex	unicode		dduowcj<BS>c	được	được	PASS	A7 step 4: retype the deleted letter
+B-29	telex	unicode		dduowcj<BS>s	đướ	đướ	PASS	A7 step 4 + A4: sac on o of uo
+B-30	telex	unicode		dduowcj<BS>j	dduowj	dduowj	PASS	documented adjacent escape of the rebuilt history dduowj
+B-31	telex	unicode		kieems<BS>	kiế	kiế	PASS	A7 step 3
+B-32	telex	unicode		kieems<BS>m	kiếm	kiếm	PASS	A7 step 4: retype the deleted letter
+B-33	telex	unicode		kieems<BS>s	kiees	kiees	PASS	documented adjacent escape of the rebuilt history kiees
+B-34	telex	unicode		kieems<BS>e	kiếe	kiếe	PASS	A1 doubled-letter escape needs two e KEY presses in a row; here the previous key is the tone s
+B-35	telex	unicode		tieengs<BS>	tiến	tiến	PASS	A7 step 2 (pinned by editing.rs)
+B-36	telex	unicode		tieengs<BS>g	tiếng	tiếng	PASS	A7 step 4: retype the deleted letter
+B-37	telex	unicode		tieengs<BS>s	tieens	tieens	PASS	documented adjacent escape of the rebuilt history tieens (pinned by editing.rs for the reopen route)
+B-38	telex	unicode		tieengs<BS>n	tiếnn	tiếnn	PASS	A9: a plain letter appends
+B-39	telex	unicode		tieengs<SP><BS>s	tieengs	tieengs	PASS	documented adjacent escape - pinned today by editing.rs::a_tone_trigger_on_a_reopened_toned_word_keeps_the_escape_rule
+B-40	telex	unicode		toans<BS>	toá	toá	PASS	A7 step 4: the remaining characters stay as displayed
+B-41	telex	unicode		toans<BS>n	toán	toán	PASS	A7 step 4: retype the deleted letter
+B-42	telex	unicode		toans<BS>s	tóa	tóa	PASS	A7 step 4: the next key re-runs A4 (oa without coda -> tóa)
+B-43	telex	unicode		toans<BS>f	tòa	tòa	PASS	A7 step 4 + A4
+B-44	telex	unicode		toans<BS>r	tỏa	tỏa	PASS	A7 step 4 + A4
+B-45	telex	unicode		hoais<BS>	hoá	hoá	PASS	A7 step 4 (A4 no longer applies to oai without coda)
+B-46	telex	unicode		hoais<BS>s	hóa	hóa	PASS	A7 step 4 + A4
+B-47	telex	unicode		hoais<BS>f	hòa	hòa	PASS	A7 step 4 + A4
+B-48	telex	unicode		hoais<BS>i	hoái	hoái	PASS	A7 step 4: retype the deleted letter
+B-49	telex	unicode		thuys<BS>s	thus	thus	PASS	documented adjacent escape of the rebuilt history thus
+B-50	telex	unicode		thuys<BS>f	thù	thù	PASS	A4: different tone replaces
+B-51	telex	unicode		baajt<SP><BS><BS><SP>	bậ 	bậ 	PASS	A7 step 1-4 + A6
+B-52	telex	unicode		baajt<SP><BS><BS>n<SP>	bận 	bận 	PASS	A7 step 1-4 + A6
+B-53	telex	unicode		baajt<SP><BS>s	bất	bất	PASS	A7 step 1: reopen + different tone
+B-54	telex	unicode		baajt<SP><BS>j	bật	bật	PASS	A7 step 1: reopen + same tone = no change
+B-55	vni	unicode		ba65t<BS>	bậ	bậ	PASS	A7 step 3
+B-56	vni	unicode		ba65t<BS>1	bấ	bấ	PASS	A7 step 4: digit re-places the tone
+B-57	vni	unicode		ba65t<BS>2	bầ	bầ	PASS	A7 step 4: huyen legal on the surviving open syllable
+B-58	vni	unicode		ba65t<BS>t	bật	bật	PASS	A7 step 4: retype the deleted letter
+B-59	vni	unicode		ba65t<BS><BS>t	bt	bt	PASS	A7 step 2-3: one displayed character per press
+B-60	vni	unicode		ba65t<BS>5	ba65	ba65	PASS	documented adjacent digit escape of the rebuilt history ba65
+B-61	vni	unicode		ba65t<BS>0	bâ	bâ	PASS	A2: 0 removes the tone only
+B-62	telex	unicode	--no-free-tone	baajt<BS>s	bấ	bấ	PASS	free_tone off: tone change after a deletion still works
+B-63	telex	unicode	--old-tone-style	baajt<BS>s	bấ	bấ	PASS	old tone style: same
+B-64	telex	unicode	--no-spell-check	baajt<BS>f	bầ	bầ	PASS	spell off: transform applies (control row)
+B-65	telex	unicode_nfd		baajt<BS>	bậ	bậ	PASS	same as B-01 in NFD (the press deletes every unit)
+B-66	telex	unicode_nfd		kieems<BS>m	kiếm	kiếm	PASS	same as B-32 in NFD
+B-67	telex	unicode_nfd		baajt<BS>s	bấ	bấ	PASS	same as B-02 in NFD
+B-68	telex	unicode_nfd		Nguyeexn<BS>n	Nguyễn	Nguyễn	PASS	same as B-12 in NFD

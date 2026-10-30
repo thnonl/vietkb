@@ -1,0 +1,282 @@
+   Compiling parking_lot_core v0.9.12
+   Compiling syn v2.0.119
+   Compiling serde v1.0.229
+   Compiling thiserror v2.0.21
+   Compiling parking_lot v0.12.5
+   Compiling serde_spanned v0.6.9
+   Compiling toml_datetime v0.6.3
+   Compiling vkb-core v0.1.0 (E:\vietkb\crates\vkb-core)
+   Compiling toml_edit v0.20.2
+   Compiling toml v0.8.2
+   Compiling tracing-attributes v0.1.31
+   Compiling windows-implement v0.58.0
+   Compiling windows-interface v0.58.0
+   Compiling windows-core v0.58.0
+   Compiling tracing v0.1.44
+   Compiling vkb-config v0.1.0 (E:\vietkb\crates\vkb-config)
+   Compiling windows v0.58.0
+   Compiling vkb-platform v0.1.0 (E:\vietkb\crates\vkb-platform)
+   Compiling vkb-windows v0.1.0 (E:\vietkb\crates\vkb-windows)
+    Finished `release` profile [optimized] target(s) in 25.20s
+     Running `target\release\examples\zero_focus_e2e.exe`
+PROBE injection builders tag every event with the test tag: OK
+MODE in-process: no hooks installed, no SendInput, zero global events
+PROBE engine: OK 
+PASS edge/T01/uni 
+PASS edge/T02/uni 
+PASS edge/T03/uni 
+PASS edge/T04/uni 
+PASS edge/T05/uni 
+PASS edge/T06/uni 
+PASS edge/T07/uni 
+PASS edge/T08/uni 
+PASS edge/T09/uni 
+PASS edge/T10/uni 
+PASS edge/T11/uni 
+PASS edge/T12/uni 
+PASS edge/T13/uni 
+PASS edge/T14/uni 
+PASS edge/T15/uni 
+PASS edge/T16/uni 
+PASS edge/T17/uni 
+PASS edge/T18/uni 
+PASS edge/T19/uni 
+PASS edge/T20/uni 
+PASS edge/T21/uni 
+PASS edge/T22/uni 
+PASS edge/T23/uni 
+PASS edge/T24/uni 
+PASS edge/T25/uni 
+PASS edge/T26/uni 
+PASS edge/T27/uni 
+PASS edge/T28/uni 
+PASS edge/T29/uni 
+PASS edge/T30/uni 
+PASS edge/T31/uni 
+PASS edge/T32/uni 
+PASS edge/T33/uni 
+PASS edge/T34/uni 
+PASS edge/T35/uni 
+PASS edge/T36/uni 
+PASS edge/T37/uni 
+PASS edge/T38/uni 
+PASS edge/O01/uni 
+PASS edge/O02/uni 
+PASS edge/V01/uni 
+PASS edge/V02/uni 
+PASS edge/V03/uni 
+PASS edge/V04/uni 
+PASS edge/V05/uni 
+PASS edge/V06/uni 
+PASS edge/V07/uni 
+PASS edge/V08/uni 
+PASS edge/V09/uni 
+PASS edge/V10/uni 
+PASS edge/V11/uni 
+PASS edge/V12/uni 
+PASS edge/V13/uni 
+PASS edge/V14/uni 
+PASS edge/V15/uni 
+PASS edge/V16/uni 
+PASS edge/V17/uni 
+PASS edge/V18/uni 
+PASS edge/V19/uni 
+PASS edge/V20/uni 
+PASS edge/V21/uni 
+PASS edge/V22/uni 
+PASS edge/V23/uni 
+PASS edge/V24/uni 
+PASS edge/T39/uni 
+PASS edge/T40/uni 
+PASS edge/T41/uni 
+PASS edge/T42/uni 
+PASS edge/T43/uni 
+PASS edge/T44/uni 
+PASS edge/T45/uni 
+PASS edge/T46/uni 
+PASS edge/T47/uni 
+PASS edge/T48/uni 
+PASS edge/T49/uni 
+PASS edge/T50/uni 
+PASS edge/T51/uni 
+PASS edge/T52/uni 
+PASS edge/T53/uni 
+PASS edge/V25/uni 
+PASS edge/V26/uni 
+PASS edge/V27/uni 
+PASS edge/V28/uni 
+PASS edge/V29/uni 
+PASS edge/V30/uni 
+PASS edge/V31/uni 
+PASS edge/V32/uni 
+PASS edge/V33/uni 
+PASS edge/V34/uni 
+PASS edge/W01/uni 
+PASS edge/W02/uni 
+PASS edge/W03/uni 
+PASS edge/W04/uni 
+PASS edge/W05/uni 
+PASS edge/W06/uni 
+PASS corpus/01-chat/telex/uni 
+PASS corpus/02-email/telex/uni 
+PASS corpus/03-ky-thuat/telex/uni 
+PASS corpus/04-tin-tuc/telex/uni 
+PASS corpus/05-hanh-chinh/telex/uni 
+PASS corpus/06-marketing/telex/uni 
+PASS corpus/07-hoc-tap/telex/uni 
+PASS corpus/08-dia-danh/telex/uni 
+PASS corpus/09-trung-anh/telex/uni 
+PASS corpus/10-dau-cau/telex/uni 
+PASS corpus/01-chat/vni/uni 
+PASS corpus/02-email/vni/uni 
+PASS corpus/03-ky-thuat/vni/uni 
+PASS corpus/04-tin-tuc/vni/uni 
+PASS corpus/05-hanh-chinh/vni/uni 
+PASS corpus/06-marketing/vni/uni 
+PASS corpus/07-hoc-tap/vni/uni 
+PASS corpus/08-dia-danh/vni/uni 
+PASS corpus/09-trung-anh/vni/uni 
+PASS corpus/10-dau-cau/vni/uni 
+PASS hotkey/f2-disable-literal/telex/uni 
+PASS hotkey/f1-enable-composes/telex/uni 
+PASS hotkey/f2-then-f1-then-f2/telex/uni 
+PASS hotkey/ctrl-shift-toggle-twice/telex/uni 
+PASS hotkey/restore-word-chord/telex/uni 
+PASS hotkey/mouse-click-ends-word/telex/uni 
+PASS hotkey/f2-disable-literal/vni/uni 
+PASS hotkey/f1-enable-composes/vni/uni 
+PASS hotkey/f2-then-f1-then-f2/vni/uni 
+PASS hotkey/ctrl-shift-toggle-twice/vni/uni 
+PASS hotkey/restore-word-chord/vni/uni 
+PASS hotkey/mouse-click-ends-word/vni/uni 
+PASS edge/T01/std 
+PASS edge/T02/std 
+PASS edge/T03/std 
+PASS edge/T04/std 
+PASS edge/T05/std 
+PASS edge/T06/std 
+PASS edge/T07/std 
+PASS edge/T08/std 
+PASS edge/T09/std 
+PASS edge/T10/std 
+PASS edge/T11/std 
+PASS edge/T12/std 
+PASS edge/T13/std 
+PASS edge/T14/std 
+PASS edge/T15/std 
+PASS edge/T16/std 
+PASS edge/T17/std 
+PASS edge/T18/std 
+PASS edge/T19/std 
+PASS edge/T20/std 
+PASS edge/T21/std 
+PASS edge/T22/std 
+PASS edge/T23/std 
+PASS edge/T24/std 
+PASS edge/T25/std 
+PASS edge/T26/std 
+PASS edge/T27/std 
+PASS edge/T28/std 
+PASS edge/T29/std 
+PASS edge/T30/std 
+PASS edge/T31/std 
+PASS edge/T32/std 
+PASS edge/T33/std 
+PASS edge/T34/std 
+PASS edge/T35/std 
+PASS edge/T36/std 
+PASS edge/T37/std 
+PASS edge/T38/std 
+PASS edge/O01/std 
+PASS edge/O02/std 
+PASS edge/V01/std 
+PASS edge/V02/std 
+PASS edge/V03/std 
+PASS edge/V04/std 
+PASS edge/V05/std 
+PASS edge/V06/std 
+PASS edge/V07/std 
+PASS edge/V08/std 
+PASS edge/V09/std 
+PASS edge/V10/std 
+PASS edge/V11/std 
+PASS edge/V12/std 
+PASS edge/V13/std 
+PASS edge/V14/std 
+PASS edge/V15/std 
+PASS edge/V16/std 
+PASS edge/V17/std 
+PASS edge/V18/std 
+PASS edge/V19/std 
+PASS edge/V20/std 
+PASS edge/V21/std 
+PASS edge/V22/std 
+PASS edge/V23/std 
+PASS edge/V24/std 
+PASS edge/T39/std 
+PASS edge/T40/std 
+PASS edge/T41/std 
+PASS edge/T42/std 
+PASS edge/T43/std 
+PASS edge/T44/std 
+PASS edge/T45/std 
+PASS edge/T46/std 
+PASS edge/T47/std 
+PASS edge/T48/std 
+PASS edge/T49/std 
+PASS edge/T50/std 
+PASS edge/T51/std 
+PASS edge/T52/std 
+PASS edge/T53/std 
+PASS edge/V25/std 
+PASS edge/V26/std 
+PASS edge/V27/std 
+PASS edge/V28/std 
+PASS edge/V29/std 
+PASS edge/V30/std 
+PASS edge/V31/std 
+PASS edge/V32/std 
+PASS edge/V33/std 
+PASS edge/V34/std 
+PASS edge/W01/std 
+PASS edge/W02/std 
+PASS edge/W03/std 
+PASS edge/W04/std 
+PASS edge/W05/std 
+PASS edge/W06/std 
+PASS corpus/01-chat/telex/std 
+PASS corpus/02-email/telex/std 
+PASS corpus/03-ky-thuat/telex/std 
+PASS corpus/04-tin-tuc/telex/std 
+PASS corpus/05-hanh-chinh/telex/std 
+PASS corpus/06-marketing/telex/std 
+PASS corpus/07-hoc-tap/telex/std 
+PASS corpus/08-dia-danh/telex/std 
+PASS corpus/09-trung-anh/telex/std 
+PASS corpus/10-dau-cau/telex/std 
+PASS corpus/01-chat/vni/std 
+PASS corpus/02-email/vni/std 
+PASS corpus/03-ky-thuat/vni/std 
+PASS corpus/04-tin-tuc/vni/std 
+PASS corpus/05-hanh-chinh/vni/std 
+PASS corpus/06-marketing/vni/std 
+PASS corpus/07-hoc-tap/vni/std 
+PASS corpus/08-dia-danh/vni/std 
+PASS corpus/09-trung-anh/vni/std 
+PASS corpus/10-dau-cau/vni/std 
+PASS hotkey/f2-disable-literal/telex/std 
+PASS hotkey/f1-enable-composes/telex/std 
+PASS hotkey/f2-then-f1-then-f2/telex/std 
+PASS hotkey/ctrl-shift-toggle-twice/telex/std 
+PASS hotkey/restore-word-chord/telex/std 
+PASS hotkey/mouse-click-ends-word/telex/std 
+PASS hotkey/f2-disable-literal/vni/std 
+PASS hotkey/f1-enable-composes/vni/std 
+PASS hotkey/f2-then-f1-then-f2/vni/std 
+PASS hotkey/ctrl-shift-toggle-twice/vni/std 
+PASS hotkey/restore-word-chord/vni/std 
+PASS hotkey/mouse-click-ends-word/vni/std 
+CONTROL PASS hotkey/f1-enable-composes/telex/uni (pre-fix behaviour: the F1/F2 trigger key-down reached the app and the assertion failed, as it must)
+SUMMARY corpus-telex-standard=10/10 corpus-telex-unicode=10/10 corpus-vni-standard=10/10 corpus-vni-unicode=10/10 edge-telex-standard=61/61 edge-telex-unicode=61/61 edge-vni-standard=34/34 edge-vni-unicode=34/34 hotkey-telex-standard=6/6 hotkey-telex-unicode=6/6 hotkey-vni-standard=6/6 hotkey-vni-unicode=6/6 | PASS=254 FAIL=0 | control=caught mode=in-process events_fed=30468 injected_captured=39604 passed=26922 swallowed=3546 global_events_sent=0 hooks_installed=0
+no focus interaction
+results: E:\vietkb\crates\vkb-windows\../../target/zero-focus-e2e.txt

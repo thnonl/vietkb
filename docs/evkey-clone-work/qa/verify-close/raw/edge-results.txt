@@ -1,0 +1,98 @@
+﻿EDGE-CASE-CHECK
+EDGE T01 telex [as] -> [á] PASS sắc
+EDGE T02 telex [af] -> [à] PASS huyền
+EDGE T03 telex [ar] -> [ả] PASS hỏi
+EDGE T04 telex [ax] -> [ã] PASS ngã
+EDGE T05 telex [aj] -> [ạ] PASS nặng
+EDGE T06 telex [aa] -> [â] PASS circumflex
+EDGE T07 telex [aw] -> [ă] PASS breve
+EDGE T08 telex [ee] -> [ê] PASS 
+EDGE T09 telex [oo] -> [ô] PASS 
+EDGE T10 telex [ow] -> [ơ] PASS horn
+EDGE T11 telex [uw] -> [ư] PASS horn
+EDGE T12 telex [dd] -> [đ] PASS đ
+EDGE T13 telex [awf] -> [ằ] PASS breve + huyền
+EDGE T14 telex [awj] -> [ặ] PASS breve + nặng
+EDGE T15 telex [uow] -> [ươ] PASS horn cluster
+EDGE T16 telex [thuowng] -> [thương] PASS auto horn, one w
+EDGE T17 telex [thuwong] -> [thương] PASS auto horn, w on ư
+EDGE T18 telex [muwowif] -> [mười] PASS tone after horn cluster
+EDGE T19 telex [dduwowngf] -> [đường] PASS đ + ươ + huyền
+EDGE T20 telex [VIEETJ] -> [VIỆT] PASS uppercase word
+EDGE T21 telex [Vieetj Nam] -> [Việt Nam] PASS mixed case
+EDGE T22 telex [quoocs] -> [quốc] PASS qu onset keeps u
+EDGE T23 telex [gif] -> [gì] PASS gi onset
+EDGE T24 telex [hoaf] -> [hòa] PASS oa, modern tone
+EDGE T25 telex [tuyeets] -> [tuyết] PASS uyê + sắc
+EDGE T26 telex [huow] -> [hươ] PASS horn at word end
+EDGE T27 telex [looix] -> [lỗi] PASS oo + ngã
+EDGE T28 telex [booj] -> [bộ] PASS oo + nặng
+EDGE T29 telex [deadline] -> [deadline] PASS English passes through
+EDGE T30 telex [class] -> [class] PASS English cluster
+EDGE T31 telex [test] -> [test] PASS English, t before s
+EDGE T32 telex [review] -> [review] PASS English with w
+EDGE T33 telex [2024] -> [2024] PASS digits
+EDGE T34 telex [100%] -> [100%] PASS percent
+EDGE T35 telex [a  b] -> [a  b] PASS double space
+EDGE T36 telex [ass] -> [as] PASS second tone key cancels
+EDGE T37 telex [of] -> [of] PASS invalid syllable stays literal
+EDGE T38 telex [aws] -> [ắ] PASS breve + sắc
+EDGE O01 telex [hoaf] -> [hoà] PASS kiểu cũ
+EDGE O02 telex [xoas] -> [xoá] PASS kiểu cũ
+EDGE V01 vni [a1] -> [á] PASS sắc
+EDGE V02 vni [a2] -> [à] PASS huyền
+EDGE V03 vni [a3] -> [ả] PASS hỏi
+EDGE V04 vni [a4] -> [ã] PASS ngã
+EDGE V05 vni [a5] -> [ạ] PASS nặng
+EDGE V06 vni [a6] -> [â] PASS 6
+EDGE V07 vni [e6] -> [ê] PASS 6
+EDGE V08 vni [o6] -> [ô] PASS 6
+EDGE V09 vni [o7] -> [ơ] PASS 7
+EDGE V10 vni [u7] -> [ư] PASS 7
+EDGE V11 vni [a8] -> [ă] PASS 8
+EDGE V12 vni [d9] -> [đ] PASS 9
+EDGE V13 vni [uo7] -> [ươ] PASS 7 on uo
+EDGE V14 vni [thu7ong] -> [thương] PASS auto horn, 7 on ư
+EDGE V15 vni [thuo7ng] -> [thương] PASS 7 after uo
+EDGE V16 vni [d9u7o7ng2] -> [đường] PASS đ + ươ + huyền
+EDGE V17 vni [nguo7i2] -> [người] PASS ươi + huyền
+EDGE V18 vni [TIE6NG1] -> [TIẾNG] PASS uppercase
+EDGE V19 vni [quo7] -> [quơ] PASS qu onset
+EDGE V20 vni [tie6ng1] -> [tiếng] PASS 6 + 1
+EDGE V21 vni [2024] -> [2024] PASS digits
+EDGE V22 vni [deadline] -> [deadline] PASS English
+EDGE V23 vni [a11] -> [a1] PASS second digit stays literal
+EDGE V24 vni [d9o6i3] -> [đổi] PASS đ + ô + hỏi
+EDGE T39 telex [aas] -> [ấ] PASS circumflex + sắc
+EDGE T40 telex [ees] -> [ế] PASS circumflex + sắc
+EDGE T41 telex [oos] -> [ố] PASS circumflex + sắc
+EDGE T42 telex [ows] -> [ớ] PASS horn + sắc
+EDGE T43 telex [uws] -> [ứ] PASS horn + sắc
+EDGE T44 telex [AAS] -> [Ấ] PASS uppercase + sắc
+EDGE T45 telex [ruwowuj] -> [rượu] PASS ươu, tone on ơ
+EDGE T46 telex [cuwowif] -> [cười] PASS ươi, huyền
+EDGE T47 telex [nguowif] -> [người] PASS auto horn + huyền
+EDGE T48 telex [quyeets] -> [quyết] PASS qu + uyê
+EDGE T49 telex [gias] -> [giá] PASS gi onset + sắc
+EDGE T50 telex [nghieeng] -> [nghiêng] PASS ngh + iê
+EDGE T51 telex [ddi] -> [đi] PASS đ + i
+EDGE T52 telex [DDoongf] -> [Đồng] PASS uppercase đ + ô + huyền
+EDGE T53 telex [zz] -> [zz] PASS English double letter
+EDGE V25 vni [o71] -> [ớ] PASS 7 + 1
+EDGE V26 vni [u71] -> [ứ] PASS 7 + 1
+EDGE V27 vni [a61] -> [ấ] PASS 6 + 1
+EDGE V28 vni [e61] -> [ế] PASS 6 + 1
+EDGE V29 vni [o61] -> [ố] PASS 6 + 1
+EDGE V30 vni [a81] -> [ắ] PASS 8 + 1
+EDGE V31 vni [D9] -> [Đ] PASS uppercase đ
+EDGE V32 vni [U7] -> [Ư] PASS uppercase ư
+EDGE V33 vni [ru7o7u5] -> [rượu] PASS ươu + nặng
+EDGE V34 vni [zz] -> [zz] PASS English double letter
+EDGE W01 telex [w] -> [ư] PASS w alone becomes ư (option off)
+EDGE W02 telex [tw] -> [tư] PASS after an onset
+EDGE W03 telex [nhw] -> [như] PASS after a two-letter onset
+EDGE W04 telex [W] -> [Ư] PASS uppercase
+EDGE W05 telex [w] -> [w] PASS EVKey default: j f w z are consonants
+EDGE W06 telex [tw] -> [tw] PASS default keeps it literal
+EDGE_PASS=95 EDGE_FAIL=0
+EDGE-DONE

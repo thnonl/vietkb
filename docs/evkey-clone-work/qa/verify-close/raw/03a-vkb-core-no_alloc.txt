@@ -1,0 +1,12 @@
+   Compiling vkb-core v0.1.0 (E:\vietkb\crates\vkb-core)
+    Finished `test` profile [optimized + debuginfo] target(s) in 1.87s
+     Running tests\no_alloc.rs (target\debug\deps\no_alloc-a5fefa4e49969797.exe)
+
+running 4 tests
+test committing_does_allocate_only_on_the_action_string ... ok
+test ignored_keys_do_not_allocate ... ok
+test plain_append_and_boundary_do_not_allocate ... ok
+test vni_strip_that_changes_nothing_does_not_allocate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

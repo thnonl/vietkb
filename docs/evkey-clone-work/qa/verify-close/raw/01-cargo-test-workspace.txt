@@ -1,0 +1,632 @@
+   Compiling vkb-core v0.1.0 (E:\vietkb\crates\vkb-core)
+   Compiling vkb-config v0.1.0 (E:\vietkb\crates\vkb-config)
+   Compiling vkb-platform v0.1.0 (E:\vietkb\crates\vkb-platform)
+   Compiling vkb-windows v0.1.0 (E:\vietkb\crates\vkb-windows)
+   Compiling vkb-cli v0.1.0 (E:\vietkb\crates\vkb-cli)
+   Compiling vkb-app v0.2.3 (E:\vietkb\crates\vkb-app)
+    Finished `test` profile [optimized + debuginfo] target(s) in 35.04s
+     Running unittests src\main.rs (target\debug\deps\vietkb-585afa96915a9e00.exe)
+
+running 22 tests
+test update::tests::fake_release_reports_0_9_9 ... ignored, sets VKB_UPDATE_FAKE=1 for this process
+test update::tests::live_release_is_not_newer_than_this_build ... ignored, network: hits the live GitHub API for thnonl/vietkb
+test commands::tests::patch_rejects_a_bare_letter_hotkey ... ok
+test commands::tests::patch_accepts_the_settings_view_shape ... ok
+test commands::tests::patch_only_touches_named_fields ... ok
+test commands::tests::legacy_tab_names_map_to_the_four_tab_panel ... ok
+test update::tests::an_empty_response_is_not_an_error ... ok
+test commands::tests::patch_sets_and_clears_hotkeys ... ok
+test tray::tests::every_window_has_a_capability ... ok
+test tray::tests::update_item_label_names_the_version ... ok
+test commands::tests::patch_rejects_unknown_keys ... ok
+test update::tests::a_release_without_an_installer_has_no_asset ... ok
+test update::tests::an_older_or_equal_release_is_not_an_update ... ok
+test update::tests::installer_names_stay_plain_file_names ... ok
+test update::tests::normalises_the_tag_prefix ... ok
+test update::tests::reads_the_sha256_line_from_the_notes ... ok
+test update::tests::sha256_matches_fips_vectors ... ok
+test update::tests::the_update_installs_silently_and_in_place ... ok
+test update::tests::the_update_script_runs_the_setup_then_reopens_the_app ... ok
+test update::tests::versions_parse_and_order_like_semver ... ok
+test update::tests::picks_the_x64_setup_asset ... ok
+test update::tests::the_missing_installer_message_is_the_promised_one ... ok
+
+test result: ok. 20 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\vkb-f42c5b8153318499.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vkb_config-483c861c7539626d.exe)
+
+running 16 tests
+test hotkey::tests::parses_function_and_named_keys ... ok
+test hotkey::tests::parses_modifier_combos ... ok
+test hotkey::tests::rejects_junk ... ok
+test hotkey::tests::pretty_display ... ok
+test hotkey::tests::serde_is_canonical ... ok
+test tests::hotkey_strings_parse_from_config ... ok
+test tests::every_removed_charset_slug_migrates ... ok
+test tests::legacy_per_app_overrides_migrate ... ok
+test tests::legacy_charset_and_method_slugs_migrate ... ok
+test tests::legacy_system_theme_migrates_to_dark ... ok
+test tests::unknown_keys_survive_roundtrip ... ok
+test tests::cycle_method_hotkey_round_trips ... ok
+test tests::removed_settings_are_ignored_and_round_trip_without_clobbering_defaults ... ok
+test tests::hotkey_can_be_explicitly_cleared ... ok
+test schema::tests::removed_sound_key_still_loads ... ok
+test tests::default_matches_documented_toml ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vkb_core-c050b03ddd6f7a3a.exe)
+
+running 38 tests
+test charset::tests::ascii_passes_through_both_charsets ... ok
+test charset::tests::nfd_decomposes_mark_before_tone ... ok
+test charset::tests::unicode_is_nfc_bytes ... ok
+test engine::tests::autocompose_is_a_noop_for_plain_append ... ok
+test engine::tests::raw_zone_never_arms_on_an_empty_left_token ... ok
+test engine::tests::digit_dot_and_ellipsis_never_arm ... ok
+test engine::tests::the_syllable_term_covers_exactly_dot_slash_question ... ok
+test engine::tests::mark_rewrites_the_word ... ok
+test letters::tests::impossible_marks_are_rejected ... ok
+test engine::tests::raw_zone_never_arms_after_a_vietnamese_letter ... ok
+test engine::tests::composed_letters_carry_marks ... ok
+test engine::tests::raw_zone_arms_after_a_plain_ascii_identifier ... ok
+test engine::tests::restore_word_gives_the_raw_keystrokes_back ... ok
+test engine::tests::sentence_punctuation_keeps_a_valid_syllable_vietnamese ... ok
+test method::tests::telex_uow_marks_both ... ok
+test engine::tests::tone_moves_when_the_syllable_grows ... ok
+test letters::tests::compose_roundtrips_every_letter ... ok
+test letters::tests::letter_flags ... ok
+test method::tests::leading_digit_turns_the_word_literal ... ok
+test spell::tests::accepts_vietnamese_words ... ok
+test engine::tests::key_up_and_chords_do_nothing ... ok
+test macros::tests::lookup_is_case_insensitive ... ok
+test method::tests::render_marks_and_tones ... ok
+test macros::tests::insert_replaces_and_remove_works ... ok
+test spell::tests::gi_is_an_onset_not_a_nucleus ... ok
+test spell::tests::jfwz_toggle_changes_onset_acceptance ... ok
+test spell::tests::onset_prefixes_are_valid_while_typing ... ok
+test spell::tests::rejects_english_words ... ok
+test tests::charset_roundtrip ... ok
+test tests::defaults_are_evkey_like ... ok
+test tests::method_roundtrip ... ok
+test tests::simulate_telex_smoke ... ok
+test tone::tests::open_pairs_depend_on_coda_and_style ... ok
+test tone::tests::picks_last_modified_vowel ... ok
+test tone::tests::qu_and_gi_onsets_are_skipped ... ok
+test tone::tests::single_vowel ... ok
+test tone::tests::triple_takes_middle ... ok
+test macros::tests::keeps_five_thousand_entries ... ok
+
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\charset.rs (target\debug\deps\charset-1c8e36bd9d4daab9.exe)
+
+running 4 tests
+test ascii_passes_through_every_charset ... ok
+test every_charset_covers_all_134_letters ... ok
+test nfd_output_decomposes_every_letter ... ok
+test unicode_output_is_nfc ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\corpus_telex.rs (target\debug\deps\corpus_telex-4a5eee60d3634297.exe)
+
+running 21 tests
+test auto_horn_uo_can_be_disabled ... ok
+test calls_f_j_w_z_as_consonants ... ok
+test auto_horn_uo_promotes_after_legal_final_or_vowel_continuation ... ok
+test jfwz_off_lets_the_tone_keys_win ... ok
+test boundaries_and_punctuation ... ok
+test digit_suffix_restores_e_mail_shaped_words ... ok
+test keys_that_are_not_text_are_noop ... ok
+test modern_tone_places_the_tone_on_the_second_vowel ... ok
+test methods_round_trip_through_the_option_slug ... ok
+test basic_words ... ok
+test modern_style_is_the_default ... ok
+test numeric_words_are_not_transformed ... ok
+test english_words_survive_spell_check ... ok
+test repeated_mark_key_escapes_to_the_literal_keystrokes ... ok
+test spell_check_off_transforms_english_looking_words ... ok
+test tone_key_typed_twice_becomes_literal ... ok
+test tone_keys ... ok
+test uow_transform_and_normal_typing_are_unchanged ... ok
+test uppercase_propagation ... ok
+test mark_keys ... ok
+test w_marks_both_u_and_o_in_uo_compounds ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\corpus_vni.rs (target\debug\deps\corpus_vni-9eba56917f2103a8.exe)
+
+running 15 tests
+test auto_horn_uo_can_be_disabled ... ok
+test auto_horn_uo_promotes_after_legal_final_or_vowel_continuation ... ok
+test explicit_vni_horn_cluster_works_with_auto_horn_uo_disabled ... ok
+test basic_words ... ok
+test full_paragraph_of_words ... ok
+test digit_suffix_restores_e_mail_shaped_words ... ok
+test modifier_keys ... ok
+test numeric_words_are_not_transformed ... ok
+test repeated_tone_changes_keep_the_word_stable ... ok
+test repeated_tone_key_becomes_literal ... ok
+test tone_keys ... ok
+test tone_positions_match_the_telex_rules ... ok
+test zero_strips_the_previous_tone ... ok
+test vni_horn_does_not_mark_qu_onset_u ... ok
+test vni_letters_are_not_telex_triggers ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\editing.rs (target\debug\deps\editing-c8a56c8de38592b7.exe)
+
+running 39 tests
+test a_macro_commit_is_not_reopened ... ok
+test a_boundary_clears_the_reopen_memory ... ok
+test a_keystroke_after_the_boundary_suppresses_reopening ... ok
+test a_tone_trigger_on_a_reopened_toned_word_keeps_the_escape_rule ... ok
+test a_second_backspace_after_reopening_deletes_a_character ... ok
+test backspace_after_restore_word_deletes_a_character ... ok
+test backspace_deletes_a_marked_word_one_character_at_a_time ... ok
+test backspace_after_a_boundary_leaves_the_word_to_the_application ... ok
+test backspace_counts_a_capital_letter_as_one_character ... ok
+test backspace_deletes_one_displayed_character ... ok
+test auto_capitalize_after_a_sentence_end ... ok
+test backspace_over_a_toned_letter_removes_the_letter ... ok
+test backspace_over_vni_modifiers_deletes_a_character ... ok
+test backspace_removes_a_toned_letter_and_its_tone ... ok
+test backspace_keeps_the_original_case ... ok
+test backspace_reopens_the_word_the_space_committed ... ok
+test backspace_with_no_word_is_a_noop ... ok
+test backspace_to_empty_leaves_nothing_behind ... ok
+test boundary_flushes_the_word ... ok
+test macro_expansion_types_the_boundary_itself ... ok
+test macros_can_be_disabled ... ok
+test macros_expand_at_the_boundary_only ... ok
+test nfd_backspace_deletes_every_unit_of_a_multi_unit_character ... ok
+test nfd_backspace_deletes_one_character ... ok
+test reopening_covers_separators_but_not_line_breaks ... ok
+test restore_word_on_an_untransformed_word_changes_nothing ... ok
+test restore_word_puts_the_raw_keystrokes_back ... ok
+test simulate_keys_matches_simulate_on_plain_text ... ok
+test switching_method_resets_the_word ... ok
+test the_reopen_memory_is_one_word_not_a_history ... ok
+test typing_after_a_deletion_composes_like_the_same_history_typed_at_once ... ok
+test typing_after_a_deletion_composes_on_the_kept_history ... ok
+test vni_digit_after_non_deleted_space_is_literal ... ok
+test vni_modifier_digit_after_non_deleted_space_is_literal ... ok
+test vni_modifiers_reopen_a_word_after_deleted_space ... ok
+test vni_tone_digit_works_without_deleted_boundary ... ok
+test vni_tone_digits_reopen_a_word_after_deleted_space ... ok
+test word_cap_commit_and_restart ... ok
+test word_cap_keeps_the_keystroke_that_starts_the_next_word ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\engine_rulings_28.rs (target\debug\deps\engine_rulings_28-a18332de3fa0f07f.exe)
+
+running 7 tests
+test d3b_failed_mark_key_never_half_transforms ... ok
+test d2_standalone_w_is_u_horn_unless_jfwz_are_consonants ... ok
+test d1_d_bar_never_takes_the_tone ... ok
+test d3_repeated_trigger_escapes_to_the_raw_keys ... ok
+test d5_impossible_onsets_are_invalid ... ok
+test d6_english_passthrough_with_defaults ... ok
+test d7_free_tone_is_honoured ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\feature_matrix.rs (target\debug\deps\feature_matrix-597ada544583d43a.exe)
+
+running 14 tests
+test auto_capitalize_vni ... ok
+test charset_telex ... ok
+test charset_vni ... ok
+test auto_capitalize_telex ... ok
+test modern_tone_vni ... ok
+test modern_tone_telex ... ok
+test spell_check_telex ... ok
+test jfwz_as_consonant_vni ... ok
+test restore_wrong_word_telex ... ok
+test free_tone_vni ... ok
+test restore_wrong_word_vni ... ok
+test jfwz_as_consonant_telex ... ok
+test spell_check_vni ... ok
+test free_tone_telex ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\feature_matrix_macros.rs (target\debug\deps\feature_matrix_macros-d859ca33a22c8d30.exe)
+
+running 9 tests
+test digit_trigger_expands_for_vni ... ok
+test case_behavior_for_both_methods ... ok
+test macro_case_follow_on_vni ... ok
+test macro_case_follow_off_vni ... ok
+test macro_case_follow_on_telex ... ok
+test macros_expand_at_space_and_enter_for_both_methods ... ok
+test macro_case_follow_off_telex ... ok
+test disabled_macros_do_not_expand ... ok
+test trigger_at_max_word_expands_but_one_longer_is_literal ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\letter_table.rs (target\debug\deps\letter_table-1a6839463e25ce59.exe)
+
+running 4 tests
+test every_letter_has_the_expected_code_point ... ok
+test mark_and_tone_are_recovered_from_the_composed_letter ... ok
+test no_duplicate_letters ... ok
+test tables_hold_exactly_the_67_letters ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\macro_only.rs (target\debug\deps\macro_only-1cb697e190fa137e.exe)
+
+running 4 tests
+test macro_only_enter_expands_then_passes_enter ... ok
+test macro_only_expands_telex_and_vni_triggers ... ok
+test macro_only_leaves_ordinary_words_raw ... ok
+test without_macro_only_normal_typing_still_composes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\no_alloc.rs (target\debug\deps\no_alloc-ab8671f044cd11c2.exe)
+
+running 4 tests
+test committing_does_allocate_only_on_the_action_string ... ok
+test ignored_keys_do_not_allocate ... ok
+test plain_append_and_boundary_do_not_allocate ... ok
+test vni_strip_that_changes_nothing_does_not_allocate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\paragraphs.rs (target\debug\deps\paragraphs-25b8800109b2606e.exe)
+
+running 4 tests
+test chained_words_do_not_leak_state ... ok
+test mixed_english_paragraph_keeps_english_words_raw ... ok
+test every_vietnamese_word_is_correct_on_its_own ... ok
+test vietnamese_paragraph_round_trips ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\qa_92_verify.rs (target\debug\deps\qa_92_verify-01b0f065d3142005.exe)
+
+running 5 tests
+test interruptions_around_an_armed_opener ... ok
+test macro_at_boundary ... ok
+test new_shapes_after_the_fix ... ok
+test keypad_digits_after_a_separator ... ok
+test arm_asymmetry_probe ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\qa_93_engine_nits.rs (target\debug\deps\qa_93_engine_nits-41afc9663fdd5f8a.exe)
+
+running 4 tests
+test a_legitimate_arm_survives_an_ordinary_sequence ... ok
+test caret_and_command_keys_end_the_armed_window ... ok
+test set_macro_only_after_an_armed_opener_does_not_freeze_the_next_word ... ok
+test set_options_after_an_armed_opener_does_not_freeze_the_next_word ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\raw_zone.rs (target\debug\deps\raw_zone-683e21cdbea37f77.exe)
+
+running 9 tests
+test backspace_after_an_opener_restores_the_word ... ok
+test raw_zone_does_not_fire_after_whitespace ... ok
+test raw_zone_keeps_paths_and_emails_literal ... ok
+test set_options_clears_the_armed_raw_zone ... ok
+test arming_needs_a_code_shaped_left_token ... ok
+test caret_keys_clear_the_armed_raw_zone ... ok
+test raw_zone_is_recomputed_per_opener ... ok
+test ellipsis_and_digit_dot_do_not_arm_the_raw_zone ... ok
+test raw_zone_can_be_disabled ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\spec_51_engine.rs (target\debug\deps\spec_51_engine-89b8130c72d768b5.exe)
+
+running 4 tests
+test spec_section2_unicode_codepoints ... ok
+test spec_section2_no_silent_loss_on_s1 ... ok
+test spec_section2_nfd_decomposition ... ok
+test spec_section1_engine_corpus ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\special_cases.rs (target\debug\deps\special_cases-30c91fb40b2907df.exe)
+
+running 11 tests
+test amendment_2026_10_30_borderlines ... ok
+test d_sc_01_slash_between_two_vni_words ... ok
+test d_sc_03_underscore_at_colon_between_words ... ok
+test chained_openers_extend_a_path ... ok
+test d_sc_04_code_punctuation_openers ... ok
+test d_sc_02_dot_and_question_between_words ... ok
+test trace_backspace_cases ... ok
+test vk_path_matches_char_path ... ok
+test separators_keep_the_next_word_vietnamese ... ok
+test url_email_and_code_shapes_stay_literal ... ok
+test matrix ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\spell_restore.rs (target\debug\deps\spell_restore-98abf7ca7c15f405.exe)
+
+running 8 tests
+test restore_does_not_fire_when_the_word_is_already_raw ... ok
+test invalid_words_keep_their_raw_keystrokes ... ok
+test restore_wrong_word_off_keeps_the_transformation ... ok
+test an_invalid_suffix_shows_the_raw_keystrokes ... ok
+test tone_key_without_a_vowel_stays_literal ... ok
+test spell_check_off_keeps_transforming_english_words ... ok
+test restore_wrong_word_rewrites_the_word_at_the_boundary ... ok
+test restore_never_touches_a_correct_word ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\tone_change.rs (target\debug\deps\tone_change-7280c196a54ab5ed.exe)
+
+running 29 tests
+test d_tn_01_adjacent_repeat_is_still_the_documented_escape ... ok
+test d_tn_01_same_tone_key_with_a_coda_in_between_keeps_the_tone ... ok
+test d_tn_01_same_tone_with_a_coda_mid_word_keeps_the_marks ... ok
+test d_tn_02_z_without_a_tone_is_literal ... ok
+test d_tn_02_z_removes_the_tone ... ok
+test d_tn_02_z_keeps_the_circumflex ... ok
+test d_tn_05_adjacent_digit_escape_is_unchanged ... ok
+test d_tn_04_legal_changes_still_apply ... ok
+test d_tn_02_a_tone_can_be_typed_again_after_z ... ok
+test d_tn_04_spell_check_off_applies_the_tone ... ok
+test d_tn_04_the_fresh_word_sibling_is_literal_too ... ok
+test d_tn_03_zero_keeps_the_marks ... ok
+test d_tn_05_digit_with_no_target_is_literal ... ok
+test d_tn_03_zero_with_nothing_to_remove_is_a_literal_digit ... ok
+test d_tn_06_owner_repro_after_enter_does_not_reopen ... ok
+test d_tn_06_owner_repro_works_after_every_separator ... ok
+test d_tn_06_owner_repro_every_tone_on_a_real_word ... ok
+test d_tn_06_owner_repro_reopen_a_two_unit_tone_target ... ok
+test d_tn_06_owner_repro_reopens_only_the_immediately_preceding_word ... ok
+test d_tn_06_owner_repro_telex_tone_key_after_deleted_space ... ok
+test d_tn_06_backspace_keeps_the_display_unchanged ... ok
+test d_tn_04_illegal_tone_change_before_a_stop_coda_is_literal ... ok
+test d_tn_08_the_real_doubled_letter_escape_still_fires ... ok
+test d_tn_06_vni_tone_digit_after_backspace ... ok
+test d_tn_08_letter_after_a_tone_key_appends_instead_of_escaping_the_mark ... ok
+test d_tn_06_owner_repro_vni_tone_digit_after_deleted_space ... ok
+test documented_adjacent_escapes_after_backspace_are_unchanged ... ok
+test d_tn_06_tone_key_after_backspace_replaces_the_tone ... ok
+test d_tn_07_plain_letter_after_backspace_appends_with_marks_intact ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\tone_placement.rs (target\debug\deps\tone_placement-de16a87b42b6467b.exe)
+
+running 11 tests
+test oa_and_oe_follow_the_coda_rule ... ok
+test candidates_never_lose_the_tone_when_a_vowel_is_added ... ok
+test modified_vowel_wins_over_the_open_pair_rule ... ok
+test qu_and_gi_are_onsets ... ok
+test old_style_moves_the_open_pair_tone ... ok
+test single_vowel_takes_the_tone ... ok
+test three_vowel_nuclei_take_the_middle_vowel ... ok
+test tone_moves_when_the_syllable_grows ... ok
+test two_vowel_nuclei_take_the_first_vowel ... ok
+test uy_with_a_coda_takes_the_y ... ok
+test tone_survives_further_letters ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vkb_macos-55ed4dbcb2e305d2.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vkb_platform-bafcece8b83dd0c2.exe)
+
+running 51 tests
+test hotkeys::tests::a_beaten_chord_does_not_latch_the_next_toggle ... ok
+test hotkeys::tests::autorepeat_does_not_fire_twice_in_release_mode ... ok
+test hotkeys::tests::ambiguous_toggle_still_fires_on_release_in_press_mode ... ok
+test hotkeys::tests::autorepeat_does_not_retrigger ... ok
+test hotkeys::tests::autorepeat_of_the_longer_chord_fires_once ... ok
+test hotkeys::tests::ctrl_f1_combo_does_not_match_plain_f1 ... ok
+test hotkeys::tests::control_released_before_key_fires_only_once ... ok
+test hotkeys::tests::key_combo_fires_once_per_press ... ok
+test hotkeys::tests::extra_modifier_blocks_modifier_only_combo ... ok
+test hotkeys::tests::full_release_restore_also_waits_in_press_mode ... ok
+test hotkeys::tests::latch_clears_when_modifier_released_before_key ... ok
+test hotkeys::tests::discard_latches_rearms_without_key_up ... ok
+test hotkeys::tests::key_combo_requires_exact_modifier_set ... ok
+test hotkeys::tests::modifier_only_chord_respects_the_mode ... ok
+test hotkeys::tests::full_release_restore_fires_after_every_key_is_up ... ok
+test hotkeys::tests::plain_letter_without_modifier_never_matches_modifier_combo ... ok
+test hotkeys::tests::longer_chord_wins_over_modifier_only_in_release_mode ... ok
+test hotkeys::tests::key_released_before_modifiers_in_release_mode ... ok
+test hotkeys::tests::modifier_only_toggle_fires_exactly_once_in_every_release_order ... ok
+test hotkeys::tests::longer_chord_wins_over_modifier_only_in_press_mode ... ok
+test hotkeys::tests::extra_key_cancels_the_modifier_only_toggle ... ok
+test hotkeys::tests::press_mode_fires_on_key_down ... ok
+test hotkeys::tests::modifier_only_combo_fires_once_on_completion ... ok
+test hotkeys::tests::release_mode_does_not_fire_on_key_down ... ok
+test hotkeys::tests::release_mode_fires_on_key_up ... ok
+test hotkeys::tests::release_mode_trigger_is_swallowed_on_the_way_down ... ok
+test hotkeys::tests::releasing_and_repressing_toggles_back ... ok
+test hotkeys::tests::restore_word_and_modifier_only_combos_are_never_swallowed ... ok
+test hotkeys::tests::shift_released_before_key_does_not_double_action ... ok
+test hotkeys::tests::table_is_bounded ... ok
+test hotkeys::tests::third_combo_sharing_the_modifiers_keeps_the_toggle_on_release ... ok
+test hotkeys::tests::two_modifier_only_combos_fire_independently ... ok
+test hotkeys::tests::unrelated_key_cancels_a_full_release_wait ... ok
+test plan::tests::commit_equal_to_typed_char_passes_through ... ok
+test plan::tests::commit_multi_char_cannot_be_mistaken_for_pass_through ... ok
+test plan::tests::commit_with_more_text_is_typed ... ok
+test plan::tests::commit_without_char_is_typed ... ok
+test plan::tests::empty_commit_swallows_without_typing ... ok
+test plan::tests::noop_and_toggle_pass_through ... ok
+test plan::tests::reject_beeps_and_swallows ... ok
+test plan::tests::replace_is_batched ... ok
+test plan::tests::replace_with_zero_deletes_still_inserts ... ok
+test plan::tests::swallow_is_silent ... ok
+test rules::tests::explicit_rule_beats_remembered_state ... ok
+test rules::tests::no_rule_inherits_global ... ok
+test rules::tests::process_name_normalisation ... ok
+test rules::tests::rule_can_force_enable_globally_disabled_app ... ok
+test rules::tests::remembered_state_applies_only_when_enabled_in_config ... ok
+test rules::tests::rule_matching_is_case_insensitive ... ok
+test rules::tests::rule_overrides_charset_method_and_macro ... ok
+test rules::tests::version_rule_disables_app ... ok
+
+test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vkb_windows-703be73b8891cfe5.exe)
+
+running 97 tests
+test autostart::tests::command_is_quoted_for_spaces ... ok
+test clipboard::tests::text_round_trip_restores_previous_contents ... ignored, clobbers the clipboard; run with --ignored on an idle desktop
+test autostart::tests::entry_counts_as_enabled_with_or_without_the_flag ... ok
+test autostart::tests::registry_paths_match_the_documented_ones ... ok
+test autostart::tests::wide_strings_are_nul_terminated ... ok
+test backend::tests::backend_reports_not_running_before_start ... ok
+test backend::tests::injector_defaults_are_the_safe_path ... ok
+test backend::tests::injector_ignores_noop_actions ... ok
+test globals::tests::callbacks_are_invoked_and_can_be_replaced ... ok
+test foreground::tests::invalid_key_detection ... ok
+test hook::tests::default_build_uses_the_production_marker ... ok
+test globals::tests::command_callback_maps_backend_commands ... ok
+test foreground::tests::foreground_probe_returns_a_process_on_a_live_session ... ok
+test globals::tests::enabled_flag_round_trips ... ok
+test hotkeys::tests::combo_is_a_copy_type ... ok
+test hotkeys::tests::default_config_fires_on_release ... ok
+test hotkeys::tests::ctrl_alt_letter_combo_maps_to_the_letter_key ... ok
+test hotkeys::tests::cycle_hotkey_compiles_and_fires ... ok
+test hotkeys::tests::default_config_toggles_on_ctrl_shift_in_every_release_order ... ok
+test hotkeys::tests::default_hotkeys_compile_and_fire ... ok
+test hotkeys::tests::modifier_only_toggle_compiles_without_a_key ... ok
+test hotkeys::tests::letters_do_not_gain_shift ... ok
+test hotkeys::tests::default_restore_chord_beats_the_toggle_in_press_mode ... ok
+test autostart::tests::registry_write_round_trip ... ok
+test hotkeys::tests::owner_config_restore_chord_fires_when_the_chord_is_up ... ok
+test hotkeys::tests::the_run_config_binds_alt_shift_and_not_ctrl_shift ... ok
+test hotkeys::tests::shifted_punctuation_hotkey_requires_shift ... ok
+test hotkeys::tests::function_and_named_keys_have_virtual_codes ... ok
+test hotkeys::tests::unbound_hotkeys_are_skipped ... ok
+test ime::tests::keyboard_state_reflects_modifiers ... ok
+test ime::tests::no_window_means_no_composition ... ok
+test input::tests::ctrl_v_presses_and_releases_in_order ... ok
+test input::tests::empty_send_is_a_no_op ... ok
+test input::tests::every_event_is_tagged_as_ours ... ok
+test input::tests::macro_newline_is_typed_as_return ... ok
+test input::tests::nothing_is_built_for_noop_and_beep ... ok
+test input::tests::replace_is_one_batch_backspaces_then_text ... ok
+test input::tests::replace_keeps_surrogate_pairs_whole ... ok
+test input::tests::replace_order_is_all_deletes_then_all_text ... ok
+test input::tests::replace_types_ascii_with_scancodes_in_unicode_mode ... ok
+test input::tests::replace_wraps_shifted_ascii_in_shift ... ok
+test input::tests::restore_keeps_diacritics_and_surrogate_pairs_on_the_packet_path ... ok
+test input::tests::restore_neutralises_a_chord_that_is_still_held ... ok
+test input::tests::restore_of_ba6t5_keeps_every_character_unshifted ... ok
+test input::tests::restore_of_mixed_text_types_it_verbatim ... ok
+test input::tests::restore_prefix_is_key_ups_only ... ok
+test input::tests::restore_shift_decision_is_per_character_not_per_batch ... ok
+test input::tests::standard_mode_backspace_has_scan_code ... ok
+test input::tests::standard_mode_replace_is_unchanged ... ok
+test input::tests::standard_mode_falls_back_to_unicode_for_diacritics ... ok
+test input::tests::standard_mode_uses_scancodes_for_ascii ... ok
+test input::tests::standard_mode_wraps_uppercase_in_shift ... ok
+test input::tests::type_keeps_unicode_packets_in_unicode_mode ... ok
+test input::tests::unicode_mode_splits_surrogate_pairs ... ok
+test keys::tests::boundary_and_mover_sets ... ok
+test keys::tests::caps_lock_toggles_only_on_key_down ... ok
+test keys::tests::digits_map_to_shifted_symbols ... ok
+test keys::tests::every_standard_mode_char_has_a_scancode ... ok
+test keys::tests::letters_follow_shift_and_caps ... ok
+test keys::tests::modifier_classification ... ok
+test keys::tests::modifier_state_tracks_press_and_release ... ok
+test keys::tests::non_ascii_has_no_standard_vk ... ok
+test keys::tests::punctuation_and_control_keys ... ok
+test keys::tests::scancodes_cover_the_typing_alphabet ... ok
+test keys::tests::us_char_and_vk_round_trip ... ok
+test perf::tests::budget_verdict_needs_enough_samples ... ok
+test perf::tests::civil_dates_match_known_days ... ok
+test perf::tests::nearest_rank_percentiles_are_exact_on_a_ramp ... ok
+test perf::tests::probe_is_off_unless_the_environment_says_so ... ok
+test perf::tests::report_lands_under_appdata_vietkb ... ok
+test sound::tests::durations_and_peaks_match_spec ... ok
+test sound::tests::levels_dc_offset_and_fades ... ok
+test sound::tests::on_and_off_are_a_distinct_pair ... ok
+test sound::tests::packs_are_pcm16_22k_mono ... ok
+test state::tests::context_change_flushes_the_pending_word ... ok
+test state::tests::auto_repeat_follows_the_bit_not_the_latch ... ok
+test state::tests::apply_config_clears_the_swallowed_bits ... ok
+test state::tests::method_cycle_wraps_between_two_methods ... ok
+test state::tests::fresh_down_passes_when_both_the_down_and_trigger_bits_are_stale ... ok
+test state::tests::remember_per_app_off_writes_nothing ... ok
+test state::tests::numpad_stays_non_text ... ok
+test state::tests::control_packet_is_not_text ... ok
+test state::tests::startup_honours_a_persisted_disabled_rule ... ok
+test state::tests::key_bitset_tracks_autorepeat ... ok
+test state::tests::explicit_rule_beats_everything ... ok
+test state::tests::mouse_button_down_ends_the_word ... ok
+test state::tests::packet_w_transforms_with_empty_word ... ok
+test state::tests::plain_packet_with_empty_word_is_noop ... ok
+test state::tests::release_mode_trigger_down_and_up_are_swallowed ... ok
+test state::tests::remember_per_app_keeps_state_per_process ... ok
+test state::tests::restore_releases_the_configured_chord ... ok
+test state::tests::restore_word_hotkey_rewrites_the_word_on_release ... ok
+test state::tests::remembered_app_rule_round_trips_through_config ... ok
+test state::tests::short_send_switches_to_standard_then_excludes ... ok
+test state::tests::stale_bit_is_cleared_by_a_fresh_key_down ... ok
+test state::tests::toggle_twice_returns_to_previous_state ... ok
+test state::tests::bit_is_set_only_when_the_key_down_was_swallowed ... ok
+
+test result: ok. 96 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\hook_integration.rs (target\debug\deps\hook_integration-a0c40827b2e4e540.exe)
+
+running 3 tests
+test hook_installs_fires_hotkey_and_uninstalls ... ignored, installs a global keyboard hook; run manually on an interactive desktop
+test install_is_idempotent_and_stop_is_safe ... ignored, installs a global keyboard hook; run manually on an interactive desktop
+test enabled_flag_never_sticks ... ok
+
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vkb_config
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vkb_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vkb_macos
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vkb_platform
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vkb_windows
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

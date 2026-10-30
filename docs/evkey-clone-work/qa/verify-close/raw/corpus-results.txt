@@ -1,0 +1,25 @@
+﻿CORPUS-PRE-CHECK
+METHOD telex
+PARA 01-chat telex PASS keys=300
+PARA 02-email telex PASS keys=358
+PARA 03-ky-thuat telex PASS keys=410
+PARA 04-tin-tuc telex PASS keys=398
+PARA 05-hanh-chinh telex PASS keys=357
+PARA 06-marketing telex PASS keys=290
+PARA 07-hoc-tap telex PASS keys=339
+PARA 08-dia-danh telex PASS keys=336
+PARA 09-trung-anh telex PASS keys=329
+PARA 10-dau-cau telex PASS keys=319
+METHOD vni
+PARA 01-chat vni PASS keys=300
+PARA 02-email vni PASS keys=358
+PARA 03-ky-thuat vni PASS keys=410
+PARA 04-tin-tuc vni PASS keys=398
+PARA 05-hanh-chinh vni PASS keys=357
+PARA 06-marketing vni PASS keys=290
+PARA 07-hoc-tap vni PASS keys=339
+PARA 08-dia-danh vni PASS keys=336
+PARA 09-trung-anh vni PASS keys=329
+PARA 10-dau-cau vni PASS keys=319
+PARAGRAPH_FAILURES=0
+CORPUS-DONE
