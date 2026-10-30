@@ -15,6 +15,7 @@ Thumbs.db
 
 # Local inspection artifacts (EVKey binary, screenshots) stay out of history.
 /reference/evkey-binary/
+/reference/evkey-decomp/
 
 # renders and sandbox scratch
 design/hero-motion/_frames/
