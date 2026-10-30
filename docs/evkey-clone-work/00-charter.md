@@ -30,7 +30,7 @@ keystroke content leaving the machine.
 | C6 | Config is a human-readable TOML file with a schema version and forward migrations. |
 | C7 | UI language: Vietnamese default, English available. All *product* strings stay Vietnamese-verbatim where they are EVKey terminology (kiểu gõ, bảng mã, gõ tắt, …). |
 | C8 | Windows 10 1809+ and Windows 11, x64 first. arm64 build target exists but ships later. |
-| C9 | **The settings window is a quick-settings panel, not a dashboard.** Default size 720 × 560 (frameless, the status strip doubles as the title bar), minimum 680 × 520, not resizable above what the content needs. At most **4 tabs**, no sidebar, no home screen. The screen the user lands on is the one with the typing options; everything else is one tab away. No scrolling on any tab at 100 % DPI. |
+| C9 | **The settings window is a quick-settings panel, not a dashboard.** *(Amended by the owner, 2026-10-30, D-E2E-04.)* The main window is the compact single page as shipped (≈ 478 × 459 client area at 100 % DPI, frameless, the status strip doubles as the title bar) with the typing options first; `Nâng cao`, `Phím tắt` and `Bảng gõ tắt` open as their own windows instead of tabs. No sidebar, no home screen. The former 720 × 560 / ≤ 4 tabs target is withdrawn. |
 | C10 | Anything that needs more room than the panel (bảng gõ tắt 5000 dòng, công cụ chuyển mã văn bản) opens as a **separate window or dialog**, never by growing the main panel. |
 
 ## 3. Performance budgets (hard gates, measured on this machine)
