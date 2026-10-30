@@ -1,0 +1,73 @@
+﻿11:10:22.122 START host E2E v2 (rebuilt candidate); initFg=68402 capsLockInit=False cursor=931,1067
+11:10:22.230 HASH exe=0D39D42F5F66CA4CE40D22068FA31DE940E32D811DD5F393C79FD775FADFEB92 match=True | installer=CD45BD84E26DC3A46A4DF51CD96465A31932DEBE310741797AAE190D3812DCBC match=True
+11:10:22.998 PREFLIGHT ok (no EVKey, Unikey or installed VietKB)
+11:10:31.028 IDLE ok idleMs=61250
+11:10:31.035 WATCHERS armed: WH_KEYBOARD_LL (0x10) and WH_MOUSE_LL (0x01)
+11:10:31.053 CONFIG backup hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 orig=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 equal=True
+11:10:31.061 RUNKEY VietKB before="E:\vietkb\target\debug\deps\vkb_windows-703be73b8891cfe5.exe" --autostart
+11:10:31.083 CLIPBOARD had-text=True
+11:10:32.723 NOTEPAD hwnd=24446720 pid=51592 rect=2660,100,3428,660
+11:10:32.745 CONFIG set [input] method = "telex" for this run
+11:10:38.069 LAUNCH vietkb pid=19236 path=E:\vietkb\target\release\vietkb.exe
+11:10:38.307 RUNKEY VietKB after launch="E:\vietkb\target\release\vietkb.exe" --autostart
+11:10:38.621 BATCH clear-Notepad prevFg=24446720 -> OK
+11:10:53.611 BATCH rows-Notepad prevFg=24446720 -> OK
+11:10:59.025 BATCH copy-Notepad prevFg=24446720 -> OK
+11:10:59.296 RESULT [Notepad] A1 PASS keys=[dduwowcj] expected=[được] actual=[được] 
+11:10:59.298 RESULT [Notepad] A2 PASS keys=[tieesng vieetj] expected=[tiếng việt] actual=[tiếng việt] 
+11:10:59.313 RESULT [Notepad] A3 PASS keys=[nghieeng] expected=[nghiêng] actual=[nghiêng] 
+11:10:59.323 RESULT [Notepad] A4 PASS keys=[Tieesng Vieetj raast ddepj.] expected=[Tiếng Việt rất đẹp.] actual=[Tiếng Việt rất đẹp.] 
+11:10:59.335 RESULT [Notepad] A5 PASS keys=[dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj dduwowcj ] expected=[được được được được được được được được được được ] actual=[được được được được được được được được được được ] 
+11:10:59.347 RESULT [Notepad] B1 PASS keys=[VIEETJ] expected=[VIỆT] actual=[VIỆT] 
+11:10:59.354 RESULT [Notepad] B2 PASS keys=[Vieejt] expected=[Việt] actual=[Việt] 
+11:10:59.366 RESULT [Notepad] B4 PASS keys=[{SHIFTDOWN}VIEETJ{SHIFTUP}] expected=[VIỆT] actual=[VIỆT] 
+11:10:59.383 RESULT [Notepad] B5 RECORD keys=[duong{SHIFT+J}] expected=[dượng] actual=[dụong] DIFFERS from dượng (recorded, not a pass/fail row)
+11:10:59.390 RESULT [Notepad] B6 PASS keys=[{CAPS_ON}vieejt{CAPS_OFF}] expected=[VIỆT] actual=[VIỆT] 
+11:10:59.425 RESULT [Notepad] A5x10 PASS keys=[dduwowcj x10] expected=[10 of 10 correct] actual=[10 of 10 correct; failures=0] 
+11:10:59.426 SHIFTCHK [Notepad] B1 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:10:59.440 RESULT [Notepad] SHIFT-B1 LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off keys=[after row] expected=[no Shift stuck down; caps as set] actual=[LSHIFT=up RSHIFT=up SHIFT=up] PASS
+11:10:59.448 SHIFTCHK [Notepad] B2 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:10:59.461 RESULT [Notepad] SHIFT-B2 LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off keys=[after row] expected=[no Shift stuck down; caps as set] actual=[LSHIFT=up RSHIFT=up SHIFT=up] PASS
+11:10:59.471 SHIFTCHK [Notepad] B4 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:10:59.483 RESULT [Notepad] SHIFT-B4 LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off keys=[after row] expected=[no Shift stuck down; caps as set] actual=[LSHIFT=up RSHIFT=up SHIFT=up] PASS
+11:10:59.498 SHIFTCHK [Notepad] B5 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:10:59.512 RESULT [Notepad] SHIFT-B5 LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off keys=[after row] expected=[no Shift stuck down; caps as set] actual=[LSHIFT=up RSHIFT=up SHIFT=up] PASS
+11:10:59.529 SHIFTCHK [Notepad] B6 | LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off
+11:10:59.544 RESULT [Notepad] SHIFT-B6 LSHIFT=up RSHIFT=up SHIFT=up | capsLock=off keys=[after row] expected=[no Shift stuck down; caps as set] actual=[LSHIFT=up RSHIFT=up SHIFT=up] PASS
+11:11:04.319 BATCH clear-C prevFg=24446720 -> OK
+11:11:09.860 BATCH C-type prevFg=24446720 -> OK
+11:11:15.715 CLICK C-click-line1-end at 3633,231 -> OK
+11:11:20.693 BATCH C-et prevFg=24446720 -> OK
+11:11:26.036 BATCH copy-Notepad prevFg=24446720 -> OK
+11:11:26.039 RESULT [Notepad] C1 PASS keys=[xyz{ENTER}vie | click end of line 1 | et] expected=[xyzet
+vie] actual=[xyzet
+vie] 
+11:11:31.358 BATCH clear-E prevFg=24446720 -> OK
+11:11:36.896 BATCH E-type-restore prevFg=24446720 -> OK
+11:11:42.295 BATCH copy-Notepad prevFg=24446720 -> OK
+11:11:42.299 RESULT [Notepad] E1 PASS keys=[vieejt then Ctrl+Shift+Z] expected=[vieejt] actual=[vieejt] 
+11:11:47.574 BATCH H-open-settings prevFg=24446720 -> OK
+11:11:50.579 RESULT [VietKB] H1 PASS keys=[Ctrl+Alt+S] expected=[settings window visible] actual=[hwnd=6295536 rect=4091,383,4709,968] 
+11:11:52.650 RESULT [Shell] H3 CAPTURED keys=[tray area] expected=[screenshot of tray icon area] actual=[shots2\H-tray-primary-run2.png] owner to view
+11:11:59.070 VSCODE hwnd=2228732 pid=47668 rect=3200,100,3840,820
+11:11:59.382 BATCH clear-VS Code prevFg=2228732 -> OK
+11:12:05.204 BATCH rows-VS Code prevFg=2228732 -> ABORT:foreground changed mid-batch rows-VS Code
+11:12:05.234 ABORT RUN-ABORT ABORT:foreground changed mid-batch rows-VS Code
+11:12:05.236 TEARDOWN begin
+11:12:06.288 KILL 2026-10-30 11:12:06 Code pid=47668 reason=QA host E2E v2 teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+11:12:06.332 KILL 2026-10-30 11:12:06 Code pid=2932 reason=QA host E2E v2 teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+11:12:06.401 KILL 2026-10-30 11:12:06 Code pid=3780 reason=QA host E2E v2 teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+11:12:06.461 KILL 2026-10-30 11:12:06 Code pid=45248 reason=QA host E2E v2 teardown (VS Code scratch profile, launched by QA) (launched by QA host-e2e)
+11:12:06.522 KILL 2026-10-30 11:12:06 notepad pid=51592 reason=QA host E2E v2 teardown (scratch file only, launched by QA) (launched by QA host-e2e)
+11:12:07.140 KILL 2026-10-30 11:12:07 vietkb pid=19236 reason=QA host E2E v2 teardown: owned rebuilt target build path=E:\vietkb\target\release\vietkb.exe (launched by QA) (launched by QA host-e2e)
+11:12:09.348 TEARDOWN candidate processes left=0
+11:12:09.351 CAPSLOCK restored to off now=off identical=True
+11:12:09.365 CURSOR restored to 931,1067
+11:12:09.374 CONFIG restored hash=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 expected=58EB422E87C456553C868DE2FE61BD882F5E786498BBED782B34E3E3806EC704 identical=True
+11:12:09.391 RUNKEY VietKB after="E:\vietkb\target\release\vietkb.exe" --autostart unchanged=False
+11:12:09.412 RUNKEY VietKB restored to original value
+11:12:09.418 RUNKEY VietKB final byte-identical=True value="E:\vietkb\target\debug\deps\vkb_windows-703be73b8891cfe5.exe" --autostart
+11:12:09.431 CLIPBOARD restored (had-text=True)
+11:12:09.442 FOREGROUND restored to 68402 now=68402
+11:12:09.459 OVERALL ABORTED: RUN-ABORT ABORT:foreground changed mid-batch rows-VS Code
+11:12:09.468 END

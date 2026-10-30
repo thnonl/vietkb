@@ -13,7 +13,8 @@
 - Telex: gõ `z` để bỏ dấu, `toans` thêm `z` ra `toan`.
 - VNI: `0` chỉ bỏ dấu, giữ nguyên â, ă, ơ, ư, đ. `ba65t0` ra `bât`.
 - Dấu không hợp với từ thì phím đó ra chữ thường: `bật` gõ thêm `f` ra `bậtf`, không thành `bầt`. Áp dụng khi bật Kiểm tra chính tả.
-- Chữ hoa gõ bằng Shift cho từng chữ giờ ra đúng: `VIEETJ` ra `VIỆT`, `DDUWOWCJ` ra `ĐƯỢC`.
+- Chữ hoa giờ ra đúng, dù nhấn Shift cho từng chữ, giữ Shift cả từ hay bật Caps Lock: `VIEETJ` ra `VIỆT`, `Vieejt` ra `Việt`.
+- Khi thêm dấu, VietKB chỉ sửa phần chữ thay đổi, không xoá rồi gõ lại cả từ. Chữ hoa đầu từ không còn bị mất hoa, và Shift không còn bị nhả khi đang giữ.
 - Bấm chuột sang chỗ khác là kết thúc từ đang gõ. Chữ gõ tiếp không bị nối vào từ trước.
 
 ## Sửa lỗi
@@ -24,4 +25,4 @@
 
 ## Còn lại
 
-- Trong Notepad trên Windows 11, từ có nhiều chữ có dấu liền nhau như `được` thỉnh thoảng vẫn bị sai.
+- Trong Notepad trên Windows 11, từ có nhiều chữ có dấu liền nhau như `được` có thể vẫn bị sai trong vài trường hợp hiếm. Lần kiểm tra gần nhất gõ `được` 10 lần đều đúng.
