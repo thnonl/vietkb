@@ -518,7 +518,7 @@ impl Engine {
                     ch,
                     opener,
                     expansion.is_empty(),
-                    expansion.chars().all(|c| c.is_ascii()),
+                    expansion.is_ascii(),
                     false,
                     chain_ready && expansion.is_empty(),
                 );

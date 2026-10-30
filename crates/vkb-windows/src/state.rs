@@ -277,7 +277,6 @@ impl HookRuntime {
 
         if let Some(ch) = packet_char {
             let modifiers = self.mods.modifiers();
-            self.publish_held();
             trace.mods(modifiers, self.mods.caps_lock);
             trace.ch(Some(ch));
             if !down {
@@ -330,7 +329,6 @@ impl HookRuntime {
         let was_down = self.is_down(vk);
         self.set_down(vk, down);
         self.mods.apply(vk, down);
-        self.publish_held();
         let modifiers = self.mods.modifiers();
         trace.mods(modifiers, self.mods.caps_lock);
         let repeat = down && was_down;
@@ -609,7 +607,8 @@ impl HookRuntime {
         }
         let engine = &mut self.engine;
         let action = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            engine.restore_word()
+            let shown: vkb_core::charset::TextBuf = engine.on_screen().iter().copied().collect();
+            keep_unchanged_head(&shown, engine.restore_word())
         }))
         .unwrap_or(EngineAction::Noop);
         let decision = decide(&action, None);
@@ -666,6 +665,7 @@ impl HookRuntime {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // The word the app shows before this key, so the rewrite can leave
             // its unchanged head alone (D-E2E-06): no allocation, a short copy.
+            // `TextBuf` is an inline buffer: a short copy on the stack, no heap.
             let shown: vkb_core::charset::TextBuf = engine.on_screen().iter().copied().collect();
             keep_unchanged_head(&shown, engine.process_key(key))
         }));
@@ -718,13 +718,17 @@ impl HookRuntime {
             }
             return SendResult::default();
         }
+        let user_shift = self.mods.shift_keys;
         let build = |deletes: u32, text: &str, mode: SendMode| {
             if chord == Modifiers::NONE {
                 input::build_segment(deletes, text, mode)
             } else {
-                input::build_restore(deletes, text, mode, chord)
+                input::build_restore(deletes, text, mode, chord, user_shift)
             }
         };
+        // What the user held when the batch was built: a Shift that is down
+        // afterwards and was not theirs is ours, and must not stay down.
+        let held = input::held_now();
         let inputs = build(deletes, text, self.send_mode);
         let mut result = input::send_detailed(&inputs);
         if result.total > 0 && result.sent < result.total {
@@ -732,11 +736,29 @@ impl HookRuntime {
             // this app: Standard scancodes first, then exclude it, so the user
             // keeps typing raw instead of losing characters.
             self.on_short_send();
-            if !self.auto_excluded {
+            if result.sent > 0 {
+                // Part of the batch is already in the app. Rebuilding it would
+                // delete and type that part twice, so finish the same batch
+                // from the first event the OS did not take.
+                let rest = input::send_detailed(&inputs[result.sent as usize..]);
+                result.sent += rest.sent;
+                result.error = rest.error;
+                result.attempts += rest.attempts;
+                if rest.sent < rest.total {
+                    self.auto_excluded = true;
+                    // Stopped halfway: our own half-pressed Shift must not stay down.
+                    input::resync_shift(held);
+                }
+            } else if !self.auto_excluded {
+                // Nothing was delivered, so nothing can be duplicated: rebuild
+                // for the stepped-down strategy.
                 let retry = build(deletes, text, self.send_mode);
                 result = input::send_detailed(&retry);
                 if result.total > 0 && result.sent < result.total {
                     self.auto_excluded = true;
+                    if result.sent > 0 {
+                        input::resync_shift(held);
+                    }
                 }
             }
         }
@@ -897,15 +919,6 @@ impl HookRuntime {
         }
         // Toggling Vietnamese on/off changes whether macros still run.
         self.engine.set_macro_only(self.macro_only_active());
-    }
-
-    /// Tell the injector which case keys the user holds right now, so a batch
-    /// built inside this callback leaves them as it found them (D-E2E-06).
-    fn publish_held(&self) {
-        input::note_held(input::Held {
-            shift: self.mods.shift,
-            caps: self.mods.caps_lock,
-        });
     }
 
     fn char_for(&mut self, vk: u16, scan: u16) -> Option<char> {
@@ -1267,10 +1280,10 @@ toggle_mode = "release"
         assert_eq!(
             *last,
             EngineAction::Replace {
-                delete_units: 3,
-                insert: "ba6t5".to_string()
+                delete_units: 2,
+                insert: "a6t5".to_string()
             },
-            "the chord must rewrite `bật` back to the raw keystrokes"
+            "the chord must rewrite `bật` back to the raw keystrokes (the unchanged `b` stays)"
         );
         drop(actions);
 
@@ -1289,8 +1302,8 @@ toggle_mode = "release"
         assert_eq!(
             actions.last(),
             Some(&EngineAction::Replace {
-                delete_units: 3,
-                insert: "ba6t5".to_string()
+                delete_units: 2,
+                insert: "a6t5".to_string()
             }),
             "the chord must survive a config republish"
         );

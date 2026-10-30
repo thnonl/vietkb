@@ -58,3 +58,18 @@ fn macro_only_enter_expands_then_passes_enter() {
     keys.push(KeyInput::enter());
     assert_eq!(type_keys(&mut engine, &keys), "Việt Nam\r");
 }
+
+#[test]
+fn macro_only_never_claims_text_is_on_screen() {
+    // The platform trims a rewrite against `on_screen()` only when the rewrite
+    // deletes exactly that text. Macro-only mode deletes the trigger the app
+    // typed while it leaves `on_screen()` empty, so no trim can ever apply.
+    let mut engine = engine_with(InputMethod::Telex, true);
+    for key in chars("vn") {
+        engine.process_key(key);
+        assert!(engine.on_screen().is_empty(), "after {key:?}");
+    }
+    let action = engine.process_key(KeyInput::char(' '));
+    assert!(matches!(action, vkb_core::EngineAction::Replace { delete_units: 2, .. }));
+    assert!(engine.on_screen().is_empty());
+}

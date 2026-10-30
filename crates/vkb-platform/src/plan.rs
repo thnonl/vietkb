@@ -111,8 +111,8 @@ pub fn decide(action: &EngineAction, ch: Option<char>) -> Decision {
 ///
 /// `on_screen` is the engine's text *before* the key. Actions that do not
 /// rewrite exactly that text are returned untouched.
-pub fn keep_unchanged_head(on_screen: &[char], action: EngineAction) -> EngineAction {
-    let (delete_units, insert, pass) = match action {
+pub fn keep_unchanged_head(on_screen: &[char], mut action: EngineAction) -> EngineAction {
+    let (delete_units, insert, pass) = match &mut action {
         EngineAction::Replace {
             delete_units,
             insert,
@@ -121,32 +121,51 @@ pub fn keep_unchanged_head(on_screen: &[char], action: EngineAction) -> EngineAc
             delete_units,
             insert,
         } => (delete_units, insert, true),
-        other => return other,
+        _ => return action,
     };
-    let keep = if delete_units as usize == on_screen.len() {
-        on_screen
-            .iter()
-            .zip(insert.chars())
-            .take_while(|(shown, new)| shown == &new)
-            .count()
-    } else {
-        0
-    };
-    let insert: String = insert.chars().skip(keep).collect();
-    let delete_units = delete_units - keep as u32;
-    match (pass, delete_units == 0 && insert.is_empty()) {
-        // The word is already what the engine wants: nothing to rewrite.
-        (false, true) => EngineAction::Swallow,
-        (true, true) => EngineAction::Noop,
-        (false, false) => EngineAction::Replace {
-            delete_units,
-            insert,
-        },
-        (true, false) => EngineAction::ReplaceThenPass {
-            delete_units,
-            insert,
-        },
+    if *delete_units as usize != on_screen.len() {
+        return action;
     }
+    let mut keep = on_screen
+        .iter()
+        .zip(insert.chars())
+        .take_while(|(shown, new)| *shown == new)
+        .count();
+    // Never cut between a base letter and a combining mark (`unicode_nfd`
+    // renders `ệ` as `e` + `U+0302` + `U+0323`): the base is retyped with them.
+    while keep > 0
+        && (on_screen.get(keep).copied().is_some_and(is_combining)
+            || insert.chars().nth(keep).is_some_and(is_combining))
+    {
+        keep -= 1;
+    }
+    if keep == 0 {
+        return action;
+    }
+    // In place: the engine already allocated `insert`; this only shortens it.
+    let cut = insert.char_indices().nth(keep).map_or(insert.len(), |(at, _)| at);
+    insert.drain(..cut);
+    *delete_units -= keep as u32;
+    if *delete_units == 0 && insert.is_empty() {
+        // The word is already what the engine wants: nothing to rewrite.
+        return if pass {
+            EngineAction::Noop
+        } else {
+            EngineAction::Swallow
+        };
+    }
+    action
+}
+
+/// Combining marks the charsets emit (`unicode_nfd` uses U+0300..=U+036F; the
+/// other blocks are listed so a future charset cannot be cut apart either).
+fn is_combining(ch: char) -> bool {
+    matches!(ch,
+        '\u{0300}'..='\u{036F}'
+        | '\u{1AB0}'..='\u{1AFF}'
+        | '\u{1DC0}'..='\u{1DFF}'
+        | '\u{20D0}'..='\u{20FF}'
+        | '\u{FE20}'..='\u{FE2F}')
 }
 
 #[cfg(test)]
@@ -179,6 +198,35 @@ mod tests {
             keep_unchanged_head(&shown("đep"), replace(3, "đẹp")),
             replace(2, "ẹp")
         );
+    }
+
+    #[test]
+    fn a_base_letter_is_never_separated_from_its_combining_mark() {
+        // `unicode_nfd`: `Viê` is `Vie` + U+0302; adding the tone appends U+0323.
+        // The shared head is `Vie`, but cutting after the `e` would retype a bare
+        // mark: the base goes with it.
+        let on_screen = shown("Vie\u{302}");
+        let action = replace(4, "Vie\u{302}\u{323}");
+        assert_eq!(keep_unchanged_head(&on_screen, action), replace(2, "e\u{302}\u{323}"));
+        // Swapping one mark for another on the same base.
+        let action = replace(3, "Vi\u{e9}");
+        assert_eq!(keep_unchanged_head(&shown("Vie"), action), replace(1, "\u{e9}"));
+        let action = replace(4, "Vie\u{301}");
+        assert_eq!(
+            keep_unchanged_head(&shown("Vie\u{302}"), action),
+            replace(2, "e\u{301}"),
+            "the old mark and the new one are both tied to `e`"
+        );
+        // Marks that do not change keep the whole head, marks included.
+        let action = replace(4, "Vie\u{302}t");
+        assert_eq!(keep_unchanged_head(&shown("Vie\u{302}"), action), replace(0, "t"));
+    }
+
+    #[test]
+    fn macro_only_replace_is_not_a_rewrite_of_the_screen() {
+        // Macro-only mode keeps `on_screen` empty while the Replace deletes the
+        // trigger the app typed: the counts differ, so the action is untouched.
+        assert_eq!(keep_unchanged_head(&[], replace(3, "tắt ")), replace(3, "tắt "));
     }
 
     #[test]

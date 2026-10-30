@@ -59,6 +59,7 @@ pub fn reset() {
     HARNESS_TAG.store(0, Ordering::SeqCst);
     INJECT_TAG.store(INJECTED_MAGIC, Ordering::SeqCst);
     CAPTURE_ON.store(false, Ordering::SeqCst);
+    SHORT_BATCHES.lock().clear();
     LEGACY_TRIGGER_LEAK.store(false, Ordering::SeqCst);
 }
 
@@ -106,6 +107,9 @@ pub struct Captured {
 }
 
 static CAPTURE_ON: AtomicBool = AtomicBool::new(false);
+/// Event counts the next batches accept, front first (a short `SendInput`);
+/// once empty every batch is taken whole.
+static SHORT_BATCHES: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 static CAPTURED: Mutex<Vec<Captured>> = Mutex::new(Vec::new());
 
 /// Divert the backend's injections into a buffer instead of `SendInput`.
@@ -114,13 +118,26 @@ pub fn set_capture(on: bool) {
     CAPTURED.lock().clear();
 }
 
-/// Called by the injector in place of `SendInput`; `true` = captured.
-pub(crate) fn capture(inputs: &[INPUT]) -> bool {
+/// Make the next captured batches short: batch `i` accepts only `events[i]` of
+/// its events, as a `SendInput` that a blocked target cuts off.
+pub fn short_next_batches(events: &[usize]) {
+    let mut queue = SHORT_BATCHES.lock();
+    queue.clear();
+    queue.extend(events.iter().rev());
+}
+
+/// Called by the injector in place of `SendInput`; `Some(n)` = the first `n`
+/// events were captured (`n == inputs.len()` unless a short batch was armed).
+pub(crate) fn capture(inputs: &[INPUT]) -> Option<usize> {
     if !CAPTURE_ON.load(Ordering::Relaxed) {
-        return false;
+        return None;
     }
+    let accepted = SHORT_BATCHES
+        .lock()
+        .pop()
+        .map_or(inputs.len(), |limit| limit.min(inputs.len()));
     let mut out = CAPTURED.lock();
-    for input in inputs {
+    for input in &inputs[..accepted] {
         let ki = unsafe { input.Anonymous.ki };
         let unicode = ki.dwFlags.0 & KEYEVENTF_UNICODE.0 != 0;
         out.push(Captured {
@@ -134,7 +151,7 @@ pub(crate) fn capture(inputs: &[INPUT]) -> bool {
             extra: ki.dwExtraInfo,
         });
     }
-    true
+    Some(accepted)
 }
 
 pub fn take_captured() -> Vec<Captured> {

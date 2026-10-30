@@ -327,6 +327,85 @@ fn other_vietkb_processes() -> Result<Vec<String>, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Simulated key state (in-process mode)
+// ---------------------------------------------------------------------------
+
+/// The injector reads `GetAsyncKeyState` / `GetKeyState` to build a batch around
+/// the keys the user holds. In-process there is no desktop, so the harness keeps
+/// the one key state the desktop would have, applies every key it feeds and every
+/// event the backend injects, and answers those reads from it
+/// (`input::set_key_probe`). Without this the injector would read the owner's
+/// real keyboard and the Held / Caps Lock path would go unexercised.
+static SIM_SHIFT_L: AtomicBool = AtomicBool::new(false);
+static SIM_SHIFT_R: AtomicBool = AtomicBool::new(false);
+static SIM_SHIFT_ANY: AtomicBool = AtomicBool::new(false);
+static SIM_CAPS: AtomicBool = AtomicBool::new(false);
+/// Injected events the probe has already applied but the driver has not yet recorded.
+static SIM_PENDING: parking_lot::Mutex<Vec<vkb_windows::e2e::Captured>> =
+    parking_lot::Mutex::new(Vec::new());
+
+fn sim_apply(vk: u16, down: bool) {
+    match vk {
+        VK_LSHIFT => SIM_SHIFT_L.store(down, Ordering::SeqCst),
+        keys::VK_RSHIFT => SIM_SHIFT_R.store(down, Ordering::SeqCst),
+        keys::VK_SHIFT => {
+            SIM_SHIFT_ANY.store(down, Ordering::SeqCst);
+            if !down {
+                // A generic key-up releases whichever Shift is down.
+                SIM_SHIFT_L.store(false, Ordering::SeqCst);
+                SIM_SHIFT_R.store(false, Ordering::SeqCst);
+            }
+        }
+        keys::VK_CAPITAL if down => {
+            SIM_CAPS.fetch_xor(true, Ordering::SeqCst);
+        }
+        _ => {}
+    }
+}
+
+/// Apply what the backend has injected so far and hand it to the driver once.
+fn sim_absorb() -> Vec<vkb_windows::e2e::Captured> {
+    for cap in vkb_windows::e2e::take_captured() {
+        if cap.vk != keys::VK_PACKET {
+            sim_apply(cap.vk, !cap.up);
+        }
+        SIM_PENDING.lock().push(cap);
+    }
+    std::mem::take(&mut *SIM_PENDING.lock())
+}
+
+fn sim_reset() {
+    for flag in [&SIM_SHIFT_L, &SIM_SHIFT_R, &SIM_SHIFT_ANY, &SIM_CAPS] {
+        flag.store(false, Ordering::SeqCst);
+    }
+}
+
+struct SimProbe;
+
+impl vkb_windows::input::KeyProbe for SimProbe {
+    fn down(&self, vk: u16) -> bool {
+        // Injected events reach the desktop the moment they are sent.
+        let mut sent = sim_absorb();
+        SIM_PENDING.lock().append(&mut sent);
+        let l = SIM_SHIFT_L.load(Ordering::SeqCst);
+        let r = SIM_SHIFT_R.load(Ordering::SeqCst);
+        let any = SIM_SHIFT_ANY.load(Ordering::SeqCst);
+        match vk {
+            VK_LSHIFT => l,
+            keys::VK_RSHIFT => r,
+            keys::VK_SHIFT => l || r || any,
+            _ => false,
+        }
+    }
+
+    fn toggled(&self, vk: u16) -> bool {
+        let mut sent = sim_absorb();
+        SIM_PENDING.lock().append(&mut sent);
+        vk == keys::VK_CAPITAL && SIM_CAPS.load(Ordering::SeqCst)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Building events
 // ---------------------------------------------------------------------------
 
@@ -446,6 +525,7 @@ fn rebuild(events: &[Ev]) -> (String, Vec<u16>) {
     // clears a `Shift` the user still holds (D-E2E-06). A state per source hid
     // that for as long as the harness has existed.
     let mut shift = false;
+    let mut caps = false;
     let mut pending_high: [Option<u16>; 2] = [None, None];
     for ev in events {
         let idx = if ev.src == Src::Injected { 0 } else { 1 };
@@ -454,6 +534,10 @@ fn rebuild(events: &[Ev]) -> (String, Vec<u16>) {
             continue;
         }
         if !ev.down {
+            continue;
+        }
+        if ev.vk == keys::VK_CAPITAL {
+            caps = !caps;
             continue;
         }
         match ev.vk {
@@ -475,7 +559,7 @@ fn rebuild(events: &[Ev]) -> (String, Vec<u16>) {
                 }
             }
             vk => {
-                if let Some(ch) = keys::us_char(vk, shift, false) {
+                if let Some(ch) = keys::us_char(vk, shift, caps) {
                     text.push(ch);
                 } else if ev.src == Src::Passed {
                     // A non-text key (F-key, modifier chord) reached the app side.
@@ -606,6 +690,8 @@ struct Settings {
     no_spell: bool,
     no_free_tone: bool,
     standard: bool,
+    /// Output charset `unicode_nfd`: marks are separate combining characters.
+    nfd: bool,
 }
 
 struct Case {
@@ -660,6 +746,7 @@ fn load_cases(
         no_spell: false,
         no_free_tone: false,
         standard,
+        nfd: false,
     };
 
     // --- edge cases ---
@@ -796,6 +883,63 @@ fn load_cases(
                 forbid_passed_vks: Vec::new(),
                 want_command: None,
             });
+
+            // D-E2E-06 / review item 11: capitals, held Shift and Caps Lock go
+            // through the real Held path (the injector reads the simulated keys).
+            let (upper, lower, mixed, marks) = if vni {
+                ("VIE6T5", "vie6t5", "Vie6t5", "Vie\u{302}\u{323}t")
+            } else {
+                ("VIEETJ", "vieetj", "Vieetj", "Vie\u{302}\u{323}t")
+            };
+            let caps_tap = Step::Tap(keys::VK_CAPITAL);
+            let case = |name: &str, settings: Settings, steps: Vec<Step>, expected: &str| Case {
+                id: format!("shift/{name}/{method}/{mode}"),
+                settings,
+                steps,
+                expected: expected.to_string(),
+                forbid_passed_vks: Vec::new(),
+                want_command: None,
+            };
+            cases.push(case(
+                "caps-on-shift-letters",
+                base(method_of(method)),
+                vec![caps_tap.clone(), typed(upper), caps_tap.clone()],
+                "việt",
+            ));
+            cases.push(case(
+                "caps-on-bare-letters",
+                base(method_of(method)),
+                vec![caps_tap.clone(), typed(lower), caps_tap.clone()],
+                "VIỆT",
+            ));
+            cases.push(case(
+                "caps-on-capital-head",
+                base(method_of(method)),
+                vec![caps_tap.clone(), typed(mixed), caps_tap],
+                "vIỆT",
+            ));
+            cases.push(case(
+                "capital-head",
+                base(method_of(method)),
+                vec![typed(mixed)],
+                "Việt",
+            ));
+            let mut nfd = base(method_of(method));
+            nfd.nfd = true;
+            cases.push(case("nfd-capital-head", nfd, vec![typed(mixed)], marks));
+            if !vni {
+                for (side, vk) in [("left", VK_LSHIFT), ("right", keys::VK_RSHIFT)] {
+                    let mut steps = vec![Step::Down(vk)];
+                    steps.extend("VIEETJ".chars().map(|c| Step::Tap(c as u16)));
+                    steps.push(Step::Up(vk));
+                    cases.push(case(
+                        &format!("held-{side}-shift"),
+                        base(method_of(method)),
+                        steps,
+                        "VIỆT",
+                    ));
+                }
+            }
         }
     }
 
@@ -858,6 +1002,9 @@ fn config_for(settings: &Settings) -> AppConfig {
     cfg.typing.spell_check = !settings.no_spell;
     cfg.typing.free_tone = !settings.no_free_tone;
     cfg.typing.send_standard = settings.standard;
+    if settings.nfd {
+        cfg.input.charset = vkb_core::Charset::UnicodeNfd;
+    }
     cfg.typing.use_clipboard = false;
     cfg.apps.remember_per_app = false;
     // Never make a sound on the owner's machine.
@@ -953,7 +1100,7 @@ impl Driver {
             if swallow {
                 self.stats.swallowed += 1;
             }
-            for cap in vkb_windows::e2e::take_captured() {
+            for cap in sim_absorb() {
                 if cap.extra != TEST_TAG {
                     eprintln!("an injection carried tag {:#x}, not the test tag", cap.extra);
                     return false;
@@ -981,6 +1128,9 @@ impl Driver {
             }
             if !swallow {
                 self.stats.passed += 1;
+                if !syn.unicode {
+                    sim_apply(syn.vk, !syn.up);
+                }
                 self.events.push(Ev {
                     src: Src::Passed,
                     vk: info.vkCode as u16,
@@ -1174,6 +1324,7 @@ fn default_settings() -> Settings {
         no_spell: false,
         no_free_tone: false,
         standard: false,
+        nfd: false,
     }
 }
 
@@ -1282,6 +1433,8 @@ fn main() -> ExitCode {
         thread::sleep(Duration::from_millis(100));
     } else {
         vkb_windows::e2e::set_capture(true);
+        sim_reset();
+        vkb_windows::input::set_key_probe(Some(Box::new(SimProbe)));
         driver.rt = Some(Box::new(HookRuntime::new(
             Some(Arc::new(config_for(&default_settings()))),
             None,
