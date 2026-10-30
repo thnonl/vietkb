@@ -6,6 +6,7 @@
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { closeCurrent } from "../lib/window.svelte";
+  import { platformState } from "../lib/platform.svelte";
   import { DEFAULT_HOTKEYS, hotkeyActionLabel } from "../lib/catalog";
   import { canonicalize, prettyHotkey } from "../lib/hotkey";
   import type { HotkeyActionField } from "../lib/catalog";
@@ -137,7 +138,7 @@
     <div class="v4intro">
       Bấm vào ô, nhấn tổ hợp mới.
       <span class="k sm">Esc</span> để bỏ,
-      <span class="k sm">Backspace</span> để xoá phím tắt.
+      <span class="k sm">{platformState.mac ? "⌫" : "Backspace"}</span> để xoá phím tắt.
     </div>
 
     {#each rows as row, index (row.field)}

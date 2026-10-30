@@ -22,6 +22,7 @@ import type {
   UpdateStatus,
 } from "./bindings";
 import { isLang, translator, type Lang } from "./i18n";
+import { isMacOS, platformState } from "./platform.svelte";
 
 export interface SettingsPatch {
   input?: Partial<InputView>;
@@ -187,6 +188,7 @@ class Store {
     this.previewMode = !api.isTauri();
     this.startThemeBus();
     try {
+      await platformState.init();
       if (this.previewMode) {
         this.settings = demoSettings;
         this.status = demoStatus;
@@ -370,10 +372,20 @@ class Store {
     }
   }
 
-  /** `Cập nhật ngay`: download into %TEMP%, then hand off to the installer. */
+  /** `Cập nhật ngay`: download into %TEMP%, then hand off to the installer.
+   *  macOS (M5): notify only, so this opens the release page instead. */
   async installUpdate(): Promise<void> {
     if (this.previewMode) {
       this.updateNote = "Chế độ xem trước: không tải được tệp cài đặt.";
+      return;
+    }
+    if (isMacOS()) {
+      try {
+        await api.installUpdate();
+        this.updateNote = "Đã mở trang tải về. Tải tệp .dmg và kéo VietKB vào Applications.";
+      } catch (error) {
+        this.updateNote = errorText(error);
+      }
       return;
     }
     this.updateBusy = "downloading";
@@ -393,6 +405,12 @@ class Store {
   }
 
   applyTheme(theme: string, broadcast = true): void {
+    // macOS has no in-window theme switch: the window follows System Settings →
+    // Appearance, so there is nothing to store or to broadcast.
+    if (isMacOS()) {
+      document.documentElement.dataset.theme = "system";
+      return;
+    }
     const next = theme === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     if (!broadcast) return;

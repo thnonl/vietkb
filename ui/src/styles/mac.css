@@ -1,0 +1,53 @@
+/* macOS overrides, keyed on `data-platform="macos"` (set by lib/platform.svelte.ts).
+ *
+ * The window has the native title bar (traffic lights) and the system draws its
+ * own edge and corners, so the custom ring, radius and caption divider go. The
+ * page follows System Settings > Appearance (`data-theme="system"`). */
+:root[data-platform="macos"] .v4win {
+  border-radius: 0;
+}
+:root[data-platform="macos"] .v4win::after {
+  display: none;
+}
+:root[data-platform="macos"] .v4sheet,
+:root[data-platform="macos"] .sheet {
+  border-top: 0;
+}
+
+/* Accessibility banner (main window only). 72 px tall plus an 8 px top margin
+ * = 80 px of window height: keep AX_BANNER_PX in
+ * components/AccessibilityBanner.svelte and BANNER_PX in crates/vkb-app/src/main.rs
+ * equal to that. */
+.axbanner {
+  flex: none;
+  box-sizing: border-box;
+  height: 72px;
+  margin: 8px 0 0;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+  background: var(--warn-tint);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+}
+.axbanner .ico {
+  flex: none;
+  color: var(--warn);
+  display: grid;
+  place-items: center;
+}
+.axbanner .t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.axbanner .t b {
+  font: 600 13px/20px var(--ui);
+  color: var(--t1);
+}
+.axbanner .t span {
+  font: 400 12px/18px var(--ui);
+  color: var(--t2);
+}

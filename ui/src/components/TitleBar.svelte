@@ -2,6 +2,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { app } from "../lib/state.svelte";
   import { openWindow } from "../lib/window.svelte";
+  import { platformState } from "../lib/platform.svelte";
   // Product mark, identical in every window: the keycap `V` (Vietnamese on)
   // from the approved set (design/logo11/keycap/v-20.png). The title bar never
   // switches to `E` — the tray icon carries the on/off state.
@@ -65,6 +66,9 @@
   const close = () => void win?.close();
 </script>
 
+<!-- macOS uses the native title bar (traffic lights, window title); this
+     custom caption is the Windows frame only. -->
+{#if !platformState.mac}
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <header class="cap-bar" onmousedown={onPointerDown} ondblclick={(event) => event.preventDefault()}>
   {#if showMark}
@@ -132,3 +136,4 @@
     </button>
   </div>
 </header>
+{/if}

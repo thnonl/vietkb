@@ -65,6 +65,14 @@ export const autostartState = () => invoke<boolean>("autostart_state");
 export const setAutostart = (enabled: boolean) =>
   invoke<boolean>("set_autostart", { enabled });
 
+/** `"windows"`, `"macos"` or `"linux"`. */
+export const platform = () => invoke<string>("platform");
+
+/** macOS Accessibility grant. `true` always on Windows. */
+export const accessibilityStatus = () => invoke<boolean>("accessibility_status");
+/** Triggers the system prompt; answers with the status after asking. */
+export const requestAccessibility = () => invoke<boolean>("request_accessibility");
+
 /** Window management is presentation only; contract §6 commands are untouched. */
 export const openWindow = (kind: "hotkeys" | "advanced" | "macros" | "about") =>
   invoke<void>("open_window", { kind });

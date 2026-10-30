@@ -5,9 +5,11 @@
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { closeCurrent, openWindow } from "../lib/window.svelte";
+  import { platformState } from "../lib/platform.svelte";
   import type { SettingsView, TypingView } from "../lib/bindings";
 
   const settings = $derived(app.settings);
+  const mac = $derived(platformState.mac);
 
   const setTyping = (patch: Partial<TypingView>) => app.patch({ typing: patch });
   const setSystem = (patch: Partial<SettingsView["system"]>) => app.patch({ system: patch });
@@ -76,22 +78,27 @@
       </div>
     </div>
 
-    <div class="v4sh">Tương thích</div>
-    <div class="v4grid">
-      <div class="v4ck">
-        <Checkbox
-          checked={settings?.typing.useClipboard ?? false}
-          label="Gửi chữ qua Clipboard"
-          onchange={(next) => setTyping({ useClipboard: next })} />Gửi chữ qua Clipboard
+    <!-- macOS: the clipboard send mode is a Windows injection option (M4). The
+         value stays in the config; the Mac backend ignores it. The window is
+         61 px shorter there (main.rs). -->
+    {#if !mac}
+      <div class="v4sh">Tương thích</div>
+      <div class="v4grid">
+        <div class="v4ck">
+          <Checkbox
+            checked={settings?.typing.useClipboard ?? false}
+            label="Gửi chữ qua Clipboard"
+            onchange={(next) => setTyping({ useClipboard: next })} />Gửi chữ qua Clipboard
+        </div>
       </div>
-    </div>
+    {/if}
     <div class="v4sh">Hệ thống</div>
     <div class="v4grid">
       <div class="v4ck">
         <Checkbox
           checked={settings?.system.startWithWindows ?? true}
-          label="Khởi động cùng Windows"
-          onchange={(next) => setSystem({ startWithWindows: next })} />Khởi động cùng Windows
+          label={mac ? "Mở cùng macOS" : "Khởi động cùng Windows"}
+          onchange={(next) => setSystem({ startWithWindows: next })} />{mac ? "Mở cùng macOS" : "Khởi động cùng Windows"}
       </div>
       <div class="v4ck">
         <Checkbox

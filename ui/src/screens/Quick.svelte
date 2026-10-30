@@ -4,17 +4,23 @@
   import TitleBar from "../components/TitleBar.svelte";
   import Select from "../components/Select.svelte";
   import AppRulesDialog from "../components/AppRulesDialog.svelte";
+  import AccessibilityBanner from "../components/AccessibilityBanner.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { closeCurrent, openWindow } from "../lib/window.svelte";
   import { METHODS } from "../lib/catalog";
   import type { AppRuleRow } from "../lib/bindings";
-  import { formatNumber } from "../lib/hotkey";
+  import { formatNumber, prettyHotkey as formatHotkey } from "../lib/hotkey";
+  import { platformState } from "../lib/platform.svelte";
 
   const native = api.isTauri();
   const settings = $derived(app.settings);
   const hotkey = $derived(settings?.hotkeys.toggle ?? "Ctrl+Shift");
-  const prettyHotkey = $derived(hotkey.split("+").join(" + "));
+  const prettyHotkey = $derived(formatHotkey(hotkey));
+  const mac = $derived(platformState.mac);
+  // Windows: "Khởi động cùng Windows"; macOS: "Mở cùng macOS" (27-mac-decisions M4).
+  const autostartLabel = $derived(mac ? "Mở cùng macOS" : "Khởi động cùng Windows");
+  let axMissing = $state(false);
 
   let rules = $state<AppRuleRow[]>([]);
   let dialogOpen = $state(false);
@@ -55,7 +61,10 @@
         app.patch({ system: { startWithWindows: autostart } });
       }
     } catch (failure) {
-      app.fail("Không đổi được khởi động cùng Windows", failure);
+      app.fail(
+        mac ? "Không đổi được mở cùng macOS" : "Không đổi được khởi động cùng Windows",
+        failure,
+      );
       autostart = settings?.system.startWithWindows ?? false;
     }
   };
@@ -90,6 +99,7 @@
   <TitleBar title="VietKB" />
 
   <main class="v4sheet">
+    <AccessibilityBanner bind:missing={axMissing} />
     <div class="v4pad"></div>
 
     <div class="v4row main noline">
@@ -161,18 +171,18 @@
 
     <div class="v4row sys">
       <div class="l">
-        <b>Khởi động cùng Windows</b>
-        <span class="h">Chạy ngay khi đăng nhập Windows</span>
+        <b>{autostartLabel}</b>
+        <span class="h">{mac ? "Chạy ngay khi đăng nhập macOS" : "Chạy ngay khi đăng nhập Windows"}</span>
       </div>
       <div class="c">
-        <Toggle checked={autostart} label="Khởi động cùng Windows" onchange={setAutostart} />
+        <Toggle checked={autostart} label={autostartLabel} onchange={setAutostart} />
       </div>
     </div>
 
     <div class="v4row sys">
       <div class="l">
         <b>Chạy ẩn</b>
-        <span class="h">Mở lên không hiện cửa sổ, chỉ nằm trong khay</span>
+        <span class="h">{mac ? "Mở lên không hiện cửa sổ, chỉ nằm trên thanh menu" : "Mở lên không hiện cửa sổ, chỉ nằm trong khay"}</span>
       </div>
       <div class="c">
         <Toggle
@@ -189,7 +199,7 @@
       <button
         type="button"
         class="btn ghost"
-        title="Thoát hẳn, tắt luôn biểu tượng trong khay"
+        title={mac ? "Thoát hẳn, tắt luôn biểu tượng trên thanh menu" : "Thoát hẳn, tắt luôn biểu tượng trong khay"}
         aria-label="Thoát hẳn"
         onclick={quit}>Thoát hẳn</button>
       <button type="button" class="btn pri" onclick={closeCurrent}>Đóng</button>

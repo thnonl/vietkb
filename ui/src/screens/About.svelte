@@ -2,6 +2,7 @@
   import TitleBar from "../components/TitleBar.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
+  import { platformState } from "../lib/platform.svelte";
   import { parseChangelog, type Block, type Inline } from "../lib/changelog";
   // The keycap mark at 48 px: the app icon itself, so About carries the same
   // mark as the title bar and the installer.
@@ -66,7 +67,7 @@
         <span class="about-ver num" title="Bảng mã cũ (TCVN3, VNI Windows, VISCII) và VIQR không có trong VietKB.">{version}</span>
       </header>
 
-      <p class="about-lead">Bộ gõ tiếng Việt cho Windows. Nhẹ, nhanh, và không làm phiền bạn.</p>
+      <p class="about-lead">Bộ gõ tiếng Việt cho {platformState.mac ? "macOS" : "Windows"}. Nhẹ, nhanh, và không làm phiền bạn.</p>
 
       <section class="about-story" class:folded={!!info}>
         {#if info}
@@ -97,8 +98,12 @@
             Telex, VNI, gõ tắt và loại trừ ứng dụng, không có mục nào để bạn phải đoán.
           </p>
           <p>
-            Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ. Cả bộ gõ nằm trong
-            khay, tốn 14 MB; bộ cài khoảng 3 MB; mở cửa sổ mất khoảng 0,3 giây.
+            Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ.
+            {#if platformState.mac}
+              Cả bộ gõ nằm trên thanh menu, nhẹ và mở cửa sổ gần như tức thì.
+            {:else}
+              Cả bộ gõ nằm trong khay, tốn 14 MB; bộ cài khoảng 3 MB; mở cửa sổ mất khoảng 0,3 giây.
+            {/if}
           </p>
 
           <p class="about-close">Một bộ gõ tốt là bộ gõ bạn không phải nghĩ tới.</p>
@@ -120,6 +125,8 @@
                 Đang tải…
               {:else if app.updateBusy === "installing"}
                 Đang cập nhật…
+              {:else if platformState.mac}
+                Mở trang tải về
               {:else}
                 Cập nhật ngay
               {/if}

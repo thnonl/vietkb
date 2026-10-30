@@ -1,6 +1,8 @@
 // Product catalogues: input methods and hotkey actions.
 // Vietnamese product terminology is kept verbatim from EVKey (contract C7).
 
+import { detectOS } from "./platform.svelte";
+
 export interface MethodInfo {
   slug: string;
   label: string;
@@ -56,15 +58,19 @@ export type HotkeyActionField =
   | "openSettings"
   | "cycleMethod";
 
-/** Mirrors `HotkeySet::default()` in crates/vkb-config/src/schema.rs. */
+const MAC = detectOS() === "macos";
+
+/** Mirrors `HotkeySet::default()` in crates/vkb-config/src/schema.rs. On macOS
+ *  the function-key defaults are empty (27-mac-decisions M2): they are
+ *  brightness/media keys there, and F11 is Show Desktop. */
 export const DEFAULT_HOTKEYS: Record<HotkeyActionField, string> = {
-  enable: "F1",
-  disable: "F2",
+  enable: MAC ? "" : "F1",
+  disable: MAC ? "" : "F2",
   toggle: "Ctrl+Shift",
   restoreWord: "Ctrl+Shift+Z",
-  appExclude: "F11",
-  macroPanel: "F8",
-  macroToggle: "F9",
+  appExclude: MAC ? "" : "F11",
+  macroPanel: MAC ? "" : "F8",
+  macroToggle: MAC ? "" : "F9",
   openSettings: "Ctrl+Alt+S",
   cycleMethod: "",
 };

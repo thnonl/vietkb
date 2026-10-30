@@ -4,6 +4,8 @@
 // crates/vkb-config/src/hotkey.rs so the field can show the stored form
 // instantly; `parse_hotkey` remains the authority and is called on every change.
 
+import { isMacOS } from "./platform.svelte";
+
 const NAMED: Record<string, string> = {
   " ": "Space",
   spacebar: "Space",
@@ -105,8 +107,26 @@ export const canonicalize = (input: string): CanonicalResult => {
   return { canonical: parts.join("+"), error: null };
 };
 
-/** `Ctrl+Shift` → `Ctrl + Shift` for prose, never for the stored value. */
-export const prettyHotkey = (value: string): string => value.replaceAll("+", " + ");
+/** Mac symbols for the stored modifier names (27-mac-decisions M2):
+ *  Ctrl = ⌃ Control, Alt = ⌥ Option, Shift = ⇧, Win = ⌘ Command. */
+const MAC_SYMBOL: Record<string, string> = {
+  Ctrl: "⌃",
+  Alt: "⌥",
+  Shift: "⇧",
+  Win: "⌘",
+  Backspace: "⌫",
+};
+
+/** One key of a stored hotkey as it is drawn on a keycap. */
+export const keyLabel = (token: string): string =>
+  isMacOS() ? (MAC_SYMBOL[token] ?? token) : token;
+
+/** `Ctrl+Shift` → `Ctrl + Shift` for prose, never for the stored value.
+ *  On macOS the symbols run together, as System Settings writes them: `⌃⇧Z`. */
+export const prettyHotkey = (value: string): string =>
+  isMacOS()
+    ? value.split("+").map(keyLabel).join("")
+    : value.replaceAll("+", " + ");
 
 /** Số lớn kiểu Việt: 148 → 148, 5000 → 5.000. */
 export const formatNumber = (value: number): string => value.toLocaleString("vi-VN");
@@ -138,10 +158,28 @@ const COMMON: Record<string, string> = {
   "Ctrl+Space": "Bộ gõ tiếng Trung, Nhật",
 };
 
-export const reservedReason = (canonical: string): string | null => RESERVED[canonical] ?? null;
+/** macOS: ⌘ combinations are the app shortcuts everybody has in their fingers,
+ *  so they are warned about, never refused. Nothing is reserved. */
+const MAC_COMMON: Record<string, string> = {
+  "Win+C": "Sao chép",
+  "Win+V": "Dán",
+  "Win+X": "Cắt",
+  "Win+A": "Chọn tất cả",
+  "Win+S": "Lưu",
+  "Win+F": "Tìm",
+  "Win+Z": "Hoàn tác",
+  "Win+Shift+Z": "Làm lại",
+  "Win+Q": "Thoát ứng dụng",
+  "Win+W": "Đóng cửa sổ",
+  "Win+Space": "Spotlight",
+  "Ctrl+Space": "Đổi bàn phím của macOS",
+};
+
+export const reservedReason = (canonical: string): string | null =>
+  isMacOS() ? null : (RESERVED[canonical] ?? null);
 
 export const commonWarning = (canonical: string): string | null => {
-  const action = COMMON[canonical];
+  const action = (isMacOS() ? MAC_COMMON : COMMON)[canonical];
   if (!action) return null;
   return `${prettyHotkey(canonical)} là phím ${action} ở hầu hết ứng dụng. Vẫn đặt được nếu bạn muốn.`;
 };

@@ -1103,6 +1103,41 @@ pub fn quit_app(app: tauri::AppHandle) {
     crate::quit(&app);
 }
 
+/// `"windows"`, `"macos"` or `"linux"`: lets the page pick platform wording,
+/// symbols and the window chrome without sniffing the user agent.
+#[tauri::command]
+pub fn platform() -> &'static str {
+    std::env::consts::OS
+}
+
+/// Whether the app may observe and post keyboard events. Always true off macOS
+/// (Windows needs no grant). The page shows the Accessibility banner on `false`.
+#[tauri::command]
+pub fn accessibility_status() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        vkb_macos::has_accessibility_permission()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+/// Ask macOS for the Accessibility grant (system prompt, which links to System
+/// Settings). Returns the status after asking. No-op `true` off macOS.
+#[tauri::command]
+pub fn request_accessibility() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        vkb_macos::request_accessibility_permission()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 #[tauri::command]
 pub fn app_info() -> AppInfoView {    AppInfoView {
         version: env!("CARGO_PKG_VERSION").to_string(),

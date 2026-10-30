@@ -312,6 +312,22 @@ fn fetch_latest() -> Result<Option<UpdateInfo>, String> {
 }
 
 fn parse_release(body: &str) -> Result<Option<UpdateInfo>, String> {
+    parse_release_for(body, cfg!(target_os = "macos"))
+}
+
+/// Whether `name` is the installer asset this platform would download: the NSIS
+/// setup on Windows, the universal `.dmg` on macOS. `latest.json` and `.sig`
+/// files never match either.
+fn is_installer_asset(name: &str, macos: bool) -> bool {
+    let lower = name.to_ascii_lowercase();
+    if macos {
+        lower.ends_with(".dmg")
+    } else {
+        lower.ends_with("x64-setup.exe")
+    }
+}
+
+fn parse_release_for(body: &str, macos: bool) -> Result<Option<UpdateInfo>, String> {
     let release: ReleaseJson = serde_json::from_str(body)
         .map_err(|error| format!("Phản hồi cập nhật không đọc được: {error}"))?;
 
@@ -339,7 +355,7 @@ fn parse_release(body: &str) -> Result<Option<UpdateInfo>, String> {
 
     let installer = assets
         .iter()
-        .find(|asset| asset.name.to_ascii_lowercase().ends_with("x64-setup.exe"));
+        .find(|asset| is_installer_asset(&asset.name, macos));
 
     Ok(Some(UpdateInfo {
         version: version.clone(),
@@ -489,7 +505,24 @@ fn update_script(installer: &std::path::Path, exe: &std::path::Path) -> String {
     )
 }
 
+/// macOS (M5): notify only. There is no silent self-replace until the app is
+/// signed and notarized, so `Cập nhật ngay` opens the release page, where the
+/// `.dmg` is. Nothing is downloaded or run from here.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let url = available()
+        .map(|info| info.html_url)
+        .filter(|url| url.starts_with(REPO_URL))
+        .unwrap_or_else(|| format!("{REPO_URL}/releases/latest"));
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| format!("Không mở được trang tải về: {error}"))
+}
+
 /// Launch the installer that `download_update` wrote, then leave cleanly.
+#[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     let downloaded = DOWNLOADED
@@ -800,7 +833,7 @@ mod tests {
                 {"name": "VietKB_99.0.0_X64-SETUP.EXE", "browser_download_url": "https://x/setup.exe", "size": 42}
             ]
         }"#;
-        let info = parse_release(body).expect("parses").expect("is newer");
+        let info = parse_release_for(body, false).expect("parses").expect("is newer");
         assert_eq!(info.version, "99.0.0");
         assert_eq!(info.tag, "v99.0.0");
         assert_eq!(info.changelog, "- nhanh hơn");
@@ -863,6 +896,25 @@ mod tests {
     }
 
     #[test]
+    fn macos_picks_the_dmg_and_ignores_the_windows_setup() {
+        let body = r#"{
+            "tag_name": "v99.0.0",
+            "html_url": "https://github.com/thnonl/vietkb/releases/tag/v99.0.0",
+            "assets": [
+                {"name": "latest.json", "browser_download_url": "https://x/latest.json", "size": 12},
+                {"name": "VietKB_99.0.0_x64-setup.exe", "browser_download_url": "https://x/setup.exe", "size": 42},
+                {"name": "VietKB_99.0.0_universal.dmg", "browser_download_url": "https://x/a.dmg", "size": 77}
+            ]
+        }"#;
+        let mac = parse_release_for(body, true).expect("parses").expect("newer");
+        assert_eq!(mac.asset_name.as_deref(), Some("VietKB_99.0.0_universal.dmg"));
+        let win = parse_release_for(body, false).expect("parses").expect("newer");
+        assert_eq!(win.asset_name.as_deref(), Some("VietKB_99.0.0_x64-setup.exe"));
+        // The version comparison itself is platform-independent.
+        assert_eq!(mac.version, win.version);
+    }
+
+    #[test]
     fn the_update_installs_silently_and_in_place() {
         // `/S` = no pages at all; `/UPDATE` = Tauri's in-place branch, which
         // never runs the old uninstaller.
@@ -894,7 +946,7 @@ mod tests {
         let body = r#"{"tag_name":"v9.9.9","assets":[
             {"name":"latest.json","browser_download_url":"https://x/latest.json","size":879},
             {"name":"VietKB_9.9.9_x64-setup.exe.sig","browser_download_url":"https://x/a.sig","size":755}]}"#;
-        let info = parse_release(body).expect("parses").expect("newer");
+        let info = parse_release_for(body, false).expect("parses").expect("newer");
         assert!(info.asset_url.is_none());
         assert!(info.asset_name.is_none());
     }

@@ -20,6 +20,53 @@ static QUITTING: AtomicBool = AtomicBool::new(false);
 /// next open builds a new window under the same label.
 const MAIN_LABEL: &str = "main";
 
+/// Height of the custom caption the page draws on Windows. macOS windows use the
+/// native title bar (traffic lights) instead, which sits outside `inner_size`,
+/// so the content area is that much shorter there.
+const CAPTION_PX: f64 = 36.0;
+
+/// Window content height for the current platform: the measured Windows height
+/// (caption included), minus the caption the page no longer draws on macOS.
+fn content_height(windows_height: f64) -> f64 {
+    if cfg!(target_os = "macos") {
+        windows_height - CAPTION_PX
+    } else {
+        windows_height
+    }
+}
+
+/// Extra main-window height while the Accessibility banner is up (macOS). Keep
+/// equal to `AX_BANNER_PX` in ui/src/components/AccessibilityBanner.svelte,
+/// which resizes the window again when the grant appears or goes away.
+#[cfg(target_os = "macos")]
+const BANNER_PX: f64 = 80.0;
+
+/// Content height of the settings window. macOS without the Accessibility grant
+/// opens already tall enough for the banner, so it never visibly grows.
+fn main_content_height() -> f64 {
+    #[cfg(target_os = "macos")]
+    if !vkb_macos::has_accessibility_permission() {
+        return content_height(460.0) + BANNER_PX;
+    }
+    content_height(460.0)
+}
+
+/// Disable the main window for a modal.
+///
+/// macOS: `set_enabled(false)` begins a sheet on the window, which is not
+/// idempotent — a second call with the modal already up stacks another sheet and
+/// wedges the parent. Skip it when the window is already disabled. Windows keeps
+/// its unconditional call.
+fn disable_for_modal(main: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    if matches!(main.is_enabled(), Ok(false)) {
+        return;
+    }
+    if let Err(error) = main.set_enabled(false) {
+        tracing::warn!(%error, "could not disable the main window for a modal");
+    }
+}
+
 /// Bring the settings window forward from anywhere (tray, hotkey, second
 /// launch), building it if it is not there yet.
 ///
@@ -106,7 +153,14 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     //             changelog is clipped.
     let (label, title, width, height) = match kind {
         "hotkeys" => ("hotkeys", "Phím tắt — VietKB", 520.0, 360.0),
-        "advanced" => ("advanced", "Nâng cao — VietKB", 560.0, 388.0),
+        // macOS drops the `Tương thích` section (33 px heading + 28 px row, 61 px,
+        // rounded to the 4 px grid) because its only option is Windows-only.
+        "advanced" => (
+            "advanced",
+            "Nâng cao — VietKB",
+            560.0,
+            if cfg!(target_os = "macos") { 328.0 } else { 388.0 },
+        ),
         "macros" => ("macros", "Bảng gõ tắt — VietKB", 720.0, 560.0),
         "about" => ("about", "Giới thiệu — VietKB", 560.0, 556.0),
         other => return Err(format!("cửa sổ không hợp lệ: {other}")),
@@ -119,7 +173,7 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         let _ = window.unminimize();
         let _ = window.set_focus();
         if let Some(main) = &main {
-            let _ = main.set_enabled(false);
+            disable_for_modal(main);
         }
         return Ok(());
     }
@@ -127,11 +181,13 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     let url = tauri::WebviewUrl::App(format!("index.html?win={kind}").into());
     let mut builder = tauri::WebviewWindowBuilder::new(app, label, url)
         .title(title)
-        .inner_size(width, height)
+        .inner_size(width, content_height(height))
         .resizable(false)
         .maximizable(false)
         .minimizable(false)
-        .decorations(false)
+        // macOS keeps the native title bar (traffic lights); the page hides its
+        // own caption there (`data-platform="macos"`).
+        .decorations(cfg!(target_os = "macos"))
         // Frameless windows get no system border, so the native shadow is the
         // only thing separating this window from whatever is behind it. The 1 px
         // ring the page draws on top is the edge itself (ui/src/styles/v4.css).
@@ -154,7 +210,6 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         #[cfg(not(any(windows, target_os = "macos")))]
         let _ = main;
     }
-
     let window = builder.build().map_err(|error| error.to_string())?;
 
     window.show().map_err(|error| error.to_string())?;
@@ -166,9 +221,7 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     }
     // Modal: the parent stops accepting input until this window is gone.
     if let Some(main) = &main {
-        if let Err(error) = main.set_enabled(false) {
-            tracing::warn!(%error, "could not disable the main window for a modal");
-        }
+        disable_for_modal(main);
     }
     window.set_focus().map_err(|error| error.to_string())?;
     Ok(())
@@ -251,10 +304,10 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title("Cài đặt VietKB")
-    .inner_size(480.0, 460.0)
+    .inner_size(480.0, main_content_height())
     .resizable(false)
     .maximizable(false)
-    .decorations(false)
+    .decorations(cfg!(target_os = "macos"))
     // Frameless: without the native shadow the window has no edge against a
     // neighbouring app. `transparent` stays false, which is what Windows needs
     // for DWM to paint the frame shadow at all.
@@ -357,6 +410,8 @@ pub fn quit(app: &tauri::AppHandle) {
         // No-op unless the app was started with `VKB_PERF=1`.
         vkb_windows::perf::finish();
     }
+    // TODO(mac-backend): `vkb_macos::uninstall_hook()` here once the backend is
+    // wired (same idempotent unhook-on-the-way-out as Windows).
     app.exit(0);
 }
 
@@ -397,6 +452,8 @@ fn main() {
         vkb_windows::set_data_dir(vkb_config::paths::config_dir());
         vkb_windows::perf::init_from_env();
     }
+    // TODO(mac-backend): `vkb_macos::set_data_dir(vkb_config::paths::config_dir());`
+    // (M1) once the backend crate exports it.
 
     let app = tauri::Builder::default()
         // Second launch: same rule as a first one, so `Chạy ẩn` also keeps a
@@ -420,6 +477,10 @@ fn main() {
         // (plain `ureq`), so `plugins.updater` is never needed in the config.
         .setup(|app| {
             let handle = app.handle().clone();
+            // M3: menu-bar extra only. No Dock icon, no app menu bar; the tray
+            // item and the settings window are the whole surface.
+            #[cfg(target_os = "macos")]
+            handle.set_activation_policy(tauri::ActivationPolicy::Accessory)?;
             commands::set_app_handle(handle.clone());
 
             let config = commands::config_cell().read().clone();
@@ -441,6 +502,9 @@ fn main() {
             // exists (a hotkey can flip it) and after the config load.
             #[cfg(windows)]
             windows_backend::start();
+            // TODO(mac-backend): start the macOS backend here (`macos_backend::start()`:
+            // event tap, config hand-off, both callbacks). Not wired yet; the
+            // `mod macos_backend;` declaration is added together with the call.
 
             // No window exists before the first open: `tauri.conf.json` no
             // longer lists one, so a tray-only start never pays for WebView2.
@@ -526,6 +590,9 @@ fn main() {
             commands::app_info,
             commands::autostart_state,
             commands::set_autostart,
+            commands::platform,
+            commands::accessibility_status,
+            commands::request_accessibility,
             update::check_update,
             update::update_status,
             update::download_update,
@@ -559,6 +626,7 @@ fn main() {
                 }
                 vkb_windows::perf::finish();
             }
+            // TODO(mac-backend): `vkb_macos::uninstall_hook()` (idempotent).
         }
         _ => {}
     });
