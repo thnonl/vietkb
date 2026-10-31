@@ -57,3 +57,17 @@ A kill of a process you did not launch is a **defect**, even if the test then pa
 
 If a task cannot be done without breaking one of these rules, the correct output is a short
 report saying which rule blocks it and what the owner must do — not a workaround.
+
+## 6. macOS addenda (2026-10-31)
+
+- The owner may be running their own VietKB build (any path, e.g. `target/**/VietKB.app`). Never
+  kill, quit or relaunch it. Tauri single-instance keys on the bundle identifier, so a normal
+  build launched by an agent is **forwarded into the owner's instance** (it may pop the owner's
+  settings window). While the owner's instance runs, agents launch only the `dev-channel` build
+  (`vn.vietkb.app.dev`, `tauri.dev.conf.json`). A forwarded launch is a blocked run.
+- Synthetic input or clicks only after ≥ 60 s HID idle (not 5 s), and only inside windows the
+  agent opened. Never click the menu bar or status items by coordinate (another app's or the
+  owner's VietKB item may be there); reach the agent's own status item only via its pid / AX.
+- EVKey: relaunch it after a run only if it was running before the run.
+- Close every document the agent opened (track them by window id when opening); report any you
+  could not identify instead of leaving them.

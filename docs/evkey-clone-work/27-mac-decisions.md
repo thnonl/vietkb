@@ -45,7 +45,13 @@ Modifier naming on macOS: `Ctrl`=⌃ Control, `Alt`=⌥ Option, `Win`=⌘ Comman
 The UI shows the Mac symbols.
 
 ## M3 — App shell
-- Menu-bar extra only (Tauri tray icon, template image), no Dock icon: `ActivationPolicy::Accessory`.
+- Menu-bar extra (Tauri tray icon, template image). **Revised (owner, 2026-10-31):** the app
+  shows a Dock icon while any VietKB window is open (`ActivationPolicy::Regular`, app activated
+  so windows come to the front), and returns to menu-bar-only (`Accessory`) when the last window
+  closes/hides. Owner report: no Dock icon when the GUI opened, and settings modals opened hidden
+  behind other windows.
+- Every window and modal VietKB opens must come to the front and be visible (activate the app);
+  modals must sit above their parent and never end up behind it or behind other apps.
 - Menu-bar icon shows `V` / `E` state like the Windows tray.
 - Settings window opens from the menu; standard macOS traffic-light title bar (no custom Windows title bar).
 - First run without Accessibility: settings window opens with a clear banner and a button that triggers the system prompt and opens System Settings → Privacy & Security → Accessibility. The app never scripts System Settings.
@@ -66,3 +72,15 @@ label → "Mở cùng macOS" (same `system.start_with_windows` key).
   Silent self-replace waits until the app is signed and notarized.
 - CI: `macos-latest` job (test + clippy). Release: macOS job builds the `.dmg` and uploads it
   next to the Windows installer, same tag.
+
+## M6 — English UI and docs (owner, 2026-10-31; Windows and macOS)
+- The app UI is fully bilingual, Vietnamese (default) and English, on both platforms: every
+  screen, dialog, toast, banner, tray/menu-bar menu, tooltip and Rust-side user-facing message.
+  This supersedes the contract C7 note that product terms and long copy stay Vietnamese-only.
+- Uses the existing `system.language` config key (`vi` | `en`); no schema change.
+- Quick toggle `VI | EN` sits next to the theme toggle in the title bar on Windows. On macOS
+  (native title bar, theme follows the system) it sits at the same top-right spot of the window
+  content. Switching applies instantly to every open window and the menu, no restart.
+- The GitHub Pages site gets an English version with a language switch in the header; Vietnamese
+  stays the default at `/`, English at `/en/`. Both languages cover Windows and macOS.
+- English copy is written/polished by the copywriter; tone follows 90-copy-voice.md adapted to English.
