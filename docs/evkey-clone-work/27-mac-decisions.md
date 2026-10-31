@@ -111,3 +111,4 @@ Owner, verbatim: "Hãy nhớ rằng app này là singleton. Và khi có update c
   or a dedicated badged image — whatever renders legibly in light and dark menu bars), the title-bar
   area/top-right row of the settings window shows the same update badge/button as Windows, and the
   menu has the update item. Supersedes the M5/Dev-B choice "no update badge on mac".
+- macOS menu-bar badge is monochrome in the template alpha (menu-bar tint follows the wallpaper); see 70-impl-notes-macos.md.
