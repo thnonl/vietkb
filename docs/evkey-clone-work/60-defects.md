@@ -516,3 +516,11 @@ Working hypothesis (Windows Lead): Win11 Notepad's own autocorrect / spell-check
 | id | severity | area | repro | expected | actual | status |
 |---|---|---|---|---|---|---|
 | D-WIN-11 | P1 | Telex in Win11 Notepad | Telex `gox` + Space; sentence row "Tôi đang gõ tiếng Việt" | `gõ` | `go` 0/5; sentence "Tôi đang go tiếng Việt" 0/5. WinForms TextBox `gõ` 5/5; `dox`, `ngax` fine in Notepad. Fits Notepad autocorrect turning "gõ" into the English word "go" | OPEN — same hypothesis as D-WIN-09 |
+
+Notepad comparison (2026-10-31 19:06–19:09, Windows Lead, owner approved toggling Notepad Spelling; restored to Spell check On / Autocorrect On). R1 = macro qa1 ×20, R2 = gox ×5, R3 = sentence ×5, R4 = dduwowcj ×5.
+- A (6d5fc40, spell + autocorrect ON): R1 9/20, R2 0/5 ("go"), R3 0/5, R4 5/5
+- B (6d5fc40, autocorrect OFF, spell ON): R1 5/20 and 4/20, R2 5/5, R3 5/5, R4 5/5
+- C (0.2.6, both ON): R1 4/20, R2 0/5, R3 0/5, R4 5/5
+- D (6d5fc40, both OFF): R1 20/20 ×2, R2 5/5
+- Control without VietKB, autocorrect ON: typed `go` 13/13 unchanged, typed `QA ONE` 20/20
+Conclusion: D-WIN-11 = Notepad autocorrect rewriting the word after our Backspace+replace; D-WIN-09 = Notepad's spell-check text service (TSF) interacting with the Backspace+replace burst. Both pre-existing in 0.2.6, not 0.2.7 regressions. Owner requires D-WIN-09 fixed for 0.2.7 → the injection must be robust with Notepad spell check + autocorrect ON (matrix A is the acceptance target).
