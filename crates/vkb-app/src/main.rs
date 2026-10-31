@@ -716,6 +716,8 @@ fn main() {
             commands::platform,
             commands::accessibility_status,
             commands::request_accessibility,
+            commands::input_monitoring_status,
+            commands::request_input_monitoring,
             update::check_update,
             update::update_status,
             update::download_update,

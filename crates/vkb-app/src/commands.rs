@@ -18,6 +18,9 @@ use vkb_core::{Charset, InputMethod};
 /// config change reach the hook without a restart.
 static CONFIG: OnceLock<vkb_platform::SharedConfig> = OnceLock::new();
 static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+/// Serializes every read-modify-write of the config (UI patches and backend
+/// hotkey writes), so neither can overwrite the other's field (S-17).
+static CONFIG_WRITE: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
 
 static AUTOSTART_SYNCED: AtomicBool = AtomicBool::new(false);
 static AUTOSTART_STATE: AtomicBool = AtomicBool::new(false);
@@ -154,6 +157,10 @@ pub struct StatusView {
     pub mechanism: String,
     pub hook_ready: bool,
     pub version: String,
+    /// macOS: secure event input is making the tap pass typed keys through
+    /// unconverted right now (S-18). Always `false` elsewhere.
+    #[serde(default)]
+    pub secure_input_blocking: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,6 +277,18 @@ pub fn status_view(cfg: &AppConfig) -> StatusView {
         },
         hook_ready: hook_ready_now(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        secure_input_blocking: secure_input_blocking_now(),
+    }
+}
+
+fn secure_input_blocking_now() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        vkb_macos::secure_input_blocking()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
     }
 }
 
@@ -673,8 +692,18 @@ pub fn set_settings(next: SettingsView) -> Result<SettingsView, String> {
 
 #[tauri::command]
 pub fn patch_settings(patch: serde_json::Value) -> Result<SettingsView, String> {
+    update_config(|cfg| apply_patch(cfg, &patch))
+}
+
+/// Apply `mutate` to the live config as one atomic read-modify-write: nothing
+/// else can change the config between the read and the save, so a UI patch and
+/// a backend hotkey write each land as a field patch on the latest state.
+pub(crate) fn update_config(
+    mutate: impl FnOnce(&mut AppConfig) -> Result<(), String>,
+) -> Result<SettingsView, String> {
+    let _guard = CONFIG_WRITE.lock();
     let mut draft = config_cell().read().clone();
-    apply_patch(&mut draft, &patch)?;
+    mutate(&mut draft)?;
     save_and_publish(draft)
 }
 
@@ -761,6 +790,7 @@ fn status_view_from_view(view: &SettingsView) -> StatusView {
         mechanism: view.input.mechanism.clone(),
         hook_ready: hook_ready_now(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        secure_input_blocking: secure_input_blocking_now(),
     }
 }
 
@@ -1144,6 +1174,34 @@ pub fn accessibility_status() -> bool {
             crate::macos_backend::ensure_installed();
         }
         granted
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+/// Whether macOS lets the app listen to the keyboard (Input Monitoring, 10.15+).
+/// Never prompts. Always true off macOS. The page shows its own hint on `false`.
+#[tauri::command]
+pub fn input_monitoring_status() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        vkb_macos::has_input_monitoring_permission()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+/// Ask macOS for Input Monitoring (system prompt, once). Returns the status
+/// after asking. No-op `true` off macOS.
+#[tauri::command]
+pub fn request_input_monitoring() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        vkb_macos::request_input_monitoring_permission()
     }
     #[cfg(not(target_os = "macos"))]
     {

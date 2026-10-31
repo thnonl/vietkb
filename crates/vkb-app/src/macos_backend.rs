@@ -9,12 +9,14 @@
 //!
 //! Without the Accessibility grant `install()` fails; the app still opens and the
 //! settings window shows the banner. [`ensure_installed`] (called from the
-//! `accessibility_status` poll) installs the tap as soon as the grant appears.
+//! `accessibility_status` poll) installs the tap as soon as the grant appears,
+//! and the worker also retries on its own every [`TIMER_GAP`] while the tap is
+//! missing, so granting with no window open needs no restart (S-02).
 //!
 //! Compiled on macOS only (see `main.rs`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -26,6 +28,10 @@ use crate::commands;
 /// Minimum gap between install attempts triggered by the banner poll, so a grant
 /// that still cannot produce a tap does not log an error every 2 seconds.
 const RETRY_GAP: Duration = Duration::from_secs(5);
+
+/// Backend-side retry period while the tap is not installed. Cheap: one
+/// `AXIsProcessTrusted` call per tick, and the worker blocks once the tap runs.
+const TIMER_GAP: Duration = Duration::from_secs(3);
 
 enum Event {
     Enabled(bool),
@@ -90,6 +96,37 @@ fn install_now() {
     }
 }
 
+/// Whether the timer should try an install now. Without the grant there is
+/// nothing to try (and nothing to log); once the tap runs the timer stops.
+fn timer_should_install(quitting: bool, hook_ready: bool, trusted: bool) -> bool {
+    !quitting && !hook_ready && trusted
+}
+
+/// One timer tick: install when the grant appeared and the tap is missing.
+/// A grant that still cannot produce a tap (Input Monitoring denied) warns once,
+/// then retries quietly.
+fn timer_tick() {
+    static WARNED: AtomicBool = AtomicBool::new(false);
+    if !timer_should_install(
+        crate::QUITTING.load(Ordering::SeqCst),
+        vkb_macos::is_hook_ready(),
+        vkb_macos::has_accessibility_permission(),
+    ) {
+        return;
+    }
+    match vkb_macos::install() {
+        Ok(()) => {
+            WARNED.store(false, Ordering::Relaxed);
+            tracing::info!("event tap installed by the retry timer");
+        }
+        Err(error) => {
+            if !WARNED.swap(true, Ordering::Relaxed) {
+                tracing::warn!(error = %error, "event tap install failed; retrying every few seconds");
+            }
+        }
+    }
+}
+
 /// Install the tap if it is not running. Cheap and non-blocking: the work is
 /// queued to the worker, at most one request at a time and at most one per
 /// [`RETRY_GAP`]. Safe to call on every Accessibility poll.
@@ -147,7 +184,21 @@ pub fn push_config() {
 }
 
 fn worker(events: Receiver<Event>) {
-    while let Ok(event) = events.recv() {
+    loop {
+        // Wake periodically only while the tap is missing; once it runs, block.
+        let received = if vkb_macos::is_hook_ready() || crate::QUITTING.load(Ordering::SeqCst) {
+            events.recv().map_err(|_| RecvTimeoutError::Disconnected)
+        } else {
+            events.recv_timeout(TIMER_GAP)
+        };
+        let event = match received {
+            Ok(event) => event,
+            Err(RecvTimeoutError::Timeout) => {
+                timer_tick();
+                continue;
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
+        };
         match event {
             Event::Enabled(enabled) => apply_enabled(enabled),
             Event::Command(command) => apply_command(command),
@@ -163,10 +214,12 @@ fn worker(events: Receiver<Event>) {
 
 /// Hotkey toggled Vietnamese on/off: make the file and the tray say the same.
 fn apply_enabled(enabled: bool) {
-    let mut draft = commands::config_cell().read().clone();
-    if draft.input.enabled != enabled {
-        draft.input.enabled = enabled;
-        if let Err(error) = commands::save_and_publish(draft) {
+    if commands::config_cell().read().input.enabled != enabled {
+        // A field patch under the config lock (S-17), not a stale clone.
+        if let Err(error) = commands::update_config(|cfg| {
+            cfg.input.enabled = enabled;
+            Ok(())
+        }) {
             tracing::warn!(%error, enabled, "could not persist the enabled state");
         }
     } else if let Some(app) = commands::app_handle() {
@@ -219,11 +272,14 @@ fn apply_command(command: BackendCommand) {
     }
 }
 
-/// Read-modify-write the config through the commands' own save path.
+/// Apply a field change to the latest config under the commands' config lock
+/// (the same path `patch_settings` uses), so a concurrent UI patch is never
+/// overwritten with a stale copy (S-17).
 fn update(mutate: impl FnOnce(&mut AppConfig)) {
-    let mut draft = commands::config_cell().read().clone();
-    mutate(&mut draft);
-    if let Err(error) = commands::save_and_publish(draft) {
+    if let Err(error) = commands::update_config(|cfg| {
+        mutate(cfg);
+        Ok(())
+    }) {
         tracing::warn!(%error, "could not persist a tap-driven change");
     }
 }
@@ -285,6 +341,14 @@ mod tests {
         toggle_app_exclude(&mut cfg, "com.apple.notes");
         assert_eq!(cfg.apps.rules[0].enabled, Some(true));
         assert_eq!(cfg.apps.rules.len(), 1);
+    }
+
+    #[test]
+    fn timer_installs_only_when_granted_missing_and_not_quitting() {
+        assert!(timer_should_install(false, false, true));
+        assert!(!timer_should_install(false, false, false), "no grant: nothing to try");
+        assert!(!timer_should_install(false, true, true), "tap already runs: stop");
+        assert!(!timer_should_install(true, false, true), "quitting");
     }
 
     #[test]
