@@ -417,9 +417,52 @@ pub fn restore_decision(
 /// plain text (the same conditions as the restore rescue). Never touches other
 /// content.
 pub fn should_clear(owner_is_ours: bool, marker_present: bool, rescue: Option<Rescue>) -> bool {
-    let equal = rescue.is_some_and(|r| r.text_equal);
-    let plain_equal = rescue.is_some_and(|r| r.plain_only && r.text_equal);
-    (owner_is_ours && (marker_present || equal)) || plain_equal
+    owner_is_ours && (marker_present || rescue.is_some_and(|r| r.text_equal))
+}
+
+/// Identity of a clipboard owner window (`HWND` as an integer, 0 = none).
+pub type OwnerId = isize;
+
+/// Result of probing an owner with a short `SendMessageTimeout`: who it was and
+/// whether it answered.
+pub type Probed = (OwnerId, bool);
+
+/// Gate of the text rescue: only for non-urgent data, never in a flush (its
+/// budget is for the attempt, not for reading foreign data), only in round 0
+/// and only when we know our text.
+pub fn rescue_gate(urgent: bool, flush: bool, rounds: u32, text_known: bool) -> bool {
+    !urgent && !flush && rounds == 0 && text_known
+}
+
+/// May `GetClipboardData` be called on the clipboard that is open right now?
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadOk {
+    Yes,
+    /// The owner is not the one that was probed (it changed between the probe
+    /// and the open, or nothing was probed): probe again, with the clipboard
+    /// open, or skip the read.
+    Reprobe,
+    No,
+}
+
+/// `probed`: the owner probed BEFORE opening and whether it answered.
+/// `owner_now`: `GetClipboardOwner()` while the clipboard is open. `ours`: our
+/// owner window. GetClipboardData is never called for an unprobed foreign owner.
+pub fn owner_read_ok(probed: Option<Probed>, owner_now: OwnerId, ours: OwnerId) -> ReadOk {
+    // No owner (immediate data) or our own pumped window: nothing can hang.
+    if owner_now == 0 || owner_now == ours {
+        return ReadOk::Yes;
+    }
+    match probed {
+        Some((owner, responsive)) if owner == owner_now => {
+            if responsive {
+                ReadOk::Yes
+            } else {
+                ReadOk::No
+            }
+        }
+        _ => ReadOk::Reprobe,
+    }
 }
 
 /// The size our text occupies as `CF_UNICODETEXT` (units + the terminator).
@@ -845,14 +888,40 @@ mod tests {
         assert!(should_clear(true, true, None));
         // Owner ours, marker gone, text equal: clear.
         assert!(should_clear(true, false, rich_eq));
-        // A manager re-set our plain text (owner foreign): clear.
-        assert!(should_clear(false, false, eq));
-        // Foreign owner with rich content, or other text, or nothing known: keep.
+        // A foreign owner is never cleared, even for identical plain text (it
+        // could be the user's own copy), rich content, other text or nothing.
+        assert!(!should_clear(false, false, eq));
         assert!(!should_clear(false, false, rich_eq));
         assert!(!should_clear(false, false, neq));
         assert!(!should_clear(false, true, None));
         assert!(!should_clear(true, false, neq));
         assert!(!should_clear(true, false, None));
+    }
+
+    #[test]
+    fn reading_a_foreign_clipboard_needs_a_probe_of_that_very_owner() {
+        let ours = 1;
+        // Our window / no owner: nothing can hang.
+        assert_eq!(owner_read_ok(None, ours, ours), ReadOk::Yes);
+        assert_eq!(owner_read_ok(None, 0, ours), ReadOk::Yes);
+        // Probed, same owner, responsive.
+        assert_eq!(owner_read_ok(Some((7, true)), 7, ours), ReadOk::Yes);
+        // Probed, same owner, not answering.
+        assert_eq!(owner_read_ok(Some((7, false)), 7, ours), ReadOk::No);
+        // The owner changed between probe and open (even to a responsive probe
+        // result of the OLD owner): never read, probe the new one.
+        assert_eq!(owner_read_ok(Some((7, true)), 9, ours), ReadOk::Reprobe);
+        // Nothing probed: never read a foreign owner.
+        assert_eq!(owner_read_ok(None, 9, ours), ReadOk::Reprobe);
+    }
+
+    #[test]
+    fn rescue_gate_excludes_urgent_flush_and_later_rounds() {
+        assert!(rescue_gate(false, false, 0, true));
+        assert!(!rescue_gate(true, false, 0, true));
+        assert!(!rescue_gate(false, true, 0, true));
+        assert!(!rescue_gate(false, false, 1, true));
+        assert!(!rescue_gate(false, false, 0, false));
     }
 
     #[test]

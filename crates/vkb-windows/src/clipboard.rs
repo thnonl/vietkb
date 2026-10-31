@@ -42,7 +42,8 @@ use vkb_platform::clipboard_book::{
 use vkb_platform::clipboard_plan::{
     classify_format, decide_paste, flag_blocks_snapshot, format_count_ok,
     garbage_admit, notification_is_ours, open_retry_delay, ownership,
-    our_text_bytes, plain_text_only, restore_action, restore_decision, should_clear,
+    our_text_bytes, owner_read_ok, plain_text_only, restore_action, restore_decision, rescue_gate,
+    should_clear, OwnerId, Probed, ReadOk,
     text_fingerprint, write_verdict, OwnerCheck, Rescue,
     snapshot_stable, snapshot_verdict, uses_hook_owner, within_budget, FormatClass,
     OwnSeqs, Ownership, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER,
@@ -366,12 +367,23 @@ fn type_directly(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, hel
 /// mode unusable (the owner is the program the user copied from), so the probe
 /// is the bound.
 fn clipboard_owner_responsive(timeout_ms: u32) -> bool {
-    let Ok(prev) = (unsafe { GetClipboardOwner() }) else { return true };
-    if prev.is_invalid() || Some(prev) == hwnd_of(&HOOK_OWNER) {
-        return true;
+    probe_owner(timeout_ms).1
+}
+
+/// Probe the CURRENT clipboard owner: who it is and whether it answered
+/// `WM_NULL` within `timeout_ms`. The identity matters: a probe result is only
+/// valid for the owner it was taken from (it can change before the open).
+fn probe_owner(timeout_ms: u32) -> Probed {
+    let Ok(prev) = (unsafe { GetClipboardOwner() }) else { return (0, true) };
+    if prev.is_invalid() {
+        return (0, true);
+    }
+    let id = prev.0 as OwnerId;
+    if Some(prev) == hwnd_of(&HOOK_OWNER) {
+        return (id, true);
     }
     if unsafe { IsHungAppWindow(prev) }.as_bool() {
-        return false;
+        return (id, false);
     }
     // A window we may not message (UIPI: higher integrity) also answers 0, so
     // the probe fails closed: the hook types instead of pasting.
@@ -387,7 +399,24 @@ fn clipboard_owner_responsive(timeout_ms: u32) -> bool {
             None,
         )
     };
-    answer.0 != 0
+    (id, answer.0 != 0)
+}
+
+/// Clipboard must be open. May `GetClipboardData` be called now? Never for a
+/// foreign owner that was not probed: if the owner changed between the probe
+/// (taken before the open) and now, it is probed again right here (sending a
+/// message while the clipboard is open is fine).
+fn read_allowed(probed: Option<Probed>) -> bool {
+    let owner_now = unsafe { GetClipboardOwner() }.map_or(0, |h| h.0 as OwnerId);
+    let ours = hwnd_of(&HOOK_OWNER).map_or(-1, |h| h.0 as OwnerId);
+    match owner_read_ok(probed, owner_now, ours) {
+        ReadOk::Yes => true,
+        ReadOk::No => false,
+        ReadOk::Reprobe => {
+            let again = probe_owner(50);
+            owner_read_ok(Some(again), owner_now, ours) == ReadOk::Yes
+        }
+    }
 }
 
 /// `true` = the replacement was delivered. `false` = nothing was sent and the
@@ -698,27 +727,25 @@ fn drive(hwnd: HWND, mut actions: Vec<Act>) {
 }
 
 /// A restore gave up and its user data was zeroed: empty the clipboard when our
-/// temporary text is still on it ([`should_clear`]: owner ours AND marker or
-/// equal text; or a manager re-set exactly our plain text), so a later Ctrl+V
-/// cannot paste it. Bounded: one open try, never retried; a foreign owner is
-/// probed BEFORE the clipboard is opened and its text is only read after a size
-/// check.
+/// temporary text is still on it ([`should_clear`]: OUR owner window owns it AND
+/// the marker is present or the text equals ours), so a later Ctrl+V cannot
+/// paste it. A foreign owner is never cleared and never read (it could be the
+/// user's own copy). Bounded: one open try, never retried.
 fn clear_if_ours(owner: Option<HWND>, text: OurText) {
     let Some(ours) = owner else { return };
-    // May a foreign text be read at all? Decided before the clipboard is opened.
-    let may_read_text = text.fp != 0 && clipboard_owner_responsive(50);
     let Some(guard) = ClipboardGuard::open(Some(ours), 1, 0) else { return };
     let owner_is_ours = unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours);
     let marker = marker_id() != 0 && unsafe { IsClipboardFormatAvailable(marker_id()) }.is_ok();
-    // The text is only needed when owner + marker alone do not decide.
-    let rescue = (may_read_text && !(owner_is_ours && marker)).then(|| rescue_view(text));
+    // The text is only read when it is OUR window that owns the clipboard and
+    // the marker alone did not decide (an own owner never hangs).
+    let rescue = (owner_is_ours && !marker && text.fp != 0).then(|| rescue_view(text));
     if should_clear(owner_is_ours, marker, rescue) && unsafe { EmptyClipboard() }.is_ok() {
         tracing::warn!("clipboard emptied: our temporary text was left after a give-up");
     }
     drop(guard);
 }
 
-/// Clipboard must be open and the owner probe must have passed. What the
+/// Clipboard must be open and `read_allowed` must have said yes. What the
 /// (possibly foreign) clipboard holds relative to our text: plain text only
 /// (formats listed, no data read) and equal text (size compared before any
 /// decoding).
@@ -829,10 +856,11 @@ fn refresh_snapshot(hwnd: HWND) {
     // Fail closed: an elevated (higher-integrity) owner we may not message
     // (UIPI) answers 0 too, so a clipboard owned by an elevated program is never
     // snapshotted and the hook types instead.
-    let opened = if clipboard_owner_responsive(50) {
+    let probed = probe_owner(50);
+    let opened = if probed.1 {
         ClipboardGuard::open(Some(hwnd), 5, 20).and_then(|guard| {
             let in_open = unsafe { GetClipboardSequenceNumber() };
-            capture(&guard).map(|data| (in_open, data))
+            capture(&guard, probed).map(|data| (in_open, data))
         })
     } else {
         None
@@ -870,11 +898,14 @@ fn restore_session(
     owner: Option<HWND>,
     text: OurText,
 ) -> RestoreResult {
-    // May a FOREIGN-owned clipboard's text be read for the rescue? The owner
-    // probe runs BEFORE the clipboard is opened (a hung delayed-render owner
-    // would block `GetClipboardData` with the clipboard locked system-wide).
-    let may_read_text =
-        !job.urgent && job.rounds == 0 && text.fp != 0 && clipboard_owner_responsive(50);
+    // May a FOREIGN-owned clipboard's text be read for the rescue? Never for
+    // urgent data, in a flush (its budget is for the attempt) or after round 0.
+    // The owner is probed BEFORE the clipboard is opened (a hung delayed-render
+    // owner would block `GetClipboardData` with the clipboard locked
+    // system-wide) and its identity is re-checked after the open (`read_allowed`).
+    let rescue_possible =
+        rescue_gate(job.urgent, job.max_wait_ms.is_some(), job.rounds, text.fp != 0);
+    let probed = rescue_possible.then(|| probe_owner(50));
     let started = Instant::now();
     let mut attempt = 0u32;
     loop {
@@ -890,9 +921,10 @@ fn restore_session(
             let owner_marker = owner_marker_ours(owner);
             // The rescue view is only built when the base proof fails and the
             // probe allowed reading the text.
-            let rescue = (may_read_text
-                && restore_action(job.own, owner_marker, now) == RestoreAction::Abandon)
-                .then(|| rescue_view(text));
+            let rescue = (rescue_possible
+                && restore_action(job.own, owner_marker, now) == RestoreAction::Abandon
+                && read_allowed(probed))
+            .then(|| rescue_view(text));
             let ours = restore_decision(
                 job.urgent,
                 job.own,
@@ -1040,7 +1072,7 @@ fn list_formats() -> Option<Vec<(u32, Option<String>)>> {
 /// Snapshot the open clipboard, or `None` when a faithful round trip is not
 /// possible (unknown/handle-only formats, unreadable data, too large, hung
 /// owner). `None` means: never paste over it.
-fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
+fn capture(_open: &ClipboardGuard, probed: Probed) -> Option<Vec<FormatData>> {
     // (The owner-responsiveness probe ran BEFORE the clipboard was opened, see
     // `refresh_snapshot`: a delayed-render owner that does not answer would
     // block `GetClipboardData`, which has no timeout.)
@@ -1049,6 +1081,12 @@ fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
     let verdict = snapshot_verdict(ids.iter().map(|(id, name)| (*id, name.as_deref())));
     if verdict == Verdict::Lossy {
         tracing::debug!("clipboard holds formats that cannot be restored; no snapshot");
+        return None;
+    }
+    // From here on `GetClipboardData` is called (flag values, then the data):
+    // never for an owner that was not probed. The probe ran before the open;
+    // if the owner changed meanwhile it is probed again, else no snapshot.
+    if !read_allowed(Some(probed)) {
         return None;
     }
     // Privacy: the data's owner asked to be kept out of history/cloud/monitors.
@@ -1313,7 +1351,7 @@ mod tests {
         drop(guard);
         assert_eq!(read_text().as_deref(), Some("tạm thời"));
         let guard = ClipboardGuard::open(None, 10, 20).expect("open");
-        let backup = capture(&guard).expect("capture");
+        let backup = capture(&guard, probe_owner(50)).expect("capture");
         let seq = write_temp_text("khác").expect("write");
         assert_eq!(
             restore_action(OwnSeqs { in_open: seq, after_close: seq }, false, unsafe {

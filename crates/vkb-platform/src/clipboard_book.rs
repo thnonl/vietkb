@@ -1082,9 +1082,12 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use crate::clipboard_plan::{
-        restore_action, restore_decision, should_clear, write_verdict, OwnerCheck, Rescue,
-        RestoreAction, WriteVerdict,
+        owner_read_ok, restore_action, restore_decision, rescue_gate, should_clear, write_verdict,
+        OwnerCheck, ReadOk, Rescue, RestoreAction, WriteVerdict,
     };
+
+    /// Our owner window in the fake clipboard's owner-id space.
+    const OURS: isize = 1;
 
     /// xorshift64*, no dependencies.
     struct Rng(u64);
@@ -1153,6 +1156,11 @@ mod tests {
     struct Fake {
         seq: u32,
         owner: Who,
+        /// Id of the foreign owner window (when `owner` is `Foreign`).
+        fid: isize,
+        /// The foreign owner's delayed render hangs (GetClipboardData would
+        /// block the worker with the clipboard locked system-wide).
+        hangs: bool,
         marker: bool,
         plain_only: bool,
         text: Option<u64>,
@@ -1160,8 +1168,18 @@ mod tests {
     }
 
     impl Fake {
+        fn owner_id(&self) -> isize {
+            match self.owner {
+                Who::Hook => OURS,
+                Who::Null => 0,
+                Who::Foreign => self.fid,
+            }
+        }
+
         fn set(&mut self, owner: Who, marker: bool, plain: bool, text: Option<u64>, clip: Clip) {
             self.owner = owner;
+            self.fid = 0;
+            self.hangs = false;
             self.marker = marker;
             self.plain_only = plain;
             self.text = text;
@@ -1190,12 +1208,24 @@ mod tests {
             OwnSeqs { in_open, after_close: self.seq }
         }
 
-        fn foreign_copy(&mut self, same_text: Option<u64>, fp: u64) {
+        /// Somebody else copies. `same_text`: exactly our text; `plain`: a plain
+        /// text that differs from ours (else rich content). `fid` / `hangs`: the
+        /// new owner window and whether its delayed render hangs.
+        fn foreign_copy(
+            &mut self,
+            same_text: Option<u64>,
+            fp: u64,
+            plain: bool,
+            fid: isize,
+            hangs: bool,
+        ) {
             self.seq += 4;
             match same_text {
                 Some(ours) => self.set(Who::Foreign, false, true, Some(ours), Clip::ForeignSame),
-                None => self.set(Who::Foreign, false, false, Some(fp), Clip::Foreign),
+                None => self.set(Who::Foreign, false, plain, Some(fp), Clip::Foreign),
             }
+            self.fid = fid;
+            self.hangs = hangs;
         }
 
         fn clear(&mut self) {
@@ -1230,6 +1260,9 @@ mod tests {
         foreign_survived: u32,
         rescued: u32,
         null_adopted: u32,
+        next_fid: isize,
+        owner_races: u32,
+        reads: u32,
     }
 
     impl Model {
@@ -1250,6 +1283,8 @@ mod tests {
                 gave_up: 0,
                 fake: Fake {
                     seq: 100,
+                    fid: 2,
+                    hangs: false,
                     owner: Who::Foreign,
                     marker: false,
                     plain_only: false,
@@ -1263,6 +1298,9 @@ mod tests {
                 foreign_survived: 0,
                 rescued: 0,
                 null_adopted: 0,
+                next_fid: 10,
+                owner_races: 0,
+                reads: 0,
             }
         }
 
@@ -1270,6 +1308,12 @@ mod tests {
             self.next_id += 1;
             self.created.push(self.next_id);
             self.next_id
+        }
+
+        /// A fresh foreign owner window; a quarter of them hang when asked to render.
+        fn new_foreign(&mut self, r: &mut Rng) -> (isize, bool) {
+            self.next_fid += 1;
+            (self.next_fid, r.below(4) == 0)
         }
 
         fn new_fp(&mut self) -> u64 {
@@ -1391,11 +1435,10 @@ mod tests {
                             self.fake.clear();
                         }
                         // Nothing of ours may survive a give-up.
+                        // (A manager-reset copy, `Stripped`, is foreign-owned and
+                        // deliberately left alone.)
                         assert!(
-                            !matches!(
-                                self.fake.clip,
-                                Clip::Temp | Clip::Partial | Clip::Stripped
-                            ),
+                            !matches!(self.fake.clip, Clip::Temp | Clip::Partial),
                             "our text ({:?}) survived the give-up",
                             self.fake.clip
                         );
@@ -1413,14 +1456,47 @@ mod tests {
             }
             // Attempts 3..4 open with the NULL owner; the proof keeps using ours.
             let open_null = r.below(4) == 0;
+            // The text rescue may read a foreign clipboard: the owner is probed
+            // BEFORE the open (the real code does the same).
+            let gate = rescue_gate(job.urgent, job.max_wait_ms.is_some(), job.rounds, self.our_fp != 0);
+            let probed = gate.then(|| (self.fake.owner_id(), !self.fake.hangs));
+            // Race: the owner changes between the probe and the open.
+            if gate && r.below(5) == 0 {
+                let (fid, hangs) = self.new_foreign(r);
+                let fp = self.new_fp();
+                self.fake.foreign_copy(None, fp, r.below(2) == 0, fid, hangs);
+                self.owner_races += 1;
+            }
             let owner_is_ours = self.fake.owner == Who::Hook;
             let owner_marker = owner_is_ours && self.fake.marker;
             let base = restore_action(job.own, owner_marker, self.fake.seq);
-            let rescue = (!job.urgent && job.rounds == 0 && base == RestoreAction::Abandon)
-                .then_some(Rescue {
-                    plain_only: self.fake.plain_only,
-                    text_equal: self.fake.text == Some(self.our_fp),
-                });
+            let rescue = if gate && base == RestoreAction::Abandon {
+                // Under the open clipboard: read only for an owner that was
+                // probed (re-probe if it changed), exactly like the executor.
+                let owner_now = self.fake.owner_id();
+                let allowed = match owner_read_ok(probed, owner_now, OURS) {
+                    ReadOk::Yes => true,
+                    ReadOk::No => false,
+                    ReadOk::Reprobe => {
+                        let again = Some((owner_now, !self.fake.hangs));
+                        owner_read_ok(again, owner_now, OURS) == ReadOk::Yes
+                    }
+                };
+                allowed.then(|| {
+                    // The GetClipboardData-equivalent: a hung render would block.
+                    assert!(
+                        !(self.fake.owner == Who::Foreign && self.fake.hangs),
+                        "GetClipboardData on a hanging owner ({owner_now}) that was never probed"
+                    );
+                    self.reads += 1;
+                    Rescue {
+                        plain_only: self.fake.plain_only,
+                        text_equal: self.fake.text == Some(self.our_fp),
+                    }
+                })
+            } else {
+                None
+            };
             let decision = restore_decision(
                 job.urgent,
                 job.own,
@@ -1591,7 +1667,8 @@ mod tests {
                     if had_current {
                         // Owner + marker proved somebody else wrote.
                         let fp = self.new_fp();
-                        self.fake.foreign_copy(None, fp);
+                        let (fid, hangs) = self.new_foreign(r);
+                        self.fake.foreign_copy(None, fp, false, fid, hangs);
                     }
                     let a = self.book.discard_current();
                     self.apply(a, Ctx::Discard);
@@ -1625,7 +1702,9 @@ mod tests {
                     // our plain text): the listener reports a foreign change.
                     let fp = self.new_fp();
                     let same = (r.below(4) == 0 && self.our_fp != 0).then_some(self.our_fp);
-                    self.fake.foreign_copy(same, fp);
+                    let (fid, hangs) = self.new_foreign(r);
+                    // A plain text that differs from ours half of the time.
+                    self.fake.foreign_copy(same, fp, r.below(2) == 0, fid, hangs);
                     let a = self.book.notification(false);
                     self.apply(a, Ctx::Plain);
                 }
@@ -1634,6 +1713,9 @@ mod tests {
                     self.fake.seq += 4;
                     let our_fp = self.our_fp;
                     self.fake.set(Who::Foreign, false, true, Some(our_fp), Clip::Stripped);
+                    let (fid, hangs) = self.new_foreign(r);
+                    self.fake.fid = fid;
+                    self.fake.hangs = hangs;
                     let a = self.book.notification(false);
                     self.apply(a, Ctx::Plain);
                 }
@@ -1662,6 +1744,8 @@ mod tests {
             assert!(m.foreign_survived > 0, "seed {seed}: no foreign copy met a restore");
             assert!(m.rescued > 0, "seed {seed}: the text rescue never fired");
             assert!(m.null_adopted > 0, "seed {seed}: no NULL-owner adoption");
+            assert!(m.owner_races > 0, "seed {seed}: no owner change between probe and open");
+            assert!(m.reads > 0, "seed {seed}: the rescue never read a clipboard");
         }
     }
 
