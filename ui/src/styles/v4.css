@@ -163,6 +163,22 @@
   padding: 0 20px;
   overflow: hidden;
 }
+/* Intro + rows of a fixed-size window that can outgrow it (Hotkeys with
+ * conflict warnings: each adds 20 px). The footer below stays in view and the
+ * rows scroll; with no overflow nothing changes. macOS grows its window to the
+ * content instead (lib/fit.ts), so there the wrapper is transparent to layout. */
+.v4scroll {
+  flex: 1;
+  min-height: 0;
+  margin: 0 -20px;
+  padding: 0 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+:root[data-platform="macos"] .v4scroll {
+  display: contents;
+}
 .v4pad {
   height: 4px;
   flex: none;

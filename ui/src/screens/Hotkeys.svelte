@@ -140,6 +140,7 @@
   <TitleBar title={t("win.hotkeys.title")} subtitle="VietKB" showMark={false} showMinimize={false} />
 
   <main class="v4sheet">
+    <div class="v4scroll">
     <div class="v4intro">
       {t("hotkeys.intro.a")}
       <span class="k sm">Esc</span> {t("hotkeys.intro.esc")}
@@ -183,6 +184,7 @@
           { value: "release", label: t("hotkeys.mode.release") },
           { value: "press", label: t("hotkeys.mode.press") },
         ]} />
+    </div>
     </div>
 
     <footer class="v4foot">
