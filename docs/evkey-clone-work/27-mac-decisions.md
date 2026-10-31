@@ -132,3 +132,11 @@ Owner, verbatim: "GUI trên Mac phải consistence với trên Windows."
   OS shortcuts) or where the owner approved it; each surviving difference is listed in the M10
   audit table (52-test-cases-mac.md or 27-mac-decisions.md) with the reason.
 - Earlier Mac-only deviations (M3/M4/M6, Dev-B UI choices) are re-checked against this rule.
+- Owner refinement, verbatim: "Consistence nhất có thể thôi, nhưng vẫn phải phù hợp với MacOS" — as consistent as possible, but still fitting macOS.
+- Owner answers to the parity audit (docs/evkey-clone-work/gui-parity-audit.md), 2026-10-31:
+  - Menu-bar icon: left click toggles Vietnamese on/off like Windows; right click (and ctrl-click) opens the menu.
+  - Hotkey display on Mac: macOS glyphs run together (`⌃⇧Z`), as today.
+  - Mac default hotkeys for enable/disable/app-exclude/macro panel/macro toggle: none (user sets them).
+  - "Gửi chữ qua Clipboard": stays hidden on Mac.
+  - About text on Mac: keep the qualitative line until Mac numbers are measured (Lead).
+  - All ALIGN rows of the audit are to be aligned with Windows.
