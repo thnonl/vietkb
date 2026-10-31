@@ -1039,6 +1039,19 @@ mod tests {
         }
     }
 
+    /// Why `apply` is running: decides which retirements are legitimate.
+    #[derive(Clone, Copy)]
+    enum Ctx {
+        /// `discard_current` (the only event that may retire without a newer
+        /// generation).
+        Discard,
+        /// The event created or finished this generation; everything it retires
+        /// must be older.
+        Gen(u64),
+        /// Anything else: a retirement needs a newer generation in the book.
+        Plain,
+    }
+
     /// The model executor: tracks where every payload id is.
     struct Model {
         book: SessionBook<u32>,
@@ -1050,6 +1063,8 @@ mod tests {
         exited: HashSet<u32>,
         inflight: Option<RestoreJob<u32>>,
         flushing: bool,
+        /// Absolute time of the flush deadline while one is active.
+        deadline: Option<u64>,
         last_done_gen: u64,
         restores: HashMap<u32, u32>,
         gave_up: u32,
@@ -1067,6 +1082,7 @@ mod tests {
                 exited: HashSet::new(),
                 inflight: None,
                 flushing: false,
+                deadline: None,
                 last_done_gen: 0,
                 restores: HashMap::new(),
                 gave_up: 0,
@@ -1084,7 +1100,29 @@ mod tests {
             assert!(self.exited.insert(id), "payload {id} exited twice");
         }
 
-        fn apply(&mut self, actions: Vec<Action<u32>>) {
+        fn apply(&mut self, actions: Vec<Action<u32>>, ctx: Ctx) {
+            // The newest generation alive after this batch: stored, restoring, or
+            // the one the event itself created / finished.
+            let batch_restore = actions
+                .iter()
+                .filter_map(|a| match a {
+                    Action::Restore(j) => Some(j.generation),
+                    _ => None,
+                })
+                .max();
+            let newest = [
+                self.book.stored_payloads().iter().map(|(g, _)| *g).max(),
+                self.inflight.as_ref().map(|j| j.generation),
+                batch_restore,
+                match ctx {
+                    Ctx::Gen(g) => Some(g),
+                    _ => None,
+                },
+            ]
+            .into_iter()
+            .flatten()
+            .max()
+            .unwrap_or(0);
             for a in actions {
                 match a {
                     Action::Restore(job) => {
@@ -1108,12 +1146,29 @@ mod tests {
                         *self.restores.entry(job.payload).or_default() += 1;
                         self.inflight = Some(job);
                     }
-                    Action::Retire(id) => self.exit(id),
+                    Action::Retire(id) => {
+                        // Outside a flush data is only retired when superseded
+                        // by a newer generation (or by discard_current).
+                        if !self.flushing && !matches!(ctx, Ctx::Discard) {
+                            assert!(
+                                self.gens[&id] < newest,
+                                "payload {id} (gen {}) retired outside a flush with no newer generation (newest {newest})",
+                                self.gens[&id]
+                            );
+                        }
+                        self.exit(id)
+                    }
                     Action::Finished { payload, .. } => self.exit(payload),
                     Action::ArmTimer(ms) => self.armed = Some(self.now + ms),
                     Action::StopTimer => self.armed = None,
                     Action::GiveUp(_) => {
                         assert!(self.flushing, "give-up outside a flush");
+                        let deadline = self.deadline.expect("a flush has a deadline");
+                        assert!(
+                            self.now >= deadline,
+                            "gave up at {} before the deadline {deadline}",
+                            self.now
+                        );
                         self.gave_up += 1;
                     }
                     Action::Snapshot | Action::SkipSnapshot | Action::DropSnapshot => {}
@@ -1137,7 +1192,8 @@ mod tests {
             if done {
                 self.last_done_gen = self.last_done_gen.max(generation);
             }
-            self.apply(actions);
+            let ctx = if done { Ctx::Gen(generation) } else { Ctx::Plain };
+            self.apply(actions, ctx);
         }
 
         fn check(&self) {
@@ -1167,56 +1223,58 @@ mod tests {
             if self.armed.is_some_and(|t| self.now >= t) {
                 self.armed = None;
                 let actions = self.book.timer(self.now);
-                self.apply(actions);
+                self.apply(actions, Ctx::Plain);
             }
             match r.below(16) {
                 0 | 1 if !self.flushing && self.inflight.is_none() => {
                     let id = self.new_id();
                     let (generation, a) = self.book.start_session(id, own(id), self.now);
                     self.gens.insert(id, generation);
-                    self.apply(a);
+                    self.apply(a, Ctx::Gen(generation));
                     let a = self.book.paste_sent(self.now);
-                    self.apply(a);
+                    self.apply(a, Ctx::Plain);
                 }
                 2 if !self.flushing && self.book.current_own().is_some() => {
                     self.book.continue_session(own(9), self.now);
                     let a = self.book.paste_sent(self.now);
-                    self.apply(a);
+                    self.apply(a, Ctx::Plain);
                 }
                 3 if !self.flushing => {
                     let a = self.book.current_to_urgent(own(11), self.now);
-                    self.apply(a);
+                    self.apply(a, Ctx::Plain);
                 }
                 4 if !self.flushing => {
                     let id = self.new_id();
                     let (generation, a) = self.book.urgent_failed_write(id, own(id), self.now);
                     self.gens.insert(id, generation);
-                    self.apply(a);
+                    self.apply(a, Ctx::Gen(generation));
                 }
                 5 => {
                     let a = self.book.discard_current();
-                    self.apply(a);
+                    self.apply(a, Ctx::Discard);
                 }
                 6 => {
                     let a = self.book.timer(self.now);
-                    self.apply(a);
+                    self.apply(a, Ctx::Plain);
                 }
                 7..=10 => self.result(r),
                 11 => {
                     let a = self.book.notification(r.below(2) == 0);
-                    self.apply(a);
+                    self.apply(a, Ctx::Plain);
                 }
                 12 if !self.flushing && r.below(4) == 0 => {
                     self.flushing = true;
-                    let a = if r.below(2) == 0 {
-                        self.book.mode_off(self.now)
+                    let (a, budget) = if r.below(2) == 0 {
+                        (self.book.mode_off(self.now), MODE_OFF_BUDGET_MS)
                     } else {
-                        self.book.quit(self.now)
+                        (self.book.quit(self.now), QUIT_BUDGET_MS)
                     };
-                    self.apply(a);
+                    self.deadline = Some(self.now + budget);
+                    self.apply(a, Ctx::Plain);
                 }
                 13 if self.flushing && r.below(3) == 0 => {
                     self.flushing = false;
+                    self.deadline = None;
                     self.book.mode_on();
                 }
                 _ => {}
@@ -1263,6 +1321,9 @@ mod tests {
                 present.push(j.payload);
             }
             let newest = present.iter().copied().max_by_key(|id| m.gens[id]);
+            // Attempts of the newest payload BEFORE the flush: it must grow.
+            let attempts_before =
+                newest.map(|n| m.restores.get(&n).copied().unwrap_or(0));
             let quit = r.below(2) == 0;
             let (budget, pace) = if quit {
                 (QUIT_BUDGET_MS, QUIT_RETRY_MS)
@@ -1270,17 +1331,18 @@ mod tests {
                 (MODE_OFF_BUDGET_MS, MODE_OFF_RETRY_MS)
             };
             m.flushing = true;
+            m.deadline = Some(m.now + budget);
             flushes += 1;
             let start = m.now;
             let actions = if quit { m.book.quit(m.now) } else { m.book.mode_off(m.now) };
-            m.apply(actions);
+            m.apply(actions, Ctx::Plain);
             // Always-busy executor, time follows the timers exactly.
             for _ in 0..10_000 {
                 if let Some(job) = m.inflight.take() {
                     let spent = r.below(job.max_wait_ms.unwrap_or(0) + 1);
                     m.now += spent;
                     let a = m.book.restore_result(job, RestoreResult::Busy, m.now);
-                    m.apply(a);
+                    m.apply(a, Ctx::Plain);
                     m.check();
                     continue;
                 }
@@ -1289,7 +1351,7 @@ mod tests {
                         m.now = m.now.max(t);
                         m.armed = None;
                         let a = m.book.timer(m.now);
-                        m.apply(a);
+                        m.apply(a, Ctx::Plain);
                         m.check();
                     }
                     None => break,
@@ -1300,10 +1362,13 @@ mod tests {
             for id in &present {
                 assert!(m.exited.contains(id), "seed {seed}: payload {id} never exited");
             }
-            // The newest payload present at the flush was attempted at least once.
-            if let Some(n) = newest {
-                let attempts = m.restores.get(&n).copied().unwrap_or(0);
-                assert!(attempts >= 1, "seed {seed}: newest payload {n} never attempted");
+            // The newest payload present at the flush got a NEW attempt during it.
+            if let (Some(n), Some(before)) = (newest, attempts_before) {
+                let after = m.restores.get(&n).copied().unwrap_or(0);
+                assert!(
+                    after > before,
+                    "seed {seed}: newest payload {n} had {before} attempts at the flush, {after} after"
+                );
             }
             assert!(
                 m.now - start <= budget + pace,
