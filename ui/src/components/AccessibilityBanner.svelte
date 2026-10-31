@@ -12,7 +12,7 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+  import { fitWindowToContent, resizeBy } from "../lib/fit";
   import Icon from "./Icon.svelte";
   import * as api from "../lib/api";
   import { platformState } from "../lib/platform.svelte";
@@ -27,9 +27,7 @@
   // window (and taken off again once the grant is there) instead of squeezing
   // the rows. Keep these numbers equal to main.rs (`content_height(460.0)` and
   // `BANNER_PX`) and `.axbanner` in styles/mac.css.
-  const BASE_CONTENT_PX = BASE;
   const AX_BANNER_PX = BANNER;
-  const WIDTH_PX = 480;
   const POLL_MS = 2000;
 
   let { missing = $bindable(false) }: { missing?: boolean } = $props();
@@ -39,9 +37,11 @@
 
   const fit = (needsBanner: boolean) => {
     if (!native) return;
-    const height = BASE_CONTENT_PX + (needsBanner ? AX_BANNER_PX : 0);
-    void getCurrentWindow()
-      .setSize(new LogicalSize(WIDTH_PX, height))
+    // Relative, not absolute: the window's inner height includes the native
+    // title bar, which the page cannot see. Add or take off the banner's height
+    // and let the measured fit settle the rest.
+    void resizeBy(needsBanner ? AX_BANNER_PX : -AX_BANNER_PX)
+      .then(() => fitWindowToContent())
       .catch(() => {});
   };
 

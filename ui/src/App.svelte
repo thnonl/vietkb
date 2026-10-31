@@ -9,12 +9,15 @@
   import About from "./screens/About.svelte";
   import { app } from "./lib/state.svelte";
   import { closeCurrent } from "./lib/window.svelte";
+  import { fitWindowToContent } from "./lib/fit";
 
   const kind = new URLSearchParams(window.location.search).get("win") ?? "main";
   const modal = kind !== "main";
 
   onMount(() => {
     void app.init().then(() => {
+      // macOS: the native title bar takes height the page cannot use; grow to fit.
+      void document.fonts.ready.then(() => fitWindowToContent());
       const theme = new URLSearchParams(window.location.search).get("theme");
       if (theme === "light" || theme === "dark") app.applyTheme(theme);
     });

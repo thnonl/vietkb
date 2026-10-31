@@ -23,16 +23,27 @@ static QUITTING: AtomicBool = AtomicBool::new(false);
 const MAIN_LABEL: &str = "main";
 
 /// Height of the custom caption the page draws on Windows. macOS windows use the
-/// native title bar (traffic lights) instead, which sits outside `inner_size`,
-/// so the content area is that much shorter there.
+/// native title bar (traffic lights) instead, so the page there is that much shorter.
 const CAPTION_PX: f64 = 36.0;
 
-/// Window content height for the current platform: the measured Windows height
-/// (caption included), minus the caption the page no longer draws on macOS.
+/// Estimated native macOS title bar height in points. `inner_size` on a decorated
+/// macOS window is the whole frame (title bar included), while the page only gets
+/// the area below it, so the frame needs this much on top of the page height
+/// (D-MAC-02: without it the footer row was clipped). It is only an estimate, the
+/// real value differs between macOS releases: the page measures itself and grows
+/// the window by whatever is still hidden (ui/src/lib/fit.ts).
+#[cfg(target_os = "macos")]
+const TITLEBAR_PT: f64 = 28.0;
+
+/// Window height to request for the current platform: the measured Windows height
+/// (caption included) on Windows; on macOS the same page height without the
+/// caption, plus the native title bar.
 fn content_height(windows_height: f64) -> f64 {
-    if cfg!(target_os = "macos") {
-        windows_height - CAPTION_PX
-    } else {
+    #[cfg(target_os = "macos")]
+    return windows_height - CAPTION_PX + TITLEBAR_PT;
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = CAPTION_PX;
         windows_height
     }
 }
