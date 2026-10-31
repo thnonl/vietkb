@@ -81,6 +81,13 @@
   background: var(--hover-plane);
   color: var(--t1);
 }
+.mac-tslot.upd {
+  color: var(--acc-text);
+}
+.mac-tslot.upd:hover {
+  background: var(--acc-tint);
+  color: var(--acc-text);
+}
 .mac-tslot:focus-visible {
   outline: 2px solid var(--acc);
   outline-offset: 1px;

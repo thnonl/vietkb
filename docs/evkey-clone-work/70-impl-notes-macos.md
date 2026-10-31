@@ -108,3 +108,27 @@ Accessibility, no synthetic input.
   use only portable crates and `sys` is cfg-gated, but it was not cross-checked.
 - `cargo test/clippy --workspace` is green on macOS except `vkb-app`, which does not compile
   on macOS yet (`WebviewWindowBuilder::owner`, other workstream).
+
+## M8 — update badge and singleton (2026-10-31)
+
+### Update badge
+
+- Menu bar (`tray.rs`, `badged_template`): the icon stays a **template image** and the badge is drawn into its alpha channel when `update::available()` is set: a solid disc at the bottom-right with the download arrow cut out, and a 1.6 px clear ring cut around it so it separates from the keycap (filled `V` or outlined `E`, both stay readable). Why not a coloured non-template image: the menu bar tint follows the wallpaper under it as well as System Settings > Appearance (Sonoma and later), and neither `NSApp.effectiveAppearance` (which VietKB itself overrides with `set_theme`) nor the user default reflects it, so a guessed white or black glyph can be invisible. A template is always right. Cost: the badge is monochrome, not the Windows accent colour. Pure pixel function `badge_template_pixels` is unit-tested; the look has not been seen live (no GUI launch in this session): if the owner wants it bigger, change `MAC_BADGE_RADIUS` / `MAC_BADGE_RING`.
+- Refresh path unchanged: `update.rs` calls `tray::refresh` when the state changes, which rebuilds the menu (update item, same text as Windows), icon and tooltip.
+- Settings window (`TitleBar.svelte`, macOS branch): the same download button as the Windows caption (`app.updateAvailable`, main window only, opens Giới thiệu), left of the theme and VI | EN buttons, accent coloured (`.mac-tslot.upd`). Strings are the existing `titlebar.update.*`; no new keys.
+
+### Singleton
+
+`tauri-plugin-single-instance` 2.5.5, `platform_impl/macos.rs` (read, not run):
+
+- The plugin's `setup` connects to `/tmp/vn_vietkb_app_si.sock` (identifier with `.`/`-` as `_`; the `semver` feature is off, so the name does not change with the version and an old and a new version still exclude each other). If someone answers it sends cwd and args, then `std::process::exit(0)`. Plugin setup runs inside `Builder::build`, which `main` calls before the `.setup` closure, so a second process exits before `set_activation_policy`, `tray::install` and `macos_backend::start` (the event tap). The plugin is the first `.plugin(...)` call and nothing creates UI before it. `LSUIElement` is set, so even the short life of a second process has no Dock tile.
+- Verdict per launch path:
+  - `open -n` / `open -n -a`: separate process, same identifier, same socket -> hands over, exits before any UI. OK.
+  - A second `.app` copy at another path: same identifier, same socket -> OK. (Version is not part of the name.)
+  - Direct exec of the binary: same. OK.
+  - LaunchAgent start while running: launchd execs the same binary -> same hand-over. OK.
+  - Finder / Spotlight / Dock on a running app: Launch Services activates the running copy and sends `Reopen` (handled, shows settings). `LSMultipleInstancesProhibited` is now set in `Info.plist` as defence in depth.
+  - Stale socket after a crash: connect returns `ConnectionRefused`/`NotFound`, the plugin removes it and claims it. OK.
+- One real gap: two launches inside the same few milliseconds. Both find no socket, and the second `remove_file` + `bind` steals the path from the first, leaving two instances (two menu-bar icons, two taps). Fixed by `singleton.rs`: before the plugin, `flock(LOCK_EX|LOCK_NB)` on `<config dir>/instance.lock`, held for the life of the process (the kernel releases it on any exit). The loser waits 500 ms so the winner has bound its socket, then the plugin finds it and hands over. If the lock file cannot be opened the plugin alone decides (as before). Tests: second claim on one file is `Taken` until the first drops; an unusable path is `Unavailable`. The race itself is not unit-testable without processes and was not run live.
+- The plugin hands over the args only; the callback shows the settings window on macOS (S-06).
+- Not changed: the socket is in world-writable `/tmp` (plugin's choice); another user's socket with the same name makes the plugin "launch normally" (logged at debug). Single user machines only; noted.

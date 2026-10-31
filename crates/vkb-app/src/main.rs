@@ -11,6 +11,8 @@ mod update;
 mod autostart;
 #[cfg(target_os = "macos")]
 mod macos_backend;
+#[cfg(target_os = "macos")]
+mod singleton;
 #[cfg(windows)]
 mod windows_backend;
 
@@ -619,6 +621,11 @@ fn main() {
     }
     #[cfg(target_os = "macos")]
     vkb_macos::set_data_dir(vkb_config::paths::config_dir());
+
+    // M8: serialise concurrent launches before the single-instance plugin can be
+    // raced into creating a second tray icon / event tap (singleton.rs).
+    #[cfg(target_os = "macos")]
+    singleton::guard();
 
     let app = tauri::Builder::default()
         // Second launch. Windows: same rule as a first one, so `Chạy ẩn` keeps a

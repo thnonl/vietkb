@@ -72,9 +72,11 @@ fn tray_px(app: &AppHandle) -> u32 {
 
 #[cfg(target_os = "macos")]
 fn icon_for(_app: &AppHandle, status: &StatusView) -> tauri::Result<tauri::image::Image<'static>> {
-    // No update badge here: a template image is single-colour by definition.
-    // The menu's `Có bản cập nhật` item and the tooltip carry that news.
-    tauri::image::Image::from_bytes(if status.enabled { MAC_ON } else { MAC_OFF })
+    let bytes = if status.enabled { MAC_ON } else { MAC_OFF };
+    if update::available().is_some() {
+        return badged_template(bytes);
+    }
+    tauri::image::Image::from_bytes(bytes)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -103,7 +105,6 @@ const ACCENT: [u8; 3] = [0x58, 0x44, 0xC8];
 #[cfg(not(target_os = "macos"))]
 const HALO: [u8; 3] = [0xFF, 0xFF, 0xFF];
 
-#[cfg(not(target_os = "macos"))]
 fn coverage(distance: f32, radius: f32) -> f32 {
     (radius - distance + 0.5).clamp(0.0, 1.0)
 }
@@ -167,6 +168,67 @@ fn badged(base: &'static [u8], px: u32) -> tauri::Result<tauri::image::Image<'st
         }
     }
 
+    Ok(tauri::image::Image::new_owned(pixels, width, height))
+}
+
+// macOS update badge. The menu bar tints a template image itself, so the badge
+// has to live in the alpha channel: a solid disc in the bottom-right corner with
+// the download arrow cut out of it and a clear ring cut around it, so the disc
+// stays separate from the keycap (filled `V` or outlined `E`) in both menu-bar
+// appearances. The Windows badge is an accent-coloured disc; a coloured menu-bar
+// icon would have to be a non-template image, and then VietKB would have to pick
+// white or black glyph pixels itself. The menu bar's tint follows the wallpaper
+// under it as well as the light/dark setting (Sonoma and later), which no app
+// can read reliably, so a wrong guess would leave a black glyph on a dark bar.
+/// Badge disc radius in pixels of the 32 px template (18 pt @2x menu bar).
+#[cfg(any(test, target_os = "macos"))]
+const MAC_BADGE_RADIUS: f32 = 8.0;
+/// Width of the clear ring around the disc.
+#[cfg(any(test, target_os = "macos"))]
+const MAC_BADGE_RING: f32 = 1.6;
+
+/// Draw the badge into straight-alpha RGBA pixels of a black-on-transparent
+/// template (RGB is left alone: only alpha carries the shape).
+#[cfg(any(test, target_os = "macos"))]
+fn badge_template_pixels(pixels: &mut [u8], width: u32, height: u32) {
+    let radius = MAC_BADGE_RADIUS * width as f32 / 32.0;
+    let ring = MAC_BADGE_RING * width as f32 / 32.0;
+    let cx = width as f32 - radius - 0.5;
+    let cy = height as f32 - radius - 0.5;
+
+    for y in 0..height {
+        for x in 0..width {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let index = ((y * width + x) * 4) as usize;
+            let alpha = pixels[index + 3] as f32 / 255.0;
+
+            // Clear ring (and the disc area), then lay the disc on top.
+            let clear = coverage(distance, radius + ring);
+            let mut out = alpha * (1.0 - clear);
+            let disc = coverage(distance, radius);
+            out = out + disc * (1.0 - out);
+
+            // Download arrow, cut out of the disc.
+            let ax = dx.abs();
+            let stem = ax <= 1.0 && dy >= -radius * 0.5 && dy <= radius * 0.12;
+            let head =
+                dy > radius * 0.12 && dy <= radius * 0.55 && ax <= (radius * 0.55 - dy) * 1.15 + 0.5;
+            if disc > 0.0 && (stem || head) {
+                out *= 1.0 - disc;
+            }
+            pixels[index + 3] = (out.clamp(0.0, 1.0) * 255.0).round() as u8;
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn badged_template(base: &'static [u8]) -> tauri::Result<tauri::image::Image<'static>> {
+    let image = tauri::image::Image::from_bytes(base)?;
+    let (width, height) = (image.width(), image.height());
+    let mut pixels = image.rgba().to_vec();
+    badge_template_pixels(&mut pixels, width, height);
     Ok(tauri::image::Image::new_owned(pixels, width, height))
 }
 
@@ -374,6 +436,36 @@ fn handle_event(app: &AppHandle, id: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The macOS badge must stay a template (RGB untouched, shape in alpha),
+    /// add a solid disc in the bottom-right corner with the arrow cut out, and
+    /// leave the keycap's top-left corner exactly as it was.
+    #[test]
+    fn mac_badge_is_alpha_only_and_keeps_the_keycap() {
+        let size = 32u32;
+        // A fully opaque black square stands in for the keycap.
+        let mut pixels = vec![0u8; (size * size * 4) as usize];
+        for px in pixels.chunks_exact_mut(4) {
+            px[3] = 255;
+        }
+        let original = pixels.clone();
+        badge_template_pixels(&mut pixels, size, size);
+
+        let alpha = |p: &[u8], x: u32, y: u32| p[((y * size + x) * 4 + 3) as usize];
+        // RGB never changes.
+        assert!(pixels.chunks_exact(4).all(|px| px[..3] == [0, 0, 0]));
+        // Far corner untouched.
+        assert_eq!(alpha(&pixels, 2, 2), alpha(&original, 2, 2));
+        // Ring just outside the disc is cleared out of the keycap.
+        let radius = MAC_BADGE_RADIUS;
+        let cx = size as f32 - radius - 0.5;
+        let ring_x = (cx - radius - MAC_BADGE_RING * 0.5) as u32;
+        let cy = (size as f32 - radius - 0.5) as u32;
+        assert_eq!(alpha(&pixels, ring_x, cy), 0);
+        // Disc is solid away from the arrow, and the arrow stem is cut out.
+        assert_eq!(alpha(&pixels, (cx + radius - 2.0) as u32, cy), 255);
+        assert_eq!(alpha(&pixels, cx as u32, cy - 2), 0);
+    }
 
     /// The tray's third affordance names the exact version, so the string is
     /// asserted here rather than discovered by reading the menu.

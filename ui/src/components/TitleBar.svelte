@@ -39,9 +39,8 @@
   const theme = $derived<Theme>(effectiveTheme(app.settings?.system.theme));
   const label = $derived(t(LABEL_KEY[theme]));
   // The icon shows what the click will do, not what is on now: sun when the
-  // next click selects light, moon when it selects dark, half circle when it
-  // goes back to following Windows. The tooltip/aria-label keep naming the
-  // current state, which is what a hover is asking about.
+  // next click selects light, moon when it selects dark. The tooltip/aria-label
+  // keep naming the current state, which is what a hover is asking about.
   const nextTheme = $derived(ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length]);
 
   const showUpdate = $derived(showMark && app.updateAvailable);
@@ -147,5 +146,23 @@
 {:else}
   <!-- macOS: no custom caption, so the language switch gets a slim row of its
        own at the top right of the window content (styles/mac.css). -->
-  <div class="mac-langbar"><MacThemeToggle /><LangToggle /></div>
+  <div class="mac-langbar">
+    <!-- Same signal and target as the Windows caption button (`showUpdate`):
+         present only while a newer release is known; opens Giới thiệu. -->
+    {#if showUpdate}
+      <button
+        type="button"
+        class="mac-tslot upd"
+        data-no-drag
+        aria-label={t("titlebar.update.aria")}
+        title={t("titlebar.update.title", { version: app.updateVersion ?? "" })}
+        onclick={() => openWindow("about")}>
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
+          <path d="M3 13.1h10" />
+        </svg>
+      </button>
+    {/if}
+    <MacThemeToggle /><LangToggle />
+  </div>
 {/if}
