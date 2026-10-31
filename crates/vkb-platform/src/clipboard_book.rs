@@ -1082,12 +1082,9 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use crate::clipboard_plan::{
-        owner_read_ok, restore_action, restore_decision, rescue_gate, should_clear, write_verdict,
-        OwnerCheck, ReadOk, Rescue, RestoreAction, WriteVerdict,
+        may_read, restore_decision, should_clear, write_verdict, OwnerCheck, RestoreAction,
+        WriteVerdict,
     };
-
-    /// Our owner window in the fake clipboard's owner-id space.
-    const OURS: isize = 1;
 
     /// xorshift64*, no dependencies.
     struct Rng(u64);
@@ -1170,7 +1167,7 @@ mod tests {
     impl Fake {
         fn owner_id(&self) -> isize {
             match self.owner {
-                Who::Hook => OURS,
+                Who::Hook => 1,
                 Who::Null => 0,
                 Who::Foreign => self.fid,
             }
@@ -1258,11 +1255,11 @@ mod tests {
         our_fp: u64,
         fp_counter: u64,
         foreign_survived: u32,
-        rescued: u32,
         null_adopted: u32,
         next_fid: isize,
-        owner_races: u32,
+        /// Capture-style reads performed / skipped because the owner hung.
         reads: u32,
+        skipped_reads: u32,
     }
 
     impl Model {
@@ -1296,11 +1293,10 @@ mod tests {
                 our_fp: 0,
                 fp_counter: 1000,
                 foreign_survived: 0,
-                rescued: 0,
                 null_adopted: 0,
                 next_fid: 10,
-                owner_races: 0,
                 reads: 0,
+                skipped_reads: 0,
             }
         }
 
@@ -1427,11 +1423,8 @@ mod tests {
                     }
                     Action::ClearIfOurs => {
                         // The executor's clear: same pure decision as the real one.
-                        let rescue = Some(Rescue {
-                            plain_only: self.fake.plain_only,
-                            text_equal: self.fake.text == Some(self.our_fp),
-                        });
-                        if should_clear(self.fake.owner == Who::Hook, self.fake.marker, rescue) {
+                        let text_equal = self.fake.text == Some(self.our_fp);
+                        if should_clear(self.fake.owner == Who::Hook, self.fake.marker, text_equal) {
                             self.fake.clear();
                         }
                         // Nothing of ours may survive a give-up.
@@ -1456,55 +1449,15 @@ mod tests {
             }
             // Attempts 3..4 open with the NULL owner; the proof keeps using ours.
             let open_null = r.below(4) == 0;
-            // The text rescue may read a foreign clipboard: the owner is probed
-            // BEFORE the open (the real code does the same).
-            let gate = rescue_gate(job.urgent, job.max_wait_ms.is_some(), job.rounds, self.our_fp != 0);
-            let probed = gate.then(|| (self.fake.owner_id(), !self.fake.hangs));
-            // Race: the owner changes between the probe and the open.
-            if gate && r.below(5) == 0 {
-                let (fid, hangs) = self.new_foreign(r);
-                let fp = self.new_fp();
-                self.fake.foreign_copy(None, fp, r.below(2) == 0, fid, hangs);
-                self.owner_races += 1;
-            }
+            // A restore only WRITES: it reads nothing from a foreign clipboard.
             let owner_is_ours = self.fake.owner == Who::Hook;
             let owner_marker = owner_is_ours && self.fake.marker;
-            let base = restore_action(job.own, owner_marker, self.fake.seq);
-            let rescue = if gate && base == RestoreAction::Abandon {
-                // Under the open clipboard: read only for an owner that was
-                // probed (re-probe if it changed), exactly like the executor.
-                let owner_now = self.fake.owner_id();
-                let allowed = match owner_read_ok(probed, owner_now, OURS) {
-                    ReadOk::Yes => true,
-                    ReadOk::No => false,
-                    ReadOk::Reprobe => {
-                        let again = Some((owner_now, !self.fake.hangs));
-                        owner_read_ok(again, owner_now, OURS) == ReadOk::Yes
-                    }
-                };
-                allowed.then(|| {
-                    // The GetClipboardData-equivalent: a hung render would block.
-                    assert!(
-                        !(self.fake.owner == Who::Foreign && self.fake.hangs),
-                        "GetClipboardData on a hanging owner ({owner_now}) that was never probed"
-                    );
-                    self.reads += 1;
-                    Rescue {
-                        plain_only: self.fake.plain_only,
-                        text_equal: self.fake.text == Some(self.our_fp),
-                    }
-                })
-            } else {
-                None
-            };
             let decision = restore_decision(
                 job.urgent,
                 job.own,
-                job.rounds,
                 owner_marker,
                 owner_is_ours,
                 self.fake.seq,
-                rescue,
             );
             if decision == RestoreAction::Abandon {
                 if matches!(self.fake.clip, Clip::Foreign | Clip::ForeignSame | Clip::Stripped) {
@@ -1512,18 +1465,13 @@ mod tests {
                 }
                 return RestoreResult::Foreign;
             }
-            // What is being overwritten must be ours (or ours-equivalent).
-            match self.fake.clip {
-                Clip::Foreign => panic!("a restore overwrote genuinely foreign data"),
-                Clip::Stripped | Clip::ForeignSame => {
-                    assert!(
-                        job.rounds == 0 && !job.urgent,
-                        "text rescue outside round 0 / on urgent data"
-                    );
-                    self.rescued += 1;
-                }
-                _ => {}
-            }
+            // What is being overwritten must be ours: foreign content, our text
+            // re-set by a manager (no marker) or an identical user copy never.
+            assert!(
+                !matches!(self.fake.clip, Clip::Foreign | Clip::ForeignSame | Clip::Stripped),
+                "a restore overwrote foreign data ({:?})",
+                self.fake.clip
+            );
             let who = if open_null { Who::Null } else { Who::Hook };
             if r.below(5) == 0 {
                 // Written only partly (marker set, user data incomplete).
@@ -1551,7 +1499,7 @@ mod tests {
             } else {
                 OwnerCheck::Window { matches: self.fake.owner == Who::Hook }
             };
-            let verdict = write_verdict(owner_check, self.fake.marker, in_open, post_close, s1, s2);
+            let verdict = write_verdict(owner_check, self.fake.marker, post_close, s1, s2);
             let adopt = match verdict {
                 WriteVerdict::Ours(a) | WriteVerdict::Unstable(a) => {
                     Some(OwnSeqs { in_open, after_close: a })
@@ -1578,6 +1526,25 @@ mod tests {
             }
             let ctx = if done { Ctx::Gen(generation) } else { Ctx::Plain };
             self.apply(actions, ctx);
+        }
+
+        /// A snapshot capture: open, probe the CURRENT owner with the clipboard
+        /// open immediately before the read sequence, read only if allowed. The
+        /// fake `GetClipboardData` blocks for a hanging foreign owner.
+        fn capture_event(&mut self) {
+            let ours_or_none = matches!(self.fake.owner, Who::Hook | Who::Null);
+            // A foreign owner answers the probe unless its render hangs.
+            let answered = ours_or_none || !self.fake.hangs;
+            if may_read(ours_or_none, answered) {
+                assert!(
+                    !(self.fake.owner == Who::Foreign && self.fake.hangs),
+                    "GetClipboardData on a non-answering owner ({})",
+                    self.fake.owner_id()
+                );
+                self.reads += 1;
+            } else {
+                self.skipped_reads += 1;
+            }
         }
 
         fn check(&self) {
@@ -1642,9 +1609,9 @@ mod tests {
                 3 if !self.flushing && self.book.current_own().is_some() => {
                     let fp = self.new_fp();
                     let with_text = r.below(2) == 0;
-                    if with_text {
-                        self.our_fp = fp;
-                    }
+                    // Our text is recorded BEFORE the write (also a failing one):
+                    // a leftover of it must be recognised after a give-up.
+                    self.our_fp = fp;
                     let own_seqs = self.fake.hook_partial(fp, with_text);
                     let a = self.book.current_to_urgent(own_seqs, self.now);
                     self.apply(a, Ctx::Plain);
@@ -1653,9 +1620,7 @@ mod tests {
                     let id = self.new_id();
                     let fp = self.new_fp();
                     let with_text = r.below(2) == 0;
-                    if with_text {
-                        self.our_fp = fp;
-                    }
+                    self.our_fp = fp; // recorded before the (failing) write
                     let own_seqs = self.fake.hook_partial(fp, with_text);
                     let (generation, a) = self.book.urgent_failed_write(id, own_seqs, self.now);
                     self.gens.insert(id, generation);
@@ -1723,6 +1688,7 @@ mod tests {
                     // A late bump (a service reads our text): content unchanged.
                     self.fake.seq += 1;
                 }
+                18 | 19 => self.capture_event(),
                 _ => {}
             }
             self.check();
@@ -1742,10 +1708,9 @@ mod tests {
             assert!(m.restores.values().any(|n| *n > 1), "seed {seed}: no retried restore");
             assert!(m.gave_up > 0, "seed {seed}: no flush gave up");
             assert!(m.foreign_survived > 0, "seed {seed}: no foreign copy met a restore");
-            assert!(m.rescued > 0, "seed {seed}: the text rescue never fired");
             assert!(m.null_adopted > 0, "seed {seed}: no NULL-owner adoption");
-            assert!(m.owner_races > 0, "seed {seed}: no owner change between probe and open");
-            assert!(m.reads > 0, "seed {seed}: the rescue never read a clipboard");
+            assert!(m.reads > 0, "seed {seed}: no capture read a clipboard");
+            assert!(m.skipped_reads > 0, "seed {seed}: no capture met a hanging owner");
         }
     }
 
