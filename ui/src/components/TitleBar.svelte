@@ -5,6 +5,7 @@
   import { platformState } from "../lib/platform.svelte";
   import { t } from "../lib/lang.svelte";
   import LangToggle from "./LangToggle.svelte";
+  import MacThemeToggle from "./MacThemeToggle.svelte";
   // Product mark, identical in every window: the keycap `V` (Vietnamese on)
   // from the approved set (design/logo11/keycap/v-20.png). The title bar never
   // switches to `E` — the tray icon carries the on/off state.
@@ -145,5 +146,5 @@
 {:else}
   <!-- macOS: no custom caption, so the language switch gets a slim row of its
        own at the top right of the window content (styles/mac.css). -->
-  <div class="mac-langbar"><LangToggle /></div>
+  <div class="mac-langbar"><MacThemeToggle /><LangToggle /></div>
 {/if}

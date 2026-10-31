@@ -15,6 +15,17 @@
   const setTyping = (patch: Partial<TypingView>) => app.patch({ typing: patch });
   const setSystem = (patch: Partial<SettingsView["system"]>) => app.patch({ system: patch });
 
+  // Config file and logs live in one folder; stdout is lost when LaunchServices
+  // starts the app, so this is where a user finds them (S-19).
+  const openFolder = async () => {
+    if (!api.isTauri()) return;
+    try {
+      await api.openConfigFolder();
+    } catch (failure) {
+      app.fail(t("common.openConfig"), failure);
+    }
+  };
+
   const resetAll = async () => {
     const before = $state.snapshot(app.settings) as SettingsView | null;
     await app.resetSection("all");
@@ -121,6 +132,9 @@
       </button>
       <button type="button" class="v4lk" onclick={() => openWindow("about")}>
         {t("adv.about")}
+      </button>
+      <button type="button" class="v4lk" onclick={openFolder}>
+        {t("common.openConfig")}
       </button>
       <span class="sp"></span>
       <button type="button" class="btn pri" onclick={closeCurrent}>{t("common.close")}</button>

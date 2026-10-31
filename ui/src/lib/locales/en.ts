@@ -9,6 +9,7 @@ export const en: Record<string, string> = {
   "common.add": "Add",
   "common.loading": "Loading…",
   "common.undo": "Undo",
+  "common.openConfig": "Open config folder",
   "common.unknownError": "Unknown error",
 
   // Window titles: In-page window titles (caption bar on Windows). The product name VietKB is never translated.
@@ -22,6 +23,7 @@ export const en: Record<string, string> = {
   "titlebar.update.title": "Update v{version} available — open About",
   "titlebar.theme.light": "Light",
   "titlebar.theme.dark": "Dark",
+  "titlebar.theme.system": "System",
   "titlebar.theme.aria": "Appearance: {theme}. Click to change.",
   "titlebar.theme.title": "Appearance: {theme}. Click to change.",
   "titlebar.minimize": "Minimize",
@@ -44,6 +46,11 @@ export const en: Record<string, string> = {
   "ax.title": "Allow Accessibility",
   "ax.body": "VietKB can't type Vietnamese until you allow it.",
   "ax.grant": "Allow access…",
+  "ax.im.title": "Allow Input Monitoring",
+  "ax.im.body": "VietKB can't read keys until you allow it.",
+  "ax.both.title": "Allow Accessibility and Input Monitoring",
+  "ax.both.body": "VietKB can't type Vietnamese until you allow both.",
+  "secure.hint": "Another app has secure input on. VietKB passes keys through.",
 
   // Main window: The small settings panel opened from the tray / menu bar. Short labels, one line each; keep English about as long as the Vietnamese.
   "quick.enable": "Vietnamese on/off",
@@ -131,6 +138,7 @@ export const en: Record<string, string> = {
   // Hotkey validation messages: Shown under a hotkey field when the combination is invalid, reserved by the OS, or common in other apps.
   "hk.err.unknownKey": "Unrecognized key: {key}",
   "hk.err.needModifier": "A shortcut needs Ctrl, Alt, Shift or Win: {key}",
+  "hk.err.needModifier.mac": "A shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key}",
   "hk.err.empty": "Empty shortcut",
   "hk.reserved.winL": "Windows uses Win + L to lock the PC. Choose another.",
   "hk.reserved.altTab": "Windows uses Alt + Tab to switch windows. Choose another.",
@@ -300,8 +308,8 @@ export const en: Record<string, string> = {
   "tray.about": "About",
   "tray.update": "Update v{version} available",
   "tray.quit": "Quit VietKB",
-  "tray.tip.on": "VietKB · Vietnamese · {method}",
-  "tray.tip.off": "VietKB · Vietnamese off",
+  "tray.tip.on": "VietKB — Vietnamese on",
+  "tray.tip.off": "VietKB — Vietnamese off",
   "tray.tip.update": "{base} · Update v{version} available",
 
   // Window titles (Rust): Native window titles.
@@ -352,6 +360,24 @@ export const en: Record<string, string> = {
   "err.update.finalize": "Couldn't finish saving the download: {error}",
   "err.update.reread": "Couldn't re-read the download: {error}",
   "err.update.shaMismatch": "The download's SHA256 doesn't match the release. The file was deleted.",
+  "err.patch.notObject": "{section} must be a JSON object",
+  "err.patch.notBool": "{field} must be true or false",
+  "err.patch.notString": "{field} must be text",
+  "err.patch.notNumber": "{field} must be a number",
+  "err.patch.charset": "invalid encoding",
+  "err.patch.mechanism": "invalid mechanism: {value}",
+  "err.patch.toggleMode": "invalid toggle mode: {value}",
+  "err.patch.language": "invalid language: {value}",
+  "err.patch.theme": "invalid appearance: {value}",
+  "err.patch.screen": "invalid screen: {value}",
+  "err.patch.unknownField": "{field} is not a valid setting",
+  "err.patch.unknownSection": "invalid settings section: {value}",
+  "err.reset.invalid": "invalid section: {value}",
+  "err.hotkey.empty": "empty shortcut",
+  "err.hotkey.modifierOnly": "a shortcut needs a main key, not only modifiers: {key}",
+  "err.hotkey.unknownKey": "unrecognised key: {key}",
+  "err.hotkey.noModifier": "a shortcut needs at least one of Ctrl/Alt/Shift/Win: {key}",
+  "err.hotkey.noModifier.mac": "a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key}",
   "err.autostart.transient": "VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Open at login.",
 
 };

@@ -19,9 +19,11 @@
   import { t } from "../lib/lang.svelte";
 
   // macOS only. VietKB cannot see or type keys until the app is ticked in
-  // System Settings > Privacy & Security > Accessibility. The banner shows
-  // while `accessibility_status` says no, and its button asks for the grant
-  // (the system prompt, which links to System Settings). The app never opens or
+  // System Settings > Privacy & Security under both Accessibility (post the
+  // converted text) and Input Monitoring (see the keys, S-03). The banner shows
+  // while either `accessibility_status` or `input_monitoring_status` says no,
+  // and its button asks for the one that is missing (the system prompt, which
+  // links to System Settings): Accessibility first. The app never opens or
   // scripts System Settings itself (27-mac-decisions M3).
   //
   // The main window is fixed-size, so the banner's height is added to the
@@ -35,6 +37,15 @@
 
   const native = api.isTauri();
   let busy = $state(false);
+  let axMissing = $state(true);
+  let imMissing = $state(false);
+
+  const title = $derived(
+    axMissing && imMissing ? t("ax.both.title") : imMissing ? t("ax.im.title") : t("ax.title"),
+  );
+  const body = $derived(
+    axMissing && imMissing ? t("ax.both.body") : imMissing ? t("ax.im.body") : t("ax.body"),
+  );
 
   const fit = (needsBanner: boolean) => {
     if (!native) return;
@@ -50,9 +61,14 @@
     if (!platformState.mac) return;
     try {
       // Browser preview has no backend: show the banner so it can be designed.
-      const granted = native ? await api.accessibilityStatus() : false;
-      if (granted === missing) {
-        missing = !granted;
+      const [ax, im] = native
+        ? await Promise.all([api.accessibilityStatus(), api.inputMonitoringStatus()])
+        : [false, true];
+      axMissing = !ax;
+      imMissing = !im;
+      const now = !ax || !im;
+      if (now !== missing) {
+        missing = now;
         fit(missing);
       }
     } catch {
@@ -63,7 +79,10 @@
   const ask = async () => {
     busy = true;
     try {
-      if (native) await api.requestAccessibility();
+      if (native) {
+        if (axMissing) await api.requestAccessibility();
+        else await api.requestInputMonitoring();
+      }
     } catch {
       // The poll reports the real state.
     } finally {
@@ -88,8 +107,8 @@
   <div class="axbanner" role="alert">
     <span class="ico"><Icon name="warning" /></span>
     <div class="t">
-      <b>{t("ax.title")}</b>
-      <span>{t("ax.body")}</span>
+      <b>{title}</b>
+      <span>{body}</span>
     </div>
     <button type="button" class="btn pri" disabled={busy} onclick={ask}>{t("ax.grant")}</button>
   </div>

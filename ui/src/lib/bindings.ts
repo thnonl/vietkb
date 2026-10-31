@@ -77,6 +77,8 @@ export interface StatusView {
   mechanism: string;
   hookReady: boolean;
   version: string;
+  /** macOS: secure event input is making the tap pass keys through right now. */
+  secureInputBlocking?: boolean;
 }
 
 export interface MacroRow {

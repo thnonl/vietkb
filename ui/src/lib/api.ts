@@ -73,6 +73,15 @@ export const accessibilityStatus = () => invoke<boolean>("accessibility_status")
 /** Triggers the system prompt; answers with the status after asking. */
 export const requestAccessibility = () => invoke<boolean>("request_accessibility");
 
+/** macOS Input Monitoring grant. `true` always on Windows. */
+export const inputMonitoringStatus = () => invoke<boolean>("input_monitoring_status");
+/** Triggers the system prompt (once); answers with the status after asking. */
+export const requestInputMonitoring = () => invoke<boolean>("request_input_monitoring");
+
+/** The hotkey capture field is focused: the hook suspends hotkeys while true. */
+export const setHotkeyCapture = (active: boolean) =>
+  invoke<void>("set_hotkey_capture", { active });
+
 /** Window management is presentation only; contract §6 commands are untouched. */
 export const openWindow = (kind: "hotkeys" | "advanced" | "macros" | "about") =>
   invoke<void>("open_window", { kind });

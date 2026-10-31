@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
+  import * as api from "../lib/api";
   import Icon from "./Icon.svelte";
   import Keycap from "./Keycap.svelte";
   import { t } from "../lib/lang.svelte";
@@ -39,6 +41,20 @@
   let conflict = $state<string | null>(null);
   let warning = $state<string | null>(null);
   let seq = 0;
+
+  // While this field is recording, the keyboard hook must not match hotkeys or
+  // swallow keys, or the chord being entered would fire its action instead of
+  // reaching the field (spec C.6 step 2, S-07). Only transitions are sent.
+  let capturing = false;
+  $effect(() => {
+    const now = editing;
+    if (now === capturing || !api.isTauri()) return;
+    capturing = now;
+    void api.setHotkeyCapture(now).catch(() => {});
+  });
+  onDestroy(() => {
+    if (capturing && api.isTauri()) void api.setHotkeyCapture(false).catch(() => {});
+  });
 
   // Physical modifiers held since the capture began. A chord made only of
   // modifiers commits when the last one is released, so `Ctrl+Shift` — the

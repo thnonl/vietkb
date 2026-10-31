@@ -92,7 +92,10 @@ export const canonicalize = (input: string): CanonicalResult => {
   if (!hasModifier && key !== null && !/^F\d+$/.test(key)) {
     return {
       canonical: null,
-      error: t("hk.err.needModifier", { key: trimmed }),
+      // macOS names the modifiers as the keyboard prints them (⌃ ⌥ ⇧ ⌘).
+      error: isMacOS()
+        ? t("hk.err.needModifier.mac", { key: trimmed })
+        : t("hk.err.needModifier", { key: trimmed }),
     };
   }
   if (!hasModifier && key === null) {
@@ -209,6 +212,14 @@ export const modifiersFrom = (event: KeyboardEvent): string => {
 
 /** Key token for a keydown event, or null when the key cannot end a combo. */
 export const keyToken = (event: KeyboardEvent): string | null => {
+  // macOS (S-08): Option turns letters into composed characters (ß, ∑, dead
+  // keys) in `event.key`, so a chord like ⌃⌥S could never be captured. The tap
+  // matches physical US key positions anyway, so the physical code is the truth.
+  // Windows keeps `event.key`: its hook matches layout-based virtual keys.
+  if (isMacOS()) {
+    const physical = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(event.code ?? "");
+    if (physical) return physical[1] ?? physical[2];
+  }
   const key = event.key;
   if (!key || isModifierKey(key)) return null;
   if (key === "Enter" || key === "Escape" || key === "Backspace" || key === "Tab") return null;

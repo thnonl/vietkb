@@ -423,13 +423,15 @@ class Store {
   }
 
   applyTheme(theme: string, broadcast = true): void {
-    // macOS has no in-window theme switch: the window follows System Settings →
-    // Appearance, so there is nothing to store or to broadcast.
-    if (isMacOS()) {
-      document.documentElement.dataset.theme = "system";
-      return;
-    }
-    const next = theme === "light" ? "light" : "dark";
+    // Windows: light or dark (anything else is dark). macOS also has "system",
+    // which follows System Settings > Appearance and is the Mac default.
+    const next = isMacOS()
+      ? theme === "light" || theme === "dark"
+        ? theme
+        : "system"
+      : theme === "light"
+        ? "light"
+        : "dark";
     document.documentElement.dataset.theme = next;
     if (!broadcast) return;
     // Every open window (main panel + secondary) follows immediately.

@@ -9,6 +9,7 @@ export const vi: Record<string, string> = {
   "common.add": "Thêm",
   "common.loading": "Đang tải…",
   "common.undo": "Hoàn tác",
+  "common.openConfig": "Mở thư mục cấu hình",
   "common.unknownError": "Lỗi không xác định",
 
   // Window titles: In-page window titles (caption bar on Windows). The product name VietKB is never translated.
@@ -22,6 +23,7 @@ export const vi: Record<string, string> = {
   "titlebar.update.title": "Có bản cập nhật v{version} — mở Giới thiệu",
   "titlebar.theme.light": "Sáng",
   "titlebar.theme.dark": "Tối",
+  "titlebar.theme.system": "Theo hệ thống",
   "titlebar.theme.aria": "Giao diện: {theme}. Bấm để đổi",
   "titlebar.theme.title": "Giao diện: {theme} — bấm để đổi",
   "titlebar.minimize": "Thu nhỏ",
@@ -44,6 +46,11 @@ export const vi: Record<string, string> = {
   "ax.title": "Cần quyền Trợ năng",
   "ax.body": "Chưa cấp quyền thì VietKB chưa gõ được tiếng Việt.",
   "ax.grant": "Cấp quyền…",
+  "ax.im.title": "Cần quyền Giám sát đầu vào",
+  "ax.im.body": "Chưa cấp quyền thì VietKB chưa nhận được phím gõ.",
+  "ax.both.title": "Cần quyền Trợ năng và Giám sát đầu vào",
+  "ax.both.body": "Chưa cấp đủ hai quyền thì VietKB chưa gõ được tiếng Việt.",
+  "secure.hint": "Ứng dụng khác đang bật nhập bảo mật. VietKB để phím đi qua.",
 
   // Main window: The small settings panel opened from the tray / menu bar. Short labels, one line each; keep English about as long as the Vietnamese.
   "quick.enable": "Bật tiếng Việt",
@@ -131,6 +138,7 @@ export const vi: Record<string, string> = {
   // Hotkey validation messages: Shown under a hotkey field when the combination is invalid, reserved by the OS, or common in other apps.
   "hk.err.unknownKey": "Không nhận ra phím: {key}",
   "hk.err.needModifier": "Phím tắt cần ít nhất một phím Ctrl/Alt/Shift/Win: {key}",
+  "hk.err.needModifier.mac": "Phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key}",
   "hk.err.empty": "Phím tắt rỗng",
   "hk.reserved.winL": "Windows đã dùng Win + L để khoá máy. Hãy nhấn tổ hợp khác.",
   "hk.reserved.altTab": "Windows đã dùng Alt + Tab để chuyển cửa sổ. Hãy nhấn tổ hợp khác.",
@@ -300,8 +308,8 @@ export const vi: Record<string, string> = {
   "tray.about": "Giới thiệu",
   "tray.update": "Có bản cập nhật v{version}",
   "tray.quit": "Thoát VietKB",
-  "tray.tip.on": "VietKB · Tiếng Việt · {method}",
-  "tray.tip.off": "VietKB · Đã tắt tiếng Việt",
+  "tray.tip.on": "VietKB — đang gõ tiếng Việt",
+  "tray.tip.off": "VietKB — đã tắt tiếng Việt",
   "tray.tip.update": "{base} · Có bản cập nhật v{version}",
 
   // Window titles (Rust): Native window titles.
@@ -352,6 +360,24 @@ export const vi: Record<string, string> = {
   "err.update.finalize": "Không hoàn tất được tệp tải: {error}",
   "err.update.reread": "Không đọc lại được tệp tải: {error}",
   "err.update.shaMismatch": "SHA256 của tệp tải về không khớp với bản phát hành — đã huỷ tệp.",
+  "err.patch.notObject": "{section} phải là một object JSON",
+  "err.patch.notBool": "{field} phải là true hoặc false",
+  "err.patch.notString": "{field} phải là chuỗi",
+  "err.patch.notNumber": "{field} phải là số",
+  "err.patch.charset": "bảng mã không hợp lệ",
+  "err.patch.mechanism": "cơ chế không hợp lệ: {value}",
+  "err.patch.toggleMode": "kiểu chuyển không hợp lệ: {value}",
+  "err.patch.language": "ngôn ngữ không hợp lệ: {value}",
+  "err.patch.theme": "giao diện không hợp lệ: {value}",
+  "err.patch.screen": "màn hình không hợp lệ: {value}",
+  "err.patch.unknownField": "{field} không hợp lệ",
+  "err.patch.unknownSection": "mục cấu hình không hợp lệ: {value}",
+  "err.reset.invalid": "mục không hợp lệ: {value}",
+  "err.hotkey.empty": "phím tắt rỗng",
+  "err.hotkey.modifierOnly": "tổ hợp chỉ có phím bổ trợ, thiếu phím chính: {key}",
+  "err.hotkey.unknownKey": "không nhận ra phím: {key}",
+  "err.hotkey.noModifier": "phím tắt cần ít nhất một phím Ctrl/Alt/Shift/Win: {key}",
+  "err.hotkey.noModifier.mac": "phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key}",
   "err.autostart.transient": "VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS.",
 
 };

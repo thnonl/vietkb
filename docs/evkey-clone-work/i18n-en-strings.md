@@ -16,6 +16,7 @@ Buttons and words reused across windows.
 | `common.add` | Thêm | Add |
 | `common.loading` | Đang tải… | Loading… |
 | `common.undo` | Hoàn tác | Undo |
+| `common.openConfig` | Mở thư mục cấu hình | Open config folder |
 | `common.unknownError` | Lỗi không xác định | Unknown error |
 
 ## Window titles
@@ -39,6 +40,7 @@ Windows caption bar buttons; the VI | EN toggle also appears at the top right of
 | `titlebar.update.title` | Có bản cập nhật v{version} — mở Giới thiệu | Update v{version} available — open About |
 | `titlebar.theme.light` | Sáng | Light |
 | `titlebar.theme.dark` | Tối | Dark |
+| `titlebar.theme.system` | Theo hệ thống | System |
 | `titlebar.theme.aria` | Giao diện: {theme}. Bấm để đổi | Appearance: {theme}. Click to change. |
 | `titlebar.theme.title` | Giao diện: {theme} — bấm để đổi | Appearance: {theme}. Click to change. |
 | `titlebar.minimize` | Thu nhỏ | Minimize |
@@ -71,6 +73,11 @@ Warning band at the top of the main window until the user grants the Accessibili
 | `ax.title` | Cần quyền Trợ năng | Allow Accessibility |
 | `ax.body` | Chưa cấp quyền thì VietKB chưa gõ được tiếng Việt. | VietKB can't type Vietnamese until you allow it. |
 | `ax.grant` | Cấp quyền… | Allow access… |
+| `ax.im.title` | Cần quyền Giám sát đầu vào | Allow Input Monitoring |
+| `ax.im.body` | Chưa cấp quyền thì VietKB chưa nhận được phím gõ. | VietKB can't read keys until you allow it. |
+| `ax.both.title` | Cần quyền Trợ năng và Giám sát đầu vào | Allow Accessibility and Input Monitoring |
+| `ax.both.body` | Chưa cấp đủ hai quyền thì VietKB chưa gõ được tiếng Việt. | VietKB can't type Vietnamese until you allow both. |
+| `secure.hint` | Ứng dụng khác đang bật nhập bảo mật. VietKB để phím đi qua. | Another app has secure input on. VietKB passes keys through. |
 
 ## Main window
 
@@ -183,6 +190,7 @@ Shown under a hotkey field when the combination is invalid, reserved by the OS, 
 |---|---|---|
 | `hk.err.unknownKey` | Không nhận ra phím: {key} | Unrecognized key: {key} |
 | `hk.err.needModifier` | Phím tắt cần ít nhất một phím Ctrl/Alt/Shift/Win: {key} | A shortcut needs Ctrl, Alt, Shift or Win: {key} |
+| `hk.err.needModifier.mac` | Phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | A shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `hk.err.empty` | Phím tắt rỗng | Empty shortcut |
 | `hk.reserved.winL` | Windows đã dùng Win + L để khoá máy. Hãy nhấn tổ hợp khác. | Windows uses Win + L to lock the PC. Choose another. |
 | `hk.reserved.altTab` | Windows đã dùng Alt + Tab để chuyển cửa sổ. Hãy nhấn tổ hợp khác. | Windows uses Alt + Tab to switch windows. Choose another. |
@@ -382,8 +390,8 @@ Menu items and tooltip of the tray icon (Windows) or menu-bar extra (macOS). Gen
 | `tray.about` | Giới thiệu | About |
 | `tray.update` | Có bản cập nhật v{version} | Update v{version} available |
 | `tray.quit` | Thoát VietKB | Quit VietKB |
-| `tray.tip.on` | VietKB · Tiếng Việt · {method} | VietKB · Vietnamese · {method} |
-| `tray.tip.off` | VietKB · Đã tắt tiếng Việt | VietKB · Vietnamese off |
+| `tray.tip.on` | VietKB — đang gõ tiếng Việt | VietKB — Vietnamese on |
+| `tray.tip.off` | VietKB — đã tắt tiếng Việt | VietKB — Vietnamese off |
 | `tray.tip.update` | {base} · Có bản cập nhật v{version} | {base} · Update v{version} available |
 
 ## Window titles (Rust)
@@ -444,6 +452,24 @@ Error strings that reach the UI as toasts or status lines.
 | `err.update.finalize` | Không hoàn tất được tệp tải: {error} | Couldn't finish saving the download: {error} |
 | `err.update.reread` | Không đọc lại được tệp tải: {error} | Couldn't re-read the download: {error} |
 | `err.update.shaMismatch` | SHA256 của tệp tải về không khớp với bản phát hành — đã huỷ tệp. | The download's SHA256 doesn't match the release. The file was deleted. |
+| `err.patch.notObject` | {section} phải là một object JSON | {section} must be a JSON object |
+| `err.patch.notBool` | {field} phải là true hoặc false | {field} must be true or false |
+| `err.patch.notString` | {field} phải là chuỗi | {field} must be text |
+| `err.patch.notNumber` | {field} phải là số | {field} must be a number |
+| `err.patch.charset` | bảng mã không hợp lệ | invalid encoding |
+| `err.patch.mechanism` | cơ chế không hợp lệ: {value} | invalid mechanism: {value} |
+| `err.patch.toggleMode` | kiểu chuyển không hợp lệ: {value} | invalid toggle mode: {value} |
+| `err.patch.language` | ngôn ngữ không hợp lệ: {value} | invalid language: {value} |
+| `err.patch.theme` | giao diện không hợp lệ: {value} | invalid appearance: {value} |
+| `err.patch.screen` | màn hình không hợp lệ: {value} | invalid screen: {value} |
+| `err.patch.unknownField` | {field} không hợp lệ | {field} is not a valid setting |
+| `err.patch.unknownSection` | mục cấu hình không hợp lệ: {value} | invalid settings section: {value} |
+| `err.reset.invalid` | mục không hợp lệ: {value} | invalid section: {value} |
+| `err.hotkey.empty` | phím tắt rỗng | empty shortcut |
+| `err.hotkey.modifierOnly` | tổ hợp chỉ có phím bổ trợ, thiếu phím chính: {key} | a shortcut needs a main key, not only modifiers: {key} |
+| `err.hotkey.unknownKey` | không nhận ra phím: {key} | unrecognised key: {key} |
+| `err.hotkey.noModifier` | phím tắt cần ít nhất một phím Ctrl/Alt/Shift/Win: {key} | a shortcut needs at least one of Ctrl/Alt/Shift/Win: {key} |
+| `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Open at login. |
 
-Total: 318 keys.
+Total: 344 keys.

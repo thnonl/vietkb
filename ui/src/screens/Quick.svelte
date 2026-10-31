@@ -5,6 +5,7 @@
   import Select from "../components/Select.svelte";
   import AppRulesDialog from "../components/AppRulesDialog.svelte";
   import AccessibilityBanner, { seedMissing } from "../components/AccessibilityBanner.svelte";
+  import SecureInputHint from "../components/SecureInputHint.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { closeCurrent, openWindow } from "../lib/window.svelte";
@@ -29,10 +30,14 @@
   // The Run key is the truth, not config.toml: a user who removed the entry in
   // Windows' own startup settings must see the switch off here too.
   let autostart = $state(false);
+  // Set once the first answer is in. From then on the switch follows the
+  // setting, so flipping the same option in Advanced shows here at once (S-10).
+  let autostartReady = $state(false);
 
   onMount(() => {
     if (!native) {
       autostart = settings?.system.startWithWindows ?? false;
+      autostartReady = true;
       return;
     }
     void api
@@ -45,7 +50,15 @@
       })
       .catch(() => {
         autostart = settings?.system.startWithWindows ?? false;
+      })
+      .finally(() => {
+        autostartReady = true;
       });
+  });
+
+  $effect(() => {
+    const saved = settings?.system.startWithWindows;
+    if (autostartReady && saved !== undefined) autostart = saved;
   });
 
   const setAutostart = async (next: boolean) => {
@@ -101,6 +114,7 @@
 
   <main class="v4sheet">
     <AccessibilityBanner bind:missing={axMissing} />
+    <SecureInputHint />
     <div class="v4pad"></div>
 
     <div class="v4row main noline">

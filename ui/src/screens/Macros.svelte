@@ -7,6 +7,7 @@
   import { closeCurrent } from "../lib/window.svelte";
   import { formatNumber } from "../lib/hotkey";
   import { t } from "../lib/lang.svelte";
+  import { platformState } from "../lib/platform.svelte";
   import type { MacroRow } from "../lib/bindings";
 
   const DEMO: MacroRow[] = [
@@ -72,7 +73,9 @@
 
   let searchEl = $state<HTMLInputElement | null>(null);
   const onKey = (event: KeyboardEvent) => {
-    if (event.ctrlKey && event.key.toLowerCase() === "f") {
+    // Find: ⌘F on macOS, Ctrl+F on Windows (S-09).
+    const findMod = platformState.mac ? event.metaKey : event.ctrlKey;
+    if (findMod && event.key.toLowerCase() === "f") {
       event.preventDefault();
       searchEl?.focus();
       return;
@@ -287,7 +290,11 @@
       placeholder={t("macros.search")}
       aria-label={t("macros.search")}
       spellcheck="false" />
-    <span class="kk"><Keycap text="Ctrl" small /><span class="plus">+</span><Keycap text="F" small /></span>
+    <span class="kk">
+      <Keycap text={platformState.mac ? "Win" : "Ctrl"} small />
+      {#if !platformState.mac}<span class="plus">+</span>{/if}
+      <Keycap text="F" small />
+    </span>
   </div>
   <button type="button" class="btn" onclick={importFile}>
     <Icon name="download" />
