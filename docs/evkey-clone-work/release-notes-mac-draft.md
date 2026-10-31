@@ -6,13 +6,14 @@ Bản đầu tiên cho Mac. Một tệp `.dmg` dùng được cho cả máy Appl
 
 1. Tải `VietKB_<phiên bản>_universal.dmg` ở mục Assets của bản phát hành.
 2. Mở tệp `.dmg`, kéo `VietKB` vào thư mục `Applications`.
-3. Mở `VietKB` từ `Applications`. Biểu tượng `V` hiện trên thanh menu. VietKB không có biểu tượng trên Dock.
+3. Mở `VietKB` từ `Applications`. Biểu tượng `V` hiện trên thanh menu. Khi cửa sổ cài đặt đang mở, VietKB có thêm biểu tượng trên Dock; đóng cửa sổ thì chỉ còn biểu tượng trên thanh menu.
 
 ## Lần mở đầu: Gatekeeper
 
 Bản này chưa được Apple công chứng, nên macOS có thể chặn lần mở đầu. Làm một trong hai cách:
 
-- Trong `Applications`, bấm chuột phải vào `VietKB`, chọn `Mở`, rồi chọn `Mở` lần nữa.
+- macOS 14 trở về trước: trong `Applications`, bấm chuột phải vào `VietKB`, chọn `Mở`, rồi chọn `Mở` lần nữa.
+- macOS 15 trở lên: mở `VietKB` một lần (macOS sẽ chặn), rồi vào `Cài đặt hệ thống` > `Quyền riêng tư & Bảo mật`, kéo xuống và bấm `Vẫn mở`.
 - Hoặc chạy trong Terminal:
 
 ```
