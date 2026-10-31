@@ -43,7 +43,7 @@ use parking_lot::Mutex;
 use vkb_platform::clipboard_plan::{
     classify_format, classify_write, decide_paste, ownership, Ownership, flag_blocks_snapshot, format_count_ok, notification_is_ours,
     snapshot_stable, REFRESH_DELAY_MS,
-    null_owner_ok, pick_newest, plain_text_only, text_rescue_allowed, urgent_proof, restore_action, restore_action_text, restore_due, restore_retry, settle_remaining_ms,
+    null_owner_ok, pick_newest, uses_hook_owner, plain_text_only, text_rescue_allowed, urgent_proof, restore_action, restore_action_text, restore_due, restore_retry, settle_remaining_ms,
     text_fingerprint, snapshot_verdict, within_budget, FormatClass,
     OwnSeqs, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER, PRIVACY_FORMATS,
     REGISTERED_FIRST, SETTLE_MS,
@@ -867,8 +867,11 @@ fn restore_session(done: Session, owner: Option<HWND>) -> RestoreOutcome {
     for attempt in 0..5u32 {
         // Our pumped owner first; if that handle went stale (hook thread gone)
         // the last attempts use the NULL owner.
-        let owner = if attempt < 3 { owner } else { None };
-        if let Some(guard) = ClipboardGuard::open(owner, 1, 0) {
+        // `open_owner` only decides which handle OpenClipboard gets; the proof
+        // checks (GetClipboardOwner / marker) keep using the hook owner, they do
+        // not depend on the handle that opened the clipboard.
+        let open_owner = if uses_hook_owner(attempt) { owner } else { None };
+        if let Some(guard) = ClipboardGuard::open(open_owner, 1, 0) {
             // Checked while we hold the clipboard: nobody can write in between.
             let now = unsafe { GetClipboardSequenceNumber() };
             let proof = owner_marker_ours(owner);
@@ -921,7 +924,8 @@ fn restore_session(done: Session, owner: Option<HWND>) -> RestoreOutcome {
             }
             // Adopt only what owner + marker + a stable bracket prove is our
             // restored data (never trust a bare number, D-WIN-16).
-            let verdict = verify_write(owner, in_open);
+            // What we just wrote was written through `open_owner`.
+            let verdict = verify_write(open_owner, in_open);
             if let (WriteVerdict::Ours(after) | WriteVerdict::Unstable(after), true) =
                 (verdict, ENABLED.load(Ordering::SeqCst))
             {

@@ -202,6 +202,13 @@ pub fn restore_action_text(base: RestoreAction, text_equal: bool) -> RestoreActi
     }
 }
 
+/// Restore attempts 0..3 open the clipboard with the hook's owner window; the
+/// later ones fall back to the NULL owner (the handle may have gone stale).
+/// Proof checks always use the hook owner, whichever handle opened.
+pub fn uses_hook_owner(attempt: u32) -> bool {
+    attempt < 3
+}
+
 /// Index of the newest session among their generations (ties: the last).
 /// Only the newest session is ever restored; older ones are retired, or an
 /// older copy of the user's data could overwrite a newer one.
@@ -647,6 +654,12 @@ mod tests {
         // No recorded write, or an unavailable number: never ours.
         assert_eq!(ownership(None, true, 12), Ownership::Foreign);
         assert_eq!(ownership(Some(own(7, 9)), true, 0), Ownership::Foreign);
+    }
+
+    #[test]
+    fn owner_fallback_only_after_three_attempts() {
+        assert!(uses_hook_owner(0) && uses_hook_owner(2));
+        assert!(!uses_hook_owner(3) && !uses_hook_owner(4));
     }
 
     #[test]
