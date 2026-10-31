@@ -202,6 +202,35 @@ pub fn restore_action_text(base: RestoreAction, text_equal: bool) -> RestoreActi
     }
 }
 
+/// Index of the newest session among their generations (ties: the last).
+/// Only the newest session is ever restored; older ones are retired, or an
+/// older copy of the user's data could overwrite a newer one.
+pub fn pick_newest(generations: &[u64]) -> Option<usize> {
+    generations.iter().enumerate().max_by_key(|(i, g)| (**g, *i)).map(|(i, _)| i)
+}
+
+/// Proof for the urgent restore (a failed write left the clipboard half
+/// written): our owner window is the owner, OR the sequence number is one of the
+/// two recorded at the failure. With the NULL owner only the number counts.
+pub fn urgent_proof(owner_is_ours: bool, seq_matches: bool) -> bool {
+    owner_is_ours || seq_matches
+}
+
+/// Is the clipboard plain text only (the formats Windows derives from one
+/// `CF_UNICODETEXT`, plus our own flags and marker)? Only then may "same text"
+/// rescue a restore: anything richer is somebody else's content.
+pub fn plain_text_only<'a>(formats: impl IntoIterator<Item = (u32, Option<&'a str>)>) -> bool {
+    formats.into_iter().all(|(id, name)| {
+        matches!(id, CF_TEXT | CF_UNICODETEXT | 7 | 16)
+            || matches!(classify_format(id, name), FormatClass::Flag | FormatClass::Marker)
+    })
+}
+
+/// The fingerprint rescue is allowed once, on plain text only (`rounds == 0`).
+pub fn text_rescue_allowed(rounds: u32, plain_only: bool) -> bool {
+    rounds == 0 && plain_only
+}
+
 /// NULL-owner fallback (no window to compare): the marker alone proves nothing,
 /// so the number must also be the one read while open (`in_open`).
 pub fn null_owner_ok(in_open: u32, s1: u32) -> bool {
@@ -618,6 +647,42 @@ mod tests {
         // No recorded write, or an unavailable number: never ours.
         assert_eq!(ownership(None, true, 12), Ownership::Foreign);
         assert_eq!(ownership(Some(own(7, 9)), true, 0), Ownership::Foreign);
+    }
+
+    #[test]
+    fn only_the_newest_session_is_picked() {
+        assert_eq!(pick_newest(&[]), None);
+        assert_eq!(pick_newest(&[4]), Some(0));
+        assert_eq!(pick_newest(&[3, 9, 5]), Some(1));
+        // Equal generations: the later entry wins.
+        assert_eq!(pick_newest(&[7, 7]), Some(1));
+    }
+
+    #[test]
+    fn urgent_restore_needs_owner_or_sequence() {
+        assert!(urgent_proof(true, false));
+        assert!(urgent_proof(false, true));
+        // NULL owner and no sequence match: refuse.
+        assert!(!urgent_proof(false, false));
+    }
+
+    #[test]
+    fn text_rescue_is_plain_text_and_first_round_only() {
+        let plain = [
+            (CF_UNICODETEXT, None),
+            (CF_TEXT, None),
+            (7, None),
+            (16, None),
+            (0xC001, Some("CanIncludeInClipboardHistory")),
+            (0xC002, Some(OWNED_MARKER)),
+        ];
+        assert!(plain_text_only(plain));
+        // Anything richer is somebody else's content.
+        assert!(!plain_text_only([(CF_UNICODETEXT, None), (0xC0A1, Some("HTML Format"))]));
+        assert!(!plain_text_only([(CF_UNICODETEXT, None), (CF_DIB, None)]));
+        assert!(text_rescue_allowed(0, true));
+        assert!(!text_rescue_allowed(1, true));
+        assert!(!text_rescue_allowed(0, false));
     }
 
     #[test]

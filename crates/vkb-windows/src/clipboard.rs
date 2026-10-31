@@ -43,7 +43,7 @@ use parking_lot::Mutex;
 use vkb_platform::clipboard_plan::{
     classify_format, classify_write, decide_paste, ownership, Ownership, flag_blocks_snapshot, format_count_ok, notification_is_ours,
     snapshot_stable, REFRESH_DELAY_MS,
-    null_owner_ok, restore_action, restore_action_text, restore_due, restore_retry, settle_remaining_ms,
+    null_owner_ok, pick_newest, plain_text_only, text_rescue_allowed, urgent_proof, restore_action, restore_action_text, restore_due, restore_retry, settle_remaining_ms,
     text_fingerprint, snapshot_verdict, within_budget, FormatClass,
     OwnSeqs, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER, PRIVACY_FORMATS,
     REGISTERED_FIRST, SETTLE_MS,
@@ -121,8 +121,11 @@ struct Session {
     text_fp: u64,
     /// Restore rounds already spent.
     rounds: u32,
-    /// Came from a failed write: restore on owner proof alone.
+    /// Came from a failed write: restore on owner or sequence proof.
     urgent: bool,
+    /// Monotonic per session (under `SHARED`): only the newest is ever
+    /// restored, an older copy must never overwrite a newer one.
+    generation: u64,
 }
 
 #[derive(Default)]
@@ -137,7 +140,9 @@ struct Shared {
     garbage: Vec<Vec<FormatData>>,
     /// Data of failed writes the worker must put back (never restored on the
     /// hook thread: up to 64 MB).
-    urgent: Vec<Vec<FormatData>>,
+    urgent: Vec<(Vec<FormatData>, OwnSeqs)>,
+    /// Source of `Session::generation`.
+    next_generation: u64,
     /// Sessions whose restore ran out of rounds: kept (never dropped) for the
     /// mode-off / shutdown flush.
     stranded: Vec<Session>,
@@ -149,6 +154,7 @@ static SHARED: Mutex<Shared> = Mutex::new(Shared {
     restored_seq: None,
     garbage: Vec::new(),
     urgent: Vec::new(),
+    next_generation: 0,
     stranded: Vec::new(),
 });
 
@@ -164,6 +170,46 @@ fn retire(shared: &mut Shared, data: Vec<FormatData>) {
         let _ = unsafe { PostMessageW(worker, WM_APP_GC, WPARAM(0), LPARAM(0)) };
     }
     // No worker: the data stays queued until one exists (or the process ends).
+}
+
+/// Take the newest of the active session and the parked ones; every older one is
+/// retired (never restored over a newer one).
+fn take_newest(shared: &mut Shared) -> Option<Session> {
+    let mut all: Vec<Session> = Vec::new();
+    all.extend(shared.session.take());
+    all.append(&mut shared.stranded);
+    let gens: Vec<u64> = all.iter().map(|s| s.generation).collect();
+    let newest = all.remove(pick_newest(&gens)?);
+    for old in all {
+        retire(shared, old.data);
+    }
+    Some(newest)
+}
+
+/// A restore of generation `generation` finished (restored or foreign): every
+/// older parked session is obsolete.
+fn retire_stranded_older(shared: &mut Shared, generation: u64) {
+    for s in std::mem::take(&mut shared.stranded) {
+        if s.generation < generation {
+            retire(shared, s.data);
+        } else {
+            shared.stranded.push(s);
+        }
+    }
+}
+
+/// At most one parked session: keep the newest, retire the rest.
+fn keep_newest_stranded(shared: &mut Shared) {
+    let all = std::mem::take(&mut shared.stranded);
+    let gens: Vec<u64> = all.iter().map(|s| s.generation).collect();
+    let keep = pick_newest(&gens);
+    for (i, s) in all.into_iter().enumerate() {
+        if Some(i) == keep {
+            shared.stranded.push(s);
+        } else {
+            retire(shared, s.data);
+        }
+    }
 }
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
@@ -352,13 +398,18 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     let Some(in_open) = write_temp_text(text) else {
         // Possibly emptied half way. Close, hand the user's data to the worker
         // (up to 64 MB: never restored on the hook thread) and type instead.
+        // The clipboard is still open here: record its sequence number (and the
+        // one after the close) as the proof the worker may restore against.
+        let failed_open = unsafe { GetClipboardSequenceNumber() };
         drop(guard);
+        let failed_own =
+            OwnSeqs { in_open: failed_open, after_close: unsafe { GetClipboardSequenceNumber() } };
         let data = match decision {
             PasteDecision::ContinueSession => shared.session.take().map(|s| s.data),
             _ => shared.snapshot.take().map(|s| s.data),
         };
         if let Some(data) = data {
-            shared.urgent.push(data);
+            shared.urgent.push((data, failed_own));
             if let Some(worker) = hwnd_of(&WORKER_HWND) {
                 let _ = unsafe { PostMessageW(worker, WM_APP_URGENT, WPARAM(0), LPARAM(0)) };
             }
@@ -395,6 +446,12 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
                 retire(&mut shared, old.data); // stale session: not freed on the hook thread
             }
             if let Some(snap) = shared.snapshot.take() {
+                // A new session supersedes every parked (older) one.
+                for old in std::mem::take(&mut shared.stranded) {
+                    retire(&mut shared, old.data);
+                }
+                shared.next_generation += 1;
+                let generation = shared.next_generation;
                 shared.session = Some(Session {
                     data: snap.data,
                     own,
@@ -402,6 +459,7 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
                     text_fp: text_fingerprint(text),
                     rounds: 0,
                     urgent: false,
+                    generation,
                 });
             }
         }
@@ -672,24 +730,46 @@ fn restore_if_due(hwnd: HWND) {
     let due = {
         let mut shared = SHARED.lock();
         let owner = hwnd_of(&HOOK_OWNER);
-        match shared.session.as_ref() {
+        let due_now = match shared.session.as_ref() {
             Some(session) => {
                 let elapsed = session.last_write.elapsed().as_millis() as u64;
                 if restore_due(elapsed) {
-                    shared.session.take().map(|s| (s, owner))
+                    true
                 } else {
                     let wait = settle_remaining_ms(elapsed);
                     unsafe { SetTimer(hwnd, TIMER_SETTLE, wait as u32, None) };
-                    None
+                    false
                 }
             }
             // A parked session gets another go.
-            None => shared.stranded.pop().map(|s| (s, owner)),
+            None => !shared.stranded.is_empty(),
+        };
+        if due_now {
+            take_newest(&mut shared).map(|s| (s, owner))
+        } else {
+            None
         }
     };
     if let Some((session, owner)) = due {
-        if let RestoreOutcome::Retry(back) = restore_session(session, owner) {
-            requeue(hwnd, back);
+        run_restore(hwnd, session, owner, false);
+    }
+}
+
+/// One restore attempt for `session`; an unfinished one is requeued (or, at the
+/// final quit flush, logged), a finished one retires every older parked session.
+fn run_restore(hwnd: HWND, session: Session, owner: Option<HWND>, last: bool) {
+    let generation = session.generation;
+    match restore_session(session, owner) {
+        RestoreOutcome::Done => {
+            let mut shared = SHARED.lock();
+            retire_stranded_older(&mut shared, generation);
+        }
+        RestoreOutcome::Retry(back) => {
+            if last {
+                tracing::error!("clipboard could not be restored at shutdown");
+            } else {
+                requeue(hwnd, back);
+            }
         }
     }
 }
@@ -712,6 +792,7 @@ fn requeue(hwnd: HWND, mut session: Session) {
                 "clipboard restore parked; it is retried on the next settle / mode-off / quit"
             );
             shared.stranded.push(session);
+            keep_newest_stranded(&mut shared);
             // Still try again later: parked sessions are picked up by the timer.
             unsafe { SetTimer(hwnd, TIMER_SETTLE, 5000, None) };
         }
@@ -723,23 +804,16 @@ fn requeue(hwnd: HWND, mut session: Session) {
 /// restore that still fails is logged and given up (the process ends); else it
 /// is requeued.
 fn restore_all_now(hwnd: HWND, last: bool) {
-    let (list, owner) = {
+    let (newest, owner) = {
         let mut shared = SHARED.lock();
-        let mut list: Vec<Session> = Vec::new();
-        list.extend(shared.session.take());
-        list.append(&mut shared.stranded);
+        // Only the newest session is restored; older ones are retired.
+        let newest = take_newest(&mut shared);
         shared.snapshot = None;
         shared.restored_seq = None;
-        (list, hwnd_of(&HOOK_OWNER))
+        (newest, hwnd_of(&HOOK_OWNER))
     };
-    for session in list {
-        if let RestoreOutcome::Retry(back) = restore_session(session, owner) {
-            if last {
-                tracing::error!("clipboard could not be restored at shutdown");
-            } else {
-                requeue(hwnd, back);
-            }
-        }
+    if let Some(session) = newest {
+        run_restore(hwnd, session, owner, last);
     }
 }
 
@@ -749,18 +823,22 @@ fn restore_urgent(hwnd: HWND) {
         let mut shared = SHARED.lock();
         (std::mem::take(&mut shared.urgent), hwnd_of(&HOOK_OWNER))
     };
-    for data in jobs {
+    for (data, own) in jobs {
+        let generation = {
+            let mut shared = SHARED.lock();
+            shared.next_generation += 1;
+            shared.next_generation
+        };
         let session = Session {
             data,
-            own: OwnSeqs { in_open: 0, after_close: 0 },
+            own,
             last_write: Instant::now(),
             text_fp: 0,
             rounds: 0,
             urgent: true,
+            generation,
         };
-        if let RestoreOutcome::Retry(back) = restore_session(session, owner) {
-            requeue(hwnd, back);
-        }
+        run_restore(hwnd, session, owner, false);
     }
 }
 
@@ -795,14 +873,28 @@ fn restore_session(done: Session, owner: Option<HWND>) -> RestoreOutcome {
             let now = unsafe { GetClipboardSequenceNumber() };
             let proof = owner_marker_ours(owner);
             let ours = if done.urgent {
-                // A failed write: our owner emptied it, owner alone is the proof.
-                owner.map_or(true, |ours| unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours))
+                // A failed write: our owner window still owns it, or the number
+                // is one recorded at the failure. The NULL owner is no proof.
+                let owner_is_ours = owner
+                    .is_some_and(|ours| unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours));
+                urgent_proof(owner_is_ours, done.own.matches(now))
             } else {
                 let base = restore_action(done.own, proof, now);
                 // A manager may have re-set exactly our text without the marker.
+                // Only for a plain-text clipboard and the first round; logged.
                 let text_equal = base == RestoreAction::Abandon
                     && done.text_fp != 0
+                    && list_formats().is_some_and(|ids| {
+                        text_rescue_allowed(
+                            done.rounds,
+                            plain_text_only(ids.iter().map(|(id, n)| (*id, n.as_deref()))),
+                        )
+                    })
                     && clipboard_text_fp() == Some(done.text_fp);
+                if text_equal {
+                    tracing::debug!("clipboard text equals ours without the marker; restoring");
+                    crate::debuglog::note("clipboard-text-rescue fired");
+                }
                 restore_action_text(base, text_equal) == RestoreAction::Restore
             };
             if !ours {
@@ -935,6 +1027,9 @@ fn list_formats() -> Option<Vec<(u32, Option<String>)>> {
 fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
     // A delayed-render owner that does not answer would block `GetClipboardData`
     // (it has no timeout): skip the snapshot unless the owner answers in 50 ms.
+    // Fail closed: an elevated (higher-integrity) owner we may not message (UIPI)
+    // answers 0 too, so a clipboard owned by an elevated program is never
+    // snapshotted and the hook types instead.
     if !clipboard_owner_responsive(50) {
         return None;
     }
@@ -1074,7 +1169,8 @@ fn owner_marker_ours(expected_owner: Option<HWND>) -> bool {
     let marker = marker_id();
     let owner_ok = match expected_owner {
         Some(ours) => unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours),
-        None => true,
+        // NULL owner: the marker alone proves nothing, the sequence must match.
+        None => false,
     };
     owner_ok && marker != 0 && unsafe { IsClipboardFormatAvailable(marker) }.is_ok()
 }
