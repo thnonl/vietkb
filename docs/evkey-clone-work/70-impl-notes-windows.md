@@ -204,7 +204,7 @@ Preconditions: interactive session, no other IME currently composing, Notepad op
 
 Opt-in only (`typing.use_clipboard`, charter C4: never on the default path). This section is the ONE current description; older wording elsewhere (defect rows, history below) is superseded by it.
 
-Code map: pure rules in `vkb_platform::clipboard_plan` (formats, proofs, verdicts, decisions), pure bookkeeping in `vkb_platform::clipboard_book::SessionBook` (a state machine: events in, explicit `Action`s out), Win32 execution in `crates/vkb-windows/src/clipboard.rs`. Everything pure is unit tested on every host, including deterministic randomized property tests over a fake clipboard; the Win32 side is checked by compile + clippy only (not run on Windows yet).
+Code map: pure rules in `vkb_platform::clipboard_plan` (formats, proofs, verdicts, decisions), pure bookkeeping in `vkb_platform::clipboard_book::SessionBook` (a state machine: events in, explicit `Action`s out), Win32 execution in `crates/vkb-windows/src/clipboard.rs`. Everything pure is unit tested on every host, including deterministic randomized property tests over a fake clipboard; the Win32 side is checked by compile + clippy and by live desktop QA (section 9.2).
 
 ### 9.1 Design
 
@@ -234,7 +234,7 @@ Code map: pure rules in `vkb_platform::clipboard_plan` (formats, proofs, verdict
 - A previous owner that answers `WM_NULL` and then blocks inside `WM_DESTROYCLIPBOARD` can still stall the hook in `EmptyClipboard` (typing whenever the previous owner is not ours would disable the mode).
 - A foreign write between the close and the snapshot bracket makes the number newer than the data; the write's own `WM_CLIPBOARDUPDATE` drops that snapshot, but the hook could paste in the gap (microseconds wide).
 - Every clipboard change is copied once while the mode is on (capped), and reading it makes delayed-render owners render.
-- Not run on a live Windows desktop. To do: the `#[ignore]`d round-trip test, bitmap / PNG / Win+V / quit-within-1.2 s checks, Ctrl+C in other apps while the mode is on, fast typing of expansions.
+- Live Windows desktop QA (runs 2–3, 2026-11-01, at 2f38b5f): WinForms RichTextBox, isolated Chrome and isolated Edge/bing.com; clipboard text / bitmap / PNG / empty / HTML; all expansions exact, every original format restored (flags + marker kept, as above); a newer copy inside the settle window (external process, Ctrl+C in another app) survives; a busy clipboard (held 2.5 s) is restored after release; quit 2 ms after an expansion restores before exit. Not covered: Win+V history count (history off on the test machine), byte-for-byte compare after a busy retry, the `#[ignore]`d round-trip test.
 
 ### 9.3 Changelog (condensed; the design above is authoritative)
 
