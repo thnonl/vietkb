@@ -121,6 +121,9 @@ pub fn snapshot_verdict<'a>(formats: impl IntoIterator<Item = (u32, Option<&'a s
     for (id, name) in formats {
         match classify_format(id, name) {
             FormatClass::Lossy => return Verdict::Lossy,
+            // Our own state (temporary text / restored data): never the user's
+            // data to snapshot.
+            FormatClass::Marker => return Verdict::Lossy,
             FormatClass::Derived if matches!(id, CF_BITMAP | CF_PALETTE) => needs_dib = true,
             _ => {}
         }
@@ -268,12 +271,34 @@ pub enum RestoreAction {
     Abandon,
 }
 
-/// Restore only while the clipboard is still exactly one of our writes.
-pub fn restore_action(expected: OwnSeqs, current: u32) -> RestoreAction {
-    if expected.matches(current) {
-        RestoreAction::Restore
-    } else {
-        RestoreAction::Abandon
+/// Who wrote the current clipboard, for a state we last wrote as `own`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ownership {
+    /// The sequence number is one of ours.
+    Ours,
+    /// The number moved (a late bump) but owner window + marker still prove the
+    /// content is ours: treat as ours and refresh the recorded number.
+    OursAtNewSeq(u32),
+    /// Somebody else wrote.
+    Foreign,
+}
+
+/// `owner_marker_ours`: `GetClipboardOwner()` is our window (or the NULL-owner
+/// fallback) AND the marker format is present, probed without a sequence
+/// comparison. A mismatch alone never drops a session that is provably ours.
+pub fn ownership(own: Option<OwnSeqs>, owner_marker_ours: bool, current: u32) -> Ownership {
+    match own {
+        Some(o) if o.matches(current) => Ownership::Ours,
+        Some(_) if owner_marker_ours && current != 0 => Ownership::OursAtNewSeq(current),
+        _ => Ownership::Foreign,
+    }
+}
+
+/// Restore only while the clipboard is still provably one of our writes.
+pub fn restore_action(expected: OwnSeqs, owner_marker_ours: bool, current: u32) -> RestoreAction {
+    match ownership(Some(expected), owner_marker_ours, current) {
+        Ownership::Foreign => RestoreAction::Abandon,
+        _ => RestoreAction::Restore,
     }
 }
 
@@ -503,9 +528,9 @@ mod tests {
     #[test]
     fn marker_is_never_user_data() {
         assert_eq!(classify_format(0xC0F0, Some("vietkb.owned")), FormatClass::Marker);
-        // It does not make a snapshot lossy.
+        // A clipboard carrying our marker is our own state: never snapshotted.
         let f = [(CF_UNICODETEXT, None), (0xC0F0, Some(OWNED_MARKER))];
-        assert_eq!(snapshot_verdict(f), Verdict::Faithful);
+        assert_eq!(snapshot_verdict(f), Verdict::Lossy);
     }
 
     #[test]
@@ -558,10 +583,25 @@ mod tests {
 
     #[test]
     fn restore_only_while_the_clipboard_is_one_of_our_writes() {
-        assert_eq!(restore_action(own(7, 9), 9), RestoreAction::Restore);
-        assert_eq!(restore_action(own(7, 9), 7), RestoreAction::Restore);
-        assert_eq!(restore_action(own(7, 9), 10), RestoreAction::Abandon);
-        assert_eq!(restore_action(own(0, 0), 0), RestoreAction::Abandon);
-        assert_eq!(restore_action(own(u32::MAX, u32::MAX), 0), RestoreAction::Abandon);
+        assert_eq!(restore_action(own(7, 9), false, 9), RestoreAction::Restore);
+        assert_eq!(restore_action(own(7, 9), false, 7), RestoreAction::Restore);
+        assert_eq!(restore_action(own(7, 9), false, 10), RestoreAction::Abandon);
+        assert_eq!(restore_action(own(0, 0), false, 0), RestoreAction::Abandon);
+        assert_eq!(restore_action(own(u32::MAX, u32::MAX), true, 0), RestoreAction::Abandon);
+    }
+
+    #[test]
+    fn seq_mismatch_with_owner_and_marker_is_still_ours() {
+        // Late bump: the number moved but owner + marker are ours.
+        assert_eq!(ownership(Some(own(7, 9)), true, 12), Ownership::OursAtNewSeq(12));
+        assert_eq!(restore_action(own(7, 9), true, 12), RestoreAction::Restore);
+        // Same mismatch, owner or marker not ours: foreign.
+        assert_eq!(ownership(Some(own(7, 9)), false, 12), Ownership::Foreign);
+        assert_eq!(restore_action(own(7, 9), false, 12), RestoreAction::Abandon);
+        // A matching number is ours regardless of the probe.
+        assert_eq!(ownership(Some(own(7, 9)), false, 9), Ownership::Ours);
+        // No recorded write, or an unavailable number: never ours.
+        assert_eq!(ownership(None, true, 12), Ownership::Foreign);
+        assert_eq!(ownership(Some(own(7, 9)), true, 0), Ownership::Foreign);
     }
 }
