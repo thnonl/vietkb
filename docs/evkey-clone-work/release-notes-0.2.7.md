@@ -14,7 +14,7 @@
 
 ## Thay đổi nhỏ
 
-- Cửa sổ cài đặt mở giữa vùng làm việc của màn hình đang dùng, không đè lên thanh tác vụ.
+- Cửa sổ cài đặt mở giữa vùng làm việc của màn hình có con trỏ chuột, không đè lên thanh tác vụ.
 - Dòng chú thích ở biểu tượng khay ngắn lại: `VietKB — đang gõ tiếng Việt` / `đã tắt tiếng Việt`.
 - `Nâng cao` có thêm liên kết mở thư mục cấu hình.
 
