@@ -4,9 +4,6 @@
 //! from the clipboard and acts on the answers. Keeping them here lets the host
 //! test suite cover them.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
-
 /// One key event of the paste chord.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChordKey {
@@ -150,6 +147,12 @@ pub fn within_budget(total_so_far: usize, size: usize) -> bool {
 /// the key event); a newer job inside the window extends it.
 pub const SETTLE_MS: u64 = 400;
 
+/// Milliseconds still to wait before restoring, `elapsed_ms` after the last
+/// write; `0` = due.
+pub fn settle_remaining_ms(elapsed_ms: u64) -> u64 {
+    SETTLE_MS.saturating_sub(elapsed_ms)
+}
+
 /// `true` only when the clipboard is exactly as we left it: no one else wrote
 /// to it since we did. `0` means the sequence number is unavailable, which is
 /// never treated as "ours".
@@ -177,59 +180,45 @@ pub fn restore_action(expected_seq: u32, current_seq: u32) -> RestoreAction {
 /// More formats than this: treat the clipboard as not safely enumerable.
 pub const MAX_FORMATS: usize = 512;
 
-/// Counts clipboard jobs the worker has not finished sending.
-///
-/// The hook must not let a physical key overtake a queued replacement (the
-/// Backspaces are asynchronous too), so it waits here, bounded, before
-/// processing a physical key. [`PendingToken`] decrements on drop, which covers
-/// every path: batch sent, direct typing, early drop, panic.
-#[derive(Debug, Default)]
-pub struct PendingGate {
-    count: AtomicUsize,
+/// `true` while a clipboard with `count` formats is still safely enumerable.
+pub fn format_count_ok(count: usize) -> bool {
+    count <= MAX_FORMATS
 }
 
-/// Decrements its gate when dropped.
-#[derive(Debug)]
-pub struct PendingToken<'a> {
-    gate: &'a PendingGate,
+/// What the hook does at expansion time. It never blocks on the clipboard: it
+/// compares sequence numbers only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PasteDecision {
+    /// Our temporary text is still on the clipboard from the previous paste of
+    /// this session: write the next text, keep the session's snapshot.
+    ContinueSession,
+    /// The ready snapshot matches the clipboard exactly: take it, paste.
+    StartSession,
+    /// No fresh snapshot (missing, lossy, clipboard changed since, sequence
+    /// unavailable) or mode off: type the text with Unicode `SendInput`.
+    TypeDirectly,
 }
 
-impl Drop for PendingToken<'_> {
-    fn drop(&mut self) {
-        self.gate.count.fetch_sub(1, Ordering::SeqCst);
+/// `session_expected`: sequence right after our last write, while a session is
+/// active. `snapshot_seq`: sequence the ready (faithful) snapshot was taken at.
+/// `current`: `GetClipboardSequenceNumber()` now. `0` is "unavailable" and never
+/// matches.
+pub fn decide_paste(
+    enabled: bool,
+    session_expected: Option<u32>,
+    snapshot_seq: Option<u32>,
+    current: u32,
+) -> PasteDecision {
+    if !enabled || current == 0 {
+        return PasteDecision::TypeDirectly;
     }
-}
-
-impl PendingGate {
-    pub const fn new() -> Self {
-        Self { count: AtomicUsize::new(0) }
+    if session_expected == Some(current) {
+        return PasteDecision::ContinueSession;
     }
-
-    /// Register one job; hold the token until its input has been sent.
-    pub fn enter(&self) -> PendingToken<'_> {
-        self.count.fetch_add(1, Ordering::SeqCst);
-        PendingToken { gate: self }
+    if snapshot_seq == Some(current) {
+        return PasteDecision::StartSession;
     }
-
-    pub fn pending(&self) -> usize {
-        self.count.load(Ordering::SeqCst)
-    }
-
-    /// Wait until nothing is pending, at most `cap`. `true` = cleared,
-    /// `false` = timed out (the caller logs and proceeds).
-    pub fn wait(&self, cap: Duration, poll: Duration) -> bool {
-        if self.pending() == 0 {
-            return true;
-        }
-        let begin = Instant::now();
-        while self.pending() > 0 {
-            if begin.elapsed() >= cap {
-                return false;
-            }
-            std::thread::sleep(poll);
-        }
-        true
-    }
+    PasteDecision::TypeDirectly
 }
 
 #[cfg(test)]
@@ -262,7 +251,51 @@ mod tests {
 
     #[test]
     fn format_count_limit() {
-        assert_eq!(MAX_FORMATS, 512);
+        assert!(format_count_ok(0));
+        assert!(format_count_ok(MAX_FORMATS));
+        assert!(!format_count_ok(MAX_FORMATS + 1));
+    }
+
+    #[test]
+    fn paste_needs_a_fresh_snapshot() {
+        use PasteDecision::*;
+        // No snapshot, no session: type.
+        assert_eq!(decide_paste(true, None, None, 10), TypeDirectly);
+        // Snapshot taken at the current sequence: paste.
+        assert_eq!(decide_paste(true, None, Some(10), 10), StartSession);
+        // Clipboard changed since the snapshot: type.
+        assert_eq!(decide_paste(true, None, Some(10), 11), TypeDirectly);
+        // Mode off: type, whatever is ready.
+        assert_eq!(decide_paste(false, Some(10), Some(10), 10), TypeDirectly);
+    }
+
+    #[test]
+    fn session_continues_only_while_the_clipboard_is_ours() {
+        use PasteDecision::*;
+        assert_eq!(decide_paste(true, Some(20), None, 20), ContinueSession);
+        // Someone copied since our write: the session is dead.
+        assert_eq!(decide_paste(true, Some(20), None, 21), TypeDirectly);
+        // ... unless a fresh snapshot of the new content is ready.
+        assert_eq!(decide_paste(true, Some(20), Some(21), 21), StartSession);
+        // The session wins when both match (our own temp text).
+        assert_eq!(decide_paste(true, Some(20), Some(20), 20), ContinueSession);
+    }
+
+    #[test]
+    fn unavailable_sequence_never_pastes() {
+        use PasteDecision::*;
+        assert_eq!(decide_paste(true, Some(0), Some(0), 0), TypeDirectly);
+        assert_eq!(decide_paste(true, None, Some(0), 0), TypeDirectly);
+        assert_eq!(decide_paste(true, None, Some(u32::MAX), 0), TypeDirectly);
+        assert_eq!(decide_paste(true, None, Some(u32::MAX), u32::MAX), StartSession);
+    }
+
+    #[test]
+    fn settle_counts_from_the_last_write() {
+        assert_eq!(settle_remaining_ms(0), SETTLE_MS);
+        assert_eq!(settle_remaining_ms(SETTLE_MS - 1), 1);
+        assert_eq!(settle_remaining_ms(SETTLE_MS), 0);
+        assert_eq!(settle_remaining_ms(u64::MAX), 0);
     }
 
     #[test]
@@ -273,52 +306,6 @@ mod tests {
         assert_eq!(restore_action(5, 0), RestoreAction::Abandon);
     }
 
-    #[test]
-    fn pending_gate_counts_and_releases_on_drop() {
-        let gate = PendingGate::new();
-        let a = gate.enter();
-        let b = gate.enter();
-        assert_eq!(gate.pending(), 2);
-        drop(a);
-        assert_eq!(gate.pending(), 1);
-        drop(b);
-        assert_eq!(gate.pending(), 0);
-    }
-
-    #[test]
-    fn pending_gate_wait_times_out_then_clears() {
-        let gate = PendingGate::new();
-        let poll = Duration::from_micros(100);
-        assert!(gate.wait(Duration::from_millis(5), poll));
-        let token = gate.enter();
-        assert!(!gate.wait(Duration::from_millis(5), poll));
-        drop(token);
-        assert!(gate.wait(Duration::from_millis(5), poll));
-    }
-
-    #[test]
-    fn pending_gate_wait_sees_a_release_from_another_thread() {
-        let gate = PendingGate::new();
-        std::thread::scope(|scope| {
-            let token = gate.enter();
-            scope.spawn(move || {
-                std::thread::sleep(Duration::from_millis(10));
-                drop(token);
-            });
-            assert!(gate.wait(Duration::from_millis(1000), Duration::from_micros(200)));
-        });
-    }
-
-    #[test]
-    fn pending_token_released_on_panic() {
-        let gate = PendingGate::new();
-        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _t = gate.enter();
-            panic!("boom");
-        }));
-        assert!(r.is_err());
-        assert_eq!(gate.pending(), 0);
-    }
 
     #[test]
     fn chord_is_a_balanced_left_ctrl_v() {

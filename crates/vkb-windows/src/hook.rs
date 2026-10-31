@@ -344,9 +344,6 @@ pub(crate) fn process_event(runtime: &mut HookRuntime, message: u32, info: &KBDL
     if crate::perf::enabled() {
         crate::perf::begin();
     }
-    // Clipboard mode (D-WIN-12..15): a physical key waits (bounded) for a queued
-    // clipboard job so it cannot overtake the replacement. One atomic load when idle.
-    crate::clipboard::wait_pending(info.dwExtraInfo);
     // D-WIN-09 dev seam: a physical key waits (bounded) for a delayed injection.
     // Compiled to nothing unless `dev-channel`.
     #[cfg(feature = "dev-channel")]
@@ -389,6 +386,8 @@ fn worker_main() {
     let _ = unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE) };
     let thread_id = unsafe { GetCurrentThreadId() };
     globals::THREAD_ID.store(thread_id, Ordering::SeqCst);
+    // Clipboard-mode owner window: created here because this thread pumps.
+    crate::clipboard::create_hook_owner();
 
     let hook = HookSlot::default();
     if let Err(err) = hook.install() {
@@ -471,6 +470,7 @@ fn worker_main() {
 }
 
 fn teardown(runtime_ptr: *mut HookRuntime) {
+    crate::clipboard::destroy_hook_owner();
     RUNTIME.store(ptr::null_mut(), Ordering::Release);
     globals::THREAD_ID.store(0, Ordering::SeqCst);
     globals::READY.store(false, Ordering::SeqCst);

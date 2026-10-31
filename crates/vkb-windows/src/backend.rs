@@ -77,7 +77,7 @@ impl Injector {
                     input::send(&inputs);
                 }
             } else {
-                crate::clipboard::submit(deletes, text.to_string(), self.mode, held);
+                crate::clipboard::replace(deletes, text, self.mode, held);
             }
             return;
         }

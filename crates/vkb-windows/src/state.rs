@@ -244,6 +244,7 @@ impl HookRuntime {
             SendMode::Unicode
         };
         self.use_clipboard = cfg.typing.use_clipboard;
+        crate::clipboard::set_enabled(self.use_clipboard);
         self.sound_on = cfg.system.notification_sound;
         self.remember_per_app = cfg.apps.remember_per_app;
 
@@ -858,8 +859,8 @@ impl HookRuntime {
                     input::send(&inputs);
                 }
             } else {
-                // Worker thread: the hook never waits on the clipboard.
-                crate::clipboard::submit(deletes, text.to_string(), self.send_mode, self.held());
+                // Synchronous in the hook, like the Unicode path (ordering by construction).
+                crate::clipboard::replace(deletes, text, self.send_mode, self.held());
             }
             return SendResult::default();
         }

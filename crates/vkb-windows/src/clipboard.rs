@@ -4,74 +4,81 @@
 //! `SendInput` path covers every app we ship for. This exists only for the
 //! stubborn targets where Unicode injection is ignored.
 //!
-//! Design (D-WIN-12..15, `70-impl-notes-windows.md` section 9):
+//! Ordering is by construction (D-WIN-12..15, `70-impl-notes-windows.md` §9):
+//! the replacement happens **synchronously inside the hook callback**, exactly
+//! like the Unicode path, so no physical key can overtake it.
 //!
-//! - **One worker thread, one ordered queue.** The hook only enqueues a [`Job`];
-//!   every clipboard call (which can retry or block on a delayed-render owner)
-//!   runs on `vkb-clipboard`. Consecutive expansions share one snapshot.
-//! - **Ordering.** Backspaces now go out from the worker, so a physical key
-//!   could overtake them. [`submit`] raises [`PENDING`] and the worker lowers it
-//!   (drop guard, every path) once the batch is sent; the hook calls
-//!   [`wait_pending`] before processing a physical key (bounded by
-//!   [`WAIT_CAP`]). Opening the clipboard fails fast (3 x 10 ms) so the worker
-//!   normally finishes well inside the cap; on timeout the key is processed
-//!   anyway and the miss is logged.
-//! - **Snapshot first, and only if it is faithful** (`vkb_platform::clipboard_plan`).
-//!   Capture, sequence check and our write happen under ONE `OpenClipboard`.
-//!   GDI handle formats are never dereferenced; a clipboard that cannot be
-//!   restored makes us type the text with Unicode `SendInput` instead.
-//! - **No paste unless our text is on the clipboard.** One `SendInput`: the
-//!   Backspaces and the `Ctrl+V` chord, Shift re-read from the live key state.
-//! - **Restore late and only if still ours:** after `SETTLE_MS` of queue
-//!   idleness (fixed on purpose: there is no consumed-paste signal, and a
-//!   longer wait only delays the restore), only if the sequence number is
-//!   unchanged, retried with backoff while the clipboard is busy.
-//! - **Shutdown.** [`shutdown`] restores immediately (bounded wait).
-//! - **Privacy.** Our temporary text carries the history/cloud/monitor opt-out
-//!   formats.
+//! - **Hook thread (never blocks).** [`replace`] compares
+//!   `GetClipboardSequenceNumber` with a snapshot that is already waiting. Match
+//!   -> single-try `OpenClipboard`, write our text (with the history/cloud
+//!   opt-out formats), close, then ONE `SendInput` (Backspaces + `Ctrl+V`
+//!   chord, Shift re-read live). Anything else (mode off, no/lossy/stale
+//!   snapshot, clipboard busy, owner hung, any failed call) -> the text is
+//!   typed with Unicode `SendInput`, synchronously. The clipboard owner window
+//!   is created on the hook thread, which pumps messages, so other programs'
+//!   `EmptyClipboard` (`WM_DESTROYCLIPBOARD`) never waits on us.
+//! - **Worker thread (pumped).** Owns the fresh snapshot: while the mode is on
+//!   it listens with `AddClipboardFormatListener` and re-snapshots on every
+//!   change (all `HGLOBAL` formats byte for byte, GDI handle formats never
+//!   dereferenced, lossy / oversized / hung owner -> no snapshot). It also does
+//!   the restore: after [`SETTLE_MS`] without a paste, only if the sequence
+//!   number is still the one right after our write, retried with backoff.
+//!   [`shutdown`] restores at once. Snapshots are dropped as soon as the mode is
+//!   switched off.
 //!
-//! The release profile uses `panic = "abort"`: `catch_unwind` below protects
-//! dev/test builds, the release guarantee comes from checking every call.
+//! Cost of the design (opt-in mode only): every clipboard change is copied once
+//! (caps in `clipboard_plan`), and reading the data forces delayed-render owners
+//! to render. The release profile is `panic = "abort"`, so `catch_unwind` only
+//! protects dev/test builds; the release guarantee is that every call is checked.
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+use std::sync::mpsc::{channel, Sender};
+use std::sync::Once;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use vkb_platform::clipboard_plan::{
-    classify_format, restore_action, snapshot_verdict, within_budget, FormatClass, PendingGate,
-    PendingToken, RestoreAction, Verdict, MAX_FORMATS, PRIVACY_FORMATS, REGISTERED_FIRST,
-    SETTLE_MS,
+    classify_format, decide_paste, format_count_ok, restore_action, settle_remaining_ms, snapshot_verdict,
+    within_budget, FormatClass, PasteDecision, RestoreAction, Verdict, PRIVACY_FORMATS,
+    REGISTERED_FIRST, SETTLE_MS,
 };
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{
-    GetLastError, GlobalFree, SetLastError, HANDLE, HGLOBAL, HWND, WIN32_ERROR,
+    GetLastError, GlobalFree, SetLastError, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, WIN32_ERROR,
+    WPARAM,
 };
 use windows::Win32::System::DataExchange::{
-    CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData,
-    GetClipboardFormatNameW, GetClipboardOwner, GetClipboardSequenceNumber, OpenClipboard,
-    RegisterClipboardFormatW, SetClipboardData,
+    AddClipboardFormatListener, CloseClipboard, EmptyClipboard, EnumClipboardFormats,
+    GetClipboardData, GetClipboardFormatNameW, GetClipboardOwner, GetClipboardSequenceNumber,
+    OpenClipboard, RegisterClipboardFormatW, RemoveClipboardFormatListener, SetClipboardData,
 };
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Memory::{
     GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
 };
+use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DestroyWindow, IsHungAppWindow, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, IsHungAppWindow,
+    KillTimer, PostMessageW, RegisterClassW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSW,
 };
 
 use crate::input::{self, Held, SendMode};
-use crate::keys;
+use crate::{globals, keys};
 
 /// `CF_UNICODETEXT`.
 pub const CF_UNICODETEXT: u32 = 13;
 
-/// How long a physical key waits for a queued clipboard job.
-const WAIT_CAP: Duration = Duration::from_millis(150);
-
-/// Jobs queued or being sent (not counting the settle wait before the restore).
-static PENDING: PendingGate = PendingGate::new();
+const WM_TIMER: u32 = 0x0113;
+const WM_CLIPBOARDUPDATE: u32 = 0x031D;
+const WM_APP_PASTED: u32 = 0x8000 + 0x21;
+const WM_APP_MODE: u32 = 0x8000 + 0x22;
+const WM_APP_FLUSH: u32 = 0x8000 + 0x23;
+const TIMER_SETTLE: usize = 1;
 
 #[derive(Debug, PartialEq, Eq)]
 struct FormatData {
@@ -79,89 +86,53 @@ struct FormatData {
     bytes: Vec<u8>,
 }
 
-/// One replacement: `deletes` Backspaces, then `text`.
-struct Job {
-    deletes: u32,
-    text: String,
-    mode: SendMode,
-    held: Held,
-    /// Released (dropped) as soon as the input is sent, or with the job.
-    token: Option<PendingToken<'static>>,
+/// A faithful copy of the clipboard as of sequence number `seq`.
+struct Snap {
+    seq: u32,
+    data: Vec<FormatData>,
 }
 
-enum Msg {
-    Job(Job),
-    /// Restore now and acknowledge (quit).
-    Flush(Sender<()>),
-}
-
-/// The user's clipboard while our temporary text may be on it.
+/// The user's clipboard while our temporary text is on it.
 struct Session {
-    snapshot: Vec<FormatData>,
+    data: Vec<FormatData>,
     /// Sequence number right after our last write.
     expected_seq: u32,
+    /// When we last wrote (the settle wait counts from here).
+    last_write: Instant,
 }
 
-static QUEUE: OnceCell<Sender<Msg>> = OnceCell::new();
+#[derive(Default)]
+struct Shared {
+    snapshot: Option<Snap>,
+    session: Option<Session>,
+}
 
-/// Replace `deletes` characters with `text` through the clipboard.
-///
-/// Never blocks: the hook thread only enqueues. If the worker cannot be started
-/// the text is typed directly.
-pub fn submit(deletes: u32, text: String, mode: SendMode, held: Held) {
-    let job = Job { deletes, text, mode, held, token: Some(PENDING.enter()) };
-    let sender = QUEUE.get_or_try_init(|| {
-        let (tx, rx) = channel::<Msg>();
-        thread::Builder::new()
-            .name("vkb-clipboard".to_string())
-            .spawn(move || worker(rx))
-            .map(|_| tx)
-    });
-    match sender {
-        Ok(tx) => {
-            if let Err(err) = tx.send(Msg::Job(job)) {
-                if let Msg::Job(job) = err.0 {
-                    type_directly(&job);
-                }
-            }
-        }
-        Err(_) => type_directly(&job),
+static SHARED: Mutex<Shared> = Mutex::new(Shared { snapshot: None, session: None });
+static ENABLED: AtomicBool = AtomicBool::new(false);
+/// Message-only clipboard owner on the hook thread (pumped there). 0 = none.
+static HOOK_OWNER: AtomicIsize = AtomicIsize::new(0);
+/// The worker's listener window. 0 = not running yet.
+static WORKER_HWND: AtomicIsize = AtomicIsize::new(0);
+static WORKER_ONCE: Once = Once::new();
+static FLUSH_ACK: Mutex<Option<Sender<()>>> = Mutex::new(None);
+
+fn hwnd_of(slot: &AtomicIsize) -> Option<HWND> {
+    match slot.load(Ordering::SeqCst) {
+        0 => None,
+        raw => Some(HWND(raw as *mut core::ffi::c_void)),
     }
 }
 
-/// Top of every hook event: a physical key waits (bounded) while a clipboard
-/// job has not sent its input yet, so it cannot overtake the replacement.
-#[inline]
-pub fn wait_pending(extra_info: usize) {
-    if PENDING.pending() == 0 || extra_info == input::injected_tag() {
-        return;
-    }
-    if !PENDING.wait(WAIT_CAP, Duration::from_micros(500)) {
-        tracing::warn!("clipboard job still pending after the wait cap; processing the key anyway");
-        crate::debuglog::note("clipboard-wait TIMEOUT; processing the key anyway");
-    }
-}
+// ---------------------------------------------------------------------------
+// Hook thread side
+// ---------------------------------------------------------------------------
 
-/// Put the user's clipboard back now (app quit, hook uninstall). Bounded.
-pub fn shutdown() {
-    let Some(tx) = QUEUE.get() else { return };
-    let (ack_tx, ack_rx) = channel();
-    if tx.send(Msg::Flush(ack_tx)).is_ok() {
-        let _ = ack_rx.recv_timeout(Duration::from_millis(800));
-    }
-}
-
-/// Owner window and friends, used from the worker only.
-struct Ctx {
-    /// Message-only window: a real clipboard owner (`OpenClipboard(NULL)` makes
-    /// `SetClipboardData` unreliable). `None` falls back to the NULL owner.
-    owner: Option<HWND>,
-}
-
-fn worker(rx: Receiver<Msg>) {
-    // SAFETY: a message-only window of the system "STATIC" class, owned and
-    // destroyed by this thread.
-    let owner = unsafe {
+/// Create the clipboard owner window. Call on the hook thread, which pumps
+/// messages (a window nobody pumps would hang other programs' `EmptyClipboard`).
+pub fn create_hook_owner() {
+    // SAFETY: a message-only window of the system "STATIC" class, destroyed by
+    // `destroy_hook_owner` on the same thread.
+    let window = unsafe {
         CreateWindowExW(
             WINDOW_EX_STYLE(0),
             w!("STATIC"),
@@ -176,58 +147,54 @@ fn worker(rx: Receiver<Msg>) {
             None,
             None,
         )
-    }
-    .ok();
-    let ctx = Ctx { owner };
-    let mut session: Option<Session> = None;
-    loop {
-        let next = if session.is_some() {
-            rx.recv_timeout(Duration::from_millis(SETTLE_MS))
-        } else {
-            rx.recv().map_err(|_| RecvTimeoutError::Disconnected)
-        };
-        match next {
-            Ok(Msg::Job(mut job)) => {
-                let outcome =
-                    catch_unwind(AssertUnwindSafe(|| run_job(&mut job, &mut session, &ctx)));
-                if outcome.is_err() {
-                    tracing::error!("clipboard job panicked; dropping snapshot, typing directly");
-                    session = None;
-                    type_directly(&job);
-                }
-                // `job` (and its token) drops here on every path.
-            }
-            Ok(Msg::Flush(ack)) => {
-                flush(&mut session, &ctx);
-                let _ = ack.send(());
-            }
-            Err(RecvTimeoutError::Timeout) => flush(&mut session, &ctx),
-            Err(RecvTimeoutError::Disconnected) => {
-                flush(&mut session, &ctx);
-                break;
-            }
-        }
-    }
-    if let Some(window) = owner {
-        // SAFETY: window created above on this thread.
-        let _ = unsafe { DestroyWindow(window) };
+    };
+    match window {
+        Ok(hwnd) => HOOK_OWNER.store(hwnd.0 as isize, Ordering::SeqCst),
+        Err(err) => tracing::warn!(error = %err, "clipboard owner window not created"),
     }
 }
 
-fn flush(session: &mut Option<Session>, ctx: &Ctx) {
-    if let Some(done) = session.take() {
-        let _ = catch_unwind(AssertUnwindSafe(|| restore_session(&done, ctx)));
+/// Counterpart of [`create_hook_owner`] (hook thread, on its way out).
+pub fn destroy_hook_owner() {
+    let raw = HOOK_OWNER.swap(0, Ordering::SeqCst);
+    if raw != 0 {
+        // SAFETY: created on this thread.
+        let _ = unsafe { DestroyWindow(HWND(raw as *mut core::ffi::c_void)) };
+    }
+}
+
+/// Switch the mode on/off (idempotent). Off drops every snapshot and restores a
+/// pending session; on starts listening and takes the first snapshot.
+pub fn set_enabled(on: bool) {
+    if ENABLED.swap(on, Ordering::SeqCst) == on {
+        return;
+    }
+    if on {
+        ensure_worker();
+    }
+    if let Some(hwnd) = hwnd_of(&WORKER_HWND) {
+        // SAFETY: posting to a window we created.
+        let _ = unsafe { PostMessageW(hwnd, WM_APP_MODE, WPARAM(0), LPARAM(0)) };
+    }
+}
+
+/// Replace `deletes` characters with `text`, synchronously. Pastes through the
+/// clipboard when that is provably lossless right now, else types the text.
+pub fn replace(deletes: u32, text: &str, mode: SendMode, held: Held) {
+    let pasted = catch_unwind(AssertUnwindSafe(|| try_paste(deletes, text, mode, held)))
+        .unwrap_or(false);
+    if !pasted {
+        type_directly(deletes, text, mode, held);
     }
 }
 
 /// Unicode `SendInput` delivery (the safe fallback).
-fn type_directly(job: &Job) {
-    let inputs = input::build_segment_held(job.deletes, &job.text, job.mode, job.held);
-    input::send_split(&inputs, job.deletes, job.mode);
+fn type_directly(deletes: u32, text: &str, mode: SendMode, held: Held) {
+    let inputs = input::build_segment_held(deletes, text, mode, held);
+    input::send_split(&inputs, deletes, mode);
 }
 
-/// The Shift keys that are down right now (the worker runs a few ms after the
-/// hook saw the key, so the hook-time model can be stale).
+/// The Shift keys that are down right now.
 fn live_shift() -> u8 {
     let down = |vk: u16| unsafe { GetAsyncKeyState(i32::from(vk)) } < 0;
     let mut mask = 0;
@@ -240,70 +207,285 @@ fn live_shift() -> u8 {
     mask
 }
 
-fn run_job(job: &mut Job, session: &mut Option<Session>, ctx: &Ctx) {
-    let prepared = match ClipboardGuard::open(ctx.owner, 3, 10) {
-        Some(guard) => prepare(&guard, &job.text, session),
-        None => false,
+/// `true` = the replacement was delivered. `false` = nothing was sent and the
+/// clipboard holds what it held (or was restored): the caller types instead.
+fn try_paste(deletes: u32, text: &str, mode: SendMode, held: Held) -> bool {
+    if !ENABLED.load(Ordering::SeqCst) {
+        return false;
+    }
+    // Only the hook thread has the pumped owner window; other sinks type.
+    if unsafe { GetCurrentThreadId() } != globals::THREAD_ID.load(Ordering::SeqCst) {
+        return false;
+    }
+    let Some(owner) = hwnd_of(&HOOK_OWNER) else { return false };
+    // Never wait on the worker: a busy lock just means "type".
+    let Some(mut shared) = SHARED.try_lock() else { return false };
+    let current = unsafe { GetClipboardSequenceNumber() };
+    let decision = decide_paste(
+        true,
+        shared.session.as_ref().map(|s| s.expected_seq),
+        shared.snapshot.as_ref().map(|s| s.seq),
+        current,
+    );
+    if decision == PasteDecision::TypeDirectly {
+        // A session whose clipboard moved on is the user's data now: forget it.
+        if shared.session.as_ref().is_some_and(|s| s.expected_seq != current) {
+            shared.session = None;
+        }
+        return false;
+    }
+    // A hung previous owner would block EmptyClipboard (WM_DESTROYCLIPBOARD).
+    if let Ok(prev) = unsafe { GetClipboardOwner() } {
+        if !prev.is_invalid() && unsafe { IsHungAppWindow(prev) }.as_bool() {
+            return false;
+        }
+    }
+    // Single try: the hook never retries.
+    let Some(guard) = ClipboardGuard::open(Some(owner), 1, 0) else { return false };
+    // Nobody can write while we hold it: the decision must still hold.
+    if unsafe { GetClipboardSequenceNumber() } != current {
+        return false;
+    }
+    let Some(seq) = write_temp_text(text) else {
+        // Possibly emptied half way: put the user's data back right now.
+        let data = match decision {
+            PasteDecision::ContinueSession => shared.session.take().map(|s| s.data),
+            _ => shared.snapshot.take().map(|s| s.data),
+        };
+        if let Some(data) = data {
+            restore_locked(&data);
+        }
+        return false;
     };
-    if !prepared {
-        type_directly(job);
-        job.token = None;
+    drop(guard);
+    match decision {
+        PasteDecision::StartSession => {
+            if let Some(snap) = shared.snapshot.take() {
+                shared.session = Some(Session { data: snap.data, expected_seq: seq, last_write: Instant::now() });
+            }
+        }
+        _ => {
+            if let Some(session) = shared.session.as_mut() {
+                session.expected_seq = seq;
+                session.last_write = Instant::now();
+            }
+        }
+    }
+    drop(shared);
+
+    let live = Held { shift: live_shift(), caps: held.caps };
+    let inputs = input::build_paste(deletes, mode, live);
+    let sent = input::send(&inputs);
+    if let Some(worker) = hwnd_of(&WORKER_HWND) {
+        // (Re)arm the restore timer, whatever happened to the batch.
+        let _ = unsafe { PostMessageW(worker, WM_APP_PASTED, WPARAM(0), LPARAM(0)) };
+    }
+    if sent == 0 {
+        // Blocked outright (UIPI): nothing reached the target, type instead.
+        return false;
+    }
+    if (sent as usize) < inputs.len() {
+        tracing::warn!(sent, total = inputs.len(), "clipboard paste batch cut short");
+    }
+    true
+}
+
+/// Put the user's clipboard back now and stop snapshotting (app quit, hook
+/// uninstall). Bounded wait.
+pub fn shutdown() {
+    ENABLED.store(false, Ordering::SeqCst);
+    let Some(worker) = hwnd_of(&WORKER_HWND) else { return };
+    let (ack_tx, ack_rx) = channel();
+    *FLUSH_ACK.lock() = Some(ack_tx);
+    // SAFETY: posting to a window we created.
+    if unsafe { PostMessageW(worker, WM_APP_FLUSH, WPARAM(0), LPARAM(0)) }.is_ok() {
+        let _ = ack_rx.recv_timeout(Duration::from_millis(800));
+    }
+    FLUSH_ACK.lock().take();
+}
+
+// ---------------------------------------------------------------------------
+// Worker thread (message loop): snapshots and restore
+// ---------------------------------------------------------------------------
+
+fn ensure_worker() {
+    WORKER_ONCE.call_once(|| {
+        let spawned = thread::Builder::new().name("vkb-clipboard".to_string()).spawn(worker_main);
+        if let Err(err) = spawned {
+            tracing::error!(error = %err, "cannot start the clipboard worker");
+        }
+    });
+}
+
+fn worker_main() {
+    // SAFETY: standard class + message-only window owned by this thread.
+    let hwnd = unsafe {
+        let hinstance = GetModuleHandleW(None).map(Into::into).unwrap_or_default();
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(worker_proc),
+            hInstance: hinstance,
+            lpszClassName: w!("VietKbClipboardWorker"),
+            ..Default::default()
+        };
+        RegisterClassW(&class);
+        CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            w!("VietKbClipboardWorker"),
+            w!(""),
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
+            HWND_MESSAGE,
+            None,
+            hinstance,
+            None,
+        )
+    };
+    let Ok(hwnd) = hwnd else {
+        tracing::error!("clipboard worker window not created");
+        return;
+    };
+    WORKER_HWND.store(hwnd.0 as isize, Ordering::SeqCst);
+    apply_mode(hwnd);
+    let mut msg = MSG::default();
+    // SAFETY: standard message loop; GetMessageW returns 0 on WM_QUIT, -1 on error.
+    while unsafe { GetMessageW(&mut msg, None, 0, 0) }.0 > 0 {
+        unsafe {
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+}
+
+unsafe extern "system" fn worker_proc(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    match message {
+        WM_CLIPBOARDUPDATE => {
+            let _ = catch_unwind(|| on_update(hwnd));
+            LRESULT(0)
+        }
+        WM_APP_PASTED => {
+            // Restart the settle wait; the restore runs when it elapses.
+            unsafe { SetTimer(hwnd, TIMER_SETTLE, SETTLE_MS as u32, None) };
+            LRESULT(0)
+        }
+        WM_TIMER if wparam.0 == TIMER_SETTLE => {
+            let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
+            let _ = catch_unwind(|| restore_due(hwnd));
+            LRESULT(0)
+        }
+        WM_APP_MODE => {
+            let _ = catch_unwind(|| apply_mode(hwnd));
+            LRESULT(0)
+        }
+        WM_APP_FLUSH => {
+            let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
+            let _ = catch_unwind(|| {
+                restore_now();
+                clear_snapshot();
+                let _ = unsafe { RemoveClipboardFormatListener(hwnd) };
+            });
+            if let Some(ack) = FLUSH_ACK.lock().take() {
+                let _ = ack.send(());
+            }
+            LRESULT(0)
+        }
+        _ => unsafe { DefWindowProcW(hwnd, message, wparam, lparam) },
+    }
+}
+
+fn clear_snapshot() {
+    SHARED.lock().snapshot = None;
+}
+
+/// The mode flipped (or the worker just started): listen + first snapshot, or
+/// restore + forget everything.
+fn apply_mode(hwnd: HWND) {
+    if ENABLED.load(Ordering::SeqCst) {
+        // SAFETY: our own window.
+        let _ = unsafe { AddClipboardFormatListener(hwnd) };
+        refresh_snapshot(hwnd);
+    } else {
+        let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
+        let _ = unsafe { RemoveClipboardFormatListener(hwnd) };
+        restore_now();
+        clear_snapshot();
+    }
+}
+
+/// `WM_CLIPBOARDUPDATE`: the clipboard changed (our own writes included).
+fn on_update(hwnd: HWND) {
+    if !ENABLED.load(Ordering::SeqCst) {
+        clear_snapshot();
         return;
     }
-    let held = Held { shift: live_shift(), caps: job.held.caps };
-    let inputs = input::build_paste(job.deletes, job.mode, held);
-    let sent = input::send(&inputs);
-    // Input is in the queue of the target: later physical keys may proceed.
-    job.token = None;
-    if (sent as usize) < inputs.len() {
-        tracing::warn!(sent, total = inputs.len(), "clipboard paste batch blocked");
-    }
-}
-
-/// Under one open clipboard: keep or take the snapshot, then write our text.
-/// `false` = the clipboard was not changed for good; type directly.
-fn prepare(guard: &ClipboardGuard, text: &str, session: &mut Option<Session>) -> bool {
-    // Someone else wrote since our last write: that content is the user's now.
-    if let Some(current) = session.as_ref() {
-        let now = unsafe { GetClipboardSequenceNumber() };
-        if restore_action(current.expected_seq, now) == RestoreAction::Abandon {
-            tracing::debug!("clipboard changed by another program; old snapshot dropped");
-            *session = None;
-        }
-    }
-    if session.is_none() {
-        match capture(guard) {
-            Some(snapshot) => *session = Some(Session { snapshot, expected_seq: 0 }),
-            None => return false,
-        }
-    }
-    let Some(active) = session.as_mut() else { return false };
-    match write_temp_text(text) {
-        Some(seq) => {
-            active.expected_seq = seq;
-            true
-        }
-        None => {
-            // Possibly emptied half way: put the user's data back right now.
-            if let Some(done) = session.take() {
-                restore_locked(&done.snapshot);
+    let current = unsafe { GetClipboardSequenceNumber() };
+    {
+        let mut shared = SHARED.lock();
+        if let Some(session) = shared.session.as_ref() {
+            if session.expected_seq == current {
+                return; // our own temporary text
             }
-            false
+            // Someone else copied: their data, never restored over.
+            shared.session = None;
+            let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
         }
+        shared.snapshot = None; // stale until the new one is ready
+    }
+    refresh_snapshot(hwnd);
+}
+
+fn refresh_snapshot(hwnd: HWND) {
+    let snap = ClipboardGuard::open(Some(hwnd), 5, 20).and_then(|guard| {
+        let seq = unsafe { GetClipboardSequenceNumber() };
+        let data = capture(&guard)?;
+        Some(Snap { seq, data })
+    });
+    let mut shared = SHARED.lock();
+    if shared.session.is_none() && ENABLED.load(Ordering::SeqCst) {
+        shared.snapshot = snap;
     }
 }
 
-/// Restore after the settle wait; retried with backoff while the clipboard is busy.
-fn restore_session(done: &Session, ctx: &Ctx) {
+/// Settle timer: restore only when the last write is old enough; a paste that
+/// raced the timer re-arms it instead (the target may not have read yet).
+fn restore_due(hwnd: HWND) {
+    let wait = {
+        let shared = SHARED.lock();
+        let Some(session) = shared.session.as_ref() else { return };
+        settle_remaining_ms(session.last_write.elapsed().as_millis() as u64)
+    };
+    if wait > 0 {
+        unsafe { SetTimer(hwnd, TIMER_SETTLE, wait as u32, None) };
+    } else {
+        restore_now();
+    }
+}
+
+/// Flush / mode off / settled: put the user's data back.
+fn restore_now() {
+    let Some(done) = SHARED.lock().session.take() else { return };
+    restore_session(&done);
+}
+
+/// Retried with backoff while the clipboard is busy; only if still ours.
+fn restore_session(done: &Session) {
+    let owner = hwnd_of(&HOOK_OWNER);
     for attempt in 0..5u32 {
-        if let Some(guard) = ClipboardGuard::open(ctx.owner, 1, 0) {
+        if let Some(guard) = ClipboardGuard::open(owner, 1, 0) {
             // Checked while we hold the clipboard: nobody can write in between.
             let now = unsafe { GetClipboardSequenceNumber() };
             if restore_action(done.expected_seq, now) == RestoreAction::Abandon {
                 tracing::debug!("clipboard changed after our paste; not restoring");
                 return;
             }
-            if !restore_locked(&done.snapshot) {
+            if !restore_locked(&done.data) {
                 tracing::warn!("clipboard restore incomplete");
             }
             drop(guard);
@@ -313,6 +495,10 @@ fn restore_session(done: &Session, ctx: &Ctx) {
     }
     tracing::warn!("clipboard busy; previous contents could not be restored");
 }
+
+// ---------------------------------------------------------------------------
+// Win32 clipboard helpers
+// ---------------------------------------------------------------------------
 
 /// Clipboard must be open. Empties it and writes the snapshot back.
 fn restore_locked(snapshot: &[FormatData]) -> bool {
@@ -370,7 +556,7 @@ fn format_name(id: u32) -> Option<String> {
 }
 
 /// Every format id with its registered name. `None` when the enumeration
-/// failed or there are more than [`MAX_FORMATS`] (not safely restorable).
+/// failed or there are too many formats (not safely restorable).
 fn list_formats() -> Option<Vec<(u32, Option<String>)>> {
     let mut ids = Vec::new();
     let mut current = 0u32;
@@ -382,7 +568,7 @@ fn list_formats() -> Option<Vec<(u32, Option<String>)>> {
             // 0 is both "done" and "failed": only ERROR_SUCCESS means done.
             return (unsafe { GetLastError() } == WIN32_ERROR(0)).then_some(ids);
         }
-        if ids.len() >= MAX_FORMATS {
+        if !format_count_ok(ids.len() + 1) {
             return None;
         }
         ids.push((current, format_name(current)));
@@ -391,7 +577,7 @@ fn list_formats() -> Option<Vec<(u32, Option<String>)>> {
 
 /// Snapshot the open clipboard, or `None` when a faithful round trip is not
 /// possible (unknown/handle-only formats, unreadable data, too large, hung
-/// owner). `None` means: do not touch the clipboard.
+/// owner). `None` means: never paste over it.
 fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
     // A delayed-render owner that hangs would block `GetClipboardData`.
     if let Ok(owner) = unsafe { GetClipboardOwner() } {
@@ -403,7 +589,7 @@ fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
     let ids = list_formats()?;
     let verdict = snapshot_verdict(ids.iter().map(|(id, name)| (*id, name.as_deref())));
     if verdict == Verdict::Lossy {
-        tracing::debug!("clipboard holds formats that cannot be restored; typing instead");
+        tracing::debug!("clipboard holds formats that cannot be restored; no snapshot");
         return None;
     }
     // Pass 2: copy the HGLOBAL formats.
@@ -530,7 +716,10 @@ mod tests {
         let guard = ClipboardGuard::open(None, 10, 20).expect("open");
         let backup = capture(&guard).expect("capture");
         let seq = write_temp_text("khác").expect("write");
-        assert_eq!(restore_action(seq, unsafe { GetClipboardSequenceNumber() }), RestoreAction::Restore);
+        assert_eq!(
+            restore_action(seq, unsafe { GetClipboardSequenceNumber() }),
+            RestoreAction::Restore
+        );
         assert!(restore_locked(&backup));
         drop(guard);
         assert_eq!(read_text().as_deref(), Some("tạm thời"));
