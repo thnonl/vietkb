@@ -81,7 +81,8 @@ so the app never receives the trigger *as text*, which is the requirement's inte
    for hits and misses). Shift-needing ASCII stays VK + `Shift`: as packets it would be a run
    right after backspaces, which collapses (D-E2E-01). `send_standard` and plain typing keep
    one call. `SendResult.sent` counts across both calls, so the short-send recovery resumes
-   from the same index. Measure: `qa1` x20 after a VNI switch, `ba6t5/ta8t1`, `VIEETJ`
+   from the same index. The alternate `Injector` sink stays one call (it may run off the hook
+   thread, where a physical key could land between two calls). Measure: `qa1` x20 after a VNI switch, `ba6t5/ta8t1`, `VIEETJ`
    all-caps.
 6. `Noop` never reaches the injector: `plan::decide` returns pass-through and no array is
    built, so the pass-through path allocates nothing.

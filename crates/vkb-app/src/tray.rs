@@ -340,6 +340,7 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
 
 /// Create the tray icon with the current state. Called once during setup.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
+    let _ = MAIN_THREAD.set(std::thread::current().id());
     let status = commands::status_now();
     install_with(app, i18n::current(), &status)
 }
@@ -439,18 +440,37 @@ fn toggle_from_left_click() {
 
 /// Rebuild the menu and icon after any state change. Never panics: a tray that
 /// fails to refresh must not take the app down.
+///
+/// The whole refresh runs on the main thread, which serializes it (remove + add
+/// and the tooltip bookkeeping cannot interleave) without a lock: Tauri's tray
+/// calls block until the main thread has run them, so a mutex held across them
+/// would deadlock against a tray click handler that refreshes on the main
+/// thread. From another thread this only posts the work and returns.
 pub fn refresh(app: &AppHandle, status: &StatusView) {
+    if on_main_thread() {
+        run_refresh(app, status);
+    } else {
+        let (handle, status) = (app.clone(), status.clone());
+        if let Err(error) = app.run_on_main_thread(move || run_refresh(&handle, &status)) {
+            tracing::warn!(%error, "could not post the tray refresh");
+        }
+    }
+}
+
+fn run_refresh(app: &AppHandle, status: &StatusView) {
     if let Err(error) = try_refresh(app, status) {
         tracing::warn!(%error, "could not refresh tray menu");
     }
 }
 
-/// One refresh at a time: remove + add and the tooltip bookkeeping must not
-/// interleave with another thread's refresh.
-static REFRESH: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+/// The thread `install` ran on: Tauri's `setup` closure, the main thread.
+static MAIN_THREAD: std::sync::OnceLock<std::thread::ThreadId> = std::sync::OnceLock::new();
+
+fn on_main_thread() -> bool {
+    MAIN_THREAD.get() == Some(&std::thread::current().id())
+}
 
 fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
-    let _serial = REFRESH.lock();
     // Read once: the whole refresh works on this language.
     let lang = i18n::current();
     // Windows only: the macOS status item has no such stale string.

@@ -81,7 +81,10 @@ impl Injector {
             return;
         }
         let inputs = input::build_segment_held(deletes, text, self.mode, held);
-        input::send_split(&inputs, deletes, self.mode);
+        // Deliberately one `SendInput` call (no `input::send_split`): this sink
+        // may run off the hook thread, where a physical key could land between
+        // a delete call and a text call. The hook path (`state.rs`) splits.
+        input::send(&inputs);
     }
 }
 
