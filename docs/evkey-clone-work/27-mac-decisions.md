@@ -139,3 +139,7 @@ Owner, verbatim: "GUI trên Mac phải consistence với trên Windows."
   - "Gửi chữ qua Clipboard": stays hidden on Mac.
   - About text on Mac: keep the qualitative line until Mac numbers are measured (Lead).
   - All ALIGN rows of the audit are to be aligned with Windows.
+
+## M11 — Owner answers, 2026-10-31 (evening)
+- "Đặt lại tất cả" turns "Khởi động cùng Windows/macOS" back on (the default, as in 0.2.6). Owner: "có".
+- Mac typing QA may quit the owner's running VietKB for the run and must relaunch it afterwards. Owner: "cho phép".
