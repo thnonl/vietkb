@@ -274,7 +274,7 @@ func configValue(_ path: String, _ key: String) -> String? {
     }
     return nil
 }
-func writeConfig(home: String, bundleID: String, language: String, startMinimized: Bool, theme: String = "dark") {
+func writeConfig(home: String, bundleID: String, language: String, startMinimized: Bool, theme: String = "dark", checkUpdates: Bool = false) {
     let p = configPath(home: home, bundleID: bundleID)
     try? FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
     let body = """
@@ -286,7 +286,7 @@ func writeConfig(home: String, bundleID: String, language: String, startMinimize
     start_with_windows = false
     start_minimized = \(startMinimized)
     notification_sound = false
-    check_updates = false
+    check_updates = \(checkUpdates)
     language = "\(language)"
     theme = "\(theme)"
 
@@ -861,19 +861,70 @@ func phaseSingle(_ c: AppCtx) throws {
     row("APP-6z", "MAC-LCY-06,MAC-LCY-07", "singleton: the first instance is still the only one and still alive", kill(first, 0) == 0 && instancesByID(c).count == 1, "failures so far: \(failures)")
 }
 
+func phaseTheme(_ c: AppCtx) throws {
+    log("==== phase theme: M7 default System, explicit toggle, Reset all -> system ====")
+    let h = c.newHome("theme")
+    writeConfig(home: h, bundleID: c.bid, language: "vi", startMinimized: false, theme: "system")
+    c.pid = try launchApp(c.app, home: h, mode: .launchServices, tag: "theme"); c.lang = "vi"
+    _ = waitUntil(12) { !appContentWindows(c.pid).isEmpty }
+    enableWebAX(c.pid)
+    defer { endApp(c, "end of phase theme") }
+    let pid = c.pid
+    guard let w0 = waitWin(c, "main", secs: 10) else { row("APP-80", "MAC-THEME", "theme phase", false, "no main window"); return }
+    sleep(2)
+    func themeBtn() -> AXUIElement? {
+        guard let mw = findWin(c, "main") ?? findWin(c, "main", lang: c.lang == "en" ? "vi" : "en") else { return nil }
+        return buttons(c, mw.el).first { let l = axLabel($0); return l.contains("Giao diện") || l.hasPrefix("Appearance") }
+    }
+    func state() -> String { let l = themeBtn().map { axLabel($0) } ?? ""; if l.contains("Tối") || l.contains("Dark") { return "dark" }; if l.contains("Sáng") || l.contains("Light") { return "light" }; return "?" }
+    let osDark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+    let osState = osDark ? "dark" : "light"
+    let cfg = { configValue(c.cfg(h), "theme") ?? "nil" }
+    let s1 = state()
+    row("APP-80", "MAC-THEME-01,M7", "default theme = system: toggle shows the OS appearance (\(osState)); config theme stays system", s1 == osState && cfg() == "system", "toggle=\(s1) os=\(osState) config theme=\(cfg()) label=\(themeBtn().map { axLabel($0) } ?? "nil")", evidence: shot(w0.id, "theme-toggle-1-system-default"))
+    let want2 = s1 == "dark" ? "light" : "dark"
+    let pressed = themeBtn().map { axPress($0) } ?? false
+    _ = waitUntil(3) { cfg() == want2 }
+    usleep(800_000)
+    let w1 = findWin(c, "main") ?? w0
+    row("APP-81", "MAC-THEME-02,M7", "click toggle once: shows and stores the explicit opposite (\(want2)) in config.toml", pressed && state() == want2 && cfg() == want2, "pressed=\(pressed) toggle=\(state()) config theme=\(cfg())", evidence: shot(w1.id, "theme-toggle-2-explicit-\(want2)"))
+    // English with the toggle visible
+    var okEN = false
+    if let box = axFindAll(tree(pid, w1.el), role: "AXCheckBox", where: { norm(axLabel($0)) == norm(c.L("lang.en.name", "en")) }).first { okEN = axPress(box) }
+    c.lang = "en"
+    let wEN = waitWin(c, "main", secs: 4, lang: "en")
+    usleep(800_000)
+    let aria = themeBtn().map { axLabel($0) } ?? "nil"
+    row("APP-82", "MAC-THEME-03,MAC-LNG-02", "EN: toggle label in English and still next to VI | EN", okEN && wEN != nil && aria.hasPrefix("Appearance"), "pressedEN=\(okEN) label=\(aria) state=\(state())", evidence: wEN.map { shot($0.id, "theme-toggle-3-en-\(want2)") } ?? "")
+    // back to VI, Reset all -> system
+    if let box = axFindAll(tree(pid, (findWin(c, "main", lang: "en") ?? w1).el), role: "AXCheckBox", where: { norm(axLabel($0)) == norm(c.L("lang.vi.name", "vi")) }).first { _ = axPress(box) }
+    c.lang = "vi"; _ = waitWin(c, "main", secs: 4, lang: "vi"); usleep(500_000)
+    var reset = false
+    if let mw = findWin(c, "main"), let b = button(c, mw.el, label: c.L("quick.advanced")) {
+        _ = axPress(b)
+        if let adv = waitWin(c, "advanced", secs: 4), let rb = buttons(c, adv.el).first(where: { norm(axLabel($0)).hasPrefix(norm(c.L("adv.resetAll").replacingOccurrences(of: "…", with: ""))) }) { reset = axPress(rb) }
+    }
+    _ = waitUntil(4) { cfg() == "system" }
+    usleep(800_000)
+    row("APP-83", "MAC-THEME-04,M7", "Reset all returns theme to system (config + toggle shows the OS appearance again)", reset && cfg() == "system" && state() == osState, "reset=\(reset) config theme=\(cfg()) toggle=\(state()) os=\(osState)", evidence: findWin(c, "main").map { shot($0.id, "theme-toggle-4-after-reset") } ?? "")
+    for w in contentAX(pid) { _ = closeWindow(w.el) }
+}
+
 func phaseUpdate(_ c: AppCtx) throws {
     log("==== phase update: update badge (tolerant until the app exposes one) ====")
     let h = c.newHome("update")
-    writeConfig(home: h, bundleID: c.bid, language: "en", startMinimized: false)
-    // check_updates stays false in the written config; the fake feed is switched on by env, which is what update.rs reads
+    writeConfig(home: h, bundleID: c.bid, language: "en", startMinimized: false, checkUpdates: true)
+    // check_updates = true makes the startup check run; the fake feed (env, update.rs) answers it locally, no network
     c.pid = try launchApp(c.app, home: h, mode: .launchServices, extraEnv: ["VKB_UPDATE_FAKE": "1"], tag: "update"); c.lang = "en"
     defer { endApp(c, "end of phase update") }
     guard let w = waitWin(c, "main", secs: 10, lang: "en") else { row("APP-70", "MAC-UPD-01", "update badge", nil, "no window"); return }
-    sleep(4)
-    let texts = windowTexts(c, w.el)
+    let upRe = #"[Uu]pdate (v\d|available)|cập nhật"#
+    // the startup check fires 5 s after launch (update.rs STARTUP_DELAY): poll up to 20 s
+    _ = waitUntil(20) { windowTexts(c, (findWin(c, "main", lang: "en") ?? w).el).contains { $0.range(of: upRe, options: .regularExpression) != nil } }
+    let texts = windowTexts(c, (findWin(c, "main", lang: "en") ?? w).el)
     let hit = texts.filter { $0.range(of: #"[Uu]pdate (v\d|available)|cập nhật"#, options: .regularExpression) != nil }
     row("APP-70", "MAC-UPD-01", "update badge in the settings window (fake update feed)", hit.isEmpty ? nil : true,
-        hit.isEmpty ? "SKIP: the app exposes no update indicator in the settings window yet (labels read: \(texts.count)); the menu-bar icon badge is a template image and is not AX-readable" : "labels: \(hit)")
+        hit.isEmpty ? "SKIP: the app exposes no update indicator in the settings window yet (labels read: \(texts.count)); the menu-bar icon badge is a template image and is not AX-readable" : "labels: \(hit)", evidence: hit.isEmpty ? "" : shot(w.id, "theme-toggle-5-update-button"))
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -1026,6 +1077,7 @@ func runAppSuite(app: String, phases: Set<String>, withTextEdit: Bool) -> Int32 
     run("badlang") { try phaseBadLang(c) }
     run("hidden") { try phaseHidden(c) }
     run("quit") { try phaseQuit(c) }
+    run("theme") { try phaseTheme(c) }
     run("single") { try phaseSingle(c) }
     run("update") { try phaseUpdate(c) }
     run("tap") { try phaseTap(c) }

@@ -32,7 +32,8 @@ Tắt các bộ gõ tiếng Việt khác (EVKey, OpenKey, bộ gõ Telex của m
 Trên Mac:
 
 - Phím tắt mặc định: `⌃⇧` bật/tắt tiếng Việt, `⌃⇧Z` khôi phục từ gõ sai, `⌃⌥S` mở cài đặt. F1, F2, F8, F9, F11 không còn là mặc định vì là phím độ sáng, âm lượng và Hiện màn hình nền.
-- Biểu tượng `V`/`E` trên thanh menu; khi cửa sổ cài đặt đang mở thì có thêm biểu tượng trên Dock.
+- Biểu tượng `V`/`E` trên thanh menu dùng như khay trên Windows: bấm để bật/tắt tiếng Việt, bấm chuột phải (hoặc Control + bấm) để mở menu. Khi cửa sổ cài đặt đang mở thì có thêm biểu tượng trên Dock.
+- Cửa sổ giống bản Windows: nút `VI | EN` và nút Sáng/Tối nằm trên thanh tiêu đề.
 - Ô mật khẩu và ô nhập an toàn giữ nguyên phím. Nếu một ứng dụng khác bật nhập an toàn, VietKB báo trong cửa sổ cài đặt.
-- Cập nhật: VietKB báo khi có bản mới và mở trang tải về; chưa tự cập nhật.
+- Cập nhật: có bản mới thì biểu tượng trên thanh menu và thanh tiêu đề hiện dấu báo như Windows; bấm vào để mở trang tải về. Chưa tự cập nhật.
 - Chỉ có bảng mã Unicode.
