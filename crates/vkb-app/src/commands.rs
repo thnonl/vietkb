@@ -970,9 +970,18 @@ fn validate_macro(trigger: &str, expansion: &str) -> Result<(String, String), St
     Ok((trigger.to_string(), expansion.to_string()))
 }
 
+/// 20-spec A6: a Telex word holds letters only, so a digit ends it and a
+/// trigger containing one can never match there (VNI digits are word keys).
+fn digit_trigger_blocked(method: InputMethod, trigger: &str) -> bool {
+    method == InputMethod::Telex && trigger.chars().any(|ch| ch.is_ascii_digit())
+}
+
 #[tauri::command]
 pub fn upsert_macro(trigger: String, expansion: String) -> Result<(), String> {
     let (trigger, expansion) = validate_macro(&trigger, &expansion)?;
+    if digit_trigger_blocked(config_cell().read().input.method, &trigger) {
+        return Err(crate::i18n::t("err.macro.digitsTelex"));
+    }
     update_config(|draft| {
         draft.macros.insert(trigger, expansion);
         Ok(())
@@ -1544,5 +1553,12 @@ mod tests {
         assert_ne!(added, base, "F11 adds a rule");
         cfg.apps.rules[0].enabled = Some(true);
         assert_ne!(rules_fingerprint(&cfg), added, "flipping a rule moves it");
+    }
+
+    #[test]
+    fn digit_triggers_are_blocked_only_for_telex() {
+        assert!(digit_trigger_blocked(InputMethod::Telex, "qa1"));
+        assert!(!digit_trigger_blocked(InputMethod::Telex, "qa"));
+        assert!(!digit_trigger_blocked(InputMethod::Vni, "qa1"));
     }
 }

@@ -22,6 +22,7 @@ pub const TABLE: &[(&str, &str, &str)] = &[
     ("err.macro.spaces", "Từ tắt viết liền, không có dấu cách", "An abbreviation is one word, no spaces"),
     ("err.macro.triggerLong", "Từ tắt dài tối đa 32 ký tự, đang có {n}", "Abbreviations can be up to 32 characters (this one has {n})"),
     ("err.macro.noText", "Phần thay thế không được để trống — muốn bỏ thì xoá cả mục.", "The expansion can't be empty. To remove it, delete the entry."),
+    ("err.macro.digitsTelex", "Kiểu gõ Telex không mở rộng được từ tắt có chữ số. Bỏ chữ số, hoặc đổi sang VNI.", "Telex can't expand an abbreviation with digits. Remove the digit, or switch to VNI."),
     ("err.macro.textLong", "Nội dung dài tối đa 500 ký tự, đang có {n}", "Expansions can be up to 500 characters (this one has {n})"),
     ("err.import.tooBig", "Không đọc được tệp {file}: tệp lớn hơn 2 MB.", "Couldn't read {file}: it's larger than 2 MB."),
     ("err.import.notUtf8", "Không đọc được tệp {file}: tệp không phải UTF-8.", "Couldn't read {file}: it isn't UTF-8."),

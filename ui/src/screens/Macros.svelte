@@ -117,6 +117,10 @@
     if (/\s/.test(trigger)) return void (formError = t("macros.err.spaces"));
     if (Array.from(trigger).length > 32)
       return void (formError = t("macros.err.triggerLong", { n: Array.from(trigger).length }));
+    // 20-spec A6: a Telex word holds letters only, so a trigger with a digit
+    // could never match there. VNI digits are word keys and work.
+    if (app.method === "telex" && /[0-9]/.test(trigger))
+      return void (formError = t("macros.err.digitsTelex"));
     if (!expansion)
       return void (formError = t("macros.err.noText"));
     if (Array.from(expansion).length > 500)

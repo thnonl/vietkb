@@ -24,6 +24,14 @@ fn digit_trigger_expands_for_vni() {
 }
 
 #[test]
+fn digit_trigger_cannot_match_in_telex() {
+    // 20-spec A6: Telex digits are not word keys, so a digit ends the word and
+    // `qa1` is never one buffer (only VNI digits extend the word). The app
+    // refuses to save such a trigger while the method is Telex (Win QA 0.2.7).
+    assert_eq!(run(InputMethod::Telex, "qa1", "Quang Anh", KeyInput::char(' '), true, true), "qa1 ");
+}
+
+#[test]
 fn disabled_macros_do_not_expand() {
     for method in [InputMethod::Telex, InputMethod::Vni] {
         assert_eq!(run(method, "vn", "Việt Nam", KeyInput::char(' '), false, true), "vn ");
