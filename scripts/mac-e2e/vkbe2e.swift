@@ -515,7 +515,7 @@ func runCase(_ t: Target, _ c: Case, method: String, shotAlways: Bool = false) t
         pass = pass && good == c.reps
     }
     var ev = ""
-    if !pass || shotAlways { ev = shot(t.winID, "\(t.name)-\(method)-\(c.id)") }
+    if (!pass || shotAlways) && t.name != "notes" { ev = shot(t.winID, "\(t.name)-\(method)-\(c.id)") }
     var d: [String: Any] = ["target": t.name, "method": method, "id": c.id, "keys": script, "expected": expectAll, "actual": actual,
                             "verdict": pass ? "PASS" : "FAIL", "speed": c.speed.rawValue, "seconds": (dur * 10).rounded() / 10,
                             "note": c.note, "evidence": ev, "nfcEqualOnly": (pass && actual != expectAll)]
