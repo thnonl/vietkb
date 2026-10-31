@@ -216,12 +216,17 @@ fn worker(events: Receiver<Event>) {
 fn apply_enabled(enabled: bool) {
     // A field patch under the config lock (S-17). The "already that value?"
     // test is inside `update_config`: an unchanged config is not written, and
-    // the follow-up still refreshes the tray (a repeated press may find it stale).
+    // a no-op write does not broadcast, so the tray is redrawn explicitly.
+    let unchanged = commands::config_cell().read().input.enabled == enabled;
     if let Err(error) = commands::update_config(|cfg| {
         cfg.input.enabled = enabled;
         Ok(())
     }) {
         tracing::warn!(%error, enabled, "could not persist the enabled state");
+    }
+    if unchanged {
+        // `update_config` skipped its broadcast: redraw the tray ourselves.
+        commands::refresh_tray();
     }
     tracing::info!(
         enabled,

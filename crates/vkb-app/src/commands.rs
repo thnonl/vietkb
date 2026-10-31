@@ -300,6 +300,14 @@ fn secure_input_blocking_now() -> bool {
     }
 }
 
+/// Redraw the tray from the live config without a config write (a repeated
+/// hotkey press may find the icon stale while the config already agrees).
+pub fn refresh_tray() {
+    if let Some(app) = app_handle() {
+        crate::tray::refresh(app, &status_now());
+    }
+}
+
 pub fn status_now() -> StatusView {
     status_view(&config_cell().read())
 }
