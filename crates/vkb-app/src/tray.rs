@@ -171,11 +171,7 @@ fn badged(base: &'static [u8], px: u32) -> tauri::Result<tauri::image::Image<'st
 }
 
 fn tooltip(lang: Lang, status: &StatusView) -> String {
-    let base = if status.enabled {
-        i18n::tf_in(lang, "tray.tip.on", &[("method", method_label(&status.method))])
-    } else {
-        i18n::tr(lang, "tray.tip.off").to_string()
-    };
+    let base = base_tooltip(lang, status.enabled);
     match update::available_version() {
         Some(version) => i18n::tf_in(
             lang,
@@ -186,12 +182,9 @@ fn tooltip(lang: Lang, status: &StatusView) -> String {
     }
 }
 
-fn method_label(slug: &str) -> &str {
-    METHODS
-        .iter()
-        .find(|(value, _)| *value == slug)
-        .map(|(_, label)| *label)
-        .unwrap_or("Telex")
+/// The approved tooltip text (27-copy-decisions D), without the update note.
+fn base_tooltip(lang: Lang, enabled: bool) -> String {
+    i18n::tr(lang, if enabled { "tray.tip.on" } else { "tray.tip.off" }).to_string()
 }
 
 /// Exact label of the tray's update item, so the string is testable.
@@ -388,6 +381,15 @@ mod tests {
     fn update_item_label_names_the_version() {
         assert_eq!(update_menu_label(Lang::Vi, "0.9.9"), "Có bản cập nhật v0.9.9");
         assert_eq!(update_menu_label(Lang::En, "0.9.9"), "Update v0.9.9 available");
+    }
+
+    /// S-19: the tooltip is the approved copy in both languages.
+    #[test]
+    fn tooltip_is_the_approved_copy() {
+        assert_eq!(base_tooltip(Lang::Vi, true), "VietKB — đang gõ tiếng Việt");
+        assert_eq!(base_tooltip(Lang::Vi, false), "VietKB — đã tắt tiếng Việt");
+        assert_eq!(base_tooltip(Lang::En, true), "VietKB — Vietnamese on");
+        assert_eq!(base_tooltip(Lang::En, false), "VietKB — Vietnamese off");
     }
 
     /// Every window the app opens must be in the capability file, or its close

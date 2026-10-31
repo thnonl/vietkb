@@ -20,6 +20,17 @@ pub static STOP: AtomicBool = AtomicBool::new(false);
 /// Bumped whenever the UI publishes a new config; the tap thread compares it
 /// with the version it last applied (one relaxed load per event).
 pub static CONFIG_VERSION: AtomicU64 = AtomicU64::new(0);
+/// The hotkey capture field has the focus: the tap suspends hotkeys (S-07).
+pub static HOTKEY_CAPTURE: AtomicBool = AtomicBool::new(false);
+
+/// Called from the UI thread when the capture field gains or loses focus.
+pub fn set_hotkey_capture(active: bool) {
+    HOTKEY_CAPTURE.store(active, Ordering::SeqCst);
+}
+
+pub fn hotkey_capture() -> bool {
+    HOTKEY_CAPTURE.load(Ordering::Relaxed)
+}
 
 type EnabledSlot = Mutex<Option<Arc<dyn Fn(bool) + Send + Sync>>>;
 type CommandSlot = Mutex<Option<Arc<dyn Fn(BackendCommand) + Send + Sync>>>;

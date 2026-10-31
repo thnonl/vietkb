@@ -18,3 +18,14 @@ pub fn activate(app: &tauri::AppHandle) {
         tracing::warn!(%error, "could not activate the app");
     }
 }
+
+/// Apply `system.theme` to the whole app: the native title bar, menus and the
+/// WebView's `prefers-color-scheme` follow it. `System` hands control back to
+/// System Settings > Appearance (27-mac-decisions M6).
+pub fn apply_theme(app: &tauri::AppHandle, theme: &vkb_config::Theme) {
+    app.set_theme(match theme {
+        vkb_config::Theme::System => None,
+        vkb_config::Theme::Light => Some(tauri::Theme::Light),
+        vkb_config::Theme::Dark => Some(tauri::Theme::Dark),
+    });
+}

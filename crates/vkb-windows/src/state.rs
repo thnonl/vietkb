@@ -353,6 +353,21 @@ impl HookRuntime {
             self.set_trigger_swallowed(vk, false);
         }
 
+        // Capturing a new shortcut (spec C.6 step 2): nothing is matched,
+        // converted or swallowed, so the chord reaches the page being recorded
+        // into. The key-up of a trigger swallowed before capture began is still
+        // swallowed.
+        if globals::hotkey_capture() {
+            self.hotkeys.discard_latches();
+            if !down && !is_modifier && self.take_trigger_swallowed(vk) {
+                trace.stage("capture-trigger-up");
+                return Decision::SWALLOW;
+            }
+            trace.stage("capture");
+            self.reset_engine();
+            return Decision::PASS;
+        }
+
         // 1. Hotkeys before anything else: the trigger must never reach the app.
         if let Some(hotkey) = self.hotkeys.on_key(vk, down, modifiers, is_modifier) {
             trace.stage("hotkey");

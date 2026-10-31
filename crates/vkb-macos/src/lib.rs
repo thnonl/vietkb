@@ -41,7 +41,7 @@ pub(crate) fn wants_running_app(policy: isize, bundle: &str, name: &str, is_self
 /// True when the current OS can host a real backend.
 pub const IMPLEMENTED: bool = cfg!(target_os = "macos");
 
-pub use globals::secure_input_blocking;
+pub use globals::{secure_input_blocking, set_hotkey_capture};
 pub use state::{is_injected, MARKER};
 
 #[cfg(target_os = "macos")]

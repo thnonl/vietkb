@@ -68,9 +68,10 @@ impl AppConfig {
                 rule.method = Some(InputMethod::Telex);
             }
         }
-        // The "follow Windows" theme is gone; an old file resolves to Dark once,
-        // and the next save writes the concrete value.
-        if self.system.theme == crate::schema::Theme::System {
+        // Windows has no "follow the system" theme: an old file resolves to Dark
+        // once, and the next save writes the concrete value. macOS keeps it
+        // (27-mac-decisions M6).
+        if !cfg!(target_os = "macos") && self.system.theme == crate::schema::Theme::System {
             self.system.theme = crate::schema::Theme::Dark;
         }
         self
@@ -134,7 +135,11 @@ mod tests {
         assert_eq!(cfg.typing.modern_tone, back.typing.modern_tone);
         assert_eq!(cfg.hotkeys.enable, back.hotkeys.enable);
         assert_eq!(back.version, SCHEMA_VERSION);
-        assert!(text.contains("theme = \"dark\""), "default theme must serialize as dark:\n{text}");
+        let want = if cfg!(target_os = "macos") { "system" } else { "dark" };
+        assert!(
+            text.contains(&format!("theme = \"{want}\"")),
+            "default theme must serialize as {want}:\n{text}"
+        );
         assert_eq!(cfg, back, "default config must round-trip");
     }
 
@@ -287,7 +292,7 @@ dc = "được"
     }
 
     #[test]
-    fn legacy_system_theme_migrates_to_dark() {
+    fn system_theme_is_kept_on_macos_and_migrates_to_dark_elsewhere() {
         let src = r#"version = 1
 [system]
 theme = "system"
@@ -295,11 +300,15 @@ start_with_windows = false
 language = "en"
 "#;
         let cfg = AppConfig::from_toml(src).unwrap();
-        assert_eq!(cfg.system.theme, crate::schema::Theme::Dark);
+        let kept = cfg!(target_os = "macos");
+        assert_eq!(
+            cfg.system.theme,
+            if kept { crate::schema::Theme::System } else { crate::schema::Theme::Dark }
+        );
         assert!(!cfg.system.start_with_windows);
         assert_eq!(cfg.system.language, crate::schema::Language::En);
         let saved = cfg.to_toml().unwrap();
-        assert!(!saved.contains("theme = \"system\""));
+        assert_eq!(saved.contains("theme = \"system\""), kept);
     }
 
     #[test]

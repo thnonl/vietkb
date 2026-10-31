@@ -44,6 +44,18 @@ pub fn take_mouse_down() -> bool {
     MOUSE_DOWN.load(Ordering::Relaxed) && MOUSE_DOWN.swap(false, Ordering::Relaxed)
 }
 
+/// The hotkey capture field has the focus: the hook suspends hotkeys.
+pub static HOTKEY_CAPTURE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_hotkey_capture(active: bool) {
+    HOTKEY_CAPTURE.store(active, Ordering::SeqCst);
+}
+
+#[inline]
+pub fn hotkey_capture() -> bool {
+    HOTKEY_CAPTURE.load(Ordering::Relaxed)
+}
+
 /// Thread id of the hook thread, for `PostThreadMessageW`. 0 = not running.
 pub static THREAD_ID: AtomicU32 = AtomicU32::new(0);
 

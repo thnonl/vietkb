@@ -432,6 +432,9 @@ impl Host for MacHost {
     fn secure_input(&mut self) -> bool {
         secure_input_enabled()
     }
+    fn hotkey_capture(&mut self) -> bool {
+        globals::hotkey_capture()
+    }
     fn replace(&mut self, deletes: u32, text: &str) {
         send_replace(deletes, text);
     }

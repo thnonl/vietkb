@@ -99,6 +99,11 @@ pub trait Host: Send {
     }
     /// `IsSecureEventInputEnabled()`.
     fn secure_input(&mut self) -> bool;
+    /// The hotkey capture field is focused: hotkeys are suspended and every key
+    /// reaches the app untouched (spec C.6 step 2).
+    fn hotkey_capture(&mut self) -> bool {
+        false
+    }
     /// Delete `deletes` characters backwards, then type `text`, in one batch.
     fn replace(&mut self, deletes: u32, text: &str);
     /// Re-post a physical key as a tagged press (down + up) with empty flags.
@@ -331,6 +336,18 @@ impl Runtime {
                 return Decision::SWALLOW;
             }
             self.set_trigger_swallowed(vk, false);
+        }
+
+        // Capturing a new shortcut (S-07): nothing is matched, converted or
+        // swallowed, so the chord reaches the page being recorded into. The
+        // key-up of a trigger swallowed before capture began is still swallowed.
+        if self.host.hotkey_capture() {
+            self.hotkeys.discard_latches();
+            if !down && !is_modifier && self.take_trigger_swallowed(vk) {
+                return Decision::SWALLOW;
+            }
+            self.reset_engine();
+            return Decision::PASS;
         }
 
         // 1. Hotkeys first: the trigger must never reach the app.
@@ -851,9 +868,13 @@ mod tests {
         pid: i32,
         bundle: String,
         secure: Arc<Mutex<bool>>,
+        capture: Arc<Mutex<bool>>,
     }
 
     impl Host for MockHost {
+        fn hotkey_capture(&mut self) -> bool {
+            *self.capture.lock()
+        }
         fn frontmost_pid(&mut self) -> i32 {
             self.pid
         }
@@ -881,22 +902,26 @@ mod tests {
         rt: Runtime,
         log: Arc<Mutex<Log>>,
         secure: Arc<Mutex<bool>>,
+        capture: Arc<Mutex<bool>>,
     }
 
     fn rig(cfg: Option<AppConfig>) -> Rig {
         let log = Arc::new(Mutex::new(Log::default()));
         let secure = Arc::new(Mutex::new(false));
+        let capture = Arc::new(Mutex::new(false));
         globals::store_enabled(true);
         let host = MockHost {
             log: log.clone(),
             pid: 4242,
             bundle: "com.apple.textedit".to_string(),
             secure: secure.clone(),
+            capture: capture.clone(),
         };
         Rig {
             rt: Runtime::new(Box::new(host), cfg.map(Arc::new), None),
             log,
             secure,
+            capture,
         }
     }
 
@@ -1124,6 +1149,33 @@ mod tests {
         repeat.autorepeat = true;
         rig.rt.on_event(&down);
         assert_eq!(rig.rt.on_event(&repeat), Decision::SWALLOW);
+    }
+
+    #[test]
+    fn hotkeys_are_suspended_while_a_shortcut_is_being_captured() {
+        let _guard = globals::TEST_LOCK.lock();
+        let commands = Arc::new(Mutex::new(Vec::new()));
+        let sink = commands.clone();
+        globals::set_command_callback(move |cmd| sink.lock().push(cmd));
+        let mut rig = rig(Some(quiet_config()));
+        *rig.capture.lock() = true;
+        let fl = flags::CONTROL | flags::ALTERNATE | flags::DEV_LCTRL | flags::DEV_LALT;
+        let s = mac_code('s');
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_CONTROL, flags::CONTROL | flags::DEV_LCTRL, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_OPTION, fl, None));
+        // The bound chord reaches the page and runs nothing.
+        let down = RawEvent::key(EventKind::KeyDown, s, fl, Some('s'));
+        assert_eq!(rig.rt.on_event(&down), Decision::PASS);
+        let up = RawEvent::key(EventKind::KeyUp, s, fl, Some('s'));
+        assert_eq!(rig.rt.on_event(&up), Decision::PASS);
+        assert!(commands.lock().is_empty());
+        // Plain typing is not converted either.
+        press(&mut rig.rt, 'a');
+        assert_eq!(press(&mut rig.rt, 's'), Decision::PASS);
+        assert!(rig.log.lock().replaced.is_empty());
+        // Capture over: the chord works again.
+        *rig.capture.lock() = false;
+        assert_eq!(rig.rt.on_event(&down), Decision::SWALLOW);
     }
 
     #[test]

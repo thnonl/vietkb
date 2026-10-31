@@ -5,7 +5,7 @@
 //! Commands are synchronous on purpose: the config is a small TOML file and a
 //! 150 ms debounce on the UI side already coalesces typing bursts.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,11 @@ static CONFIG_WRITE: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
 
 static AUTOSTART_SYNCED: AtomicBool = AtomicBool::new(false);
 static AUTOSTART_STATE: AtomicBool = AtomicBool::new(false);
+/// Language / theme (as enum discriminants) last applied to the windows; `u8::MAX`
+/// until the first change is processed.
+static APPLIED_LANGUAGE: AtomicU8 = AtomicU8::new(u8::MAX);
+#[cfg(target_os = "macos")]
+static APPLIED_THEME: AtomicU8 = AtomicU8::new(u8::MAX);
 
 fn shared() -> &'static vkb_platform::SharedConfig {
     CONFIG.get_or_init(|| Arc::new(parking_lot::RwLock::new(vkb_config::load())))
@@ -299,11 +304,22 @@ pub fn status_now() -> StatusView {
 /// Persist, refresh the tray, broadcast to open windows and keep autostart in
 /// sync with the config.
 fn after_change() {
-    let (status, autostart) = {
+    let (status, autostart, language, theme) = {
         let cfg = config_cell().read();
-        (status_view(&cfg), cfg.system.start_with_windows)
+        (
+            status_view(&cfg),
+            cfg.system.start_with_windows,
+            cfg.system.language as u8,
+            cfg.system.theme as u8,
+        )
     };
     sync_autostart(autostart);
+    // Window titles and the native appearance only matter when they changed.
+    let language_changed = APPLIED_LANGUAGE.swap(language, Ordering::Relaxed) != language;
+    #[cfg(target_os = "macos")]
+    let theme_changed = APPLIED_THEME.swap(theme, Ordering::Relaxed) != theme;
+    #[cfg(not(target_os = "macos"))]
+    let _ = theme;
 
     // Hand the new config to the hook: one `Arc` swap plus a wake-up, never a
     // reinstall, and the enabled flag rides along inside the config.
@@ -314,7 +330,14 @@ fn after_change() {
 
     if let Some(app) = app_handle() {
         // The tray menu and native window titles follow `system.language`.
-        crate::i18n::retitle_windows(app);
+        if language_changed {
+            crate::i18n::retitle_windows(app);
+        }
+        // macOS: the native title bar and menus follow the chosen appearance.
+        #[cfg(target_os = "macos")]
+        if theme_changed {
+            crate::macos_shell::apply_theme(app, &config_cell().read().system.theme);
+        }
         crate::tray::refresh(app, &status);
         if let Err(error) = app.emit("vkb:status", status) {
             tracing::warn!(%error, "could not broadcast status");
@@ -474,19 +497,19 @@ fn object<'a>(
 ) -> Result<&'a serde_json::Map<String, serde_json::Value>, String> {
     value
         .as_object()
-        .ok_or_else(|| format!("{section} phải là một object JSON"))
+        .ok_or_else(|| crate::i18n::tf("err.patch.notObject", &[("section", section)]))
 }
 
 fn as_bool(value: &serde_json::Value, field: &str) -> Result<bool, String> {
     value
         .as_bool()
-        .ok_or_else(|| format!("{field} phải là true hoặc false"))
+        .ok_or_else(|| crate::i18n::tf("err.patch.notBool", &[("field", field)]))
 }
 
 fn as_str<'a>(value: &'a serde_json::Value, field: &str) -> Result<&'a str, String> {
     value
         .as_str()
-        .ok_or_else(|| format!("{field} phải là chuỗi"))
+        .ok_or_else(|| crate::i18n::tf("err.patch.notString", &[("field", field)]))
 }
 
 fn patch_input(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), String> {
@@ -495,20 +518,20 @@ fn patch_input(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), Str
             "enabled" => cfg.input.enabled = as_bool(item, "input.enabled")?,
             "method" => {
                 cfg.input.method = InputMethod::from_str(as_str(item, "input.method")?)
-                    .ok_or("kiểu gõ không hợp lệ")?
+                    .ok_or_else(|| crate::i18n::t("err.method.invalid"))?
             }
             "charset" => {
                 cfg.input.charset = Charset::from_str(as_str(item, "input.charset")?)
-                    .ok_or("bảng mã không hợp lệ")?
+                    .ok_or_else(|| crate::i18n::t("err.patch.charset"))?
             }
             "mechanism" => {
                 cfg.input.mechanism = match as_str(item, "input.mechanism")? {
                     "hook" => vkb_config::Mechanism::Hook,
                     "ime" => vkb_config::Mechanism::Ime,
-                    other => return Err(format!("cơ chế không hợp lệ: {other}")),
+                    other => return Err(crate::i18n::tf("err.patch.mechanism", &[("value", other)])),
                 }
             }
-            other => return Err(format!("input.{other} không hợp lệ")),
+            other => return Err(crate::i18n::tf("err.patch.unknownField", &[("field", &format!("input.{other}"))])),
         }
     }
     Ok(())
@@ -531,7 +554,7 @@ fn patch_typing(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), St
             "autoHornUo" => cfg.typing.auto_horn_uo = flag,
             "rawZone" => cfg.typing.raw_zone = flag,
             "macroCaseFollow" => cfg.typing.macro_case_follow = flag,
-            other => return Err(format!("typing.{other} không hợp lệ")),
+            other => return Err(crate::i18n::tf("err.patch.unknownField", &[("field", &format!("typing.{other}"))])),
         }
     }
     Ok(())
@@ -547,7 +570,28 @@ fn patch_hotkey(value: &serde_json::Value, field: &str) -> Result<Option<Hotkey>
     }
     Hotkey::parse(raw)
         .map(Some)
-        .map_err(|error| format!("{field}: {error}"))
+        .map_err(|error| format!("{field}: {}", hotkey_error_text(&error)))
+}
+
+/// Localized text of a hotkey parse failure (the error type's own message is
+/// Vietnamese only). macOS names the modifiers as the keyboard prints them.
+fn hotkey_error_text(error: &vkb_config::HotkeyError) -> String {
+    use vkb_config::HotkeyError;
+    match error {
+        HotkeyError::Empty => crate::i18n::t("err.hotkey.empty"),
+        HotkeyError::ModifierOnly(key) => {
+            crate::i18n::tf("err.hotkey.modifierOnly", &[("key", key)])
+        }
+        HotkeyError::UnknownKey(key) => crate::i18n::tf("err.hotkey.unknownKey", &[("key", key)]),
+        HotkeyError::NoModifier(key) => crate::i18n::tf(
+            if cfg!(target_os = "macos") {
+                "err.hotkey.noModifier.mac"
+            } else {
+                "err.hotkey.noModifier"
+            },
+            &[("key", key)],
+        ),
+    }
 }
 
 fn patch_hotkeys(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), String> {
@@ -570,10 +614,10 @@ fn patch_hotkeys(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), S
                 cfg.hotkeys.toggle_mode = match as_str(item, "hotkeys.toggleMode")? {
                     "release" => vkb_config::ToggleMode::Release,
                     "press" => vkb_config::ToggleMode::Press,
-                    other => return Err(format!("kiểu chuyển không hợp lệ: {other}")),
+                    other => return Err(crate::i18n::tf("err.patch.toggleMode", &[("value", other)])),
                 }
             }
-            other => return Err(format!("hotkeys.{other} không hợp lệ")),
+            other => return Err(crate::i18n::tf("err.patch.unknownField", &[("field", &format!("hotkeys.{other}"))])),
         }
     }
     Ok(())
@@ -591,7 +635,7 @@ fn patch_system(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), St
                 cfg.system.language = match as_str(item, "system.language")? {
                     "vi" => vkb_config::Language::Vi,
                     "en" => vkb_config::Language::En,
-                    other => return Err(format!("ngôn ngữ không hợp lệ: {other}")),
+                    other => return Err(crate::i18n::tf("err.patch.language", &[("value", other)])),
                 }
             }
             "theme" => {
@@ -599,11 +643,11 @@ fn patch_system(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), St
                     "system" => vkb_config::Theme::System,
                     "light" => vkb_config::Theme::Light,
                     "dark" => vkb_config::Theme::Dark,
-                    other => return Err(format!("giao diện không hợp lệ: {other}")),
+                    other => return Err(crate::i18n::tf("err.patch.theme", &[("value", other)])),
                 }
             }
             "checkUpdates" => cfg.system.check_updates = as_bool(item, "system.checkUpdates")?,
-            other => return Err(format!("system.{other} không hợp lệ")),
+            other => return Err(crate::i18n::tf("err.patch.unknownField", &[("field", &format!("system.{other}"))])),
         }
     }
     Ok(())
@@ -630,18 +674,18 @@ fn patch_ui(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), String
                 } else if TABS.contains(&tab) {
                     cfg.ui.last_tab = tab.to_string();
                 } else {
-                    return Err(format!("màn hình không hợp lệ: {tab}"));
+                    return Err(crate::i18n::tf("err.patch.screen", &[("value", tab)]));
                 }
             }
             "windowWidth" => {
-                let width = item.as_u64().ok_or("ui.windowWidth phải là số")?;
+                let width = item.as_u64().ok_or_else(|| crate::i18n::tf("err.patch.notNumber", &[("field", "ui.windowWidth")]))?;
                 cfg.ui.window_width = width.clamp(720, 4096) as u32;
             }
             "windowHeight" => {
-                let height = item.as_u64().ok_or("ui.windowHeight phải là số")?;
+                let height = item.as_u64().ok_or_else(|| crate::i18n::tf("err.patch.notNumber", &[("field", "ui.windowHeight")]))?;
                 cfg.ui.window_height = height.clamp(480, 4096) as u32;
             }
-            other => return Err(format!("ui.{other} không hợp lệ")),
+            other => return Err(crate::i18n::tf("err.patch.unknownField", &[("field", &format!("ui.{other}"))])),
         }
     }
     Ok(())
@@ -653,7 +697,7 @@ fn patch_apps(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), Stri
             "rememberPerApp" => {
                 cfg.apps.remember_per_app = as_bool(item, "apps.rememberPerApp")?
             }
-            other => return Err(format!("apps.{other} không hợp lệ")),
+            other => return Err(crate::i18n::tf("err.patch.unknownField", &[("field", &format!("apps.{other}"))])),
         }
     }
     Ok(())
@@ -668,7 +712,7 @@ fn apply_patch(cfg: &mut AppConfig, patch: &serde_json::Value) -> Result<(), Str
             "system" => patch_system(cfg, value)?,
             "ui" => patch_ui(cfg, value)?,
             "apps" => patch_apps(cfg, value)?,
-            other => return Err(format!("mục cấu hình không hợp lệ: {other}")),
+            other => return Err(crate::i18n::tf("err.patch.unknownSection", &[("value", other)])),
         }
     }
     Ok(())
@@ -753,7 +797,7 @@ pub fn reset_settings(section: String) -> Result<SettingsView, String> {
                 draft.ui = defaults.ui;
                 draft.apps = defaults.apps;
             }
-            other => return Err(format!("mục không hợp lệ: {other}")),
+            other => return Err(crate::i18n::tf("err.reset.invalid", &[("value", other)])),
         }
         Ok(())
     })
@@ -1070,11 +1114,11 @@ pub fn set_app_rule_overrides(
 ) -> Result<(), String> {
     let process = process.trim().to_string();
     let charset = match charset.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
-        Some(slug) => Some(Charset::from_str(slug).ok_or("bảng mã không hợp lệ")?),
+        Some(slug) => Some(Charset::from_str(slug).ok_or_else(|| crate::i18n::t("err.patch.charset"))?),
         None => None,
     };
     let method = match method.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
-        Some(slug) => Some(InputMethod::from_str(slug).ok_or("kiểu gõ không hợp lệ")?),
+        Some(slug) => Some(InputMethod::from_str(slug).ok_or_else(|| crate::i18n::t("err.method.invalid"))?),
         None => None,
     };
 
@@ -1251,6 +1295,25 @@ pub fn request_input_monitoring() -> bool {
     }
 }
 
+/// The hotkey capture field is focused (`true`) or has stopped (`false`): while
+/// it is, the keyboard hook does not match or swallow hotkeys, so the chord
+/// being recorded reaches the page instead of firing its action (S-07, spec
+/// C.6 step 2).
+#[tauri::command]
+pub fn set_hotkey_capture(active: bool) {
+    #[cfg(windows)]
+    vkb_windows::set_hotkey_capture(active);
+    #[cfg(target_os = "macos")]
+    vkb_macos::set_hotkey_capture(active);
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let _ = active;
+}
+
+/// Capture can never outlive its window: called when one is destroyed.
+pub fn clear_hotkey_capture() {
+    set_hotkey_capture(false);
+}
+
 /// Ask macOS for the Accessibility grant (system prompt, which links to System
 /// Settings). Returns the status after asking. No-op `true` off macOS.
 #[tauri::command]
@@ -1318,7 +1381,8 @@ mod tests {
         let mut cfg = AppConfig::default();
         let value = serde_json::json!({ "hotkeys": { "toggle": "A" } });
         let error = apply_patch(&mut cfg, &value).unwrap_err();
-        assert!(error.contains("Ctrl"), "{error}");
+        assert!(error.starts_with("hotkeys.toggle: "), "{error}");
+        assert!(error.contains("Ctrl") || error.contains("Control"), "{error}");
     }
 
     #[test]

@@ -72,6 +72,12 @@ pub fn set_config(config: SharedConfig) {
     hook::notify_config_changed();
 }
 
+/// The hotkey capture field is focused (`true`) or has stopped (`false`): the
+/// hook then matches no hotkey and swallows nothing (spec C.6 step 2).
+pub fn set_hotkey_capture(active: bool) {
+    globals::set_hotkey_capture(active);
+}
+
 /// Flip Vietnamese on/off. Picked up by the hook on the next keystroke.
 pub fn set_enabled(enabled: bool) {
     globals::store_enabled(enabled);

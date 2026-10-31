@@ -265,12 +265,24 @@ impl Default for HotkeySet {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
-    /// Legacy value from older files; `AppConfig::migrated` resolves it to
-    /// `Dark` on load and the UI no longer offers it.
+    /// Follow the OS appearance. macOS only: Windows has no such state, and an
+    /// old file's value is resolved to `Dark` there by `AppConfig::migrated`.
     System,
     Light,
     #[default]
     Dark,
+}
+
+impl Theme {
+    /// Theme of a fresh config: follow the system on macOS (27-mac-decisions
+    /// M6), dark on Windows.
+    pub const fn platform_default() -> Self {
+        if cfg!(target_os = "macos") {
+            Theme::System
+        } else {
+            Theme::Dark
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -300,7 +312,7 @@ impl Default for SystemConfig {
             notification_sound: true,
             start_minimized: true,
             language: Language::Vi,
-            theme: Theme::Dark,
+            theme: Theme::platform_default(),
             check_updates: true,
         }
     }
