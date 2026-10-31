@@ -42,6 +42,7 @@ use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use vkb_platform::clipboard_plan::{
     classify_format, decide_paste, flag_blocks_snapshot, format_count_ok, notification_is_ours,
+    push_bounded, GARBAGE_CAP,
     restore_action, restore_due, settle_remaining_ms, snapshot_verdict, within_budget, FormatClass,
     PasteDecision, RestoreAction, Verdict, PRIVACY_FORMATS, REGISTERED_FIRST, SETTLE_MS,
 };
@@ -133,7 +134,9 @@ fn retire(shared: &mut Shared, data: Vec<FormatData>) {
     if data.is_empty() {
         return;
     }
-    shared.garbage.push(data);
+    // Bounded: the oldest buffer is zeroed and freed right here when the worker
+    // is behind (cheap compared with unbounded retention of user data).
+    drop(push_bounded(&mut shared.garbage, data, GARBAGE_CAP));
     if let Some(worker) = hwnd_of(&WORKER_HWND) {
         // SAFETY: posting to a window we created.
         let _ = unsafe { PostMessageW(worker, WM_APP_GC, WPARAM(0), LPARAM(0)) };
@@ -311,8 +314,19 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
             _ => shared.snapshot.take().map(|s| s.data),
         };
         if let Some(data) = data {
-            restore_locked(&data);
-            retire(&mut shared, data);
+            let complete = restore_locked(&data);
+            // Still under the guard: this is the sequence number of the data we
+            // just put back. Keep it as the snapshot, so the next expansion can
+            // paste again (a re-capture would refuse: our flags are on it).
+            let seq = unsafe { GetClipboardSequenceNumber() };
+            if complete && seq != 0 {
+                shared.restored_seq = Some(seq);
+                if let Some(old) = shared.snapshot.replace(Snap { seq, data }) {
+                    retire(&mut shared, old.data);
+                }
+            } else {
+                retire(&mut shared, data);
+            }
         }
         return false;
     };
@@ -458,6 +472,7 @@ unsafe extern "system" fn worker_proc(
             let _ = catch_unwind(|| {
                 restore_now();
                 clear_snapshot();
+                collect_garbage();
                 let _ = unsafe { RemoveClipboardFormatListener(hwnd) };
             });
             if let Some(ack) = FLUSH_ACK.lock().take() {
@@ -469,8 +484,15 @@ unsafe extern "system" fn worker_proc(
     }
 }
 
+/// Forget every copy of the user's data kept for pasting. `restored_seq` goes
+/// with it: on re-enable the first snapshot is a fresh capture (the restored
+/// clipboard still carries the privacy flags we added, so it may stay
+/// unsnapshotted until the user copies again; keeping the data in memory just
+/// to avoid that would break the "nothing held while the mode is off" rule).
 fn clear_snapshot() {
-    SHARED.lock().snapshot = None;
+    let mut shared = SHARED.lock();
+    shared.snapshot = None;
+    shared.restored_seq = None;
 }
 
 /// The mode flipped (or the worker just started): listen + first snapshot, or
@@ -485,6 +507,7 @@ fn apply_mode(hwnd: HWND) {
         let _ = unsafe { RemoveClipboardFormatListener(hwnd) };
         restore_now();
         clear_snapshot();
+        collect_garbage();
     }
 }
 

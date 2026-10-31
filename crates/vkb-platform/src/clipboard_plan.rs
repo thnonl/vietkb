@@ -153,6 +153,20 @@ pub fn settle_remaining_ms(elapsed_ms: u64) -> u64 {
     SETTLE_MS.saturating_sub(elapsed_ms)
 }
 
+/// Most retired buffers the hook may leave queued for the worker to free.
+pub const GARBAGE_CAP: usize = 4;
+
+/// Append `item`, keeping at most `cap` entries: the oldest is evicted and
+/// returned so the caller can drop (zero) it right away.
+pub fn push_bounded<T>(queue: &mut Vec<T>, item: T, cap: usize) -> Option<T> {
+    queue.push(item);
+    if queue.len() > cap.max(1) {
+        Some(queue.remove(0))
+    } else {
+        None
+    }
+}
+
 /// `true` once the settle wait is over (`elapsed_ms` after the last write).
 pub fn restore_due(elapsed_ms: u64) -> bool {
     settle_remaining_ms(elapsed_ms) == 0
@@ -325,6 +339,21 @@ mod tests {
         assert_eq!(settle_remaining_ms(SETTLE_MS - 1), 1);
         assert_eq!(settle_remaining_ms(SETTLE_MS), 0);
         assert_eq!(settle_remaining_ms(u64::MAX), 0);
+    }
+
+    #[test]
+    fn bounded_queue_evicts_the_oldest() {
+        let mut q = Vec::new();
+        for i in 0..GARBAGE_CAP {
+            assert_eq!(push_bounded(&mut q, i, GARBAGE_CAP), None);
+        }
+        assert_eq!(push_bounded(&mut q, 99, GARBAGE_CAP), Some(0));
+        assert_eq!(q, vec![1, 2, 3, 99]);
+        // A zero cap still keeps one entry.
+        let mut one = Vec::new();
+        assert_eq!(push_bounded(&mut one, 1, 0), None);
+        assert_eq!(push_bounded(&mut one, 2, 0), Some(1));
+        assert_eq!(one, vec![2]);
     }
 
     #[test]
