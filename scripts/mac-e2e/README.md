@@ -48,9 +48,14 @@ The harness refuses to start without the grants.
   and neither this harness's marker nor VietKB's in `kCGEventSourceUserData`; the first one aborts the whole run
   (exit 6) and no phase continues. (HID idle cannot be used between batches: synthetic events posted to the
   session tap still reset `HIDIdleTime`; the harness probes this and logs `idle detector NOT usable`.)
-* **Focus guard**: before and after every batch and every ~12 keys inside one, the AX-focused application must be
-  the target pid and the topmost normal window must be the exact window id this harness opened (CGWindowList).
-  Otherwise nothing more is sent and the case aborts. Chrome's omnibox popup (same pid) is allowed for that target.
+* **Focus guard (per key, guardrails section 7)**: before EVERY key (and before the key of a modifier chord, after its
+  modifiers are down) and before/after every batch, the AX-focused application must be the target pid and the topmost
+  normal window must be the exact window id this harness opened (CGWindowList). The first mismatch aborts the case:
+  nothing more is sent and nothing is re-focused. Every `typeScript` call site passes a guard (no empty `check`).
+  The script parser refuses `F1`..`F12` and any `CMD+` chord except `A`, `N`, `W`, `L` (keys that can launch or
+  focus another app). Chrome's omnibox popup (same pid) is allowed for that target. The check costs a few ms per key,
+  so burst (2-4 ms/key) runs are a bit slower than before. One exception: the single Escape that closes the status-item
+  menu in GUI-4 is posted directly (only after the menu window was seen; it goes to the menu being tracked).
 * **No clipboard**, no Return/Enter outside the hidden-answer dialog this harness owns, no System Settings.
 * **Own windows only**: TextEdit documents / Notes notes are identified by id; Stickies and Terminal windows by
   CGWindowID; Chrome and VS Code are separate processes with throw-away `--user-data-dir`.

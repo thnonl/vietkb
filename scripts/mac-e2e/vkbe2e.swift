@@ -6,8 +6,9 @@
 // Guardrails built in (docs/evkey-clone-work/99-agent-guardrails.md, mac-handoff.md):
 //  * physical-input watcher: a listen-only CGEventTap flags any key/mouse event that has no source pid
 //    AND neither our marker nor VietKB's injection marker in kCGEventSourceUserData -> abort at once.
-//  * before and after EVERY batch (and every ~12 keys inside a batch): the AX-focused application and the
-//    topmost normal window must be exactly the window this harness opened. Mismatch -> nothing more is sent.
+//  * before EVERY key (guardrails section 7), and before and after every batch: the AX-focused application and the
+//    topmost normal window must be exactly the window this harness opened. First mismatch -> nothing more is sent,
+//    no re-focus. Keys that can launch or focus another app (F1..F12, Cmd+Space/Tab/H/M/Q/`) are refused by the script parser.
 //  * idle gate: HID idle >= 60 s before the first synthetic event.
 //  * never presses Return/Enter outside the hidden-answer dialog we own; never touches the clipboard.
 import Foundation
@@ -285,6 +286,7 @@ func tapKey(_ kc: CGKeyCode, speed: Speed) {
 /// `{CAPS}` toggles the synthetic Caps Lock flag; `{SHIFT}` / `{/SHIFT}` hold / release Shift;
 /// chords `{CTRL+SHIFT}` (pure modifier tap), `{CTRL+SHIFT+Z}`, `{CMD+A}`.
 /// Upper-case letters and shifted symbols press Shift around the key (per-letter Shift).
+/// `check` runs before EVERY key (guardrails section 7): it must throw at the first foreground mismatch; nothing is re-focused.
 func typeScript(_ s: String, speed: Speed, check: () throws -> Void) throws {
     defer { releaseAllMods() }
     var n = 0
@@ -292,12 +294,12 @@ func typeScript(_ s: String, speed: Speed, check: () throws -> Void) throws {
     while i < chars.count {
         let c = chars[i]; i += 1
         n += 1
-        if n % 12 == 0 || c == " " { try check() }
+        try check()
         if c == "{" {
             var name = ""
             while i < chars.count && chars[i] != "}" { name.append(chars[i]); i += 1 }
             i += 1
-            try token(name, speed: speed)
+            try token(name, speed: speed, check: check)
             continue
         }
         if let kc = codes[Character(c.lowercased())], c.isLetter || codes[c] != nil {
@@ -313,7 +315,7 @@ func typeScript(_ s: String, speed: Speed, check: () throws -> Void) throws {
     }
 }
 var shiftHeld = false
-func token(_ name: String, speed: Speed) throws {
+func token(_ name: String, speed: Speed, check: () throws -> Void) throws {
     if name.hasPrefix("WAIT:") { usleep(UInt32(Int(name.dropFirst(5)) ?? 100) * 1000); return }
     if name == "CAPS" { capsOn.toggle(); return }
     if name == "SHIFT" { shiftHeld = true; postMod("SHIFT", down: true); usleep(5_000); return }
@@ -324,6 +326,9 @@ func token(_ name: String, speed: Speed) throws {
         tapKey(kc, speed: speed); return
     }
     guard !parts.isEmpty else { throw abort("script: empty token") }
+    // keys that can launch or focus another app are never sent (guardrails section 7)
+    if let bad = parts.first(where: { $0.range(of: "^F([1-9]|1[0-2])$", options: .regularExpression) != nil }) { throw abort("script: \(bad) can launch/focus another app") }
+    if parts.contains("CMD"), let k = parts.last, !["A", "N", "W", "L"].contains(k) && modCode[k] == nil { throw abort("script: CMD+\(k) not allowed (could launch/focus another app)") }
     // chord
     var mods: [String] = []; var key: CGKeyCode? = nil
     for p in parts {
@@ -333,6 +338,7 @@ func token(_ name: String, speed: Speed) throws {
         else { throw abort("script: bad chord token \(name)") }
     }
     for m in mods { postMod(m, down: true); usleep(25_000) }
+    try check()   // modifiers are down: re-verify before the key itself
     if let k = key { tapKey(k, speed: .fast) } else { usleep(60_000) }
     for m in mods.reversed() { postMod(m, down: false); usleep(25_000) }
     usleep(speed.gap())
@@ -572,7 +578,7 @@ func openNotes() throws -> Setup {
     guard let top = topNormalWindow(), top.pid == pid else { throw abort("Notes window not frontmost") }
     let tmp = Target(name: "notes", pid: pid, winID: top.id) { nil }
     try guardFront(tmp, "notes pre-new")
-    try typeScript("{CMD+N}", speed: .fast, check: {})
+    try typeScript("{CMD+N}", speed: .fast, check: { try guardFront(tmp, "key") })
     var fresh: [String] = []
     for _ in 0..<25 {
         usleep(500_000)
@@ -607,7 +613,7 @@ func openStickies() throws -> Setup {
     guard let top = topNormalWindow(), top.pid == pid else { throw abort("Stickies not frontmost") }
     let tmp = Target(name: "stickies", pid: pid, winID: top.id) { nil }
     try guardFront(tmp, "stickies pre-new")
-    try typeScript("{CMD+N}", speed: .fast, check: {})
+    try typeScript("{CMD+N}", speed: .fast, check: { try guardFront(tmp, "key") })
     usleep(1_000_000)
     let fresh = windows().filter { $0.pid == pid && $0.layer == 0 && !winsBefore.contains($0.id) }
     guard fresh.count == 1, let w = fresh.first else { throw abort("Stickies: expected one new note window, got \(fresh.count)") }
@@ -617,10 +623,10 @@ func openStickies() throws -> Setup {
         do {
             activatePid(pid)
             try guardFront(t, "stickies teardown")
-            try typeScript("{CMD+A}{BS}", speed: .fast, check: {})
+            try typeScript("{CMD+A}{BS}", speed: .fast, check: { try guardFront(t, "key") })
             usleep(300_000)
             try guardFront(t, "stickies teardown close")
-            try typeScript("{CMD+W}", speed: .fast, check: {})
+            try typeScript("{CMD+W}", speed: .fast, check: { try guardFront(t, "key") })
             usleep(800_000)
             for win in (axCopy(AXUIElementCreateApplication(pid), kAXWindowsAttribute as String) as? [AXUIElement]) ?? [] where axWindowID(win) == w.id {
                 if let b = pressSheetButton(win, titles: ["Delete", "Don\u{2019}t Save", "Don't Save", "Discard"]) { log("Stickies: pressed '\(b)' on our note's close sheet") }
@@ -694,7 +700,7 @@ func openVSCode() throws -> Setup {
     let t = Target(name: "vscode", pid: p.processIdentifier, winID: win0?.id ?? 0) { axFocusedValue(pid: p.processIdentifier) }
     t.trimNL = true
     try guardFront(t, "vscode pre-new")
-    try typeScript("{CMD+N}", speed: .fast, check: {})
+    try typeScript("{CMD+N}", speed: .fast, check: { try guardFront(t, "key") })
     sleep(2)
     return Setup(target: t, teardown: { killChild(p) })
 }
@@ -742,7 +748,7 @@ func openTerminal() throws -> Setup {
     return Setup(target: t, teardown: {
         do {
             try guardFront(t, "terminal teardown")
-            try typeScript("{CTRL+C}", speed: .fast, check: {})
+            try typeScript("{CTRL+C}", speed: .fast, check: { try guardFront(t, "key") })
         } catch { log("Terminal teardown: \(error)") }
         usleep(700_000)
         // close only our window by its CG id via AX
@@ -789,7 +795,7 @@ func runTarget(_ name: String, method: String, only: Set<String>?) throws {
         if name == "chrome-omnibox" {
             // focus the address bar with Cmd+L, only after the front check
             try guardFront(t, "omnibox focus")
-            try typeScript("{CMD+L}", speed: .fast, check: {})
+            try typeScript("{CMD+L}", speed: .fast, check: { try guardFront(t, "key") })
             usleep(400_000)
             t.clearKeys = "{CMD+A}{BS}"
         }
@@ -928,15 +934,15 @@ func guiToggle(vkPid: Int32, t: Target) throws {
         return
     }
     try guardFront(t, "gui toggle")
-    try typeScript("{CTRL+SHIFT}", speed: .fast, check: {})
+    try typeScript("{CTRL+SHIFT}", speed: .fast, check: { try guardFront(t, "key") })
     usleep(900_000)
     let fr2 = statusItem(pid: vkPid)?.1 ?? fr
     let b = shotRegion(fr2.insetBy(dx: -2, dy: -1), "gui-statusitem-E-after-toggle")
     try guardFront(t, "gui toggle typing")
-    try typeScript("tieengs", speed: .fast, check: {})
+    try typeScript("tieengs", speed: .fast, check: { try guardFront(t, "key") })
     let offText = settleRead(t)
     try guardFront(t, "gui toggle 2")
-    try typeScript("{CTRL+SHIFT}", speed: .fast, check: {})
+    try typeScript("{CTRL+SHIFT}", speed: .fast, check: { try guardFront(t, "key") })
     usleep(900_000)
     let c = shotRegion((statusItem(pid: vkPid)?.1 ?? fr).insetBy(dx: -2, dy: -1), "gui-statusitem-V-after-second-toggle")
     func h(_ rel: String) -> String { hh(rel) }
@@ -974,7 +980,7 @@ func secureCase(vkPid: Int32, method: String) throws {
     try guardFront(t, "secure post")
     allowReturn = true
     defer { allowReturn = false }
-    try typeScript("{RETURN}", speed: .fast, check: {})
+    try typeScript("{RETURN}", speed: .fast, check: { try guardFront(t, "key") })
     let end2 = Date().addingTimeInterval(8)
     while p.isRunning && Date() < end2 { usleep(100_000) }
     let answer = String(data: pipe.fileHandleForReading.availableData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1072,10 +1078,10 @@ case "stickies-cleanup":   // remove a leftover test note (text matches a test s
         let t = Target(name: "stickies", pid: pid, winID: wid) { nil }
         do {
             try guardFront(t, "cleanup")
-            try typeScript("{CMD+A}{BS}", speed: .fast, check: {})
+            try typeScript("{CMD+A}{BS}", speed: .fast, check: { try guardFront(t, "key") })
             usleep(300_000)
             try guardFront(t, "cleanup close")
-            try typeScript("{CMD+W}", speed: .fast, check: {})
+            try typeScript("{CMD+W}", speed: .fast, check: { try guardFront(t, "key") })
             usleep(800_000)
             for w2 in (axCopy(AXUIElementCreateApplication(pid), kAXWindowsAttribute as String) as? [AXUIElement]) ?? [] where axWindowID(w2) == wid {
                 if let b = pressSheetButton(w2, titles: ["Delete", "Don\u{2019}t Save", "Don't Save", "Discard"]) { print("pressed \(b)") }

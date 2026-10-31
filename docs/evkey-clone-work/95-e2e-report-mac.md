@@ -284,3 +284,28 @@ Owner instance (`owner-instance.log`):
 - `RELAUNCH 18:33:17 pid=59860` via `open` from the same path after the binary sha256 re-check (`1b023bba…49ba2` unchanged). Downtime 30 min 50 s.
 - Owner `config.toml` sha256 `faad8a0f…9513` before, after quit and after relaunch: unchanged (both typing runs' manifests identical before/after).
 - No Dock leftovers, no dev process left, input source ABC unchanged, EVKey not running before/after, no Notes screenshots; TextEdit 19829 / Terminal 49785 pre-existed.
+
+
+## 0.2.7 final RC (Mac) — main 3f21fa2, 2026-10-31
+
+Build: dev-channel bundle `target/dev-app/VietKB Dev.app` built from a clean 3f21fa2 with `build-dev-app.sh`, re-signed with the Apple Development identity (team KNB9B3B3L2), bin sha256 `b6ec2e7a…b735`, built before the owner's app was touched. Evidence `qa/mac/run-0.2.7-final/` (`static/`, `app/`, `typing-1/`, `owner-instance.log`; manifests gitignored). One driver, trap relaunches the owner's VietKB on every exit path.
+
+Harness change (README "Focus guard", `vkbe2e.swift`): guardrails section 7. The foreground check (AX-focused pid + topmost window id) now runs before EVERY key, and again before the key of a modifier chord; first mismatch aborts, no re-focus. Every `typeScript` call site passes a guard (the empty `check: {}` calls are gone). The parser refuses F1..F12 and any CMD chord except A/N/W/L. The GUI-4 right-click-only / GUI-4b / GUI-4c fix is kept. The single Escape that closes the tray menu is posted directly, after the menu window was seen. Cost: a few ms per key, so burst rows are slightly slower. The foreground check never fired.
+
+| Phase | Result |
+|---|---|
+| Static: site-check | 18/20 (SITE-09 `site/en` missing "Open at login"; SITE-13 release notes F-key claim + no Input Monitoring mention) |
+| Static: strings-audit | 7/8 (STR-02 `common.add` unused) |
+| Typing with GUI extras, Telex + VNI + per-app, all targets, stability rows (x10, slow x2, burst x10) | **251 PASS / 0 FAIL**, rc 0 (textedit-plain 95, rich 62, notes 16, stickies 18, chrome-textarea 16, omnibox 3, vscode 16, terminal 16, secure 2, gui 7) |
+| GUI-1..5, 4b, 4c (tray: right click opens menu, left click toggles V/E and back, state restored, Ctrl+Shift toggle) | PASS (D-MAC-48 verified, closed) |
+| App suite: launch, Dock/policy, z-order of macros/hotkeys/advanced modals, VI/EN, theme 2-state, update badge on fake feed (APP-70), quit paths, singleton M8 (a-e) | 51 PASS / 6 FAIL / 1 SKIP (SIGKILL by design); every FAIL already known: APP-05b (D-MAC-34), APP-11 (D-MAC-35), APP-25-xx / -EN (D-MAC-36), APP-30 / APP-60 (D-MAC-45). All APP-DOCK-* PASS |
+| Modals opened from the menu | NOT TESTABLE by AX (D-MAC-34), by rule no coordinate clicks on the menu bar |
+
+Defects: D-MAC-48 verified and closed; 34, 35, 36, 45 reproduced (open); 44, 47 not reproduced; new D-MAC-49 (P3 harness: false "wrote into real Application Support" warning when the owner's dir exists).
+
+Guardrails:
+- Owner's VietKB (prod bundle `target/universal-apple-darwin/release/bundle/macos/VietKB.app`): pid 59860 before; app suite ran with it untouched. M11 quit at 23:11:18 via osascript (worked first time, gone at once, no TERM, no SIGKILL). Relaunched with `open` at 23:25:55, pid 5168. Downtime 14 min 37 s.
+- Binary sha256 `1b023bba…49ba2` before and after; `config.toml` sha256 `faad8a0f…9513` before, after quit and after relaunch (unchanged).
+- Idle gate: HID idle 16547 s (app) and 16691 s (typing), first try. No physical-input abort.
+- Dock: no VietKB/VietKB Dev tile after the runs, no dev process left, one dev instance at a time.
+- EVKey not running before or after (nothing quit or relaunched); input source ABC unchanged; TextEdit 19829 / Terminal 49785 pre-existed; no Notes screenshots (no Notes shots in `typing-1/shots`); manifests identical before/after.
