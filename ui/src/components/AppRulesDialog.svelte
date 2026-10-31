@@ -7,6 +7,7 @@
   import { app, errorText } from "../lib/state.svelte";
   import { METHODS } from "../lib/catalog";
   import * as api from "../lib/api";
+  import { platformState } from "../lib/platform.svelte";
   import type { AppRuleRow, RunningApp } from "../lib/bindings";
 
   // C10: the rule editor needs more room than the panel, so it is a dialog.
@@ -211,13 +212,14 @@
               type="button"
               class="app"
               class:added
+              class:mac={platformState.mac}
               disabled={added}
               onclick={() => addApp(entry)}
               title={added
                 ? `${entry.title || entry.process} đã có trong danh sách loại trừ, đang được tô sáng.`
                 : `Thêm ${entry.title || entry.process}`}>
               <span class="proc">{entry.process}</span>
-              <span class="title">{added ? "Đã thêm" : entry.title}</span>
+              <span class="title">{added && !platformState.mac ? "Đã thêm" : entry.title}</span>
               <Icon name={added ? "check" : "plus"} />
             </button>
           </li>
@@ -316,6 +318,22 @@
   .app:disabled {
     color: var(--t3);
     cursor: default;
+  }
+  /* macOS: the app name leads, the bundle id (the rule key) follows in mono. */
+  .app.mac {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  }
+  .app.mac .title {
+    order: -1;
+    font: 500 13px/20px var(--ui);
+    color: var(--t1);
+  }
+  .app.mac .proc {
+    font: 400 12px/18px var(--mono);
+    color: var(--t3);
+  }
+  .app.mac:disabled .title {
+    color: var(--t3);
   }
   .app .title {
     font: 400 12px/18px var(--sm);

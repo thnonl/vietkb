@@ -21,6 +21,37 @@ pub mod state;
 #[cfg(target_os = "macos")]
 mod sys;
 
+/// De-duplicate `(bundle id, name)` pairs by bundle id (the first non-empty
+/// name wins) and sort by bundle id.
+pub(crate) fn tidy_running(mut apps: Vec<(String, String)>) -> Vec<(String, String)> {
+    apps.retain(|(bundle, _)| !bundle.is_empty());
+    apps.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| b.1.len().cmp(&a.1.len())));
+    apps.dedup_by(|a, b| a.0 == b.0);
+    apps
+}
+
+#[cfg(test)]
+mod tidy_tests {
+    use super::tidy_running;
+
+    #[test]
+    fn dedups_sorts_and_drops_empty_bundles() {
+        let out = tidy_running(vec![
+            ("com.zed".into(), "Zed".into()),
+            ("com.apple.safari".into(), String::new()),
+            ("".into(), "Ghost".into()),
+            ("com.apple.safari".into(), "Safari".into()),
+        ]);
+        assert_eq!(
+            out,
+            vec![
+                ("com.apple.safari".to_string(), "Safari".to_string()),
+                ("com.zed".to_string(), "Zed".to_string()),
+            ]
+        );
+    }
+}
+
 /// True when the current OS can host a real backend.
 pub const IMPLEMENTED: bool = cfg!(target_os = "macos");
 
@@ -117,6 +148,20 @@ mod imp {
             exe_path: None,
             window_title: None,
         })
+    }
+
+    /// Regular (Dock) apps currently running: `process_name` is the lowercased
+    /// bundle id (the key per-app rules use), `window_title` the localized name.
+    /// De-duplicated by bundle id and sorted by it.
+    pub fn running_apps() -> Vec<AppInfo> {
+        crate::tidy_running(sys::running_apps())
+            .into_iter()
+            .map(|(bundle, name)| AppInfo {
+                process_name: bundle,
+                exe_path: None,
+                window_title: Some(name).filter(|name| !name.is_empty()),
+            })
+            .collect()
     }
 
     /// `true` while secure event input is on (password fields): the tap passes

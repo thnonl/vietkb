@@ -214,6 +214,54 @@ pub fn active_app_bundle() -> Option<String> {
     .flatten()
 }
 
+/// Lowercased bundle id and localized name of every regular (Dock) app that is
+/// running. Same call style as the frontmost lookup: NSWorkspace read-only
+/// properties inside an autorelease pool, safe off the main thread. Unsorted,
+/// possibly duplicated; `crate::tidy_running` finishes the job.
+pub fn running_apps() -> Vec<(String, String)> {
+    unsafe fn utf8(string: *mut AnyObject) -> Option<String> {
+        if string.is_null() {
+            return None;
+        }
+        let ptr: *const c_char = msg_send![string, UTF8String];
+        if ptr.is_null() {
+            return None;
+        }
+        Some(CStr::from_ptr(ptr).to_string_lossy().into_owned())
+    }
+
+    autoreleasepool(|_| unsafe {
+        let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+        if workspace.is_null() {
+            return Vec::new();
+        }
+        let apps: *mut AnyObject = msg_send![workspace, runningApplications];
+        if apps.is_null() {
+            return Vec::new();
+        }
+        let count: usize = msg_send![apps, count];
+        let mut out = Vec::with_capacity(count);
+        for index in 0..count {
+            let app: *mut AnyObject = msg_send![apps, objectAtIndex: index];
+            if app.is_null() {
+                continue;
+            }
+            // NSApplicationActivationPolicyRegular == 0 (Dock apps; skips agents
+            // and background helpers).
+            let policy: isize = msg_send![app, activationPolicy];
+            if policy != 0 {
+                continue;
+            }
+            let Some(bundle) = utf8(msg_send![app, bundleIdentifier]) else {
+                continue;
+            };
+            let name = utf8(msg_send![app, localizedName]).unwrap_or_default();
+            out.push((bundle.to_ascii_lowercase(), name));
+        }
+        out
+    })
+}
+
 // -- Sound ------------------------------------------------------------------
 
 struct SendSound(Retained<AnyObject>);

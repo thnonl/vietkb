@@ -83,7 +83,17 @@ pub fn list() -> Vec<(String, String)> {
     found
 }
 
-#[cfg(not(windows))]
+/// Regular (Dock) apps, keyed by lowercased bundle id with the localized name
+/// as the label.
+#[cfg(target_os = "macos")]
+pub fn list() -> Vec<(String, String)> {
+    vkb_macos::running_apps()
+        .into_iter()
+        .map(|app| (app.process_name, app.window_title.unwrap_or_default()))
+        .collect()
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn list() -> Vec<(String, String)> {
     Vec::new()
 }
