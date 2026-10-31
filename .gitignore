@@ -33,3 +33,6 @@ docs/evkey-clone-work/qa/e2e/sandbox-e2e.log
 # agent worktrees
 .claude/worktrees/
 qa-build/
+
+# QA harness owner-file manifests (list the owner's LaunchAgents)
+docs/evkey-clone-work/qa/mac/**/manifest-*.txt
