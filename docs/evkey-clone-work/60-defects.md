@@ -462,3 +462,4 @@ Evidence: `qa/mac/run-appsuite-smoke/results.md`.
 | D-MAC-39 | P3 | locales | `strings-audit.py` STR-02 | no dead keys | `common.add` is defined in vi/en and never used | STR-02 | OPEN |
 
 Harness note (not a product defect): SIGKILL or direct-exec runs of a Regular-policy dev app leave stale Dock tiles (macOS keeps them); the suite now quits gracefully, skips SIGKILL by default and asserts no new tile after every phase. Earlier killed dev instances left tiles that only the owner can clear (the harness never touches the Dock).
+| D-MAC-40 | P2 | title bar parity (owner M9) | open any macOS window | theme toggle next to VI/EN in a title-bar row like Windows | separate 28 px `.mac-langbar` row inside the content, theme toggle a different component | owner M9 | FIXED (overlay title bar, shared caption markup/classes; visual check in qa/mac/m9-titlebar) |

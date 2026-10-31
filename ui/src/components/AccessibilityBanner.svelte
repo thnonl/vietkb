@@ -2,7 +2,7 @@
   // The window is created tall exactly when Accessibility is missing (main.rs
   // `main_content_height`), so its height at mount already answers the question
   // before the first poll: seed the banner from it and no blank band is painted.
-  const BASE = 452; // 424 page + 28 language row
+  const BASE = 452; // 424 page + 28 caption row
   const BANNER = 80;
   export const seedMissing = (): boolean =>
     typeof window !== "undefined" &&

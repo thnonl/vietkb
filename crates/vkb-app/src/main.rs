@@ -31,26 +31,19 @@ const MAIN_LABEL: &str = "main";
 /// native title bar (traffic lights) instead, so the page there is that much shorter.
 const CAPTION_PX: f64 = 36.0;
 
-/// Estimated native macOS title bar height in points. `inner_size` on a decorated
-/// macOS window is the whole frame (title bar included), while the page only gets
-/// the area below it, so the frame needs this much on top of the page height
-/// (D-MAC-02: without it the footer row was clipped). It is only an estimate, the
-/// real value differs between macOS releases: the page measures itself and grows
-/// the window by whatever is still hidden (ui/src/lib/fit.ts).
+/// Height of the caption row the page draws under the overlay title bar on macOS
+/// (`.cap-bar.mac` in ui/src/styles/mac.css). With `TitleBarStyle::Overlay` the
+/// webview covers the whole frame, so the window height is the page height. The
+/// page still measures itself and grows the window if needed (ui/src/lib/fit.ts).
 #[cfg(target_os = "macos")]
-const TITLEBAR_PT: f64 = 28.0;
-
-/// Height of the slim row that holds the VI | EN switch at the top of the page on
-/// macOS (`.mac-langbar` in ui/src/styles/mac.css). Keep equal.
-#[cfg(target_os = "macos")]
-const MAC_LANGBAR_PX: f64 = 28.0;
+const MAC_CAPTION_PX: f64 = 28.0;
 
 /// Window height to request for the current platform: the measured Windows height
 /// (caption included) on Windows; on macOS the same page height without the
-/// caption, plus the native title bar.
+/// caption, plus the 28 pt overlay caption row.
 fn content_height(windows_height: f64) -> f64 {
     #[cfg(target_os = "macos")]
-    return windows_height - CAPTION_PX + TITLEBAR_PT + MAC_LANGBAR_PX;
+    return windows_height - CAPTION_PX + MAC_CAPTION_PX;
     #[cfg(not(target_os = "macos"))]
     {
         let _ = CAPTION_PX;
@@ -360,6 +353,12 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         .shadow(true)
         .transparent(false)
         .visible(false);
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
 
     // Owned by its opener: no orphan in the taskbar, and Windows tears it down
     // first when the owner goes away.
@@ -459,7 +458,7 @@ fn close_aux(app: &tauri::AppHandle) {
 fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let started = std::time::Instant::now();
 
-    let window = tauri::WebviewWindowBuilder::new(
+    let builder = tauri::WebviewWindowBuilder::new(
         app,
         MAIN_LABEL,
         tauri::WebviewUrl::App("index.html".into()),
@@ -475,8 +474,13 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
     .shadow(true)
     .transparent(false)
     // Hidden at build time; placed and shown below in one go.
-    .visible(false)
-    .build()?;
+    .visible(false);
+    // macOS: overlay title bar, the page draws the caption row (TitleBar.svelte).
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true);
+    let window = builder.build()?;
 
     // Show first: a window that has never been shown has not had its DWM frame
     // applied yet, so `outer_size()` lies (measured 918x710 for a 720x560

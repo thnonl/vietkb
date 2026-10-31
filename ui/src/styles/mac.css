@@ -53,58 +53,13 @@
   color: var(--t2);
 }
 
-/* Language switch row (macOS has no custom caption to hold it). 28 px tall:
- * keep MAC_LANGBAR_PX in crates/vkb-app/src/main.rs equal to it. It also holds
- * the theme button, to the left of VI | EN. */
-.mac-langbar {
-  flex: none;
-  box-sizing: border-box;
+/* Overlay title bar (macOS): the page draws the caption row under the native
+ * traffic lights. 28 pt, same tokens and controls as the Windows caption
+ * (.cap-bar in v4.css); keep MAC_CAPTION_PX in crates/vkb-app/src/main.rs equal. */
+:root[data-platform="macos"] .cap-bar.mac {
   height: 28px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  background: var(--surface);
-}
-.mac-tslot {
-  width: 24px;
-  height: 24px;
-  flex: none;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  color: var(--t2);
-}
-.mac-tslot:hover {
-  background: var(--hover-plane);
-  color: var(--t1);
-}
-.mac-tslot.upd {
-  color: var(--acc-text);
-}
-.mac-tslot.upd:hover {
-  background: var(--acc-tint);
-  color: var(--acc-text);
-}
-.mac-tslot:focus-visible {
-  outline: 2px solid var(--acc);
-  outline-offset: 1px;
-}
-.mac-tslot svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.15;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.mac-tslot svg .solid {
-  fill: currentColor;
-  stroke: none;
+  padding-left: 78px;
+  padding-right: 12px;
 }
 
 /* Secure-input hint (main window, S-18): 28 px line + 8 px top margin = 36 px of

@@ -5,7 +5,6 @@
   import { platformState } from "../lib/platform.svelte";
   import { t } from "../lib/lang.svelte";
   import LangToggle from "./LangToggle.svelte";
-  import MacThemeToggle from "./MacThemeToggle.svelte";
   import { effectiveTheme } from "../lib/theme.svelte";
   // Product mark, identical in every window: the keycap `V` (Vietnamese on)
   // from the approved set (design/logo11/keycap/v-20.png). The title bar never
@@ -72,8 +71,7 @@
   const close = () => void win?.close();
 </script>
 
-<!-- macOS uses the native title bar (traffic lights, window title); this
-     custom caption is the Windows frame only. -->
+<!-- Windows: the custom caption is the whole frame. -->
 {#if !platformState.mac}
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <header class="cap-bar" onmousedown={onPointerDown} ondblclick={(event) => event.preventDefault()}>
@@ -144,25 +142,47 @@
   </div>
 </header>
 {:else}
-  <!-- macOS: no custom caption, so the language switch gets a slim row of its
-       own at the top right of the window content (styles/mac.css). -->
-  <div class="mac-langbar">
-    <!-- Same signal and target as the Windows caption button (`showUpdate`):
-         present only while a newer release is known; opens Giới thiệu. -->
-    {#if showUpdate}
+  <!-- macOS: overlay title bar (traffic lights stay native, the page draws the
+       row). Same controls, order, classes and icons as the Windows caption,
+       minus minimize/close, which the traffic lights provide. -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <header class="cap-bar mac" onmousedown={onPointerDown} ondblclick={(event) => event.preventDefault()}>
+    <span class="ttl">{title}{#if subtitle}<small>— {subtitle}</small>{/if}</span>
+    <span class="drag"></span>
+    <div class="wc">
       <button
         type="button"
-        class="mac-tslot upd"
-        data-no-drag
-        aria-label={t("titlebar.update.aria")}
-        title={t("titlebar.update.title", { version: app.updateVersion ?? "" })}
+        class="tslot upd"
+        class:off={!showUpdate}
+        aria-hidden={!showUpdate}
+        tabindex={showUpdate ? 0 : -1}
+        aria-label={showUpdate ? t("titlebar.update.aria") : undefined}
+        title={showUpdate ? t("titlebar.update.title", { version: app.updateVersion ?? "" }) : undefined}
         onclick={() => openWindow("about")}>
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
           <path d="M3 13.1h10" />
         </svg>
       </button>
-    {/if}
-    <MacThemeToggle /><LangToggle />
-  </div>
+      <LangToggle />
+      <button
+        type="button"
+        class="tslot"
+        aria-label={t("titlebar.theme.aria", { theme: label })}
+        title={t("titlebar.theme.title", { theme: label })}
+        onclick={cycleTheme}>
+        {#if nextTheme === "light"}
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="8" cy="8" r="3.1" />
+            <path
+              d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.15 1.15M11.65 11.65l1.15 1.15M12.8 3.2l-1.16 1.16M4.35 11.65L3.2 12.8" />
+          </svg>
+        {:else}
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M12.4 9.9a5.6 5.6 0 1 1-6.3-8.3 4.6 4.6 0 0 0 6.3 8.3z" />
+          </svg>
+        {/if}
+      </button>
+    </div>
+  </header>
 {/if}
