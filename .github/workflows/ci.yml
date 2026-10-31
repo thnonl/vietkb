@@ -34,6 +34,15 @@ jobs:
         with:
           shared-key: test
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Node 24: `test:i18n` imports the .ts locale files, which needs Node's
+      # built-in type stripping (on by default from 22.18 / 23.6).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: UI strings and types
+        run: npm --prefix ui ci && npm --prefix ui run test:i18n && npm --prefix ui run check
       - name: Engine and backend tests
         run: cargo test --workspace --quiet
 
@@ -85,6 +94,13 @@ jobs:
         with:
           shared-key: macos
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: UI strings and types
+        run: npm --prefix ui ci && npm --prefix ui run test:i18n && npm --prefix ui run check
       - name: Engine and backend tests
         run: cargo test --workspace --quiet
       - name: Clippy
