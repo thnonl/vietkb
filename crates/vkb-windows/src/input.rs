@@ -1298,6 +1298,33 @@ mod tests {
         );
     }
 
+    /// D-WIN-18: a Shift the user holds only over the trigger Space must not
+    /// change the expansion's trailing space (it goes out as a packet, which
+    /// ignores Shift) and must not be released or pressed again by the batch.
+    #[test]
+    fn held_shift_does_not_disturb_a_trailing_space() {
+        let held = Held { shift: keys::SHIFT_L, caps: false };
+        let inputs = build_segment_held(3, "QA ONE ", SendMode::Unicode, held);
+        let last_two: Vec<(u16, u32)> = inputs[inputs.len() - 2..]
+            .iter()
+            .map(|i| {
+                let ki = unsafe { i.Anonymous.ki };
+                (ki.wScan, ki.dwFlags.0 & (KEYEVENTF_UNICODE.0 | KEYEVENTF_KEYUP.0))
+            })
+            .collect();
+        assert_eq!(
+            last_two,
+            vec![(0x20, KEYEVENTF_UNICODE.0), (0x20, KEYEVENTF_UNICODE.0 | KEYEVENTF_KEYUP.0)]
+        );
+        for input in &inputs {
+            let vk = unsafe { input.Anonymous.ki }.wVk.0;
+            assert!(
+                !matches!(vk, keys::VK_SHIFT | keys::VK_LSHIFT | keys::VK_RSHIFT),
+                "the held Shift is never touched"
+            );
+        }
+    }
+
     #[test]
     fn paste_batch_is_backspaces_then_chord_in_one_call() {
         let inputs = build_paste(

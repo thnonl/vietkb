@@ -151,7 +151,10 @@ pub fn within_budget(total_so_far: usize, size: usize) -> bool {
 /// put back. There is no signal for "the target consumed the paste", so this is
 /// a conservative wait (slow Electron/VM targets read the clipboard well after
 /// the key event); a newer job inside the window extends it.
-pub const SETTLE_MS: u64 = 400;
+pub const SETTLE_MS: u64 = 1200;
+
+// Slow WinForms UI threads read the clipboard late (D-WIN-17): keep a floor.
+const _: () = assert!(SETTLE_MS >= 1200);
 
 /// Milliseconds still to wait before restoring, `elapsed_ms` after the last
 /// write; `0` = due.
@@ -164,18 +167,45 @@ pub fn settle_remaining_ms(elapsed_ms: u64) -> u64 {
 /// paste in flight (D-WIN-17) and bursts of changes collapse into one capture.
 pub const REFRESH_DELAY_MS: u32 = 100;
 
-/// Most retired buffers the hook may leave queued for the worker to free.
-pub const GARBAGE_CAP: usize = 4;
+/// Restore rounds (each = several busy-clipboard attempts) before a session is
+/// parked for the mode-off / shutdown flush instead of being retried.
+pub const MAX_RESTORE_ROUNDS: u32 = 6;
 
-/// Append `item`, keeping at most `cap` entries: the oldest is evicted and
-/// returned so the caller can drop (zero) it right away.
-pub fn push_bounded<T>(queue: &mut Vec<T>, item: T, cap: usize) -> Option<T> {
-    queue.push(item);
-    if queue.len() > cap.max(1) {
-        Some(queue.remove(0))
-    } else {
-        None
+/// Delay before the next restore round, `None` = out of rounds: the user's data
+/// is parked (never dropped) and the flush tries once more.
+pub fn restore_retry(rounds_done: u32) -> Option<u32> {
+    const DELAYS_MS: [u32; MAX_RESTORE_ROUNDS as usize] = [500, 500, 1000, 1000, 2000, 2000];
+    DELAYS_MS.get(rounds_done as usize).copied()
+}
+
+/// FNV-1a over the UTF-16 units of the text we put on the clipboard. A clipboard
+/// manager / cloud sync / RDP may re-set our temporary text without our marker;
+/// equal text still means "our content" for the restore decision.
+pub fn text_fingerprint(text: &str) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for unit in text.encode_utf16() {
+        for byte in unit.to_le_bytes() {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
     }
+    hash
+}
+
+/// A restore the sequence/owner/marker checks would abandon still goes ahead
+/// when the clipboard text is exactly what we wrote (`text_equal`).
+pub fn restore_action_text(base: RestoreAction, text_equal: bool) -> RestoreAction {
+    if base == RestoreAction::Abandon && text_equal {
+        RestoreAction::Restore
+    } else {
+        base
+    }
+}
+
+/// NULL-owner fallback (no window to compare): the marker alone proves nothing,
+/// so the number must also be the one read while open (`in_open`).
+pub fn null_owner_ok(in_open: u32, s1: u32) -> bool {
+    in_open != 0 && s1 == in_open
 }
 
 /// `true` once the settle wait is over (`elapsed_ms` after the last write).
@@ -390,21 +420,6 @@ mod tests {
     }
 
     #[test]
-    fn bounded_queue_evicts_the_oldest() {
-        let mut q = Vec::new();
-        for i in 0..GARBAGE_CAP {
-            assert_eq!(push_bounded(&mut q, i, GARBAGE_CAP), None);
-        }
-        assert_eq!(push_bounded(&mut q, 99, GARBAGE_CAP), Some(0));
-        assert_eq!(q, vec![1, 2, 3, 99]);
-        // A zero cap still keeps one entry.
-        let mut one = Vec::new();
-        assert_eq!(push_bounded(&mut one, 1, 0), None);
-        assert_eq!(push_bounded(&mut one, 2, 0), Some(1));
-        assert_eq!(one, vec![2]);
-    }
-
-    #[test]
     fn restore_is_due_only_after_the_settle_wait() {
         assert!(!restore_due(0));
         assert!(!restore_due(SETTLE_MS - 1));
@@ -604,4 +619,43 @@ mod tests {
         assert_eq!(ownership(None, true, 12), Ownership::Foreign);
         assert_eq!(ownership(Some(own(7, 9)), true, 0), Ownership::Foreign);
     }
+
+    #[test]
+    fn restore_rounds_back_off_then_park() {
+        assert_eq!(restore_retry(0), Some(500));
+        assert_eq!(restore_retry(MAX_RESTORE_ROUNDS - 1), Some(2000));
+        assert_eq!(restore_retry(MAX_RESTORE_ROUNDS), None);
+        assert_eq!(restore_retry(u32::MAX), None);
+    }
+
+    #[test]
+    fn fingerprint_tells_our_text_apart() {
+        assert_eq!(text_fingerprint("tiếng"), text_fingerprint("tiếng"));
+        assert_ne!(text_fingerprint("tiếng"), text_fingerprint("tieng"));
+        assert_ne!(text_fingerprint(""), text_fingerprint("a"));
+    }
+
+    #[test]
+    fn same_text_rescues_an_abandoned_restore() {
+        assert_eq!(
+            restore_action_text(RestoreAction::Abandon, true),
+            RestoreAction::Restore
+        );
+        assert_eq!(
+            restore_action_text(RestoreAction::Abandon, false),
+            RestoreAction::Abandon
+        );
+        assert_eq!(
+            restore_action_text(RestoreAction::Restore, false),
+            RestoreAction::Restore
+        );
+    }
+
+    #[test]
+    fn null_owner_needs_a_sequence_match() {
+        assert!(null_owner_ok(10, 10));
+        assert!(!null_owner_ok(10, 13));
+        assert!(!null_owner_ok(0, 0));
+    }
 }
+
