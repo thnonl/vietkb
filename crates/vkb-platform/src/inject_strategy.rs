@@ -7,6 +7,10 @@
 /// Largest `split-delay-N` accepted, in milliseconds.
 pub const MAX_DELAY_MS: u8 = 50;
 
+/// Largest `boundary-hold-N` accepted, in milliseconds (below the hook's
+/// 150 ms wait cap).
+pub const MAX_HOLD_MS: u8 = 120;
+
 /// How a `Replace { deletes, text }` is handed to `SendInput` on the hook path.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum InjectStrategy {
@@ -25,6 +29,21 @@ pub enum InjectStrategy {
     UnicodeAfterSplit,
     /// `Split`, Shift as plain `VK_LSHIFT` (+ scan 0x2A) instead of `VK_SHIFT`.
     CapslockFree,
+    /// Select the N characters with Shift+Left x N (real VKs) instead of N
+    /// Backspaces, then type the text (VK path) in a second call. Falls back to
+    /// `Split` when a selection is not safe.
+    SelectReplace,
+    /// `SelectReplace`, but the text goes out as `KEYEVENTF_UNICODE` packets.
+    SelectReplaceUnicode,
+    /// Delete the whole current word and retype the whole new word, in ONE call.
+    WordRetype,
+    /// `WordRetype`, with the Backspace block as its own call.
+    WordRetypeSplit,
+    /// Backspace call, a pause of N ms, then the text as `KEYEVENTF_UNICODE`.
+    UnicodeAfterSplitDelay(u8),
+    /// `Split`, and the boundary key (space/punctuation) that follows our text
+    /// is forwarded N ms after the text.
+    BoundaryHold(u8),
 }
 
 impl InjectStrategy {
@@ -39,14 +58,19 @@ impl InjectStrategy {
             "scancode-shift" => Some(Self::ScancodeShift),
             "unicode-after-split" => Some(Self::UnicodeAfterSplit),
             "capslock-free" => Some(Self::CapslockFree),
+            "select-replace" => Some(Self::SelectReplace),
+            "select-replace-unicode" => Some(Self::SelectReplaceUnicode),
+            "word-retype" => Some(Self::WordRetype),
+            "word-retype-split" => Some(Self::WordRetypeSplit),
             _ => {
-                let n = s.strip_prefix("split-delay-")?;
-                // Digits only: no sign, no whitespace.
-                if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) {
-                    return None;
+                if let Some(n) = s.strip_prefix("split-delay-") {
+                    return delay(n, MAX_DELAY_MS).map(Self::SplitDelay);
                 }
-                let n: u8 = n.parse().ok()?;
-                (1..=MAX_DELAY_MS).contains(&n).then_some(Self::SplitDelay(n))
+                if let Some(n) = s.strip_prefix("unicode-after-split-delay-") {
+                    return delay(n, MAX_DELAY_MS).map(Self::UnicodeAfterSplitDelay);
+                }
+                let n = s.strip_prefix("boundary-hold-")?;
+                delay(n, MAX_HOLD_MS).map(Self::BoundaryHold)
             }
         }
     }
@@ -61,8 +85,23 @@ impl InjectStrategy {
             Self::ScancodeShift => "scancode-shift".into(),
             Self::UnicodeAfterSplit => "unicode-after-split".into(),
             Self::CapslockFree => "capslock-free".into(),
+            Self::SelectReplace => "select-replace".into(),
+            Self::SelectReplaceUnicode => "select-replace-unicode".into(),
+            Self::WordRetype => "word-retype".into(),
+            Self::WordRetypeSplit => "word-retype-split".into(),
+            Self::UnicodeAfterSplitDelay(n) => format!("unicode-after-split-delay-{n}"),
+            Self::BoundaryHold(n) => format!("boundary-hold-{n}"),
         }
     }
+}
+
+/// Digits only (no sign, no whitespace), `1..=max`.
+fn delay(n: &str, max: u8) -> Option<u8> {
+    if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let n: u8 = n.parse().ok()?;
+    (1..=max).contains(&n).then_some(n)
 }
 
 #[cfg(test)]
@@ -111,8 +150,54 @@ mod tests {
             InjectStrategy::ScancodeShift,
             InjectStrategy::UnicodeAfterSplit,
             InjectStrategy::CapslockFree,
+            InjectStrategy::SelectReplace,
+            InjectStrategy::SelectReplaceUnicode,
+            InjectStrategy::WordRetype,
+            InjectStrategy::WordRetypeSplit,
+            InjectStrategy::UnicodeAfterSplitDelay(12),
+            InjectStrategy::BoundaryHold(100),
         ] {
             assert_eq!(InjectStrategy::parse(&s.label()), Some(s));
         }
+    }
+
+    #[test]
+    fn parses_the_notepad_strategies() {
+        assert_eq!(InjectStrategy::parse("select-replace"), Some(InjectStrategy::SelectReplace));
+        assert_eq!(
+            InjectStrategy::parse("Select-Replace-Unicode"),
+            Some(InjectStrategy::SelectReplaceUnicode)
+        );
+        assert_eq!(InjectStrategy::parse("word-retype"), Some(InjectStrategy::WordRetype));
+        assert_eq!(
+            InjectStrategy::parse("word-retype-split"),
+            Some(InjectStrategy::WordRetypeSplit)
+        );
+        assert_eq!(
+            InjectStrategy::parse("unicode-after-split-delay-20"),
+            Some(InjectStrategy::UnicodeAfterSplitDelay(20))
+        );
+        assert_eq!(InjectStrategy::parse("boundary-hold-80"), Some(InjectStrategy::BoundaryHold(80)));
+        assert_eq!(InjectStrategy::parse("unicode-after-split"), Some(InjectStrategy::UnicodeAfterSplit));
+    }
+
+    #[test]
+    fn new_delays_are_range_checked() {
+        for bad in [
+            "unicode-after-split-delay-0",
+            "unicode-after-split-delay-51",
+            "unicode-after-split-delay-",
+            "boundary-hold-0",
+            "boundary-hold-121",
+            "boundary-hold-",
+            "boundary-hold--1",
+            "boundary-hold-9x",
+            "boundary-hold",
+            "word-retype-",
+            "select-replace-delay-5",
+        ] {
+            assert_eq!(InjectStrategy::parse(bad), None, "{bad}");
+        }
+        assert_eq!(InjectStrategy::parse("boundary-hold-120"), Some(InjectStrategy::BoundaryHold(120)));
     }
 }

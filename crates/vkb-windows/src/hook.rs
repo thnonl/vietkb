@@ -346,9 +346,19 @@ pub(crate) fn process_event(runtime: &mut HookRuntime, message: u32, info: &KBDL
     // Compiled to nothing unless `dev-channel`.
     #[cfg(feature = "dev-channel")]
     crate::input_dev::wait_pending(info.dwExtraInfo);
+    // `boundary-hold-N`: also dev-channel only.
+    #[cfg(feature = "dev-channel")]
+    let key_down = matches!(message, 0x0100 | 0x0104);
+    #[cfg(feature = "dev-channel")]
+    crate::input_dev::hold_boundary_before(info.dwExtraInfo, info.vkCode as u16, key_down);
+    #[cfg(feature = "dev-channel")]
+    let seq0 = crate::input_dev::inject_seq();
     // A panic must never cross the FFI boundary (or kill the hook thread).
-    std::panic::catch_unwind(AssertUnwindSafe(|| runtime.on_event(message, info).swallow))
-        .unwrap_or(false)
+    let swallowed = std::panic::catch_unwind(AssertUnwindSafe(|| runtime.on_event(message, info).swallow))
+        .unwrap_or(false);
+    #[cfg(feature = "dev-channel")]
+    crate::input_dev::hold_boundary_after(seq0, swallowed, info.dwExtraInfo, info.vkCode as u16, key_down);
+    swallowed
 }
 
 fn spawn_worker() {

@@ -331,7 +331,7 @@ pub(crate) fn push_key(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
 /// Same, for a key that lives on the extended scan-code set (`RCONTROL`,
 /// `RMENU`, `LWIN`/`RWIN`): without the flag a `RCONTROL` key-up with scan
 /// `0x1D` reads as the left key.
-fn push_key_ext(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
+pub(crate) fn push_key_ext(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
     let mut flags = KEYEVENTF_EXTENDEDKEY;
     if up {
         flags |= KEYEVENTF_KEYUP;

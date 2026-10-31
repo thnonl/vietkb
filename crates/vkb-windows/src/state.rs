@@ -52,6 +52,39 @@ fn legacy_trigger_leak() -> bool {
     false
 }
 
+/// `delete_units` of a rewrite action, `None` for any other action.
+fn replace_units(action: &EngineAction) -> Option<u32> {
+    match action {
+        EngineAction::Replace { delete_units, .. } | EngineAction::ReplaceThenPass { delete_units, .. } => {
+            Some(*delete_units)
+        }
+        _ => None,
+    }
+}
+
+/// D-WIN-09 dev seam: what `shown` (the word before the key) and the trim tell
+/// the injection strategies. `before` = `delete_units` before
+/// `keep_unchanged_head`; `action` = after. `None` for a non-rewrite action.
+fn dev_context(shown: &[char], before: Option<u32>, action: &EngineAction) -> Option<crate::input_dev::Context> {
+    let (EngineAction::Replace { delete_units, insert } | EngineAction::ReplaceThenPass { delete_units, insert }) =
+        action
+    else {
+        return None;
+    };
+    // The head is only known when the engine rewrote the whole word.
+    let kept = match before {
+        Some(b) if b as usize == shown.len() => (b - *delete_units) as usize,
+        _ => 0,
+    };
+    Some(crate::input_dev::Context {
+        deletes: *delete_units,
+        insert: insert.clone(),
+        word_len: Some(shown.len() as u32),
+        selectable: shown.iter().all(|c| crate::input_dev::selectable_char(*c)),
+        head: shown[..kept.min(shown.len())].iter().collect(),
+    })
+}
+
 /// The `Đổi kiểu gõ` cycle: Telex ↔ VNI.
 pub fn next_method(current: InputMethod) -> InputMethod {
     match current {
@@ -122,6 +155,9 @@ pub struct HookRuntime {
     resolved: Option<EffectiveSettings>,
     remembered: HashMap<String, bool>,
     send_mode: SendMode,
+    /// D-WIN-09 dev seam: what the engine knew about the word for the injection
+    /// being delivered (`input_dev::Context`); empty unless a strategy is requested.
+    dev_ctx: crate::input_dev::Context,
     /// A short send switched this app to Standard scancodes.
     force_standard: bool,
     /// This app refused every send strategy: stop converting for it.
@@ -145,6 +181,7 @@ impl HookRuntime {
             options: EngineOptions::default(),
             hotkeys,
             mods: keys::seed_from_os(),
+            dev_ctx: crate::input_dev::Context::default(),
             down: [0; 4],
             trigger_swallowed: [0; 4],
             trigger_last: None,
@@ -751,15 +788,31 @@ impl HookRuntime {
             return EngineAction::Noop;
         }
         let engine = &mut self.engine;
+        // D-WIN-09 dev seam: `false` (and the block below compiled out) in a
+        // release build and whenever `VKB_INJECT_STRATEGY` is unset.
+        let want_ctx = crate::input_dev::requested().is_some();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // The word the app shows before this key, so the rewrite can leave
             // its unchanged head alone (D-E2E-06): no allocation, a short copy.
             // `TextBuf` is an inline buffer: a short copy on the stack, no heap.
             let shown: vkb_core::charset::TextBuf = engine.on_screen().iter().copied().collect();
-            keep_unchanged_head(&shown, engine.process_key(key))
+            let raw = engine.process_key(key);
+            let before = replace_units(&raw);
+            let action = keep_unchanged_head(&shown, raw);
+            let ctx = if want_ctx {
+                dev_context(&shown, before, &action)
+            } else {
+                None
+            };
+            (action, ctx)
         }));
         match result {
-            Ok(action) => action,
+            Ok((action, ctx)) => {
+                if let Some(ctx) = ctx {
+                    self.dev_ctx = ctx;
+                }
+                action
+            }
             Err(_) => {
                 // Sprint 1 ships before the engine lands; a panicking engine must
                 // not take the hook thread with it.
@@ -819,7 +872,9 @@ impl HookRuntime {
         // D-WIN-09 measurement seam: `None` (release builds, or no
         // `VKB_INJECT_STRATEGY`) leaves the path below byte-identical.
         if let Some(strategy) = crate::input_dev::active(self.send_mode, deletes) {
-            let result = crate::input_dev::deliver(strategy, deletes, text, chord, held);
+            let ctx = std::mem::take(&mut self.dev_ctx);
+            let ctx = if ctx.applies_to(deletes, text) { ctx } else { Default::default() };
+            let result = crate::input_dev::deliver(strategy, deletes, text, chord, held, &ctx);
             if result.total > 0 && result.sent < result.total {
                 self.on_short_send();
             }
@@ -1775,5 +1830,57 @@ toggle_mode = "release"
         assert!(key(&mut rt, keys::VK_F2, true).swallow, "the next press is ordinary");
         assert!(key(&mut rt, keys::VK_F2, false).swallow);
         assert!(!globals::enabled());
+    }
+
+    // -- D-WIN-09 dev seam: the context handed to the injection strategies ----
+
+    fn rewrite(units: u32, insert: &str) -> EngineAction {
+        EngineAction::Replace {
+            delete_units: units,
+            insert: insert.to_string(),
+        }
+    }
+
+    #[test]
+    fn dev_context_recovers_the_trimmed_head() {
+        let shown: Vec<char> = "Vie".chars().collect();
+        // The engine rewrote `Vie` -> `Viê` (3 units); the trim left `ê` / 1 unit.
+        let ctx = dev_context(&shown, Some(3), &rewrite(1, "ê")).unwrap();
+        assert_eq!((ctx.deletes, ctx.insert.as_str()), (1, "ê"));
+        assert_eq!(ctx.head, "Vi");
+        assert_eq!(ctx.word_len, Some(3));
+        assert!(ctx.selectable);
+        assert!(ctx.applies_to(1, "ê"));
+        assert!(!ctx.applies_to(3, "Viê"));
+    }
+
+    #[test]
+    fn dev_context_has_no_head_when_the_rewrite_was_not_the_whole_word() {
+        let shown: Vec<char> = "ab".chars().collect();
+        // A rewrite longer than the word (delete_units 4 != 2): nothing was trimmed.
+        let ctx = dev_context(&shown, Some(4), &rewrite(4, "xyz")).unwrap();
+        assert_eq!(ctx.head, "");
+        // The context still caps a selection at the word: 4 > 2 means Backspaces.
+        assert_eq!(ctx.word_len, Some(2));
+    }
+
+    #[test]
+    fn dev_context_marks_combining_and_astral_words_unselectable() {
+        let nfd: Vec<char> = "e\u{0302}".chars().collect();
+        assert!(!dev_context(&nfd, Some(2), &rewrite(2, "x")).unwrap().selectable);
+        let astral: Vec<char> = "a😀".chars().collect();
+        assert!(!dev_context(&astral, Some(2), &rewrite(2, "x")).unwrap().selectable);
+    }
+
+    #[test]
+    fn dev_context_only_exists_for_rewrites() {
+        let shown: Vec<char> = "ab".chars().collect();
+        assert!(dev_context(&shown, None, &EngineAction::Noop).is_none());
+        assert!(dev_context(&shown, None, &EngineAction::Commit("x".into())).is_none());
+        let pass = EngineAction::ReplaceThenPass {
+            delete_units: 2,
+            insert: "AB".into(),
+        };
+        assert!(dev_context(&shown, Some(2), &pass).is_some());
     }
 }
