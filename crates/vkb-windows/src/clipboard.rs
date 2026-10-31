@@ -1017,9 +1017,9 @@ fn list_formats() -> Option<Vec<(u32, Option<String>)>> {
 /// possible (unknown/handle-only formats, unreadable data, too large, hung
 /// owner). `None` means: never paste over it.
 fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
-    // (The owner-responsiveness probe ran BEFORE the clipboard was opened, see
-    // `refresh_snapshot`: a delayed-render owner that does not answer would
-    // block `GetClipboardData`, which has no timeout.)
+    // (The owner probe happens below, with the clipboard OPEN and right before
+    // the first read: `read_allowed()`. A delayed-render owner that does not
+    // answer would block `GetClipboardData`, which has no timeout.)
     // Pass 1: ids only. No data is read (or rendered) before the verdict.
     let ids = list_formats()?;
     let verdict = snapshot_verdict(ids.iter().map(|(id, name)| (*id, name.as_deref())));
@@ -1076,8 +1076,10 @@ fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
     Some(formats)
 }
 
-/// Clipboard must be open and the owner probe passed. Fingerprint of the
-/// current `CF_UNICODETEXT`, but only when its size is exactly that of our text:
+/// Clipboard must be open and OUR window must own it (the only caller,
+/// `clear_if_ours`, checks that first: this function does no owner probe and
+/// must never read a foreign clipboard). Fingerprint of the current
+/// `CF_UNICODETEXT`, but only when its size is exactly that of our text:
 /// anything else cannot be ours and is never decoded.
 fn clipboard_text_fp(text: OurText) -> Option<u64> {
     let handle = unsafe { GetClipboardData(CF_UNICODETEXT) }.ok().filter(|h| !h.is_invalid())?;
@@ -1261,8 +1263,10 @@ fn set_bytes(format: u32, bytes: &[u8]) -> bool {
     }
 }
 
-/// Read the current `CF_UNICODETEXT` (test/diagnostic helper).
-pub fn read_text() -> Option<String> {
+/// Read the current `CF_UNICODETEXT` (test-only: it reads a clipboard without an
+/// owner probe, so production code must not have it).
+#[cfg(test)]
+fn read_text() -> Option<String> {
     let _guard = ClipboardGuard::open(None, 10, 20)?;
     let handle = unsafe { GetClipboardData(CF_UNICODETEXT) }.ok()?;
     if handle.is_invalid() {
