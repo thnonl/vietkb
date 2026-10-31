@@ -625,18 +625,9 @@ impl Runtime {
             return None;
         }
         if let Some(ch) = typed {
-            if ch.is_ascii_alphabetic() {
-                // Synthetic events (UI automation, remote-desktop and remapping
-                // tools) take their string from the keycode alone and ignore
-                // the Shift / Caps Lock flags they carry, so `V` arrives as
-                // `v`. The flags are what the app applies, so they decide the
-                // case (D-MAC-01).
-                return Some(if self.mods.shift ^ self.mods.caps_lock {
-                    ch.to_ascii_uppercase()
-                } else {
-                    ch.to_ascii_lowercase()
-                });
-            }
+            // The flags are what the app applies: follow them when the string
+            // disagrees (synthetic events, D-MAC-01).
+            let ch = keys::reconcile_ascii(vk, ch, self.mods.shift, self.mods.caps_lock);
             if !ch.is_control() || keys::is_word_boundary(vk) {
                 return Some(ch);
             }
@@ -1277,15 +1268,35 @@ mod tests {
         assert_eq!(press(&mut rig.rt, 's'), Decision::PASS);
     }
 
+    /// How the Unicode string of a synthetic key event relates to its flags.
+    #[derive(Clone, Copy, Debug)]
+    enum Strings {
+        /// Hardware-like: the string matches the flags.
+        Faithful,
+        /// The string ignores Shift: `V` arrives as `v`.
+        IgnoresShift,
+        /// What the macOS E2E run saw: the string is translated with the Shift of
+        /// the previous key still down, so the key after a capital letter gets its
+        /// shifted string (`6` arrives as `^`) while the flags are already clean.
+        StaleShift,
+    }
+
     /// Types `text` like the E2E harness: Shift down/up around every capital
-    /// letter, digits and lowercase letters unshifted. `string_follows_flags`
-    /// false mimics synthetic events whose Unicode string ignores Shift.
-    fn type_shifted(rt: &mut Runtime, text: &str, string_follows_flags: bool) {
+    /// letter, digits and lowercase letters unshifted.
+    fn type_shifted(rt: &mut Runtime, text: &str, strings: Strings) {
+        let mut prev_shifted = false;
         for ch in text.chars() {
             let shifted = ch.is_ascii_uppercase();
-            let code = mac_code(ch.to_ascii_lowercase());
+            let plain = ch.to_ascii_lowercase();
+            let (vk, _) = keys::us_vk_for_char(plain).unwrap();
+            let code = mac_code(plain);
             let fl = if shifted { flags::SHIFT | flags::DEV_LSHIFT } else { 0 };
-            let typed = if string_follows_flags { ch } else { ch.to_ascii_lowercase() };
+            let typed = match strings {
+                Strings::Faithful => ch,
+                Strings::IgnoresShift => plain,
+                Strings::StaleShift if prev_shifted || shifted => keys::us_char(vk, true, false).unwrap(),
+                Strings::StaleShift => plain,
+            };
             if shifted {
                 rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_SHIFT, fl, None));
             }
@@ -1294,40 +1305,40 @@ mod tests {
             if shifted {
                 rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_SHIFT, 0, None));
             }
+            prev_shifted = shifted;
         }
     }
 
-    fn injections(word: &str, string_follows_flags: bool) -> Vec<(u32, String)> {
+    fn injections(word: &str, strings: Strings) -> Vec<(u32, String)> {
         let mut cfg = quiet_config();
         cfg.input.method = InputMethod::Vni;
         let mut rig = rig(Some(cfg));
-        type_shifted(&mut rig.rt, word, string_follows_flags);
+        type_shifted(&mut rig.rt, word, strings);
         let replaced = rig.log.lock().replaced.clone();
         replaced
     }
 
-    /// D-MAC-01: a synthetic `V` carries the string `v` plus the Shift flag; the
-    /// engine must still see a capital, or the rewrite comes out lowercase.
+    /// D-MAC-01: VNI, all-caps word, then a mark / tone digit. The real tap saw
+    /// `6` arrive as `^` (flags clean) right after the Shift release, so the digit
+    /// was a plain character to the engine. Same result for every string flavour.
     #[test]
     fn vni_all_caps_word_takes_mark_and_tone_digits() {
         let _guard = globals::TEST_LOCK.lock();
-        for follows in [true, false] {
+        for strings in [Strings::Faithful, Strings::IgnoresShift, Strings::StaleShift] {
             assert_eq!(
-                injections("VIE6T5", follows),
+                injections("VIE6T5", strings),
                 vec![(1, "Ê".to_string()), (2, "ỆT".to_string())],
-                "string_follows_flags={follows}"
+                "{strings:?}"
             );
-            assert_eq!(injections("VIE6", follows), vec![(1, "Ê".to_string())]);
-        }
-        // A tone digit after a capitals-only word gives the same rewrite either way.
-        for word in ["VIE5", "VIE6T"] {
-            assert_eq!(injections(word, false), injections(word, true), "{word}");
-            assert!(!injections(word, false).is_empty(), "{word} must be converted");
+            assert_eq!(injections("VIE6", strings), vec![(1, "Ê".to_string())], "{strings:?}");
+            let tone = injections("VIE5", Strings::Faithful);
+            assert!(!tone.is_empty(), "VIE5 must be converted");
+            assert_eq!(injections("VIE5", strings), tone, "{strings:?}");
         }
     }
 
     #[test]
-    fn caps_lock_flag_decides_letter_case_when_the_string_disagrees() {
+    fn char_for_follows_flags_when_the_string_disagrees() {
         let _guard = globals::TEST_LOCK.lock();
         let mut rig = rig(None);
         let rt = &mut rig.rt;
@@ -1336,8 +1347,10 @@ mod tests {
         assert_eq!(rt.char_for(0x56, Some('v')), Some('V'));
         rt.mods.sync(flags::ALPHA_SHIFT | flags::SHIFT);
         assert_eq!(rt.char_for(0x56, Some('V')), Some('v'));
-        // Non-letters and non-ASCII letters keep the layout's own character.
-        assert_eq!(rt.char_for(0x36, Some('6')), Some('6'));
+        // Clean flags, stale shifted string: the digit.
+        rt.mods.sync(0);
+        assert_eq!(rt.char_for(0x36, Some('^')), Some('6'));
+        // Non-US characters stay as the layout produced them.
         assert_eq!(rt.char_for(0x41, Some('ă')), Some('ă'));
     }
 }

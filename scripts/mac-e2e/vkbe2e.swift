@@ -451,7 +451,7 @@ func vniCases() -> [Case] {
         Case(id: "VN-C1", keys: "VIE6T5", expect: "VIỆT", smoke: true, note: "Shift per letter"),
         Case(id: "VN-X1", keys: "VIE6T", expect: "VIÊT", note: "localise VN-C1: all-caps, mark digit only"),
         Case(id: "VN-X2", keys: "VIE6", expect: "VIÊ", note: "localise VN-C1"),
-        Case(id: "VN-X3", keys: "VIE5", expect: "VIẸ", note: "localise VN-C1: all-caps, tone digit"),
+        Case(id: "VN-X3", keys: "VIE5", expect: "VỊE", note: "localise VN-C1: all-caps, tone digit (engine: vie5 -> vịe)"),
         Case(id: "VN-X4", keys: "Vie6T", expect: "ViêT", note: "localise VN-C1: capital coda"),
         Case(id: "VN-C4", keys: "{CAPS}vie6t5{CAPS}", expect: "VIỆT", note: "Caps Lock (synthetic flag)"),
         Case(id: "VN-H1", keys: "{CTRL+SHIFT}tie6ng1 {CTRL+SHIFT}tie6ng1", expect: "tie6ng1 tiếng", note: "toggle hotkey off/on"),

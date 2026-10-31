@@ -339,6 +339,38 @@ impl ModifierState {
     }
 }
 
+/// The character the Shift / Caps Lock *flags* of an event call for, when the
+/// event's Unicode string disagrees with them (D-MAC-01).
+///
+/// Hardware events carry a string that matches their flags. Synthetic ones (UI
+/// automation, remote-desktop and remapping tools) get a string translated from
+/// the session's modifier state at some other moment: `V` arrives as `v`, and a
+/// digit typed right after a Shift release arrives as `^` with clean flags. The
+/// app applies the flags, so the engine must follow them too, or `VIE6` never
+/// sees its mark key.
+///
+/// Only when the string is one of the two US characters of that very key is it
+/// swapped for the one the flags select; any other string (non-US layouts,
+/// Option combinations, dead keys) is the layout's own answer and is kept.
+pub fn reconcile_ascii(vk: u16, typed: char, shift: bool, caps: bool) -> char {
+    if !typed.is_ascii() {
+        return typed;
+    }
+    let (Some(plain), Some(shifted)) = (us_char(vk, false, false), us_char(vk, true, false)) else {
+        return typed;
+    };
+    if typed != plain && typed != shifted {
+        return typed;
+    }
+    // Caps Lock only changes letters.
+    let upper = if plain.is_ascii_alphabetic() { shift ^ caps } else { shift };
+    if upper {
+        shifted
+    } else {
+        plain
+    }
+}
+
 /// US-layout character for a VK. Used to build hotkey tables; typing uses the
 /// character the OS put in the event.
 pub fn us_char(vk: u16, shift: bool, caps: bool) -> Option<char> {
@@ -584,6 +616,24 @@ mod tests {
         assert!(never_text(vk_for_keycode(122)));
         assert!(!never_text(vk_for_keycode(0)));
         assert!(!never_text(VK_SPACE));
+    }
+
+    #[test]
+    fn reconcile_follows_flags_for_the_keys_own_us_characters() {
+        // Letters: case from Shift xor Caps Lock, whatever the string says.
+        assert_eq!(reconcile_ascii(0x56, 'v', true, false), 'V');
+        assert_eq!(reconcile_ascii(0x56, 'V', false, false), 'v');
+        assert_eq!(reconcile_ascii(0x56, 'v', false, true), 'V');
+        assert_eq!(reconcile_ascii(0x56, 'V', true, true), 'v');
+        // Digits: a stale shifted string with clean flags is the digit again.
+        assert_eq!(reconcile_ascii(0x36, '^', false, false), '6');
+        assert_eq!(reconcile_ascii(0x35, '%', false, true), '5', "Caps Lock leaves digits alone");
+        assert_eq!(reconcile_ascii(0x36, '6', true, false), '^');
+        // Anything that is not one of the key's two US characters is the layout's own.
+        assert_eq!(reconcile_ascii(0x36, '§', false, false), '§');
+        assert_eq!(reconcile_ascii(0x41, 'ă', false, false), 'ă');
+        assert_eq!(reconcile_ascii(0x31, '-', false, false), '-', "AZERTY-style digit row is kept");
+        assert_eq!(reconcile_ascii(VK_NONE, '6', false, false), '6');
     }
 
     #[test]
