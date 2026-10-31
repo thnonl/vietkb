@@ -77,6 +77,7 @@ const WM_NULL: u32 = 0;
 const WM_TIMER: u32 = 0x0113;
 const WM_CLIPBOARDUPDATE: u32 = 0x031D;
 const WM_APP_PASTED: u32 = 0x8000 + 0x21;
+const WM_APP_GC: u32 = 0x8000 + 0x24;
 const WM_APP_MODE: u32 = 0x8000 + 0x22;
 const WM_APP_FLUSH: u32 = 0x8000 + 0x23;
 const TIMER_SETTLE: usize = 1;
@@ -90,10 +91,10 @@ struct FormatData {
 impl Drop for FormatData {
     /// The user's clipboard must not linger in freed memory.
     fn drop(&mut self) {
-        for byte in self.bytes.iter_mut() {
-            // SAFETY: `byte` is a valid, aligned, exclusive reference.
-            unsafe { std::ptr::write_volatile(byte, 0) };
-        }
+        self.bytes.fill(0);
+        // Keep the compiler from eliding the stores before the free.
+        std::hint::black_box(&mut self.bytes);
+        std::sync::atomic::compiler_fence(Ordering::SeqCst);
     }
 }
 
@@ -116,9 +117,29 @@ struct Session {
 struct Shared {
     snapshot: Option<Snap>,
     session: Option<Session>,
+    /// Sequence number right after we put the user's data back (the adopted
+    /// snapshot): that notification is ours, no re-capture.
+    restored_seq: Option<u32>,
+    /// Old user data the hook retired; the worker zeroes and frees it so the
+    /// hook thread never pays for large buffers.
+    garbage: Vec<Vec<FormatData>>,
 }
 
-static SHARED: Mutex<Shared> = Mutex::new(Shared { snapshot: None, session: None });
+static SHARED: Mutex<Shared> =
+    Mutex::new(Shared { snapshot: None, session: None, restored_seq: None, garbage: Vec::new() });
+
+/// Hand old user data to the worker for zeroing and freeing.
+fn retire(shared: &mut Shared, data: Vec<FormatData>) {
+    if data.is_empty() {
+        return;
+    }
+    shared.garbage.push(data);
+    if let Some(worker) = hwnd_of(&WORKER_HWND) {
+        // SAFETY: posting to a window we created.
+        let _ = unsafe { PostMessageW(worker, WM_APP_GC, WPARAM(0), LPARAM(0)) };
+    }
+    // No worker: the data stays queued until one exists (or the process ends).
+}
 static ENABLED: AtomicBool = AtomicBool::new(false);
 /// Message-only clipboard owner on the hook thread (pumped there). 0 = none.
 static HOOK_OWNER: AtomicIsize = AtomicIsize::new(0);
@@ -167,9 +188,9 @@ pub fn create_hook_owner() {
 
 /// Counterpart of [`create_hook_owner`] (hook thread, on its way out).
 pub fn destroy_hook_owner() {
-    // Under the shared lock: a restore that reads the owner there never sees a
-    // handle we are about to destroy (and falls back to the NULL owner if the
-    // handle went stale anyway).
+    // Under the shared lock, the same lock a restore reads the owner under when
+    // it takes its session. The handle can still go stale between that read
+    // and its use, hence the NULL-owner fallback in `restore_session`.
     let _shared = SHARED.lock();
     let raw = HOOK_OWNER.swap(0, Ordering::SeqCst);
     if raw != 0 {
@@ -227,6 +248,8 @@ fn previous_owner_responsive() -> bool {
     if unsafe { IsHungAppWindow(prev) }.as_bool() {
         return false;
     }
+    // A window we may not message (UIPI: higher integrity) also answers 0, so
+    // the probe fails closed: the hook types instead of pasting.
     // SAFETY: plain call with a short timeout; no result pointer.
     let answer = unsafe {
         SendMessageTimeoutW(
@@ -265,7 +288,9 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     if decision == PasteDecision::TypeDirectly {
         // A session whose clipboard moved on is the user's data now: forget it.
         if shared.session.as_ref().is_some_and(|s| s.expected_seq != current) {
-            shared.session = None;
+            if let Some(old) = shared.session.take() {
+                retire(&mut shared, old.data);
+            }
         }
         return false;
     }
@@ -287,14 +312,22 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
         };
         if let Some(data) = data {
             restore_locked(&data);
+            retire(&mut shared, data);
         }
         return false;
     };
     drop(guard);
     match decision {
         PasteDecision::StartSession => {
+            if let Some(old) = shared.session.take() {
+                retire(&mut shared, old.data); // stale session: not freed on the hook thread
+            }
             if let Some(snap) = shared.snapshot.take() {
-                shared.session = Some(Session { data: snap.data, expected_seq: seq, last_write: Instant::now() });
+                shared.session = Some(Session {
+                    data: snap.data,
+                    expected_seq: seq,
+                    last_write: Instant::now(),
+                });
             }
         }
         _ => {
@@ -412,6 +445,10 @@ unsafe extern "system" fn worker_proc(
             let _ = catch_unwind(|| restore_if_due(hwnd));
             LRESULT(0)
         }
+        WM_APP_GC => {
+            collect_garbage();
+            LRESULT(0)
+        }
         WM_APP_MODE => {
             let _ = catch_unwind(|| apply_mode(hwnd));
             LRESULT(0)
@@ -462,9 +499,11 @@ fn on_update(hwnd: HWND) {
         // Read AFTER taking the lock: the hook records its write's sequence
         // number under this lock, so a paste in flight cannot look foreign.
         let current = unsafe { GetClipboardSequenceNumber() };
-        if notification_is_ours(shared.session.as_ref().map(|s| s.expected_seq), current) {
-            return; // our own temporary text
+        let session_seq = shared.session.as_ref().map(|s| s.expected_seq);
+        if notification_is_ours(session_seq, shared.restored_seq, current) {
+            return; // our temporary text, or the user's data we put back
         }
+        shared.restored_seq = None;
         if shared.session.take().is_some() {
             // Someone else copied: their data, never restored over.
             let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
@@ -496,30 +535,46 @@ fn restore_if_due(hwnd: HWND) {
         let Some(session) = shared.session.as_ref() else { return };
         let elapsed = session.last_write.elapsed().as_millis() as u64;
         if restore_due(elapsed) {
-            shared.session.take()
+            // The owner is read in the same section that takes the session.
+            shared.session.take().map(|s| (s, hwnd_of(&HOOK_OWNER)))
         } else {
             let wait = settle_remaining_ms(elapsed);
             unsafe { SetTimer(hwnd, TIMER_SETTLE, wait as u32, None) };
             None
         }
     };
-    if let Some(session) = due {
-        restore_session(&session);
+    if let Some((session, owner)) = due {
+        restore_session(session, owner);
     }
 }
 
 /// Flush / mode off / settled: put the user's data back.
 fn restore_now() {
-    let Some(done) = SHARED.lock().session.take() else { return };
-    restore_session(&done);
+    let (done, owner) = {
+        let mut shared = SHARED.lock();
+        let Some(done) = shared.session.take() else { return };
+        (done, hwnd_of(&HOOK_OWNER))
+    };
+    restore_session(done, owner);
+}
+
+/// Worker: zero and free what the hook retired.
+fn collect_garbage() {
+    let old = std::mem::take(&mut SHARED.lock().garbage);
+    drop(old);
 }
 
 /// Retried with backoff while the clipboard is busy; only if still ours.
-fn restore_session(done: &Session) {
+///
+/// On success the restored data is ADOPTED as the next snapshot (its sequence
+/// number read under the open clipboard), so the mode keeps working without a
+/// re-capture: a re-capture would see the privacy flags we just added and, by
+/// design, refuse to snapshot.
+fn restore_session(done: Session, owner: Option<HWND>) {
     for attempt in 0..5u32 {
         // Our pumped owner first; if that handle went stale (hook thread gone)
         // the last attempts use the NULL owner.
-        let owner = if attempt < 3 { hwnd_of(&HOOK_OWNER) } else { None };
+        let owner = if attempt < 3 { owner } else { None };
         if let Some(guard) = ClipboardGuard::open(owner, 1, 0) {
             // Checked while we hold the clipboard: nobody can write in between.
             let now = unsafe { GetClipboardSequenceNumber() };
@@ -527,10 +582,18 @@ fn restore_session(done: &Session) {
                 tracing::debug!("clipboard changed after our paste; not restoring");
                 return;
             }
-            if !restore_locked(&done.data) {
-                tracing::warn!("clipboard restore incomplete");
-            }
+            let complete = restore_locked(&done.data);
+            let seq = unsafe { GetClipboardSequenceNumber() };
             drop(guard);
+            if !complete {
+                tracing::warn!("clipboard restore incomplete");
+                return;
+            }
+            if seq != 0 && ENABLED.load(Ordering::SeqCst) {
+                let mut shared = SHARED.lock();
+                shared.restored_seq = Some(seq);
+                shared.snapshot = Some(Snap { seq, data: done.data });
+            }
             return;
         }
         thread::sleep(Duration::from_millis(20 << attempt));

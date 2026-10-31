@@ -159,10 +159,16 @@ pub fn restore_due(elapsed_ms: u64) -> bool {
 }
 
 /// Is a `WM_CLIPBOARDUPDATE` our own write? `session_expected` is the sequence
-/// number recorded under the shared lock right after that write, `current` was
-/// read AFTER taking the same lock, so a paste in flight cannot look foreign.
-pub fn notification_is_ours(session_expected: Option<u32>, current: u32) -> bool {
-    current != 0 && session_expected == Some(current)
+/// number recorded under the shared lock right after a paste, `restored_seq`
+/// the one right after we put the user's data back (adopted as the next
+/// snapshot, so it must not be re-captured); `current` was read AFTER taking
+/// the same lock, so a write in flight cannot look foreign.
+pub fn notification_is_ours(
+    session_expected: Option<u32>,
+    restored_seq: Option<u32>,
+    current: u32,
+) -> bool {
+    current != 0 && (session_expected == Some(current) || restored_seq == Some(current))
 }
 
 /// Privacy: does a clipboard flag format forbid keeping a copy of the data?
@@ -331,12 +337,26 @@ mod tests {
     #[test]
     fn our_own_notification_is_recognised() {
         // The hook recorded 30 under the lock; the listener reads 30 afterwards.
-        assert!(notification_is_ours(Some(30), 30));
+        assert!(notification_is_ours(Some(30), None, 30));
         // A different number is a foreign write.
-        assert!(!notification_is_ours(Some(30), 31));
+        assert!(!notification_is_ours(Some(30), None, 31));
         // No session: nothing is "ours".
-        assert!(!notification_is_ours(None, 30));
-        assert!(!notification_is_ours(Some(0), 0));
+        assert!(!notification_is_ours(None, None, 30));
+        assert!(!notification_is_ours(Some(0), Some(0), 0));
+        // Our own restore (adopted as the snapshot) is not re-captured ...
+        assert!(notification_is_ours(None, Some(40), 40));
+        // ... but a later foreign write is.
+        assert!(!notification_is_ours(None, Some(40), 41));
+    }
+
+    #[test]
+    fn adopted_restore_is_a_matching_snapshot() {
+        use PasteDecision::*;
+        // restore -> snapshot {seq: 40}: the next expansion pastes again
+        // without a re-capture (which would see our own privacy flags).
+        assert_eq!(decide_paste(true, None, Some(40), 40), StartSession);
+        // Anything copied afterwards makes it stale.
+        assert_eq!(decide_paste(true, None, Some(40), 41), TypeDirectly);
     }
 
     #[test]
