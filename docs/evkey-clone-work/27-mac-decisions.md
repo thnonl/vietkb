@@ -57,8 +57,7 @@ The UI shows the Mac symbols.
 - First run without Accessibility: settings window opens with a clear banner and a button that triggers the system prompt and opens System Settings → Privacy & Security → Accessibility. The app never scripts System Settings.
 
 ## M4 — Settings hidden on macOS
-Hidden (kept in config, ignored by the Mac backend): legacy charsets other than Unicode,
-Windows-only injection options (send mode / clipboard paste variants), "Start with Windows"
+Hidden (kept in config, ignored by the Mac backend): Windows-only injection options (send mode / clipboard paste variants), "Start with Windows"
 label → "Mở cùng macOS" (same `system.start_with_windows` key).
 
 ## M5 — Packaging and updates

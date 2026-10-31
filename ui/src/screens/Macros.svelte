@@ -292,7 +292,7 @@
       spellcheck="false" />
     <span class="kk">
       <Keycap text={platformState.mac ? "Win" : "Ctrl"} small />
-      {#if !platformState.mac}<span class="plus">+</span>{/if}
+      <span class="plus">+</span>
       <Keycap text="F" small />
     </span>
   </div>

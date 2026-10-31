@@ -5,13 +5,10 @@
 //! `Bật/tắt tiếng Việt`), a right click opens the menu. Nothing on the tray
 //! opens the settings window any more — that is the menu's `Mở cài đặt…`.
 
-#[cfg(not(target_os = "macos"))]
 use std::sync::Mutex;
-#[cfg(not(target_os = "macos"))]
 use std::time::{Duration, Instant};
 
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-#[cfg(not(target_os = "macos"))]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Wry};
@@ -337,9 +334,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .on_menu_event(|app, event| handle_event(app, event.id.as_ref()));
 
-    // Left click belongs to the toggle below, so the menu is right-click
-    // only (Tauri's default on Windows).
-    #[cfg(not(target_os = "macos"))]
+    // Left click toggles Vietnamese on/off, the menu is right-click only (on
+    // macOS also ctrl-click, which AppKit delivers as a right click). Same on
+    // both platforms (M10).
     let builder = builder
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|_tray, event| {
@@ -354,10 +351,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             }
         });
 
-    // macOS: a menu-bar extra opens its menu on a plain click; the toggle is the
-    // menu's first item. The icon is a template image the system tints.
+    // macOS: the icon is a template image the system tints.
     #[cfg(target_os = "macos")]
-    let builder = builder.show_menu_on_left_click(true).icon_as_template(true);
+    let builder = builder.icon_as_template(true);
 
     builder.build(app)?;
 
@@ -367,10 +363,8 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
 /// Swallow the second half of a double-click. Windows reports a double-click on
 /// the tray as extra click events; without this guard one double-click would
 /// flip the state twice and land back where it started.
-#[cfg(not(target_os = "macos"))]
 const CLICK_GUARD: Duration = Duration::from_millis(350);
 
-#[cfg(not(target_os = "macos"))]
 fn toggle_from_left_click() {
     static LAST_CLICK: Mutex<Option<Instant>> = Mutex::new(None);
 

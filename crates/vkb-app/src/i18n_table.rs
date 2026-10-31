@@ -74,5 +74,5 @@ pub const TABLE: &[(&str, &str, &str)] = &[
     ("err.hotkey.unknownKey", "không nhận ra phím: {key}", "unrecognised key: {key}"),
     ("err.hotkey.noModifier", "phím tắt cần ít nhất một phím Ctrl/Alt/Shift/Win: {key}", "a shortcut needs at least one of Ctrl/Alt/Shift/Win: {key}"),
     ("err.hotkey.noModifier.mac", "phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key}", "a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key}"),
-    ("err.autostart.transient", "VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS.", "VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Open at login."),
+    ("err.autostart.transient", "VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS.", "VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS."),
 ];

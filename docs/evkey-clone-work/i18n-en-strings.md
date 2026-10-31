@@ -98,11 +98,11 @@ The small settings panel opened from the tray / menu bar. Short labels, one line
 | `quick.appCount.other` | ứng dụng | apps |
 | `quick.appList` | Danh sách ứng dụng… | Excluded apps… |
 | `quick.autostart.win` | Khởi động cùng Windows | Start with Windows |
-| `quick.autostart.mac` | Mở cùng macOS | Open at login |
+| `quick.autostart.mac` | Mở cùng macOS | Start with macOS |
 | `quick.autostart.hint.win` | Chạy ngay khi đăng nhập Windows | Starts when you sign in to Windows |
 | `quick.autostart.hint.mac` | Chạy ngay khi đăng nhập macOS | Starts when you log in to macOS |
 | `quick.autostart.fail.win` | Không đổi được khởi động cùng Windows | Couldn't change Start with Windows |
-| `quick.autostart.fail.mac` | Không đổi được mở cùng macOS | Couldn't change Open at login |
+| `quick.autostart.fail.mac` | Không đổi được mở cùng macOS | Couldn't change Start with macOS |
 | `quick.startHidden` | Chạy ẩn | Start hidden |
 | `quick.startHidden.hint.win` | Mở lên không hiện cửa sổ, chỉ nằm trong khay | Starts with no window, just the tray icon |
 | `quick.startHidden.hint.mac` | Mở lên không hiện cửa sổ, chỉ nằm trên thanh menu | Starts with no window, just the menu bar icon |
@@ -471,6 +471,6 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.unknownKey` | không nhận ra phím: {key} | unrecognised key: {key} |
 | `err.hotkey.noModifier` | phím tắt cần ít nhất một phím Ctrl/Alt/Shift/Win: {key} | a shortcut needs at least one of Ctrl/Alt/Shift/Win: {key} |
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
-| `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Open at login. |
+| `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS. |
 
 Total: 345 keys.

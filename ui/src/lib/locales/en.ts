@@ -66,11 +66,11 @@ export const en: Record<string, string> = {
   "quick.appCount.other": "apps",
   "quick.appList": "Excluded apps…",
   "quick.autostart.win": "Start with Windows",
-  "quick.autostart.mac": "Open at login",
+  "quick.autostart.mac": "Start with macOS",
   "quick.autostart.hint.win": "Starts when you sign in to Windows",
   "quick.autostart.hint.mac": "Starts when you log in to macOS",
   "quick.autostart.fail.win": "Couldn't change Start with Windows",
-  "quick.autostart.fail.mac": "Couldn't change Open at login",
+  "quick.autostart.fail.mac": "Couldn't change Start with macOS",
   "quick.startHidden": "Start hidden",
   "quick.startHidden.hint.win": "Starts with no window, just the tray icon",
   "quick.startHidden.hint.mac": "Starts with no window, just the menu bar icon",
@@ -379,6 +379,6 @@ export const en: Record<string, string> = {
   "err.hotkey.unknownKey": "unrecognised key: {key}",
   "err.hotkey.noModifier": "a shortcut needs at least one of Ctrl/Alt/Shift/Win: {key}",
   "err.hotkey.noModifier.mac": "a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key}",
-  "err.autostart.transient": "VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Open at login.",
+  "err.autostart.transient": "VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS.",
 
 };
