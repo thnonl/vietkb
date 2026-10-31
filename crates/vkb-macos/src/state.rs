@@ -151,10 +151,13 @@ pub struct Runtime {
     trigger_last: Option<(u16, Instant)>,
     /// The hotkey capture was running at the last key event (to notice its end).
     was_capturing: bool,
-    /// The last non-modifier key whose key-down reached the page during a
-    /// capture, and when (refreshed by every repeat): its repeats and key-up
-    /// after the capture ended belong to that press, which the matcher never saw.
-    passed_in_capture: Option<(u16, Instant)>,
+    /// Bitset of non-modifier keys whose key-down reached the page while a
+    /// capture was running. Their repeats and key-up that arrive after the capture
+    /// ended belong to that press: the matcher never saw the key-down, so it must
+    /// not see the rest either. Each key clears only its own bit, on its key-up.
+    passed_in_capture: [u64; 4],
+    /// When a passed key last produced an event (repeats refresh it).
+    passed_last: Option<Instant>,
     cfg: Option<Arc<AppConfig>>,
     config_version: u64,
     base: BaseSettings,
@@ -191,7 +194,8 @@ impl Runtime {
             trigger_swallowed: [0; 4],
             trigger_last: None,
             was_capturing: false,
-            passed_in_capture: None,
+            passed_in_capture: [0; 4],
+            passed_last: None,
             cfg: None,
             config_version: globals::config_version(),
             base: BaseSettings::default(),
@@ -380,7 +384,10 @@ impl Runtime {
             if !is_modifier {
                 // The key-down reaches the page; remember it so the repeats and
                 // the key-up after a capture that ends mid-hold do not fire.
-                self.passed_in_capture = if down { Some((vk, Instant::now())) } else { None };
+                self.set_passed(vk, down);
+                if down {
+                    self.passed_last = Some(Instant::now());
+                }
             }
             self.reset_engine();
             return Decision::PASS;
@@ -389,20 +396,19 @@ impl Runtime {
         // A key whose key-down went to the page during the capture: the rest of
         // that press (repeats, key-up) goes there too, unmatched. A fresh press
         // (or a repeat that is not recent: the key-up was lost) starts clean.
-        if !is_modifier {
-            if let Some((key, at)) = self.passed_in_capture {
-                if key == vk {
-                    if !down {
-                        self.passed_in_capture = None;
-                        return Decision::PASS;
-                    }
-                    if repeat && at.elapsed() < TRIGGER_REPEAT_WINDOW {
-                        self.passed_in_capture = Some((vk, Instant::now()));
-                        return Decision::PASS;
-                    }
-                    self.passed_in_capture = None;
-                }
+        if !is_modifier && self.is_passed(vk) {
+            if !down {
+                self.set_passed(vk, false);
+                return Decision::PASS;
             }
+            let recent = self
+                .passed_last
+                .is_some_and(|at| at.elapsed() < TRIGGER_REPEAT_WINDOW);
+            if repeat && recent {
+                self.passed_last = Some(Instant::now());
+                return Decision::PASS;
+            }
+            self.set_passed(vk, false);
         }
 
         // A swallowed trigger stays swallowed while held (auto-repeat).
@@ -871,6 +877,21 @@ impl Runtime {
         }
     }
 
+    fn is_passed(&self, vk: u16) -> bool {
+        let index = vk as usize;
+        self.passed_in_capture[index / 64] & (1u64 << (index % 64)) != 0
+    }
+
+    fn set_passed(&mut self, vk: u16, on: bool) {
+        let index = vk as usize;
+        let bit = 1u64 << (index % 64);
+        if on {
+            self.passed_in_capture[index / 64] |= bit;
+        } else {
+            self.passed_in_capture[index / 64] &= !bit;
+        }
+    }
+
     fn set_trigger_swallowed(&mut self, vk: u16, on: bool) {
         let index = vk as usize;
         let bit = 1u64 << (index % 64);
@@ -1313,6 +1334,32 @@ mod tests {
         rig.rt.on_event(&RawEvent::key(EventKind::KeyUp, mac_code('b'), 0, Some('b')));
         *rig.capture.lock() = false;
         assert_eq!(rig.rt.on_event(&up), Decision::SWALLOW, "no orphan key-up");
+    }
+
+    #[test]
+    fn another_key_tapped_in_capture_does_not_forget_the_held_trigger() {
+        let _guard = globals::TEST_LOCK.lock();
+        let commands = Arc::new(Mutex::new(Vec::new()));
+        let sink = commands.clone();
+        globals::set_command_callback(move |cmd| sink.lock().push(cmd));
+        let mut rig = rig(Some(quiet_config()));
+        let fl = flags::CONTROL | flags::ALTERNATE | flags::DEV_LCTRL | flags::DEV_LALT;
+        let s = mac_code('s');
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_CONTROL, flags::CONTROL | flags::DEV_LCTRL, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_OPTION, fl, None));
+        let down = RawEvent::key(EventKind::KeyDown, s, fl, Some('s'));
+        let up = RawEvent::key(EventKind::KeyUp, s, fl, Some('s'));
+        *rig.capture.lock() = true;
+        assert_eq!(rig.rt.on_event(&down), Decision::PASS);
+        let b = mac_code('b');
+        rig.rt.on_event(&RawEvent::key(EventKind::KeyDown, b, fl, Some('b')));
+        rig.rt.on_event(&RawEvent::key(EventKind::KeyUp, b, fl, Some('b')));
+        *rig.capture.lock() = false;
+        let mut repeat = down;
+        repeat.autorepeat = true;
+        assert_eq!(rig.rt.on_event(&repeat), Decision::PASS);
+        assert_eq!(rig.rt.on_event(&up), Decision::PASS);
+        assert!(commands.lock().is_empty());
     }
 
     #[test]

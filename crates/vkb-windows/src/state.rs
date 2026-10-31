@@ -101,11 +101,13 @@ pub struct HookRuntime {
     trigger_last: Option<(u16, Instant)>,
     /// The hotkey capture was running at the last key event (to notice its end).
     was_capturing: bool,
-    /// The last non-modifier key whose key-down reached the page while a capture
-    /// was running, and when (refreshed by every repeat). Its repeats and key-up
-    /// that arrive after the capture ended belong to that press: the matcher
-    /// never saw the key-down, so it must not see the rest either.
-    passed_in_capture: Option<(u16, Instant)>,
+    /// Bitset of non-modifier keys whose key-down reached the page while a
+    /// capture was running. Their repeats and key-up that arrive after the capture
+    /// ended belong to that press: the matcher never saw the key-down, so it must
+    /// not see the rest either. Each key clears only its own bit, on its key-up.
+    passed_in_capture: [u64; 4],
+    /// When a passed key last produced an event (repeats refresh it).
+    passed_last: Option<Instant>,
     cfg: Option<Arc<AppConfig>>,
     base: BaseSettings,
     rule: Option<vkb_config::AppRule>,
@@ -147,7 +149,8 @@ impl HookRuntime {
             trigger_swallowed: [0; 4],
             trigger_last: None,
             was_capturing: false,
-            passed_in_capture: None,
+            passed_in_capture: [0; 4],
+            passed_last: None,
             cfg: None,
             base: BaseSettings::default(),
             rule: None,
@@ -388,7 +391,10 @@ impl HookRuntime {
             if !is_modifier {
                 // The key-down reaches the page; remember it so the repeats and
                 // the key-up after a capture that ends mid-hold do not fire.
-                self.passed_in_capture = if down { Some((vk, Instant::now())) } else { None };
+                self.set_passed(vk, down);
+                if down {
+                    self.passed_last = Some(Instant::now());
+                }
             }
             trace.stage("capture");
             self.reset_engine();
@@ -398,22 +404,21 @@ impl HookRuntime {
         // A key whose key-down went to the page during the capture: the rest of
         // that press (repeats, key-up) goes there too, unmatched. A fresh press
         // (or a repeat that is not recent: the key-up was lost) starts clean.
-        if !is_modifier {
-            if let Some((key, at)) = self.passed_in_capture {
-                if key == vk {
-                    if !down {
-                        self.passed_in_capture = None;
-                        trace.stage("capture-held-up");
-                        return Decision::PASS;
-                    }
-                    if repeat && at.elapsed() < TRIGGER_REPEAT_WINDOW {
-                        self.passed_in_capture = Some((vk, Instant::now()));
-                        trace.stage("capture-held-repeat");
-                        return Decision::PASS;
-                    }
-                    self.passed_in_capture = None;
-                }
+        if !is_modifier && self.is_passed(vk) {
+            if !down {
+                self.set_passed(vk, false);
+                trace.stage("capture-held-up");
+                return Decision::PASS;
             }
+            let recent = self
+                .passed_last
+                .is_some_and(|at| at.elapsed() < TRIGGER_REPEAT_WINDOW);
+            if repeat && recent {
+                self.passed_last = Some(Instant::now());
+                trace.stage("capture-held-repeat");
+                return Decision::PASS;
+            }
+            self.set_passed(vk, false);
         }
 
         // A trigger key-down that was swallowed stays swallowed for as long as it
@@ -1057,6 +1062,21 @@ impl HookRuntime {
     fn is_down(&self, vk: u16) -> bool {
         let index = vk as usize;
         self.down[index / 64] & (1u64 << (index % 64)) != 0
+    }
+
+    fn is_passed(&self, vk: u16) -> bool {
+        let index = vk as usize;
+        self.passed_in_capture[index / 64] & (1u64 << (index % 64)) != 0
+    }
+
+    fn set_passed(&mut self, vk: u16, on: bool) {
+        let index = vk as usize;
+        let bit = 1u64 << (index % 64);
+        if on {
+            self.passed_in_capture[index / 64] |= bit;
+        } else {
+            self.passed_in_capture[index / 64] &= !bit;
+        }
     }
 
     fn set_trigger_swallowed(&mut self, vk: u16, on: bool) {
@@ -1728,5 +1748,23 @@ toggle_mode = "release"
         key(&mut rt, 0x42, false);
         assert!(!rt.trigger_is_swallowed(0x41), "stale bit dropped at the end");
         assert!(!key(&mut rt, 0x41, true).swallow);
+    }
+
+    #[test]
+    fn another_key_tapped_in_capture_does_not_forget_the_held_one() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _off = CaptureOff;
+        let mut rt = quiet_runtime();
+        globals::set_hotkey_capture(true);
+        assert!(!key(&mut rt, keys::VK_F2, true).swallow, "hold F2");
+        assert!(!key(&mut rt, keys::VK_F1 + 2, true).swallow, "tap F3 ...");
+        assert!(!key(&mut rt, keys::VK_F1 + 2, false).swallow);
+        globals::set_hotkey_capture(false);
+        assert!(!key(&mut rt, keys::VK_F2, true).swallow, "F2 repeat follows its key-down");
+        assert!(!key(&mut rt, keys::VK_F2, false).swallow, "and so does its key-up");
+        assert!(globals::enabled(), "F2 did not fire");
+        assert!(key(&mut rt, keys::VK_F2, true).swallow, "the next press is ordinary");
+        assert!(key(&mut rt, keys::VK_F2, false).swallow);
+        assert!(!globals::enabled());
     }
 }
