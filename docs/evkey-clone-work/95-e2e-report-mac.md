@@ -242,3 +242,25 @@ Guardrails:
 - Typing phases ran the dev bundle exec'd with a temp HOME (own config under `VietKB Dev`). The owner's `~/Library/Application Support/VietKB/config.toml` changed hash during the perapp phase (D-MAC-46); `VietKB Dev` in the real HOME was never created; the app-suite manifests were identical before and after.
 - One dev instance at a time; every instance quit by AX Quit or osascript, logged in each `guardrail.log`. Dock: a stale tile of the dead dev bundle appeared after the quit phase in both full runs and after the update phase once (D-MAC-44); the final state of every run was checked clean (0 tiles, 0 dev processes), the last check after the HEAD run.
 - EVKey was not running before or after: nothing quit, nothing relaunched. Input source ABC unchanged. TextEdit pid 19829 and Terminal pid 49785 pre-existed and were not touched (the harness's own documents were closed). Screenshots only of VietKB windows, harness-owned test windows and Dock tile crops; manifests stay gitignored.
+
+
+## 0.2.7 RC2 typing re-run (owner VietKB quit) — 2026-10-31
+
+Product code a93bc52 (main b214377). Dev-channel bundle rebuilt with `build-dev-app.sh` and re-signed with the Apple Development identity (team KNB9B3B3L2), bin sha256 `ee08a8ad…d1ad`. Evidence `qa/mac/run-0.2.7-rc2-typing/` (`owner-instance.log`, `typing/`, `typing-noextras/`, `toggle-diag-1..2/`, `typing-e13-1..5/`, `typing-vnh1-1..5/`). Harness edit: `vkbe2e.swift` takes no screenshot for the Notes target (no list screenshots); manifests gitignored.
+
+| Run | Result |
+|---|---|
+| Full run with extras (telex, vni, perapp) | INVALID after GUI-5: 145 PASS, 100 FAIL, 1 ABORT; GUI-5 failed and left the engine OFF for the rest of the telex phase (cascade; VNI and perapp phases fine). New D-MAC-48, not reproduced |
+| Full run, no extras, all targets, telex + vni + perapp, stability rows (x10, slow, burst) | **242 PASS, 0 FAIL** |
+| gui-toggle (GUI-5) alone, 2 runs | 2/2 PASS (3 rows each incl. gui) |
+| TX-E13 textedit-rich `tieengs1` x5 (+ 1 duplicate row, +1 in the full run) | **6/6 PASS** (`tiếng1`) |
+| VN-H1 textedit-plain x5 (+ 1 in the full run) | **5/5 PASS** |
+
+Defects: D-MAC-42 CLOSED (it was the owner's live instance), D-MAC-46 mitigated by M11, D-MAC-48 new (watch). typing-e13-2 holds two rows because the orphaned run of the interrupted driver and its replacement wrote to the same dir.
+
+Owner instance log (all in `owner-instance.log`):
+- Idle gate: HID idle 3611 s on the first try.
+- `QUIT 17:02:49 pid=36608 path=.../target/universal-apple-darwin/release/bundle/macos/VietKB.app/Contents/MacOS/vietkb`; osascript quit returned "User canceled (-128)" (the app declined), alive after 10 s, `kill -TERM` at 17:02:59, gone at 17:03:04. No SIGKILL.
+- `RELAUNCH 17:48:31 pid=38269` from the same path via `open`, after the binary sha256 was re-verified unchanged (`1b023bba…49ba2`). Downtime 45 min (longer than planned: I replaced the driver mid-run to add the no-extras and toggle reruns; the first driver was SIGKILLed, not the app).
+- Owner `config.toml` sha256 `faad8a0f…9513` before, after quit, and after relaunch: unchanged.
+- EVKey was not running before or after; input source ABC unchanged; no leftover dev process; one dev instance at a time.

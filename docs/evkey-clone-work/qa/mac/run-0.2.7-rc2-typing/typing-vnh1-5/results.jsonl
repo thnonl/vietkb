@@ -1,0 +1,1 @@
+{"actual":"tie6ng1 tiếng","evidence":"shots\/textedit-plain-vni-VN-H1.png","expected":"tie6ng1 tiếng","id":"VN-H1","keys":"{CTRL+SHIFT}tie6ng1 {CTRL+SHIFT}tie6ng1","method":"vni","nfcEqualOnly":false,"note":"toggle hotkey off\/on","seconds":1.8,"speed":"fast","target":"textedit-plain","verdict":"PASS"}
