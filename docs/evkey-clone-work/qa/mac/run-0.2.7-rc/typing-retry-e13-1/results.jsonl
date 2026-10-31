@@ -1,0 +1,1 @@
+{"actual":"tíeng","evidence":"shots\/textedit-rich-telex-TX-E13.png","expected":"tiếng1","id":"TX-E13","keys":"tieengs1","method":"telex","nfcEqualOnly":false,"note":"digit commits the word","seconds":1.3,"speed":"fast","target":"textedit-rich","verdict":"FAIL"}

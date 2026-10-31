@@ -1,0 +1,2 @@
+{"actual":"labels: [\"Update available — open About\"]","cases":"MAC-UPD-01","evidence":"shots\/theme-toggle-5-update-button.png","expected":"see item","id":"APP-70","keys":"update badge in the settings window (fake update feed)","method":"-","note":"","target":"app","verdict":"PASS"}
+{"actual":"clean (tiles 0, baseline 0)","cases":"MAC-DCK-03","evidence":"","expected":"see item","id":"APP-DOCK-update","keys":"after phase update: no new Dock tile and no running instance of the dev bundle remain (guardrail)","method":"-","note":"","target":"app","verdict":"PASS"}

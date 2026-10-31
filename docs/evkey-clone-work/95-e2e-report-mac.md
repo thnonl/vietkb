@@ -208,3 +208,37 @@ Guardrails:
 Failures: none. No D-MAC entry added. No phase was skipped.
 
 Lead note (2026-10-31): the Notes screenshots of this run showed the owner's note list and were deleted before commit. Harness follow-up: screenshot only the note body (or hide the sidebar/list) for the Notes target.
+
+
+## 0.2.7 RC — 2026-10-31
+
+Builds: dev-channel bundle `target/dev-app/VietKB Dev.app` (`vn.vietkb.app.dev`, 0.2.7), built with `scripts/mac-e2e/build-dev-app.sh` and re-signed with the local Apple Development identity (team KNB9B3B3L2). Typing, first app suite, rerun and static ran on **aa5e71f** (bin sha256 `81630aa8…88b1`); the app suite, static and the theme screenshots were repeated on **HEAD a337357** (M9 title bar, M10 parity, release notes). Evidence `qa/mac/run-0.2.7-rc/` (`static/`, `typing/`, `app/`, `app-rerun*/`, `app-head/`, `static-head/`, `typing-retry-*`, `shots/`, `shots-aa5e71f/`). Harness edits made for this run: `run.sh` picks the `VietKB Dev` config dir for a dev bundle; `appsuite.swift` has the M7 theme phase `theme` (APP-80..83), a polling update-badge check (needs `check_updates = true`, the fake feed answers locally) and screenshots of the window only.
+
+| Area | Result |
+|---|---|
+| Static: site-check | aa5e71f 15/20 (SITE-08/06, 08/07, 08/10, 12, 13 FAIL); HEAD 18/20 (SITE-09 new, SITE-13 remains) |
+| Static: strings-audit | 6/8 then 7/8 (STR-02 `common.add` unused remains; STR-06 hit was an HTML comment) |
+| Typing, Telex + VNI, all targets (aa5e71f) | 247 PASS, 2 FAIL of 249: TX-E13 textedit-rich (D-MAC-42, 4/4 reproducible), VN-H1 textedit-plain (failed once, 3/3 PASS on retry) |
+| Stability (x10, slow x2, burst x10 rows) | all repetition rows PASS (no stability row failed) |
+| App: launch, Dock/policy, singleton check, windows | PASS (APP-01..04, 13..16) |
+| App: z-order of every modal from main | macros, hotkeys, advanced, About-from-Advanced PASS; hotkeys and advanced failed once in the first run (extra window, D-MAC-47), PASS in 4 later runs |
+| App: modals from the menu | NOT TESTABLE: the status-item menu cannot be opened by AX (APP-05b, D-MAC-34 reproduced); no coordinate clicks on the menu bar by rule |
+| App: VI/EN | PASS (toggle in 5 windows, EN in 194 ms, no leaks, no clipping, 10 round trips, EN persists over restart) |
+| App: theme (M7) | PASS: default `system` follows the OS (dark), one click stores explicit `light`, Reset all returns `system`. Live OS appearance change not tested (system setting) |
+| App: update badge (M8) | settings-window button PASS on fake feed (`Update available — open About`); menu-bar badge not AX-readable: manual |
+| App: quit paths | PASS (Quit button, Cmd+Q with a modal open, Dock-tile Quit, osascript quit, SIGTERM); SIGKILL skipped by design |
+| Singleton (M8) | PASS: `open -n`, other HOME, second .app copy, direct exec -> 1 process, 1 status item, 0 taps, 1 Dock tile, settings window shown, second pid exits |
+| Hidden start (APP-30, APP-60) | FAIL as written; cause is the dev bundle having no Accessibility/Input Monitoring grant, so D-MAC-15 shows the window (D-MAC-45, harness expectation) |
+| hand-edited language (APP-25) | FAIL, D-MAC-36 reproduced |
+| Aria labels (APP-11) | FAIL, D-MAC-35 reproduced |
+
+Screenshots of the theme toggle (window only): `qa/mac/run-0.2.7-rc/shots/theme-toggle-1-system-default.png`, `-2-explicit-light.png`, `-3-en-light.png`, `-4-after-reset.png`, `-5-update-button.png` (HEAD layout); the aa5e71f layout is in `shots-aa5e71f/`.
+
+Defects: verified (D-MAC-02, 04, 05, 15, 16, 17, 22, 25, 26, 28, 30 (window half), 31 (sequential only), 37, 40); still open and reproduced (34, 35, 36, 38 partial, 39); new D-MAC-42..47 (42 TX-E13 rich P1 undecided, 46 guardrail gap with the owner's live instance P1).
+
+Guardrails:
+- Owner's VietKB pid 36608 (prod bundle) was never signalled, quit or launched into; it was running through the whole run.
+- Idle gate: HID idle was 1409 s at the typing start and above 200 s before each app run; no retry needed; no physical-input abort (exit 6 never occurred).
+- Typing phases ran the dev bundle exec'd with a temp HOME (own config under `VietKB Dev`). The owner's `~/Library/Application Support/VietKB/config.toml` changed hash during the perapp phase (D-MAC-46); `VietKB Dev` in the real HOME was never created; the app-suite manifests were identical before and after.
+- One dev instance at a time; every instance quit by AX Quit or osascript, logged in each `guardrail.log`. Dock: a stale tile of the dead dev bundle appeared after the quit phase in both full runs and after the update phase once (D-MAC-44); the final state of every run was checked clean (0 tiles, 0 dev processes), the last check after the HEAD run.
+- EVKey was not running before or after: nothing quit, nothing relaunched. Input source ABC unchanged. TextEdit pid 19829 and Terminal pid 49785 pre-existed and were not touched (the harness's own documents were closed). Screenshots only of VietKB windows, harness-owned test windows and Dock tile crops; manifests stay gitignored.
