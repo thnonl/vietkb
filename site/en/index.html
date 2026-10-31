@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VietKB — Vietnamese typing for Windows and macOS</title>
+<meta name="description" content="VietKB is a free, open-source Vietnamese input method for Windows and macOS: Telex, VNI, text expansion and per-app rules. Unicode output, no ads, nothing you type is recorded.">
+<link rel="canonical" href="https://thnonl.github.io/vietkb/en/">
+<link rel="alternate" hreflang="vi" href="https://thnonl.github.io/vietkb/">
+<link rel="alternate" hreflang="en" href="https://thnonl.github.io/vietkb/en/">
+<link rel="alternate" hreflang="x-default" href="https://thnonl.github.io/vietkb/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="VietKB">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="vi_VN">
+<meta property="og:title" content="VietKB: Vietnamese typing for Windows and macOS">
+<meta property="og:description" content="Telex or VNI, text expansion, per-app rules. Lives in the system tray or the menu bar. Free and open source.">
+<meta property="og:url" content="https://thnonl.github.io/vietkb/en/">
+<meta property="og:image" content="https://thnonl.github.io/vietkb/assets/hero-poster.jpg">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="720">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ECECF1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101017" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../assets/logo-v.png" type="image/png">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-key"><img src="../assets/logo-v.png" alt="" width="22" height="22"></span>
+      <span class="brand-name">VietKB</span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#shortcuts">Shortcuts</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+      <a href="#releases">Releases</a>
+    </nav>
+
+    <nav class="lang" aria-label="Language">
+      <a href="../index.html" hreflang="vi" lang="vi" aria-label="Tiếng Việt">VI</a>
+      <span aria-hidden="true">|</span>
+      <a href="index.html" hreflang="en" lang="en" aria-label="English" aria-current="page">EN</a>
+    </nav>
+
+    <a class="btn btn-primary btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Download</a>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">Vietnamese input · Windows · macOS</p>
+        <h1 id="hero-title">Your keyboard,<br><span class="h1-accent">in Vietnamese</span></h1>
+        <p class="pitch">Type Vietnamese with Telex or VNI on Windows and Mac. VietKB stays out of the way in the system tray or the menu bar. Output is Unicode, so it pastes correctly anywhere.</p>
+
+        <!-- Without JS: Windows is the main button and macOS a link below; both work.
+             With JS: Mac visitors get macOS as the main button (see the script at the end). -->
+        <div class="actions">
+          <a class="btn btn-primary" id="dl-primary" href="https://github.com/thnonl/vietkb/releases/latest">
+            <span class="dl-label">Download for Windows</span>
+            <span class="btn-meta" data-release="installer">3.1 MB</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/thnonl/vietkb">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+            </svg>
+            GitHub
+          </a>
+        </div>
+
+        <p class="alt-dl" id="dl-alt">
+          <span class="dl-alt-lead">On a Mac?</span>
+          <a href="https://github.com/thnonl/vietkb/releases/latest"><span class="dl-label">Download for macOS</span></a>
+          <span class="dl-alt-meta" data-release="dmg" hidden></span>
+        </p>
+
+        <p class="fineprint">
+          <span data-release="latest">Latest release on GitHub</span>
+          <span class="tag">Windows 10/11 · x64</span>
+          <span class="tag">macOS 11+ · Apple silicon and Intel</span>
+          <span class="tag">Not code-signed</span>
+        </p>
+
+        <ul class="hero-specs">
+          <li><b>0.8 µs</b><span>per keystroke, p99</span></li>
+          <li><b>14 MB</b><span>in the system tray</span></li>
+          <li><b>0.3 s</b><span>from boot to typing</span></li>
+        </ul>
+        <p class="specs-note">Measured on Windows.</p>
+
+        <div class="kofi">
+          <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'N4X728S6TT');kofiwidget2.draw();</script>
+        </div>
+      </div>
+
+      <figure class="board-wrap">
+        <div class="board">
+          <div class="screen">
+            <video class="hero-video" autoplay muted loop playsinline preload="metadata"
+                   poster="../assets/hero-poster.jpg" width="1280" height="720"
+                   aria-label="16-second clip recorded on Windows: VietKB turns tieengs into tiếng, the four main features, 0.8 microseconds per keystroke, 14 MB in the system tray, and the 13-control settings window.">
+              <source src="../assets/hero-motion.mp4" type="video/mp4">
+            </video>
+          </div>
+
+          <div class="telex-demo" aria-hidden="true">
+            <span class="telex-raw"></span><span class="telex-final">tiếng</span><span class="telex-caret"></span>
+            <button type="button" aria-label="Pause animation" aria-pressed="false">Ⅱ</button>
+          </div>
+
+          <div class="keys" aria-hidden="true">
+            <span>t</span><span>i</span><span class="on">ế</span><span>n</span><span>g</span><span class="hot">s</span><span>⇧</span><span class="wide">space</span>
+          </div>
+        </div>
+        <figcaption class="board-caption">
+          Same keyboard: type <code>tieengs</code>, get <code>tiếng</code>. The 16-second clip above, recorded on Windows, walks through the features, the speed and the interface.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section story" id="why" aria-labelledby="story-title">
+    <div class="wrap">
+      <div class="story-panel">
+        <h2 id="story-title">Why VietKB</h2>
+        <div class="story-body">
+          <p>VietKB does one job: Vietnamese typing with Telex or VNI, in Unicode. The same input method on Windows and macOS.</p>
+          <p>Free, open source, no ads. Nothing you type is recorded.</p>
+          <p class="story-facts">
+            <span>Windows 10/11 and macOS 11+</span>
+            <span>14 MB in the tray (Windows)</span>
+            <span>Windows installer about 3 MB</span>
+            <span>one .dmg for every Mac</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">01</span>
+        <div>
+          <h2 id="features-title">Features</h2>
+          <p class="lead">Typing methods, text expansion and per-app rules. The same on Windows and Mac, except where noted.</p>
+        </div>
+      </div>
+
+      <ul class="cards">
+        <li class="card">
+          <span class="key-id" aria-hidden="true">01</span>
+          <h3>Telex and VNI</h3>
+          <p>Pick Telex or VNI. Output is Unicode, so text pastes correctly anywhere. On Windows you can also choose decomposed Unicode (NFD).</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">02</span>
+          <h3>Text expansion</h3>
+          <p>Keep your own list of abbreviations, and import or export it to use on another computer. It has its own on/off switch, can match capitalization, and still works with Vietnamese turned off.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">03</span>
+          <h3>Excluded apps</h3>
+          <p>Set rules per app. VietKB remembers whether Vietnamese was on or off in each one as you switch windows.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">04</span>
+          <h3>Your own shortcuts</h3>
+          <p>Turn Vietnamese on and off with Ctrl+Shift on Windows, <span class="mac-keys">⌃⇧</span> on a Mac. Every shortcut can be changed in Settings. <a href="#shortcuts">See the defaults</a>.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">05</span>
+          <h3>Small</h3>
+          <p>On Windows: 14 MB while running in the tray, and a <span data-release="installer">3.1 MB</span> installer. On Mac: one <code>.dmg</code> for both Apple silicon and Intel. Built with Rust and Tauri 2.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">06</span>
+          <h3>Tray and menu bar</h3>
+          <p>Windows: left-click the V/E icon in the tray to switch. Mac: click V/E in the menu bar to open its menu. Open at login, start hidden, and check for updates from inside the app.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">07</span>
+          <h3>Accurate typing</h3>
+          <p>Old- or new-style tone marks, free tone placement, spell check, and restore misspelled words. Also auto-capitalized sentences, j/f/w/z as consonants, and ưo corrected to ươ.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">08</span>
+          <h3>Raw text zones</h3>
+          <p>Mark URLs or code so VietKB leaves them exactly as typed.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">09</span>
+          <h3>Password fields left alone</h3>
+          <p>In password fields, keys come through exactly as pressed, with no tone marks. On Windows, VietKB also types Vietnamese on the on-screen keyboard.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">10</span>
+          <h3>Status sounds</h3>
+          <p>Two distinct sounds tell you when Vietnamese turns on and off.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="shortcuts" aria-labelledby="shortcuts-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">02</span>
+        <div>
+          <h2 id="shortcuts-title">Default shortcuts</h2>
+          <p class="lead">On a Mac, F1, F2, F8, F9 and F11 already control brightness, volume and Show Desktop, so they start unassigned. You can still set them under <em>Shortcuts…</em></p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="hotkeys">
+          <caption class="visually-hidden">Default shortcuts on Windows and macOS</caption>
+          <thead>
+            <tr><th scope="col">Action</th><th scope="col">Windows</th><th scope="col">macOS</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Vietnamese on/off</th>
+              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd></td>
+              <td><kbd>⌃⇧</kbd><span class="key-name">Control + Shift</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Restore misspelled word</th>
+              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
+              <td><kbd>⌃⇧Z</kbd><span class="key-name">Control + Shift + Z</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Open settings</th>
+              <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td>
+              <td><kbd>⌃⌥S</kbd><span class="key-name">Control + Option + S</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Vietnamese on</th>
+              <td><kbd>F1</kbd></td>
+              <td class="unset">Not set</td>
+            </tr>
+            <tr>
+              <th scope="row">Vietnamese off</th>
+              <td><kbd>F2</kbd></td>
+              <td class="unset">Not set</td>
+            </tr>
+            <tr>
+              <th scope="row">Abbreviations</th>
+              <td><kbd>F8</kbd></td>
+              <td class="unset">Not set</td>
+            </tr>
+            <tr>
+              <th scope="row">Text expansion on/off</th>
+              <td><kbd>F9</kbd></td>
+              <td class="unset">Not set</td>
+            </tr>
+            <tr>
+              <th scope="row">Excluded apps on/off</th>
+              <td><kbd>F11</kbd></td>
+              <td class="unset">Not set</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note"><kbd>⌘⇧Z</kbd> on a Mac stays Redo. VietKB never touches it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="interface" aria-labelledby="interface-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">03</span>
+        <div>
+          <h2 id="interface-title">Interface</h2>
+          <p class="lead">One settings window and three more: Shortcuts, Abbreviations, Advanced. Windows offers Light and Dark; on a Mac the window follows the system appearance. Screenshots show the Vietnamese interface.</p>
+        </div>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <div class="shot-frame">
+            <img src="../assets/main-light.png" width="494" height="468"
+                 alt="VietKB settings window on Windows, light mode, in Vietnamese: 13 controls including Vietnamese on, Typing method Telex, Start hidden and Quit.">
+          </div>
+          <figcaption>
+            <strong>Windows, light mode</strong>
+            13 controls in one window, including Start hidden and Quit.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="shot-frame">
+            <img src="../assets/main-dark.png" width="494" height="468"
+                 alt="VietKB settings window on Windows, dark mode, in Vietnamese: the same 13 controls including Vietnamese on, Typing method Telex, Start hidden and Quit.">
+          </div>
+          <figcaption>
+            <strong>Windows, dark mode</strong>
+            The same window, in Light or Dark.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="shot-frame">
+            <img src="../assets/mac-settings-dark.png" width="480" height="453" loading="lazy"
+                 alt="VietKB settings window on macOS, dark appearance with the standard macOS title bar, in Vietnamese: Vietnamese on with the Control Shift shortcut, Typing method Telex, New-style tone marks, Spell check, Text expansion, Excluded apps, Open at login and Start hidden.">
+          </div>
+          <figcaption>
+            <strong>macOS, settings window</strong>
+            Standard macOS title bar, with an Open at login switch.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="shot-frame shot-frame-menu">
+            <img src="../assets/mac-menu-dark.png" width="179" height="198" loading="lazy"
+                 alt="VietKB menu in the macOS menu bar, in Vietnamese: Vietnamese on/off (checked), Typing method, Open settings, Shortcuts, About, Quit VietKB.">
+          </div>
+          <figcaption>
+            <strong>macOS, menu bar</strong>
+            Click the V/E icon to switch, change the typing method or open settings.
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">04</span>
+        <div>
+          <h2 id="install-title">Install</h2>
+          <p class="lead">Three steps on each platform. Nothing else to install.</p>
+        </div>
+      </div>
+
+      <h3 class="platform-title" id="install-windows">On Windows</h3>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num" aria-hidden="true">1</span>
+          <h4>Download the installer</h4>
+          <p>Click <a href="https://github.com/thnonl/vietkb/releases/latest">Download for Windows</a> and get the latest <code>.exe</code> from the release page.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">2</span>
+          <h4>Run it</h4>
+          <p>Open the file and follow the installer. When it finishes, VietKB sits in the system tray, ready to type.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">3</span>
+          <h4>Start typing</h4>
+          <p>Type in any text field. Left-click the tray icon to turn Vietnamese off or back on.</p>
+        </li>
+      </ol>
+
+      <div class="note">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/>
+          <path d="M12 9.5v4M12 16.8h.01"/>
+        </svg>
+        <p>
+          <strong>Windows SmartScreen may warn you</strong>
+          The installer is not code-signed yet, so SmartScreen may show a warning. Choose <em>More info</em>, then <em>Run anyway</em>. The source code is on GitHub.
+        </p>
+      </div>
+
+      <h3 class="platform-title" id="install-mac">On macOS</h3>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num" aria-hidden="true">1</span>
+          <h4>Drag to Applications</h4>
+          <p>Click <a href="https://github.com/thnonl/vietkb/releases/latest">Download for macOS</a> and get <code>VietKB_…_universal.dmg</code>. Open it and drag <em>VietKB</em> into <em>Applications</em>.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">2</span>
+          <h4>Open it the first time</h4>
+          <p>In <em>Applications</em>, right-click <em>VietKB</em>, choose <em>Open</em>, then <em>Open</em> again. You only do this once. If macOS still blocks it, see the note below.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">3</span>
+          <h4>Allow Accessibility</h4>
+          <p>The settings window shows a yellow banner. Click its button, then turn on <em>VietKB</em> under <em>Privacy &amp; Security</em> &gt; <em>Accessibility</em>. Once the V shows in the menu bar, you can type.</p>
+        </li>
+      </ol>
+
+      <div class="note">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/>
+          <path d="M12 9.5v4M12 16.8h.01"/>
+        </svg>
+        <div class="note-body">
+          <p>
+            <strong>macOS says VietKB can’t be opened</strong>
+            The Mac version is not notarized by Apple yet. If right-click › <em>Open</em> doesn’t help, go to <em>System Settings</em> &gt; <em>Privacy &amp; Security</em>, scroll down and click <em>Open Anyway</em>. Or run this in Terminal:
+          </p>
+          <pre class="cmd"><code>xattr -dr com.apple.quarantine /Applications/VietKB.app</code></pre>
+        </div>
+      </div>
+
+      <div class="note note-info">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 11v5M12 7.8h.01"/>
+        </svg>
+        <p>
+          <strong>Turn off other Vietnamese input methods first</strong>
+          Two input methods running at once produce garbled text. Quit EVKey, OpenKey or Unikey. On a Mac, switch the input source to <em>ABC</em> instead of the built-in Vietnamese input.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">05</span>
+        <div>
+          <h2 id="faq-title">FAQ</h2>
+          <p class="lead">Common questions, especially right after installing on a Mac.</p>
+        </div>
+      </div>
+
+      <div class="faq">
+        <details>
+          <summary>macOS says “VietKB can’t be opened”. What now?</summary>
+          <p>The Mac version is not notarized by Apple yet, so macOS blocks the first launch. Right-click VietKB in <em>Applications</em> and choose <em>Open</em>. If it is still blocked, go to <em>System Settings</em> &gt; <em>Privacy &amp; Security</em> and click <em>Open Anyway</em>. You only need to do this once per install.</p>
+        </details>
+        <details>
+          <summary>Why does VietKB need Accessibility access?</summary>
+          <p>To see the keys you press and replace them with Vietnamese letters. Without it, macOS lets no input method do that. VietKB records nothing you type and sends nothing anywhere.</p>
+        </details>
+        <details>
+          <summary>Accessibility is on, but VietKB still asks for it?</summary>
+          <p>This usually happens after installing a new version over the old one. Turn the VietKB switch under <em>Accessibility</em> off and on again. If that doesn’t work, remove VietKB from the list with the <em>−</em> button and open VietKB again.</p>
+        </details>
+        <details>
+          <summary>Why don’t tone marks appear in password fields?</summary>
+          <p>That is on purpose. Password and other secure fields get exactly the keys you press, so a password never turns into accented letters.</p>
+        </details>
+        <details>
+          <summary>Does the Mac version update itself?</summary>
+          <p>Not yet. VietKB tells you when a new version is out and opens the download page. Download the new <code>.dmg</code> and drag it over the old copy in <em>Applications</em>. Self-updating needs an Apple-notarized build, so it isn’t available yet. The Windows version updates itself from inside the app.</p>
+        </details>
+        <details>
+          <summary>Can I use it alongside the Vietnamese input built into macOS?</summary>
+          <p>Not at the same time. While using VietKB, pick <em>ABC</em> as the input source in the menu bar. To go back to the macOS input, quit VietKB first.</p>
+        </details>
+        <details>
+          <summary>On a Mac, F1 and F2 don’t switch Vietnamese?</summary>
+          <p>On a Mac the F keys control brightness and volume, so VietKB leaves them unassigned. Use <kbd>⌃⇧</kbd> (Control + Shift), or set your own keys under <em>Shortcuts…</em></p>
+        </details>
+        <details>
+          <summary>Why does VietKB come and go in the Dock?</summary>
+          <p>VietKB shows in the Dock while one of its windows is open. Close the window and it keeps running, with just the V/E icon in the menu bar.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="releases" aria-labelledby="releases-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">06</span>
+        <div>
+          <h2 id="releases-title">Releases</h2>
+          <p class="lead">Get the latest version and read the release notes from GitHub. Every release includes both the Windows installer and the Mac download.</p>
+        </div>
+      </div>
+
+      <div class="release-grid">
+        <div>
+          <dl class="facts">
+            <div><dt>Latest version</dt><dd data-release="version">on GitHub</dd></div>
+            <div><dt>Windows installer</dt><dd data-release="installer">3.1 MB</dd></div>
+            <div><dt>Mac download</dt><dd data-release="dmg-fact">.dmg</dd></div>
+            <div><dt>Running (Windows)</dt><dd>14 MB</dd></div>
+            <div><dt>Platforms</dt><dd>Windows 10/11, macOS 11+</dd></div>
+            <div><dt>Code signing</dt><dd>Not yet</dd></div>
+          </dl>
+
+          <ul class="todo">
+            <li><strong>macOS</strong> First Mac release. Not notarized by Apple yet, and no self-update.</li>
+            <li><strong>Signing</strong> The Windows installer isn’t signed, so SmartScreen will keep warning until it has a certificate.</li>
+          </ul>
+        </div>
+
+        <div class="log">
+          <div class="log-head">
+            <h3>Release notes</h3>
+            <span class="log-dot" aria-hidden="true"></span>
+          </div>
+          <div id="changelog">
+            <p class="log-empty">Couldn’t load the release notes. <a href="https://github.com/thnonl/vietkb/releases">Read them on GitHub</a>.</p>
+          </div>
+          <p class="log-foot">
+            <a href="https://github.com/thnonl/vietkb/releases">All releases</a>
+            <a href="https://github.com/thnonl/vietkb/issues">Report a bug</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <a class="brand" href="index.html">
+        <span class="brand-key"><img src="../assets/logo-v.png" alt="" width="22" height="22"></span>
+        <span class="brand-name">VietKB</span>
+      </a>
+      <p class="footer-note">Vietnamese input method for Windows and macOS. Telex, VNI, Unicode.</p>
+    </div>
+
+    <div class="footer-links">
+      <a href="https://github.com/thnonl/vietkb">Source code</a>
+      <a href="https://github.com/thnonl/vietkb/issues">Report a bug</a>
+      <a href="https://github.com/thnonl/vietkb/releases">Releases</a>
+    </div>
+    <div class="kofi kofi-footer">
+      <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'N4X728S6TT');kofiwidget2.draw();</script>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* Download button by OS. The static page shows Windows as the main button and a macOS link;
+   on a Mac the two swap. Unknown OS: leave it as is. Keep in sync with ../index.html. */
+(function () {
+  function detectOS() {
+    var d = navigator.userAgentData;
+    if (d && d.platform) {
+      if (/mac/i.test(d.platform)) return 'mac';
+      if (/win/i.test(d.platform)) return 'win';
+      return '';
+    }
+    var ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod|Android/i.test(ua)) return '';
+    /* iPadOS reports "Macintosh" but has a touch screen. */
+    if (/Macintosh|Mac OS X/.test(ua)) return navigator.maxTouchPoints > 1 ? '' : 'mac';
+    if (/Windows/.test(ua)) return 'win';
+    return '';
+  }
+
+  if (detectOS() !== 'mac') return;
+
+  var primary = document.getElementById('dl-primary');
+  var alt = document.getElementById('dl-alt');
+  if (!primary || !alt) return;
+
+  primary.querySelector('.dl-label').textContent = 'Download for macOS';
+  var pMeta = primary.querySelector('.btn-meta');
+  pMeta.setAttribute('data-release', 'dmg');
+  pMeta.textContent = '';
+  pMeta.hidden = true;
+
+  alt.querySelector('.dl-alt-lead').textContent = 'On Windows?';
+  alt.querySelector('.dl-label').textContent = 'Download for Windows';
+  var aMeta = alt.querySelector('.dl-alt-meta');
+  aMeta.setAttribute('data-release', 'installer');
+  aMeta.textContent = '3.1 MB';
+  aMeta.hidden = false;
+})();
+
+/* One GitHub API call shared by the hero release line, the download sizes and the release notes.
+   The static strings carry no version number, so a network error leaves the page as is. */
+(function () {
+  var box = document.getElementById('changelog');
+  var API = 'https://api.github.com/repos/thnonl/vietkb/releases/latest';
+
+  function text(s) {
+    return String(s == null ? '' : s).replace(/[*_`]/g, '').trim();
+  }
+
+  function renderNotes(root, markdown) {
+    var list = null;
+    String(markdown).split(/\r?\n/).forEach(function (line) {
+      var t = line.trim();
+      if (!t) { list = null; return; }
+      if (/^#{1,6}\s/.test(t)) {
+        var h = document.createElement('h4');
+        h.textContent = text(t.replace(/^#{1,6}\s+/, ''));
+        root.appendChild(h);
+        list = null;
+        return;
+      }
+      if (/^[-*+]\s+/.test(t)) {
+        if (!list) { list = document.createElement('ul'); root.appendChild(list); }
+        var li = document.createElement('li');
+        li.textContent = text(t.replace(/^[-*+]\s+/, ''));
+        list.appendChild(li);
+        return;
+      }
+      list = null;
+      var p = document.createElement('p');
+      p.textContent = text(t);
+      root.appendChild(p);
+    });
+  }
+
+  function sizeLabel(bytes) {
+    return (bytes / 1000000).toFixed(1) + ' MB';
+  }
+
+  function setAll(name, value) {
+    var nodes = document.querySelectorAll('[data-release="' + name + '"]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = value;
+      nodes[i].hidden = false;
+    }
+  }
+
+  function asset(rel, re) {
+    return (rel.assets || []).filter(function (a) { return re.test(a.name); })[0];
+  }
+
+  function apply(rel) {
+    var exe = asset(rel, /\.exe$/i);
+    var dmg = asset(rel, /\.dmg$/i);
+
+    setAll('version', rel.tag_name);
+    setAll('latest', 'Latest: ' + rel.tag_name);
+    if (exe && exe.size) setAll('installer', sizeLabel(exe.size));
+    if (dmg && dmg.size) {
+      setAll('dmg', sizeLabel(dmg.size));
+      setAll('dmg-fact', sizeLabel(dmg.size));
+    }
+
+    if (!box) return;
+
+    var frag = document.createDocumentFragment();
+    var meta = document.createElement('p');
+    meta.className = 'log-meta';
+    var when = rel.published_at ? new Date(rel.published_at) : null;
+    meta.textContent = rel.tag_name + (when && !isNaN(when)
+      ? ' · ' + when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '');
+    frag.appendChild(meta);
+
+    var body = document.createElement('div');
+    body.className = 'log-body';
+    /* Release notes are written in Vietnamese; mark them so screen readers switch voice. */
+    body.setAttribute('lang', 'vi');
+    if (rel.body && rel.body.trim()) {
+      renderNotes(body, rel.body);
+    } else {
+      var empty = document.createElement('p');
+      empty.className = 'log-empty';
+      empty.setAttribute('lang', 'en');
+      empty.textContent = 'No release notes yet';
+      body.appendChild(empty);
+    }
+    frag.appendChild(body);
+
+    box.replaceChildren(frag);
+  }
+
+  if (!window.fetch) return;
+
+  try {
+    fetch(API, { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (rel) {
+        if (!rel || !rel.tag_name) throw new Error('empty release');
+        apply(rel);
+      })
+      .catch(function () {
+        /* Keep the static strings: "Latest release on GitHub" and links to the release page. */
+      });
+  } catch (e) {
+    /* Very old browser: keep the static strings. */
+  }
+})();
+</script>
+<script defer src="../hero.js"></script>
+</body>
+</html>

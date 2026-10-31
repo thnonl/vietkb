@@ -157,6 +157,37 @@ a { color: var(--accent); }
   box-shadow: 0 2px 0 var(--key-edge);
 }
 
+/* Language switch VI | EN: always visible, also when .nav is hidden on phones. */
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.nav + .lang { margin-left: 4px; }
+
+.lang a {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.lang a:hover { color: var(--ink); }
+
+.lang a[aria-current="page"] {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 2px 0 var(--key-edge);
+}
+
+.lang span { color: var(--line); }
+
 /* ---------- buttons (keycaps that press) ---------- */
 
 .btn {
@@ -903,6 +934,9 @@ kbd {
 .notfound h1 { margin: 0 0 10px; font-size: clamp(1.7rem, 3.4vw, 2.4rem); }
 .notfound p { margin: 0 0 20px; color: var(--muted); }
 
+.notfound-en { margin-top: clamp(28px, 5vw, 44px); padding-top: clamp(20px, 3vw, 28px); border-top: 1px solid var(--line); }
+.notfound-en h2 { margin: 0 0 8px; font-size: clamp(1.25rem, 2.4vw, 1.6rem); }
+
 /* ---------- footer ---------- */
 
 .site-footer {
@@ -938,6 +972,7 @@ kbd {
 @media (max-width: 900px) {
   .nav { display: none; }
   .header-inner { justify-content: space-between; }
+  .lang { margin-left: auto; }
 }
 
 @media (max-width: 640px) {

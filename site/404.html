@@ -3,30 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Không tìm thấy trang — VietKB</title>
-<meta name="description" content="Trang này không còn ở đây. Về trang chủ VietKB để tải bộ gõ tiếng Việt cho Windows và macOS.">
+<title>Không tìm thấy trang · Page not found — VietKB</title>
+<meta name="description" content="Trang này không còn ở đây. Về trang chủ VietKB để tải bộ gõ tiếng Việt cho Windows và macOS. This page is gone; the VietKB home page has the download.">
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ECECF1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#101017" media="(prefers-color-scheme: dark)">
-<link rel="icon" href="assets/logo-v.png" type="image/png">
-<link rel="stylesheet" href="styles.css">
+<!-- GitHub Pages serves this page at any missing URL, including under /en/,
+     so every link and asset uses the site root /vietkb/. -->
+<link rel="icon" href="/vietkb/assets/logo-v.png" type="image/png">
+<link rel="stylesheet" href="/vietkb/styles.css">
 </head>
 <body>
-<a class="skip" href="#main">Bỏ qua điều hướng</a>
+<a class="skip" href="#main">Bỏ qua điều hướng · Skip to content</a>
 
 <header class="site-header">
   <div class="wrap header-inner">
-    <a class="brand" href="index.html">
-      <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+    <a class="brand" href="/vietkb/">
+      <span class="brand-key"><img src="/vietkb/assets/logo-v.png" alt="" width="22" height="22"></span>
       <span class="brand-name">VietKB</span>
     </a>
 
     <nav class="nav" aria-label="Điều hướng chính">
-      <a href="index.html#tinh-nang">Tính năng</a>
-      <a href="index.html#giao-dien">Giao diện</a>
-      <a href="index.html#cai-dat">Cài đặt</a>
-      <a href="index.html#phat-hanh">Bản phát hành</a>
+      <a href="/vietkb/#tinh-nang">Tính năng</a>
+      <a href="/vietkb/#cai-dat">Cài đặt</a>
+      <a href="/vietkb/#hoi-dap">Hỏi đáp</a>
+      <a href="/vietkb/#phat-hanh">Bản phát hành</a>
+    </nav>
+
+    <nav class="lang" aria-label="Ngôn ngữ · Language">
+      <a href="/vietkb/" hreflang="vi" lang="vi" aria-label="Tiếng Việt">VI</a>
+      <span aria-hidden="true">|</span>
+      <a href="/vietkb/en/" hreflang="en" lang="en" aria-label="English">EN</a>
     </nav>
 
     <a class="btn btn-primary btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Tải về</a>
@@ -39,8 +47,16 @@
     <h1 id="nf-title">Không tìm thấy trang này</h1>
     <p>Đường dẫn có thể đã đổi hoặc sai. Về trang chủ để xem thông tin và tải VietKB.</p>
     <div class="actions">
-      <a class="btn btn-primary" href="index.html">Về trang chủ</a>
+      <a class="btn btn-primary" href="/vietkb/">Về trang chủ</a>
       <a class="btn btn-ghost" href="https://github.com/thnonl/vietkb">GitHub</a>
+    </div>
+
+    <div lang="en" class="notfound-en">
+      <h2>Page not found</h2>
+      <p>The link may have changed or be mistyped. The home page has everything, including the download.</p>
+      <div class="actions">
+        <a class="btn btn-ghost" href="/vietkb/en/">English home page</a>
+      </div>
     </div>
   </section>
 </main>
@@ -48,8 +64,8 @@
 <footer class="site-footer">
   <div class="wrap footer-inner">
     <div class="footer-brand">
-      <a class="brand" href="index.html">
-        <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+      <a class="brand" href="/vietkb/">
+        <span class="brand-key"><img src="/vietkb/assets/logo-v.png" alt="" width="22" height="22"></span>
         <span class="brand-name">VietKB</span>
       </a>
       <p class="footer-note">Bộ gõ tiếng Việt cho Windows và macOS. Viết bằng Rust và Tauri 2.</p>
