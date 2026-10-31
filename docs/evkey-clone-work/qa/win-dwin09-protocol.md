@@ -170,3 +170,11 @@ Per new strategy (measurement build only; none is on by default):
   crate: `cargo test -p vkb-windows` on Windows) and for the name parser in
   `crates/vkb-platform/src/inject_strategy.rs`. They were compile-checked only, not run, for
   the Windows crate.
+
+## Mandatory foreground check (added 2026-10-31 after an incident)
+
+During the D-WIN-01 run at aa5e71f, F1 opened Edge help and the QA driver kept sending Telex keys into the owner's Edge/Bing search box ("get help with notepad in windows âưĐâưââââư"). Rule for every run of this protocol:
+
+- Check the foreground HWND **before every single key** (not per batch) and abort the run immediately if it is not a window the agent itself created/opened for the test. Never "re-focus and continue" automatically.
+- Never send a key that can open another app or browser (F1, Win, browser keys) in a run that types text afterwards, unless the step is designed for it and the foreground is re-verified.
+- After an abort, report which window got focus and what was sent; do not retry until the owner is told.

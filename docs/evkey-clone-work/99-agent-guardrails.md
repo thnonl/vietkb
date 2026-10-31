@@ -71,3 +71,7 @@ report saying which rule blocks it and what the owner must do — not a workarou
 - EVKey: relaunch it after a run only if it was running before the run.
 - Close every document the agent opened (track them by window id when opening); report any you
   could not identify instead of leaving them.
+
+## 7. Foreground check per key (2026-10-31)
+
+After an incident where test keys landed in the owner's Edge search box (F1 had opened Edge help), every synthetic-input run on Windows and macOS checks the foreground window **before every key** (HWND / frontmost pid + window id) and aborts the run at the first mismatch — no automatic re-focus. Keys that can launch or focus another app (F1, Win/⌘ shortcuts, browser keys) are not sent in text-typing runs unless the step needs them and the foreground is re-verified right after.
