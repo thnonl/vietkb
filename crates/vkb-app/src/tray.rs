@@ -450,8 +450,12 @@ pub fn refresh(app: &AppHandle, status: &StatusView) {
     if on_main_thread() {
         run_refresh(app, status);
     } else {
-        let (handle, status) = (app.clone(), status.clone());
-        if let Err(error) = app.run_on_main_thread(move || run_refresh(&handle, &status)) {
+        // The posted closure reads the status when it runs, so a queued older
+        // status can never overwrite a newer direct refresh.
+        let handle = app.clone();
+        if let Err(error) =
+            app.run_on_main_thread(move || run_refresh(&handle, &commands::status_now()))
+        {
             tracing::warn!(%error, "could not post the tray refresh");
         }
     }
