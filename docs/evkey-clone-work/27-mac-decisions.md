@@ -97,3 +97,17 @@ dark/light mode sẽ được lưu lại."
 - "Đặt lại tất cả" / Reset all returns the theme to `system`.
 - Existing 0.2.6 files with `theme = "dark"` stay dark (indistinguishable from a chosen dark).
 - Supersedes the Mac-only three-state toggle of M6.
+
+## M8 — Singleton and update badge (owner, 2026-10-31; Windows and macOS)
+Owner, verbatim: "Hãy nhớ rằng app này là singleton. Và khi có update cần hiện icon update giống như Windows."
+- VietKB is a singleton per channel: one running instance per bundle identifier (`vn.vietkb.app`;
+  the dev channel `vn.vietkb.app.dev` is a separate identity for side-by-side testing only). A second
+  launch — from Finder, Spotlight, Dock, `open -n`, a second copy of the .app at another path, or
+  login-item start while already running — must not start a second process/menu-bar icon/Dock tile;
+  it hands over to the running one (which shows its settings window) and exits.
+- Agents and the QA harness keep at most one dev-channel instance alive and quit it gracefully.
+- Update available on macOS shows the same signals as Windows: the menu-bar icon carries an update
+  badge (template image keeps the glyph; the badge is a coloured dot drawn as a non-template overlay,
+  or a dedicated badged image — whatever renders legibly in light and dark menu bars), the title-bar
+  area/top-right row of the settings window shows the same update badge/button as Windows, and the
+  menu has the update item. Supersedes the M5/Dev-B choice "no update badge on mac".
