@@ -176,7 +176,7 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">04</span>
           <h3>Phím tắt tự đặt</h3>
-          <p>Bật/tắt tiếng Việt bằng Ctrl+Shift trên Windows, <span class="mac-keys">⌃⇧</span> trên Mac. Đổi được trong cài đặt. <a href="#phim-tat">Xem phím tắt mặc định</a>.</p>
+          <p>Bật/tắt tiếng Việt bằng Ctrl+Shift trên Windows, <span class="mac-keys">⌃⇧</span> trên Mac. Đổi được trong cửa sổ <em>Phím tắt…</em> <a href="#phim-tat">Xem phím tắt mặc định</a>.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">05</span>
@@ -186,7 +186,7 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">06</span>
           <h3>Khay hệ thống, thanh menu</h3>
-          <p>Nhấp trái biểu tượng V/E trong khay (Windows) hoặc trên thanh menu (Mac) để bật hoặc tắt; nhấp phải để mở menu. Mở cùng máy, chạy ẩn và kiểm tra cập nhật ngay trong ứng dụng.</p>
+          <p>Nhấp trái biểu tượng V/E trong khay (Windows) hoặc trên thanh menu (Mac) để bật hoặc tắt tiếng Việt. Nhấp phải để mở menu. Có bản mới thì biểu tượng hiện dấu báo.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">07</span>
@@ -196,7 +196,7 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">08</span>
           <h3>Vùng gõ thô</h3>
-          <p>Đánh dấu URL hoặc đoạn mã để VietKB không chuyển đổi nội dung.</p>
+          <p>Địa chỉ web, email và đường dẫn tệp tự giữ nguyên như khi gõ, không bị thêm dấu.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">09</span>
@@ -218,7 +218,7 @@
         <span class="num" aria-hidden="true">02</span>
         <div>
           <h2 id="phim-tat-title">Phím tắt mặc định</h2>
-          <p class="lead">Trên Mac, F1, F2, F8, F9, F11 đã là phím độ sáng, âm lượng và Hiện màn hình nền, nên để trống. Muốn dùng vẫn đặt được trong <em>Phím tắt…</em></p>
+          <p class="lead">Trên Mac, F1, F2, F8, F9, F11 đã là phím độ sáng, âm lượng và Hiện màn hình nền, nên các việc này để trống. Cửa sổ <em>Phím tắt…</em> đổi được phím cho bật/tắt tiếng Việt, đổi kiểu gõ, khôi phục từ gõ sai và mở cài đặt.</p>
         </div>
       </div>
 
@@ -282,7 +282,7 @@
         <span class="num" aria-hidden="true">03</span>
         <div>
           <h2 id="giao-dien-title">Giao diện</h2>
-          <p class="lead">Một cửa sổ cài đặt và ba cửa sổ phụ: Phím tắt, Bảng gõ tắt, Nâng cao. Trên Windows chọn Sáng hoặc Tối; trên Mac, cửa sổ theo giao diện của hệ thống.</p>
+          <p class="lead">Ngoài cửa sổ cài đặt còn có Phím tắt, Bảng gõ tắt, Nâng cao và Giới thiệu. Nút <span lang="en">VI | EN</span> và nút Sáng/Tối nằm trên thanh tiêu đề, trên Windows lẫn Mac. Mặc định sáng hay tối theo hệ thống; bấm Sáng/Tối để chọn hẳn một kiểu, VietKB nhớ lựa chọn này.</p>
         </div>
       </div>
 
@@ -305,29 +305,31 @@
           </div>
           <figcaption>
             <strong>Windows, chế độ tối</strong>
-            Cùng một cửa sổ, chọn giữa giao diện Sáng và Tối.
+            Cùng một cửa sổ ở giao diện Tối, đổi bằng nút Sáng/Tối.
           </figcaption>
         </figure>
 
         <figure>
+          <!-- TODO(QA): mac-settings-dark.png shows the build before M9/M10 (no VI | EN or Sáng/Tối in the title bar). Retake from the current build, same size 480x453, then update the alt text. -->
           <div class="shot-frame">
             <img src="assets/mac-settings-dark.png" width="480" height="453" loading="lazy"
-                 alt="Cửa sổ Cài đặt VietKB trên macOS, giao diện tối, thanh tiêu đề của macOS: Bật tiếng Việt với phím tắt Control Shift, Kiểu gõ Telex, Đặt dấu kiểu mới, Kiểm tra chính tả, Cho phép gõ tắt, Loại trừ ứng dụng, Mở cùng macOS và Chạy ẩn.">
+                 alt="Cửa sổ Cài đặt VietKB trên macOS, giao diện tối, ba nút tròn của macOS trên thanh tiêu đề: Bật tiếng Việt với phím tắt Control Shift, Kiểu gõ Telex, Đặt dấu kiểu mới, Kiểm tra chính tả, Cho phép gõ tắt, Loại trừ ứng dụng, Mở cùng macOS, Chạy ẩn; dưới cùng là Phím tắt, Nâng cao, Thoát hẳn và Đóng.">
           </div>
           <figcaption>
             <strong>macOS, cửa sổ cài đặt</strong>
-            Thanh tiêu đề của macOS, có mục Mở cùng macOS.
+            Ba nút tròn của macOS trên thanh tiêu đề, có mục Mở cùng macOS.
           </figcaption>
         </figure>
 
         <figure>
+          <!-- TODO(QA): mac-menu-dark.png predates M10 (left click now toggles; this menu opens on right/Control-click). Retake from the current build, then check the alt text. -->
           <div class="shot-frame shot-frame-menu">
             <img src="assets/mac-menu-dark.png" width="179" height="198" loading="lazy"
                  alt="Menu của VietKB trên thanh menu macOS: Bật/tắt tiếng Việt (đang chọn), Kiểu gõ, Mở cài đặt, Phím tắt, Giới thiệu, Thoát VietKB.">
           </div>
           <figcaption>
             <strong>macOS, menu trên thanh menu</strong>
-            Bấm biểu tượng V/E để bật tắt, đổi kiểu gõ hoặc mở cài đặt.
+            Nhấp phải hoặc Control-click biểu tượng V/E để mở menu: bật tắt, đổi kiểu gõ, mở cài đặt.
           </figcaption>
         </figure>
       </div>
@@ -388,8 +390,8 @@
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">3</span>
-          <h4>Cấp quyền Trợ năng</h4>
-          <p>Cửa sổ cài đặt hiện thanh vàng <em>Cần quyền Trợ năng</em>. Bấm <em>Cấp quyền…</em>, rồi trong <em>Quyền riêng tư &amp; Bảo mật</em> &gt; <em>Trợ năng</em>, bật công tắc cạnh <em>VietKB</em>. Biểu tượng V hiện trên thanh menu là gõ được.</p>
+          <h4>Cấp quyền</h4>
+          <p>Cửa sổ cài đặt hiện thanh vàng <em>Cần quyền Trợ năng và Giám sát đầu vào</em>. Bấm <em>Cấp quyền…</em>, rồi trong <em>Quyền riêng tư &amp; Bảo mật</em>, bật công tắc cạnh <em>VietKB</em> ở cả <em>Trợ năng</em> lẫn <em>Giám sát đầu vào</em>. Đủ quyền là gõ được ngay, không cần mở lại.</p>
         </li>
       </ol>
 
@@ -436,12 +438,12 @@
           <p>Bản Mac chưa được Apple công chứng nên macOS chặn lần mở đầu. Bấm chuột phải vào VietKB trong <em>Applications</em>, chọn <em>Mở</em>. Nếu vẫn bị chặn, vào <em>Cài đặt hệ thống</em> &gt; <em>Quyền riêng tư &amp; Bảo mật</em> và bấm <em>Vẫn mở</em>. Chỉ cần làm một lần cho mỗi bản cài.</p>
         </details>
         <details>
-          <summary>Vì sao VietKB cần quyền Trợ năng?</summary>
-          <p>Để nhận phím bạn gõ và thay bằng chữ có dấu. Thiếu quyền này, macOS không cho bộ gõ nào làm việc đó. VietKB không ghi lại nội dung gõ và không gửi gì đi.</p>
+          <summary>Vì sao VietKB cần quyền Trợ năng và Giám sát đầu vào?</summary>
+          <p>Để nhận phím bạn gõ và thay bằng chữ có dấu. Thiếu hai quyền này, macOS không cho bộ gõ nào làm việc đó. VietKB không ghi lại nội dung gõ và không gửi gì đi.</p>
         </details>
         <details>
           <summary>Đã bật Trợ năng mà vẫn báo thiếu quyền?</summary>
-          <p>Thường gặp sau khi cài bản mới đè lên bản cũ. Tắt rồi bật lại công tắc cạnh VietKB trong <em>Trợ năng</em>. Chưa được thì xoá dòng VietKB bằng nút <em>−</em> rồi mở lại VietKB.</p>
+          <p>Thường gặp sau khi cài bản mới đè lên bản cũ. Tắt rồi bật lại công tắc cạnh VietKB trong <em>Trợ năng</em> và <em>Giám sát đầu vào</em>. Chưa được thì xoá dòng VietKB bằng nút <em>−</em> rồi mở lại VietKB.</p>
         </details>
         <details>
           <summary>Vì sao gõ trong ô mật khẩu không ra dấu?</summary>
@@ -449,7 +451,7 @@
         </details>
         <details>
           <summary>Bản Mac có tự cập nhật không?</summary>
-          <p>Chưa. VietKB báo khi có bản mới và mở trang tải về. Tải tệp <code>.dmg</code> mới, kéo đè vào <em>Applications</em>. Tự cập nhật cần bản được Apple công chứng, nên tạm thời chưa có. Bản Windows tự cập nhật ngay trong ứng dụng.</p>
+          <p>Chưa. Khi có bản mới, biểu tượng trên thanh menu và thanh tiêu đề cửa sổ hiện dấu báo; bấm vào để mở trang tải về. Tải tệp <code>.dmg</code> mới, kéo đè vào <em>Applications</em>. Tự cập nhật cần bản được Apple công chứng, nên tạm thời chưa có. Bản Windows tự cập nhật ngay trong ứng dụng.</p>
         </details>
         <details>
           <summary>Dùng chung với bộ gõ tiếng Việt có sẵn của macOS được không?</summary>
@@ -457,7 +459,11 @@
         </details>
         <details>
           <summary>Trên Mac, F1 và F2 không bật tắt tiếng Việt?</summary>
-          <p>Trên Mac các phím F là độ sáng và âm lượng, nên VietKB để trống. Dùng <kbd>⌃⇧</kbd> (Control + Shift), hoặc tự đặt phím trong <em>Phím tắt…</em></p>
+          <p>Trên Mac các phím F là độ sáng và âm lượng, nên VietKB để trống. Dùng <kbd>⌃⇧</kbd> (Control + Shift). Muốn phím khác thì đổi dòng Bật/tắt tiếng Việt trong <em>Phím tắt…</em></p>
+        </details>
+        <details>
+          <summary>VietKB có giao diện tiếng Anh không?</summary>
+          <p>Có, trên cả Windows lẫn Mac. Bấm <span lang="en">VI | EN</span> trên thanh tiêu đề, giao diện đổi ngay, không cần mở lại.</p>
         </details>
         <details>
           <summary>Sao biểu tượng VietKB lúc có lúc không trên Dock?</summary>

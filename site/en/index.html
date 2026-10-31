@@ -176,7 +176,7 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">04</span>
           <h3>Your own shortcuts</h3>
-          <p>Turn Vietnamese on and off with Ctrl+Shift on Windows, <span class="mac-keys">⌃⇧</span> on a Mac. Every shortcut can be changed in Settings. <a href="#shortcuts">See the defaults</a>.</p>
+          <p>Turn Vietnamese on and off with Ctrl+Shift on Windows, <span class="mac-keys">⌃⇧</span> on a Mac. Change it under <em>Shortcuts…</em> <a href="#shortcuts">See the defaults</a>.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">05</span>
@@ -186,7 +186,7 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">06</span>
           <h3>Tray and menu bar</h3>
-          <p>Left-click the V/E icon in the tray (Windows) or the menu bar (Mac) to switch; right-click opens the menu. Open at login, start hidden, and check for updates from inside the app.</p>
+          <p>Left-click the V/E icon in the tray (Windows) or the menu bar (Mac) to switch Vietnamese on or off. Right-click opens the menu. When an update is out, the icon shows a badge.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">07</span>
@@ -196,7 +196,7 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">08</span>
           <h3>Raw text zones</h3>
-          <p>Mark URLs or code so VietKB leaves them exactly as typed.</p>
+          <p>Web addresses, email addresses and file paths stay exactly as typed, with no tone marks added.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">09</span>
@@ -218,7 +218,7 @@
         <span class="num" aria-hidden="true">02</span>
         <div>
           <h2 id="shortcuts-title">Default shortcuts</h2>
-          <p class="lead">On a Mac, F1, F2, F8, F9 and F11 already control brightness, volume and Show Desktop, so they start unassigned. You can still set them under <em>Shortcuts…</em></p>
+          <p class="lead">On a Mac, F1, F2, F8, F9 and F11 already control brightness, volume and Show Desktop, so these actions start unassigned. The <em>Shortcuts…</em> window changes the keys for Vietnamese on/off, Change typing method, Restore misspelled word and Open settings.</p>
         </div>
       </div>
 
@@ -282,7 +282,7 @@
         <span class="num" aria-hidden="true">03</span>
         <div>
           <h2 id="interface-title">Interface</h2>
-          <p class="lead">One settings window and three more: Shortcuts, Abbreviations, Advanced. Windows offers Light and Dark; on a Mac the window follows the system appearance. Screenshots show the Vietnamese interface.</p>
+          <p class="lead">Besides the settings window there are Shortcuts, Abbreviations, Advanced and About. The VI | EN and Light/Dark buttons sit in the title bar on both Windows and Mac. The look follows the system until you click Light/Dark, and VietKB remembers your pick. Screenshots show the Vietnamese interface.</p>
         </div>
       </div>
 
@@ -305,14 +305,15 @@
           </div>
           <figcaption>
             <strong>Windows, dark mode</strong>
-            The same window, in Light or Dark.
+            The same window in Dark, switched with the Light/Dark button.
           </figcaption>
         </figure>
 
         <figure>
+          <!-- TODO(QA): mac-settings-dark.png shows the build before M9/M10 (no VI | EN or Sáng/Tối in the title bar). Retake from the current build, same size 480x453, then update the alt text. -->
           <div class="shot-frame">
             <img src="../assets/mac-settings-dark.png" width="480" height="453" loading="lazy"
-                 alt="VietKB settings window on macOS, dark appearance with the traffic-light title bar, in Vietnamese: Vietnamese on with the Control Shift shortcut, Typing method Telex, New-style tone marks, Spell check, Text expansion, Excluded apps, Open at login and Start hidden.">
+                 alt="VietKB settings window on macOS, dark appearance with the traffic-light title bar, in Vietnamese: Vietnamese on with the Control Shift shortcut, Typing method Telex, New-style tone marks, Spell check, Text expansion, Excluded apps, Start with macOS, Start hidden; at the bottom Shortcuts, Advanced, Quit and Close.">
           </div>
           <figcaption>
             <strong>macOS, settings window</strong>
@@ -321,13 +322,14 @@
         </figure>
 
         <figure>
+          <!-- TODO(QA): mac-menu-dark.png predates M10 (left click now toggles; this menu opens on right/Control-click). Retake from the current build, then check the alt text. -->
           <div class="shot-frame shot-frame-menu">
             <img src="../assets/mac-menu-dark.png" width="179" height="198" loading="lazy"
                  alt="VietKB menu in the macOS menu bar, in Vietnamese: Vietnamese on/off (checked), Typing method, Open settings, Shortcuts, About, Quit VietKB.">
           </div>
           <figcaption>
             <strong>macOS, menu bar</strong>
-            Click the V/E icon to switch, change the typing method or open settings.
+            Right-click or Control-click the V/E icon for the menu: switch Vietnamese, change the typing method or open settings.
           </figcaption>
         </figure>
       </div>
@@ -388,8 +390,8 @@
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">3</span>
-          <h4>Allow Accessibility</h4>
-          <p>The settings window shows a yellow banner. Click its button, then turn on <em>VietKB</em> under <em>Privacy &amp; Security</em> &gt; <em>Accessibility</em>. Once the V shows in the menu bar, you can type.</p>
+          <h4>Allow access</h4>
+          <p>The settings window shows a yellow banner, <em>Allow Accessibility and Input Monitoring</em>. Click <em>Allow access…</em>, then under <em>Privacy &amp; Security</em> turn on <em>VietKB</em> in both <em>Accessibility</em> and <em>Input Monitoring</em>. VietKB types as soon as both are on, no restart needed.</p>
         </li>
       </ol>
 
@@ -436,12 +438,12 @@
           <p>The Mac version is not notarized by Apple yet, so macOS blocks the first launch. Right-click VietKB in <em>Applications</em> and choose <em>Open</em>. If it is still blocked, go to <em>System Settings</em> &gt; <em>Privacy &amp; Security</em> and click <em>Open Anyway</em>. You only need to do this once per install.</p>
         </details>
         <details>
-          <summary>Why does VietKB need Accessibility access?</summary>
-          <p>To see the keys you press and replace them with Vietnamese letters. Without it, macOS lets no input method do that. VietKB records nothing you type and sends nothing anywhere.</p>
+          <summary>Why does VietKB need Accessibility and Input Monitoring?</summary>
+          <p>To see the keys you press and replace them with Vietnamese letters. Without both, macOS lets no input method do that. VietKB records nothing you type and sends nothing anywhere.</p>
         </details>
         <details>
           <summary>Accessibility is on, but VietKB still asks for it?</summary>
-          <p>This usually happens after installing a new version over the old one. Turn the VietKB switch under <em>Accessibility</em> off and on again. If that doesn’t work, remove VietKB from the list with the <em>−</em> button and open VietKB again.</p>
+          <p>This usually happens after installing a new version over the old one. Turn the VietKB switch under <em>Accessibility</em> and <em>Input Monitoring</em> off and on again. If that doesn’t work, remove VietKB from the list with the <em>−</em> button and open VietKB again.</p>
         </details>
         <details>
           <summary>Why don’t tone marks appear in password fields?</summary>
@@ -449,7 +451,7 @@
         </details>
         <details>
           <summary>Does the Mac version update itself?</summary>
-          <p>Not yet. VietKB tells you when a new version is out and opens the download page. Download the new <code>.dmg</code> and drag it over the old copy in <em>Applications</em>. Self-updating needs an Apple-notarized build, so it isn’t available yet. The Windows version updates itself from inside the app.</p>
+          <p>Not yet. When a new version is out, the menu bar icon and the window title bar show a badge; click it to open the download page. Download the new <code>.dmg</code> and drag it over the old copy in <em>Applications</em>. Self-updating needs an Apple-notarized build, so it isn’t available yet. The Windows version updates itself from inside the app.</p>
         </details>
         <details>
           <summary>Can I use it alongside the Vietnamese input built into macOS?</summary>
@@ -457,7 +459,11 @@
         </details>
         <details>
           <summary>On a Mac, F1 and F2 don’t switch Vietnamese?</summary>
-          <p>On a Mac the F keys control brightness and volume, so VietKB leaves them unassigned. Use <kbd>⌃⇧</kbd> (Control + Shift), or set your own keys under <em>Shortcuts…</em></p>
+          <p>On a Mac the F keys control brightness and volume, so VietKB leaves them unassigned. Use <kbd>⌃⇧</kbd> (Control + Shift). For a different key, change the Vietnamese on/off row under <em>Shortcuts…</em></p>
+        </details>
+        <details>
+          <summary>Is VietKB available in English?</summary>
+          <p>Yes, on both Windows and Mac. Click VI | EN in the title bar and the interface switches right away, no restart.</p>
         </details>
         <details>
           <summary>Why does VietKB come and go in the Dock?</summary>
