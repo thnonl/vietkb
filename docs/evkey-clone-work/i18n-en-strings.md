@@ -72,6 +72,8 @@ Warning band at the top of the main window until the user grants the Accessibili
 | `ax.title` | Cần quyền Trợ năng | Allow Accessibility |
 | `ax.body` | Chưa cấp quyền thì VietKB chưa gõ được tiếng Việt. | VietKB can't type Vietnamese until you allow it. |
 | `ax.grant` | Cấp quyền… | Allow access… |
+| `ax.openSettings` | Mở Cài đặt… | Open System Settings… |
+| `ax.retry` | Bật VietKB trong Quyền riêng tư & Bảo mật, rồi quay lại đây. | Turn VietKB on in Privacy & Security, then come back here. |
 | `ax.im.title` | Cần quyền Giám sát đầu vào | Allow Input Monitoring |
 | `ax.im.body` | Chưa cấp quyền thì VietKB chưa nhận được phím gõ. | VietKB can't read keys until you allow it. |
 | `ax.both.title` | Cần quyền Trợ năng và Giám sát đầu vào | Allow Accessibility and Input Monitoring |
@@ -471,4 +473,4 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Open at login. |
 
-Total: 343 keys.
+Total: 345 keys.

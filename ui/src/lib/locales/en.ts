@@ -45,6 +45,8 @@ export const en: Record<string, string> = {
   "ax.title": "Allow Accessibility",
   "ax.body": "VietKB can't type Vietnamese until you allow it.",
   "ax.grant": "Allow access…",
+  "ax.openSettings": "Open System Settings…",
+  "ax.retry": "Turn VietKB on in Privacy & Security, then come back here.",
   "ax.im.title": "Allow Input Monitoring",
   "ax.im.body": "VietKB can't read keys until you allow it.",
   "ax.both.title": "Allow Accessibility and Input Monitoring",

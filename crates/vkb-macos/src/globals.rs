@@ -20,16 +20,29 @@ pub static STOP: AtomicBool = AtomicBool::new(false);
 /// Bumped whenever the UI publishes a new config; the tap thread compares it
 /// with the version it last applied (one relaxed load per event).
 pub static CONFIG_VERSION: AtomicU64 = AtomicU64::new(0);
-/// The hotkey capture field has the focus: the tap suspends hotkeys (S-07).
-pub static HOTKEY_CAPTURE: AtomicBool = AtomicBool::new(false);
+/// How long a capture lasts without a refresh. The capture field refreshes
+/// while it is focused; if the page dies or hides without saying it stopped,
+/// hotkeys and conversion come back by themselves.
+pub const HOTKEY_CAPTURE_TTL_MS: u64 = 30_000;
+/// Deadline (ms since `epoch()`) of the running capture; 0 = not capturing.
+static HOTKEY_CAPTURE_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
 
-/// Called from the UI thread when the capture field gains or loses focus.
+/// Pure rule behind [`hotkey_capture`].
+fn capture_is_current(until_ms: u64, now_ms: u64) -> bool {
+    until_ms != 0 && now_ms < until_ms
+}
+
+/// Called from the UI thread when the capture field gains focus (and every few
+/// seconds while it keeps it) or loses it.
 pub fn set_hotkey_capture(active: bool) {
-    HOTKEY_CAPTURE.store(active, Ordering::SeqCst);
+    let until = if active { now_ms() + HOTKEY_CAPTURE_TTL_MS } else { 0 };
+    HOTKEY_CAPTURE_UNTIL_MS.store(until, Ordering::SeqCst);
 }
 
 pub fn hotkey_capture() -> bool {
-    HOTKEY_CAPTURE.load(Ordering::Relaxed)
+    // Read the clock only while a capture is running: this is the keystroke path.
+    let until = HOTKEY_CAPTURE_UNTIL_MS.load(Ordering::Relaxed);
+    until != 0 && capture_is_current(until, now_ms())
 }
 
 type EnabledSlot = Mutex<Option<Arc<dyn Fn(bool) + Send + Sync>>>;
@@ -140,6 +153,14 @@ pub static TEST_LOCK: Mutex<()> = Mutex::new(());
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_capture_expires_without_a_refresh() {
+        assert!(!capture_is_current(0, 5));
+        assert!(capture_is_current(30_005, 5));
+        assert!(!capture_is_current(30_005, 30_005));
+        assert!(!capture_is_current(30_005, 40_000));
+    }
 
     #[test]
     fn callbacks_are_invoked_and_can_be_replaced() {

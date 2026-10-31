@@ -262,11 +262,15 @@
 }
 .v4row.hkrow > .seg > button {
   min-width: 0;
-  padding: 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.v4row.hkrow .l {
+/* Tighter padding and a wrappable label only for English (and Mac, where the
+ * window grows anyway), so Vietnamese on Windows looks exactly as before. */
+:root[lang="en"] .v4row.hkrow > .seg > button {
+  padding: 0 8px;
+}
+:root[lang="en"] .v4row.hkrow .l {
   white-space: normal;
 }
 /* A row that carries an amber warning line grows to 64 px so the message

@@ -44,16 +44,28 @@ pub fn take_mouse_down() -> bool {
     MOUSE_DOWN.load(Ordering::Relaxed) && MOUSE_DOWN.swap(false, Ordering::Relaxed)
 }
 
-/// The hotkey capture field has the focus: the hook suspends hotkeys.
-pub static HOTKEY_CAPTURE: AtomicBool = AtomicBool::new(false);
+/// How long a capture lasts without a refresh (the capture field refreshes while
+/// focused), so a page that died without saying it stopped cannot leave the
+/// hook suspended.
+pub const HOTKEY_CAPTURE_TTL_MS: u64 = 30_000;
+/// Deadline (ms since the first call) of the running capture; 0 = not capturing.
+static HOTKEY_CAPTURE_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
+
+fn capture_now_ms() -> u64 {
+    static EPOCH: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    // +1 so the first millisecond is not the "none" value 0.
+    EPOCH.get_or_init(std::time::Instant::now).elapsed().as_millis() as u64 + 1
+}
 
 pub fn set_hotkey_capture(active: bool) {
-    HOTKEY_CAPTURE.store(active, Ordering::SeqCst);
+    let until = if active { capture_now_ms() + HOTKEY_CAPTURE_TTL_MS } else { 0 };
+    HOTKEY_CAPTURE_UNTIL_MS.store(until, Ordering::SeqCst);
 }
 
 #[inline]
 pub fn hotkey_capture() -> bool {
-    HOTKEY_CAPTURE.load(Ordering::Relaxed)
+    let until = HOTKEY_CAPTURE_UNTIL_MS.load(Ordering::Relaxed);
+    until != 0 && capture_now_ms() < until
 }
 
 /// Thread id of the hook thread, for `PostThreadMessageW`. 0 = not running.

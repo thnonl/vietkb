@@ -22,6 +22,10 @@ static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
 /// hotkey writes), so neither can overwrite the other's field (S-17).
 static CONFIG_WRITE: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
 
+/// The last attempt to write config.toml failed: the next `update_config` must
+/// write even if it changes nothing, so the file catches up with the cell.
+static CONFIG_UNSAVED: AtomicBool = AtomicBool::new(false);
+
 static AUTOSTART_SYNCED: AtomicBool = AtomicBool::new(false);
 static AUTOSTART_STATE: AtomicBool = AtomicBool::new(false);
 /// Language / theme (as enum discriminants) last applied to the windows; `u8::MAX`
@@ -470,7 +474,11 @@ pub fn set_autostart(enabled: bool) -> Result<bool, String> {
 /// `CONFIG_WRITE`. Nothing here may wait on the main thread: the follow-up
 /// ([`after_change`], tray and window work) runs after the lock is released.
 fn commit_locked(next: AppConfig) -> Result<SettingsView, String> {
-    vkb_config::save(&next).map_err(|error| error.to_string())?;
+    if let Err(error) = vkb_config::save(&next) {
+        CONFIG_UNSAVED.store(true, Ordering::Relaxed);
+        return Err(error.to_string());
+    }
+    CONFIG_UNSAVED.store(false, Ordering::Relaxed);
     let view = {
         let mut cfg = config_cell().write();
         // macOS: the tap's enabled flag is its own atomic, not part of the
@@ -764,7 +772,7 @@ pub(crate) fn update_config(
         let mutated = mutate(&mut draft);
         IN_UPDATE.with(|flag| flag.set(false));
         mutated?;
-        if draft == *config_cell().read() {
+        if !CONFIG_UNSAVED.load(Ordering::Relaxed) && draft == *config_cell().read() {
             to_view(&draft)
         } else {
             commit_locked(draft)?
@@ -1197,6 +1205,39 @@ pub fn check_hotkey_conflict(input: String, ignore_field: String) -> Option<Stri
         .map(|(name, _)| (*name).to_string())
 }
 
+/// The System Settings panes the permission banner may open. Opening a pane
+/// for the user is allowed (27-mac-decisions M3); scripting it is not.
+const PRIVACY_PANES: [(&str, &str); 2] = [
+    (
+        "accessibility",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+    ),
+    (
+        "input_monitoring",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+    ),
+];
+
+fn privacy_pane_url(pane: &str) -> Option<&'static str> {
+    PRIVACY_PANES
+        .iter()
+        .find(|(name, _)| *name == pane)
+        .map(|(_, url)| *url)
+}
+
+/// Open the Accessibility or Input Monitoring pane of System Settings. macOS
+/// shows the permission prompt once; after a denial the request API cannot ask
+/// again, so the banner sends the user to the pane instead.
+#[tauri::command]
+pub fn open_privacy_pane(app: tauri::AppHandle, pane: String) -> Result<(), String> {
+    let url = privacy_pane_url(&pane)
+        .ok_or_else(|| crate::i18n::tf("err.patch.unknownField", &[("field", &pane)]))?;
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| crate::i18n::tf("err.update.openLink", &[("error", &error.to_string())]))
+}
+
 #[tauri::command]
 pub fn open_config_folder() -> Result<(), String> {
     let dir = vkb_config::paths::config_dir();
@@ -1301,23 +1342,46 @@ pub fn request_input_monitoring() -> bool {
     }
 }
 
-/// The hotkey capture field is focused (`true`) or has stopped (`false`): while
-/// it is, the keyboard hook does not match or swallow hotkeys, so the chord
-/// being recorded reaches the page instead of firing its action (S-07, spec
-/// C.6 step 2).
+/// Label of the window whose capture field set the flag, so that window's
+/// focus loss or destruction (and only that) clears it.
+static CAPTURE_OWNER: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::new(None);
+
+/// The hotkey capture field is focused (`true`, repeated every few seconds while
+/// it stays so) or has stopped (`false`): while it is, the keyboard hook does
+/// not match or swallow hotkeys, so the chord being recorded reaches the page
+/// instead of firing its action (S-07, spec C.6 step 2). The backends also let
+/// the flag lapse after ~30 s without a refresh.
 #[tauri::command]
-pub fn set_hotkey_capture(active: bool) {
+pub fn set_hotkey_capture(window: tauri::Window, active: bool) {
+    let mut owner = CAPTURE_OWNER.lock();
+    if active {
+        *owner = Some(window.label().to_string());
+    } else if owner.as_deref().is_some_and(|label| label != window.label()) {
+        // Another window took over the capture; this one's "stopped" is stale.
+        return;
+    } else {
+        *owner = None;
+    }
+    apply_hotkey_capture(active);
+}
+
+/// A window lost focus or was destroyed: if it was the one capturing, it can
+/// no longer say it stopped (a crashed or hidden webview sends no blur).
+pub fn clear_hotkey_capture_for(label: &str) {
+    let mut owner = CAPTURE_OWNER.lock();
+    if owner.as_deref() == Some(label) {
+        *owner = None;
+        apply_hotkey_capture(false);
+    }
+}
+
+fn apply_hotkey_capture(active: bool) {
     #[cfg(windows)]
     vkb_windows::set_hotkey_capture(active);
     #[cfg(target_os = "macos")]
     vkb_macos::set_hotkey_capture(active);
     #[cfg(not(any(windows, target_os = "macos")))]
     let _ = active;
-}
-
-/// Capture can never outlive its window: called when one is destroyed.
-pub fn clear_hotkey_capture() {
-    set_hotkey_capture(false);
 }
 
 /// Ask macOS for the Accessibility grant (system prompt, which links to System
@@ -1371,6 +1435,13 @@ mod tests {
         let cfg = patched(r#"{"hotkeys":{"enable":"Ctrl+Shift","disable":""}}"#);
         assert_eq!(cfg.hotkeys.enable.as_ref().unwrap().as_str(), "Ctrl+Shift");
         assert!(cfg.hotkeys.disable.is_none());
+    }
+
+    #[test]
+    fn only_the_two_privacy_panes_can_be_opened() {
+        assert!(privacy_pane_url("accessibility").unwrap().ends_with("Privacy_Accessibility"));
+        assert!(privacy_pane_url("input_monitoring").unwrap().ends_with("Privacy_ListenEvent"));
+        assert_eq!(privacy_pane_url("https://example.com"), None);
     }
 
     #[test]

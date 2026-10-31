@@ -78,6 +78,10 @@ export const inputMonitoringStatus = () => invoke<boolean>("input_monitoring_sta
 /** Triggers the system prompt (once); answers with the status after asking. */
 export const requestInputMonitoring = () => invoke<boolean>("request_input_monitoring");
 
+/** Open the Accessibility or Input Monitoring pane of System Settings. */
+export const openPrivacyPane = (pane: "accessibility" | "input_monitoring") =>
+  invoke<void>("open_privacy_pane", { pane });
+
 /** The hotkey capture field is focused: the hook suspends hotkeys while true. */
 export const setHotkeyCapture = (active: boolean) =>
   invoke<void>("set_hotkey_capture", { active });

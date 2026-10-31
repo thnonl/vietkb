@@ -45,6 +45,8 @@ export const vi: Record<string, string> = {
   "ax.title": "Cần quyền Trợ năng",
   "ax.body": "Chưa cấp quyền thì VietKB chưa gõ được tiếng Việt.",
   "ax.grant": "Cấp quyền…",
+  "ax.openSettings": "Mở Cài đặt…",
+  "ax.retry": "Bật VietKB trong Quyền riêng tư & Bảo mật, rồi quay lại đây.",
   "ax.im.title": "Cần quyền Giám sát đầu vào",
   "ax.im.body": "Chưa cấp quyền thì VietKB chưa nhận được phím gõ.",
   "ax.both.title": "Cần quyền Trợ năng và Giám sát đầu vào",

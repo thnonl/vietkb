@@ -52,6 +52,12 @@
     capturing = now;
     void api.setHotkeyCapture(now).catch(() => {});
   });
+  // The backend lets a capture lapse after ~30 s; renew it while focused.
+  $effect(() => {
+    if (!editing || !api.isTauri()) return;
+    const timer = setInterval(() => void api.setHotkeyCapture(true).catch(() => {}), 10_000);
+    return () => clearInterval(timer);
+  });
   onDestroy(() => {
     if (capturing && api.isTauri()) void api.setHotkeyCapture(false).catch(() => {});
   });

@@ -23,8 +23,10 @@
   // converted text) and Input Monitoring (see the keys, S-03). The banner shows
   // while either `accessibility_status` or `input_monitoring_status` says no,
   // and its button asks for the one that is missing (the system prompt, which
-  // links to System Settings): Accessibility first. The app never opens or
-  // scripts System Settings itself (27-mac-decisions M3).
+  // links to System Settings): Accessibility first. macOS shows that prompt once;
+  // after the first ask the button opens the right Privacy & Security pane
+  // instead (the app opens a pane for the user, it never scripts System
+  // Settings: 27-mac-decisions M3).
   //
   // The main window is fixed-size, so the banner's height is added to the
   // window (and taken off again once the grant is there) instead of squeezing
@@ -40,11 +42,35 @@
   let axMissing = $state(true);
   let imMissing = $state(false);
 
+  // Whether the system prompt was already shown for each permission (remembered
+  // across launches; storage may be unavailable, then the prompt is retried).
+  type Pane = "accessibility" | "input_monitoring";
+  const KEY = (pane: Pane) => `vkb:asked:${pane}`;
+  const wasAsked = (pane: Pane): boolean => {
+    try {
+      return localStorage.getItem(KEY(pane)) === "1";
+    } catch {
+      return false;
+    }
+  };
+  let asked = $state<Record<Pane, boolean>>({
+    accessibility: wasAsked("accessibility"),
+    input_monitoring: wasAsked("input_monitoring"),
+  });
+  const pane = $derived<Pane>(axMissing ? "accessibility" : "input_monitoring");
+  const retry = $derived(asked[pane]);
+
   const title = $derived(
     axMissing && imMissing ? t("ax.both.title") : imMissing ? t("ax.im.title") : t("ax.title"),
   );
   const body = $derived(
-    axMissing && imMissing ? t("ax.both.body") : imMissing ? t("ax.im.body") : t("ax.body"),
+    retry
+      ? t("ax.retry")
+      : axMissing && imMissing
+        ? t("ax.both.body")
+        : imMissing
+          ? t("ax.im.body")
+          : t("ax.body"),
   );
 
   const fit = (needsBanner: boolean) => {
@@ -80,8 +106,20 @@
     busy = true;
     try {
       if (native) {
-        if (axMissing) await api.requestAccessibility();
-        else await api.requestInputMonitoring();
+        const target = pane;
+        if (asked[target]) {
+          // The prompt only appears once: go to the pane.
+          await api.openPrivacyPane(target);
+        } else {
+          if (target === "accessibility") await api.requestAccessibility();
+          else await api.requestInputMonitoring();
+          asked[target] = true;
+          try {
+            localStorage.setItem(KEY(target), "1");
+          } catch {
+            // Not remembered: the next launch asks again.
+          }
+        }
       }
     } catch {
       // The poll reports the real state.
@@ -110,6 +148,6 @@
       <b>{title}</b>
       <span>{body}</span>
     </div>
-    <button type="button" class="btn pri" disabled={busy} onclick={ask}>{t("ax.grant")}</button>
+    <button type="button" class="btn pri" disabled={busy} onclick={ask}>{retry ? t("ax.openSettings") : t("ax.grant")}</button>
   </div>
 {/if}

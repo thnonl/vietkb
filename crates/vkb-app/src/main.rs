@@ -132,6 +132,15 @@ fn top_modal_of(stack: &[Modal]) -> Option<String> {
         .map(|modal| modal.label.clone())
 }
 
+/// Whether a modal that is not closing still has `owner` as its owner, i.e.
+/// the owner must stay disabled.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn owner_has_open_modal(stack: &[Modal], owner: &str) -> bool {
+    stack
+        .iter()
+        .any(|modal| !modal.closing && modal.owner.as_deref() == Some(owner))
+}
+
 fn modal_opened(label: &str, owner: Option<String>) {
     let mut modals = MODALS.lock();
     modals.retain(|modal| modal.label != label);
@@ -727,7 +736,7 @@ fn main() {
             WindowEvent::Destroyed => {
                 let owner = modal_gone(window.label());
                 // A window that was capturing a shortcut cannot say it stopped.
-                commands::clear_hotkey_capture();
+                commands::clear_hotkey_capture_for(window.label());
                 match window.label() {
                     MAIN_LABEL => close_aux(window.app_handle()),
                     // Windows: hand input back to whoever opened the modal (the
@@ -735,8 +744,11 @@ fn main() {
                     #[cfg(not(target_os = "macos"))]
                     label if AUX_LABELS.contains(&label) => {
                         let owner = owner.as_deref().unwrap_or(MAIN_LABEL);
-                        if let Some(owner) = window.app_handle().get_webview_window(owner) {
-                            let _ = owner.set_enabled(true);
+                        // Another open modal may still belong to this owner.
+                        if !owner_has_open_modal(&MODALS.lock(), owner) {
+                            if let Some(owner) = window.app_handle().get_webview_window(owner) {
+                                let _ = owner.set_enabled(true);
+                            }
                         }
                     }
                     _ => {}
@@ -745,6 +757,9 @@ fn main() {
                 let _ = owner;
                 leave_foreground_if_idle(window.app_handle(), window);
             }
+            // Focus lost: a capture field in this window cannot be recording any
+            // more, whether or not the page managed to send a blur.
+            WindowEvent::Focused(false) => commands::clear_hotkey_capture_for(window.label()),
             #[cfg(target_os = "macos")]
             WindowEvent::Focused(true) => {
                 refocus_modal(window.app_handle(), window.label());
@@ -784,6 +799,7 @@ fn main() {
             commands::set_hotkey_capture,
             commands::input_monitoring_status,
             commands::request_input_monitoring,
+            commands::open_privacy_pane,
             update::check_update,
             update::update_status,
             update::download_update,
@@ -869,6 +885,15 @@ mod tests {
     fn a_modal_opens_on_main_when_alone_and_on_nothing_without_main() {
         assert_eq!(modal_owner(&[], "hotkeys", true).as_deref(), Some("main"));
         assert_eq!(modal_owner(&[], "hotkeys", false), None);
+    }
+
+    #[test]
+    fn an_owner_stays_disabled_while_another_modal_belongs_to_it() {
+        let stack = vec![modal("hotkeys", Some("main"), false)];
+        assert!(owner_has_open_modal(&stack, "main"));
+        assert!(!owner_has_open_modal(&stack, "advanced"));
+        let closing = vec![modal("hotkeys", Some("main"), true)];
+        assert!(!owner_has_open_modal(&closing, "main"));
     }
 
     #[test]

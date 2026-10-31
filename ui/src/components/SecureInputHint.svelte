@@ -40,7 +40,14 @@
   onMount(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      // Give the line's height back if the window goes away while it is shown.
+      if (blocking) {
+        blocking = false;
+        void resizeBy(-HINT_PX).catch(() => {});
+      }
+    };
   });
 </script>
 

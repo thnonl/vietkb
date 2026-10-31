@@ -61,6 +61,8 @@ group("Accessibility banner (macOS)", "Warning band at the top of the main windo
  ("ax.title", "Cần quyền Trợ năng", "Allow Accessibility"),
  ("ax.body", "Chưa cấp quyền thì VietKB chưa gõ được tiếng Việt.", "VietKB can't type Vietnamese until you allow it."),
  ("ax.grant", "Cấp quyền…", "Allow access…"),
+ ("ax.openSettings", "Mở Cài đặt…", "Open System Settings…"),
+ ("ax.retry", "Bật VietKB trong Quyền riêng tư & Bảo mật, rồi quay lại đây.", "Turn VietKB on in Privacy & Security, then come back here."),
  ("ax.im.title", "Cần quyền Giám sát đầu vào", "Allow Input Monitoring"),
  ("ax.im.body", "Chưa cấp quyền thì VietKB chưa nhận được phím gõ.", "VietKB can't read keys until you allow it."),
  ("ax.both.title", "Cần quyền Trợ năng và Giám sát đầu vào", "Allow Accessibility and Input Monitoring"),
