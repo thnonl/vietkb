@@ -143,3 +143,4 @@ Owner, verbatim: "GUI trên Mac phải consistence với trên Windows."
 ## M11 — Owner answers, 2026-10-31 (evening)
 - "Đặt lại tất cả" turns "Khởi động cùng Windows/macOS" back on (the default, as in 0.2.6). Owner: "có".
 - Mac typing QA may quit the owner's running VietKB for the run and must relaunch it afterwards. Owner: "cho phép".
+- Owner, 2026-10-31, on D-WIN-09 (VNI macro with capitals collapsing in Win11 Notepad, pre-existing since 0.2.6): "Phải sửa bằng được bug này cho 0.2.7" — 0.2.7 does not ship until D-WIN-09 is fixed and measured on Windows.
