@@ -4,6 +4,9 @@
 //! from the clipboard and acts on the answers. Keeping them here lets the host
 //! test suite cover them.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
+
 /// One key event of the paste chord.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChordKey {
@@ -171,9 +174,151 @@ pub fn restore_action(expected_seq: u32, current_seq: u32) -> RestoreAction {
     }
 }
 
+/// More formats than this: treat the clipboard as not safely enumerable.
+pub const MAX_FORMATS: usize = 512;
+
+/// Counts clipboard jobs the worker has not finished sending.
+///
+/// The hook must not let a physical key overtake a queued replacement (the
+/// Backspaces are asynchronous too), so it waits here, bounded, before
+/// processing a physical key. [`PendingToken`] decrements on drop, which covers
+/// every path: batch sent, direct typing, early drop, panic.
+#[derive(Debug, Default)]
+pub struct PendingGate {
+    count: AtomicUsize,
+}
+
+/// Decrements its gate when dropped.
+#[derive(Debug)]
+pub struct PendingToken<'a> {
+    gate: &'a PendingGate,
+}
+
+impl Drop for PendingToken<'_> {
+    fn drop(&mut self) {
+        self.gate.count.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl PendingGate {
+    pub const fn new() -> Self {
+        Self { count: AtomicUsize::new(0) }
+    }
+
+    /// Register one job; hold the token until its input has been sent.
+    pub fn enter(&self) -> PendingToken<'_> {
+        self.count.fetch_add(1, Ordering::SeqCst);
+        PendingToken { gate: self }
+    }
+
+    pub fn pending(&self) -> usize {
+        self.count.load(Ordering::SeqCst)
+    }
+
+    /// Wait until nothing is pending, at most `cap`. `true` = cleared,
+    /// `false` = timed out (the caller logs and proceeds).
+    pub fn wait(&self, cap: Duration, poll: Duration) -> bool {
+        if self.pending() == 0 {
+            return true;
+        }
+        let begin = Instant::now();
+        while self.pending() > 0 {
+            if begin.elapsed() >= cap {
+                return false;
+            }
+            std::thread::sleep(poll);
+        }
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flag_formats_do_not_make_a_snapshot_lossy() {
+        let f = [
+            (CF_UNICODETEXT, None),
+            (0xC001, Some("CanUploadToCloudClipboard")),
+            (0xC002, Some("ExcludeClipboardContentFromMonitorProcessing")),
+        ];
+        assert_eq!(snapshot_verdict(f), Verdict::Faithful);
+    }
+
+    #[test]
+    fn data_object_makes_a_snapshot_lossy() {
+        let f = [(CF_UNICODETEXT, None), (0xC010, Some("DataObject"))];
+        assert_eq!(snapshot_verdict(f), Verdict::Lossy);
+    }
+
+    #[test]
+    fn display_variants_are_derived_or_lossy() {
+        assert_eq!(classify_format(CF_DSPTEXT, None), FormatClass::Derived);
+        assert_eq!(classify_format(CF_DSPBITMAP, None), FormatClass::Derived);
+        assert_eq!(classify_format(CF_DSPMETAFILEPICT, None), FormatClass::Lossy);
+        assert_eq!(classify_format(CF_DSPENHMETAFILE, None), FormatClass::Lossy);
+    }
+
+    #[test]
+    fn format_count_limit() {
+        assert_eq!(MAX_FORMATS, 512);
+    }
+
+    #[test]
+    fn sequence_zero_and_wrap() {
+        assert!(!still_ours(u32::MAX, 0));
+        assert!(still_ours(u32::MAX, u32::MAX));
+        assert_eq!(restore_action(u32::MAX, 0), RestoreAction::Abandon);
+        assert_eq!(restore_action(5, 0), RestoreAction::Abandon);
+    }
+
+    #[test]
+    fn pending_gate_counts_and_releases_on_drop() {
+        let gate = PendingGate::new();
+        let a = gate.enter();
+        let b = gate.enter();
+        assert_eq!(gate.pending(), 2);
+        drop(a);
+        assert_eq!(gate.pending(), 1);
+        drop(b);
+        assert_eq!(gate.pending(), 0);
+    }
+
+    #[test]
+    fn pending_gate_wait_times_out_then_clears() {
+        let gate = PendingGate::new();
+        let poll = Duration::from_micros(100);
+        assert!(gate.wait(Duration::from_millis(5), poll));
+        let token = gate.enter();
+        assert!(!gate.wait(Duration::from_millis(5), poll));
+        drop(token);
+        assert!(gate.wait(Duration::from_millis(5), poll));
+    }
+
+    #[test]
+    fn pending_gate_wait_sees_a_release_from_another_thread() {
+        let gate = PendingGate::new();
+        std::thread::scope(|scope| {
+            let token = gate.enter();
+            scope.spawn(move || {
+                std::thread::sleep(Duration::from_millis(10));
+                drop(token);
+            });
+            assert!(gate.wait(Duration::from_millis(1000), Duration::from_micros(200)));
+        });
+    }
+
+    #[test]
+    fn pending_token_released_on_panic() {
+        let gate = PendingGate::new();
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _t = gate.enter();
+            panic!("boom");
+        }));
+        assert!(r.is_err());
+        assert_eq!(gate.pending(), 0);
+    }
 
     #[test]
     fn chord_is_a_balanced_left_ctrl_v() {

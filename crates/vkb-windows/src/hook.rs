@@ -91,6 +91,8 @@ pub fn install() -> Result<()> {
 
 /// Remove the hook and stop the watchdog. Safe when nothing is installed.
 pub fn uninstall() {
+    // Put the user clipboard back before the process goes away (bounded wait).
+    crate::clipboard::shutdown();
     WATCHDOG_STOP.store(true, Ordering::SeqCst);
     globals::STOP.store(true, Ordering::SeqCst);
 
@@ -342,6 +344,9 @@ pub(crate) fn process_event(runtime: &mut HookRuntime, message: u32, info: &KBDL
     if crate::perf::enabled() {
         crate::perf::begin();
     }
+    // Clipboard mode (D-WIN-12..15): a physical key waits (bounded) for a queued
+    // clipboard job so it cannot overtake the replacement. One atomic load when idle.
+    crate::clipboard::wait_pending(info.dwExtraInfo);
     // D-WIN-09 dev seam: a physical key waits (bounded) for a delayed injection.
     // Compiled to nothing unless `dev-channel`.
     #[cfg(feature = "dev-channel")]
