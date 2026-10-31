@@ -73,6 +73,16 @@ so the app never receives the trigger *as text*, which is the requirement's inte
    diacritics). Backspace always carries the real scancode in this mode.
 5. Every injected event carries `dwExtraInfo = 0x5649_454B` ("VIEK"); the hook drops those
    events immediately, so injection can never feed back into the engine.
+   **D-WIN-09 (candidate, needs Windows measurement):** in the default mode a `Replace` is
+   two `SendInput` calls, the Backspace block first (`input::split_point`, after the
+   `deletes`-th Backspace key-up, so a restore chord's release stays with the deletes) and
+   the text second, so Notepad has processed the deletes before the `Shift`-wrapped VK text
+   arrives (`qa1` -> `QA ONE` was right only 25-50% in one batch, identical emitted sequence
+   for hits and misses). Shift-needing ASCII stays VK + `Shift`: as packets it would be a run
+   right after backspaces, which collapses (D-E2E-01). `send_standard` and plain typing keep
+   one call. `SendResult.sent` counts across both calls, so the short-send recovery resumes
+   from the same index. Measure: `qa1` x20 after a VNI switch, `ba6t5/ta8t1`, `VIEETJ`
+   all-caps.
 6. `Noop` never reaches the injector: `plan::decide` returns pass-through and no array is
    built, so the pass-through path allocates nothing.
 

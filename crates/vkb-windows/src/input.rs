@@ -11,9 +11,7 @@
 //! reproduced with raw `SendInput` and no hook). So a replacement types its
 //! ASCII characters as real VK + scancode keystrokes and reserves the packet
 //! path for characters no US key produces. Plain typing keeps the pure packet
-//! path: it has no delete block and is not affected. A replacement character
-//! that would need an injected `Shift` pair is a packet as well (D-WIN-09):
-//! Notepad mis-delivers `Shift`-wrapped VK events after a delete block.
+//! path: it has no delete block and is not affected.
 //!
 //! Clipboard is never part of this path (charter C4); the opt-in fallback lives
 //! in [`crate::clipboard`].
@@ -277,17 +275,7 @@ fn push_char(out: &mut Vec<INPUT>, ch: char, mode: SendMode, scancode_ascii: boo
     // produces (Vietnamese diacritics), so the text is never lost.
     let via_scancode = mode == SendMode::Standard || scancode_ascii;
     match keys::us_vk_for_char(ch).filter(|_| via_scancode) {
-        // D-WIN-09: in the default mode a key that needs a `Shift` pair is a
-        // packet too. Notepad mis-delivers `Shift`-wrapped VK events that follow
-        // a delete block (macro `qa1` -> `QA ONE` came out right 25-50% of the
-        // time); a packet carries the case itself. Only `send_standard` keeps
-        // the VK + `Shift` path.
-        Some((vk, shift))
-            if !shift_is_blocked(vk, shift, held)
-                && !(mode == SendMode::Unicode && needs_shift_pair(vk, shift, held)) =>
-        {
-            push_ascii_key(out, vk, shift, held)
-        }
+        Some((vk, shift)) if !shift_is_blocked(vk, shift, held) => push_ascii_key(out, vk, shift, held),
         // No US key produces it, or the key would need the user's held Shift
         // changed: a packet carries the character whatever Shift is doing.
         _ => push_unicode_char(out, ch),
@@ -311,15 +299,10 @@ fn shift_is_blocked(vk: u16, want_shift: bool, held: Held) -> bool {
     held.shift_down() && shows_shift(vk, held) != want_shift
 }
 
-/// `true` when typing `vk` with `want_shift` needs an injected `Shift` pair.
-fn needs_shift_pair(vk: u16, want_shift: bool, held: Held) -> bool {
-    !held.shift_down() && shows_shift(vk, held) != want_shift
-}
-
 /// One ASCII key press with the case the text needs. A `Shift` pair is only
 /// added when the user holds none; a held one is never touched.
 fn push_ascii_key(out: &mut Vec<INPUT>, vk: u16, want_shift: bool, held: Held) {
-    let press_shift = needs_shift_pair(vk, want_shift, held);
+    let press_shift = !held.shift_down() && shows_shift(vk, held) != want_shift;
     let shift_scan = keys::scan_for_vk(keys::VK_SHIFT);
     if press_shift {
         push_key(out, keys::VK_SHIFT, shift_scan, false);
@@ -460,6 +443,58 @@ pub fn send_detailed(inputs: &[INPUT]) -> SendResult {
         total,
         error,
         attempts,
+    }
+}
+
+/// Where the delete block of a `Replace` batch ends, or `0` when the batch is
+/// not split (D-WIN-09).
+///
+/// Notepad delivers `Shift`-wrapped VK text unreliably when it sits in the same
+/// `SendInput` call as the backspaces (`qa1` -> `QA ONE` right 25-50% of the
+/// time, same emitted sequence for hits and misses). Packets cannot replace the
+/// `Shift` pair (D-E2E-01: a packet run after backspaces collapses), so the
+/// deletes go out first as their own call. `send_standard` keeps one batch.
+/// The split lies after the `deletes`-th Backspace key-up, so a chord-release
+/// prefix stays with the deletes.
+pub fn split_point(inputs: &[INPUT], deletes: u32, mode: SendMode) -> usize {
+    if deletes == 0 || mode == SendMode::Standard {
+        return 0;
+    }
+    let mut seen = 0u32;
+    for (i, input) in inputs.iter().enumerate() {
+        // SAFETY: every INPUT this module builds is a keyboard event.
+        let ki = unsafe { input.Anonymous.ki };
+        if ki.wVk.0 == keys::VK_BACK && ki.dwFlags.0 & KEYEVENTF_KEYUP.0 != 0 {
+            seen += 1;
+            if seen == deletes {
+                return if i + 1 < inputs.len() { i + 1 } else { 0 };
+            }
+        }
+    }
+    0
+}
+
+/// [`send_detailed`] with the delete block as its own call when
+/// [`split_point`] says so. `sent` counts across both calls in array order, so
+/// a caller resuming from `sent` continues the same batch.
+pub fn send_split(inputs: &[INPUT], deletes: u32, mode: SendMode) -> SendResult {
+    let split = split_point(inputs, deletes, mode);
+    if split == 0 {
+        return send_detailed(inputs);
+    }
+    let first = send_detailed(&inputs[..split]);
+    if first.sent < first.total {
+        return SendResult {
+            total: inputs.len() as u32,
+            ..first
+        };
+    }
+    let second = send_detailed(&inputs[split..]);
+    SendResult {
+        sent: first.sent + second.sent,
+        total: inputs.len() as u32,
+        error: second.error,
+        attempts: first.attempts + second.attempts,
     }
 }
 
@@ -667,57 +702,19 @@ mod tests {
     }
 
     #[test]
-    fn standard_replace_wraps_shifted_ascii_in_shift() {
+    fn replace_wraps_shifted_ascii_in_shift() {
         let inputs = bake(
             &Injection::Replace {
                 deletes: 1,
                 insert: "A".to_string(),
             },
-            SendMode::Standard,
+            SendMode::Unicode,
         );
         // backspace pair, then shift down, A down, A up, shift up
         assert_eq!(inputs.len(), 2 + 4);
         assert_eq!(field(&inputs[2]).0, keys::VK_SHIFT);
         assert_eq!(field(&inputs[3]).0, 0x41);
         assert!(is_up(&inputs[5]), "shift must be released last");
-    }
-
-    /// D-WIN-09: a macro expansion (`qa1` -> `QA ONE`) is a delete block plus
-    /// text. Notepad mis-delivers `Shift`-wrapped VK events after the deletes,
-    /// so the capitals are packets and no Shift VK event is built.
-    #[test]
-    fn macro_expansion_capitals_are_packets_with_no_shift_events() {
-        let inputs = bake(
-            &Injection::Replace {
-                deletes: 3,
-                insert: "QA ONE ".to_string(),
-            },
-            SendMode::Unicode,
-        );
-        assert!(
-            inputs.iter().all(|i| !matches!(
-                field(i).0,
-                keys::VK_SHIFT | keys::VK_LSHIFT | keys::VK_RSHIFT
-            )),
-            "no Shift VK event: {:?}",
-            events(&inputs)
-        );
-        // Three real backspaces, then the text.
-        for input in &inputs[..6] {
-            assert_eq!(field(input).0, keys::VK_BACK);
-        }
-        let units: Vec<u16> = unicode_seqs(&inputs[6..])
-            .into_iter()
-            .filter(|e| !e.1)
-            .map(|e| e.0)
-            .collect();
-        // Capitals are packets; the space is the only real key.
-        assert_eq!(units, "QAONE".encode_utf16().collect::<Vec<u16>>());
-        let spaces = inputs[6..].iter().filter(|i| field(i).0 == 0x20 && !is_up(i)).count();
-        assert_eq!(spaces, 2);
-        // A punctuation mark that needs Shift is a packet too.
-        let bang = bake(&Injection::Replace { deletes: 1, insert: "!".to_string() }, SendMode::Unicode);
-        assert_eq!(unicode_seqs(&bang[2..]), vec![(0x21, false), (0x21, true)]);
     }
 
     /// (vk, up) of every event of a one-letter replacement, without the backspace.
@@ -755,9 +752,9 @@ mod tests {
     fn caps_lock_inverts_the_shift_a_letter_needs() {
         let caps = Held { shift: 0, caps: true };
         assert_eq!(
-            letter_events("t", caps),
-            vec![(0, false), (0, true)],
-            "caps on: lowercase needs the other case, a packet"
+            letter_events("t", caps).first(),
+            Some(&(keys::VK_SHIFT, false)),
+            "caps on: lowercase needs Shift"
         );
         assert_eq!(
             letter_events("T", caps),
@@ -772,18 +769,10 @@ mod tests {
     }
 
     #[test]
-    fn nothing_held_types_a_capital_as_a_packet_in_unicode_mode() {
+    fn nothing_held_keeps_the_classic_shift_pair() {
         let none = Held::default();
-        // D-WIN-09: no injected Shift pair in the default mode.
-        assert_eq!(letter_events("T", none), vec![(0, false), (0, true)]);
-        // `send_standard` keeps the classic pair.
-        let standard: Vec<(u16, bool)> = build_segment_held(1, "T", SendMode::Standard, none)
-            .iter()
-            .skip(2)
-            .map(|i| (field(i).0, is_up(i)))
-            .collect();
         assert_eq!(
-            standard,
+            letter_events("T", none),
             vec![
                 (keys::VK_SHIFT, false),
                 (0x54, false),
@@ -806,14 +795,15 @@ mod tests {
             let events: Vec<(u16, bool)> = inputs.iter().map(|i| (field(i).0, is_up(i))).collect();
             assert_eq!(events.last(), Some(&(vk, false)), "the held key is pressed last");
             let presses = events.iter().filter(|e| !e.1 && matches!(e.0, 0xA0 | 0xA1 | 0x10)).count();
-            // Only the user's key: the capital is a packet and has no pair.
-            assert_eq!(presses, 1, "{events:?}");
-            assert!(!events.iter().any(|e| e.0 == 0x54), "T is a packet, not a VK");
+            // One press for the capital's own pair, one for the user's key.
+            assert_eq!(presses, 2, "{events:?}");
+            let t = events.iter().position(|e| *e == (0x54, false)).expect("T down");
+            assert_eq!(events[t - 1], (keys::VK_SHIFT, false), "the capital still gets its pair");
         }
         // The user holds nothing once the chord is released: nothing is re-pressed.
         let inputs = build_restore(1, "T", SendMode::Unicode, chord, Held::default());
         let last = inputs.last().map(|i| (field(i).0, is_up(i)));
-        assert_eq!(last, Some((0, true)), "the packet is last, no Shift is re-pressed");
+        assert_eq!(last, Some((keys::VK_SHIFT, true)));
     }
 
     /// (vk, up) of every event.
@@ -886,10 +876,7 @@ mod tests {
                 out.push((keys::VK_RETURN, scan, up, tag));
                 continue;
             }
-            // D-WIN-09: in the packet default a key that needs Shift is a packet.
-            match keys::us_vk_for_char(ch)
-                .filter(|&(_, shift)| scancode_ascii && !(shift && mode == SendMode::Unicode))
-            {
+            match keys::us_vk_for_char(ch).filter(|_| scancode_ascii) {
                 Some((vk, shift)) => {
                     let shift_scan = keys::scan_for_vk(keys::VK_SHIFT);
                     if shift {
@@ -915,8 +902,7 @@ mod tests {
 
     #[test]
     fn with_no_shift_held_every_batch_is_byte_identical_to_main() {
-        // Ruling C (amended by D-WIN-09: Shift-needing keys are packets in the
-        // default mode): without a held Shift (and Caps Lock off) nothing changes,
+        // Ruling C: without a held Shift (and Caps Lock off) nothing changes,
         // for `send_standard` and for the packet default, with and without a
         // delete block.
         let text = "Việt Nam ăâđêôơư ABC xyz 019 !@#$ .,;:'\"[]{}|\\-=_+<>?/`~\n😀 tAs Đ a\r\nb \r x\ny\r";
@@ -944,7 +930,14 @@ mod tests {
         let batch = build_segment_held(1, "aB", SendMode::Unicode, caps);
         assert_eq!(
             events(&batch).into_iter().skip(2).collect::<Vec<_>>(),
-            vec![(0, false), (0, true), (0x42, false), (0x42, true)]
+            vec![
+                (keys::VK_SHIFT, false),
+                (0x41, false),
+                (0x41, true),
+                (keys::VK_SHIFT, true),
+                (0x42, false),
+                (0x42, true),
+            ]
         );
         // Caps Lock does not affect digits or punctuation.
         let batch = build_segment_held(1, "5.", SendMode::Unicode, caps);
@@ -957,22 +950,12 @@ mod tests {
     fn a_packet_for_an_ascii_letter_needs_a_held_shift_and_the_other_case() {
         for mode in [SendMode::Standard, SendMode::Unicode] {
             for held in [Held::default(), Held { shift: 0, caps: true }] {
-                // Nothing held: `send_standard` never uses a packet for a letter
-                // in a delete block; the default mode does for the other case.
+                // Nothing held: never a packet for a letter in a delete block.
                 let inputs = build_segment_held(1, "AbCd", mode, held);
-                if mode == SendMode::Standard {
-                    assert!(
-                        inputs.iter().skip(2).all(|i| field(i).0 != 0),
-                        "{mode:?} {held:?}: no packet without a held Shift"
-                    );
-                } else {
-                    assert!(
-                        inputs.iter().skip(2).all(|i| {
-                            !matches!(field(i).0, keys::VK_SHIFT | keys::VK_LSHIFT | keys::VK_RSHIFT)
-                        }),
-                        "{mode:?} {held:?}: no Shift pair"
-                    );
-                }
+                assert!(
+                    inputs.iter().skip(2).all(|i| field(i).0 != 0),
+                    "{mode:?} {held:?}: no packet without a held Shift"
+                );
             }
             // Shift held, the letter shows the case it needs: still a key.
             let inputs = build_segment_held(1, "AB", mode, LEFT);
@@ -1174,11 +1157,8 @@ mod tests {
             ]),
         ];
         for (text, want) in cases {
-            let std = build_restore(1, text, SendMode::Standard, chord_ctrl_shift(), Held::default());
-            assert_eq!(typed(&std, Modifiers::NONE), want, "text {text:?}");
-            // The default mode types the same text with packets (D-WIN-09).
             let inputs = build_restore(1, text, SendMode::Unicode, chord_ctrl_shift(), Held::default());
-            assert_eq!(replay(&inputs, Modifiers::NONE), text, "text {text:?}");
+            assert_eq!(typed(&inputs, Modifiers::NONE), want, "text {text:?}");
         }
     }
 
@@ -1293,5 +1273,44 @@ mod tests {
                 (keys::VK_CONTROL, true)
             ]
         );
+    }
+
+    /// D-WIN-09: the delete block is its own call, the Shift-wrapped text the next.
+    #[test]
+    fn macro_replace_splits_into_deletes_then_text() {
+        let inputs = bake(
+            &Injection::Replace {
+                deletes: 3,
+                insert: "QA ONE ".to_string(),
+            },
+            SendMode::Unicode,
+        );
+        let split = split_point(&inputs, 3, SendMode::Unicode);
+        assert_eq!(split, 6);
+        let (first, second) = inputs.split_at(split);
+        assert!(first.iter().all(|i| field(i).0 == keys::VK_BACK), "deletes only");
+        assert!(second.iter().all(|i| field(i).0 != keys::VK_BACK), "no delete in the text call");
+        // Capitals keep their Shift pair, in the second call.
+        assert_eq!(field(&second[0]).0, keys::VK_SHIFT);
+        assert_eq!(first.len() + second.len(), inputs.len());
+    }
+
+    #[test]
+    fn split_keeps_the_chord_release_with_the_deletes_and_skips_when_nothing_follows() {
+        let batch = build_restore(2, "Ab", SendMode::Unicode, chord_ctrl_shift(), Held::default());
+        let split = split_point(&batch, 2, SendMode::Unicode);
+        assert_eq!(split, 4 + 4, "4 release events + 2 backspace pairs");
+        assert!(batch[..split].iter().all(|i| field(i).0 != 0x42 && field(i).0 != 0x41));
+        // Deletes only: one call.
+        let only = build_segment(2, "", SendMode::Unicode);
+        assert_eq!(split_point(&only, 2, SendMode::Unicode), 0);
+    }
+
+    #[test]
+    fn plain_typing_and_send_standard_are_never_split() {
+        let typed = build_segment(0, "QA", SendMode::Unicode);
+        assert_eq!(split_point(&typed, 0, SendMode::Unicode), 0);
+        let standard = build_segment(3, "QA ONE", SendMode::Standard);
+        assert_eq!(split_point(&standard, 3, SendMode::Standard), 0);
     }
 }

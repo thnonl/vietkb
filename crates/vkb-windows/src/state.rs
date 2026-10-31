@@ -817,7 +817,7 @@ impl HookRuntime {
             }
         };
         let inputs = build(deletes, text, self.send_mode);
-        let mut result = input::send_detailed(&inputs);
+        let mut result = input::send_split(&inputs, deletes, self.send_mode);
         if result.total > 0 && result.sent < result.total {
             // The app refused (part of) the batch. Step down one strategy for
             // this app: Standard scancodes first, then exclude it, so the user
@@ -841,7 +841,7 @@ impl HookRuntime {
                 // Nothing was delivered, so nothing can be duplicated: rebuild
                 // for the stepped-down strategy.
                 let retry = build(deletes, text, self.send_mode);
-                result = input::send_detailed(&retry);
+                result = input::send_split(&retry, deletes, self.send_mode);
                 if result.total > 0 && result.sent < result.total {
                     self.auto_excluded = true;
                     if result.sent > 0 {

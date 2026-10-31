@@ -341,12 +341,17 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
 /// Create the tray icon with the current state. Called once during setup.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let status = commands::status_now();
-    let menu = build_menu(app, &status)?;
+    install_with(app, i18n::current(), &status)
+}
 
-    let lang = i18n::current();
-    let text = tooltip(lang, &status);
+/// [`install`] with the language and status already read, so a caller that
+/// decided on them keeps them for the whole call.
+fn install_with(app: &AppHandle, lang: Lang, status: &StatusView) -> tauri::Result<()> {
+    let menu = build_menu(app, status)?;
+
+    let text = tooltip(lang, status);
     let builder = TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon_for(app, &status)?)
+        .icon(icon_for(app, status)?)
         .tooltip(text.clone())
         .menu(&menu)
         .on_menu_event(|app, event| handle_event(app, event.id.as_ref()));
@@ -440,12 +445,20 @@ pub fn refresh(app: &AppHandle, status: &StatusView) {
     }
 }
 
+/// One refresh at a time: remove + add and the tooltip bookkeeping must not
+/// interleave with another thread's refresh.
+static REFRESH: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+
 fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
+    let _serial = REFRESH.lock();
+    // Read once: the whole refresh works on this language.
+    let lang = i18n::current();
     // Windows only: the macOS status item has no such stale string.
     #[cfg(windows)]
-    if needs_reregistration(*LAST_TOOLTIP_LANG.lock(), i18n::current()) {
+    if needs_reregistration(*LAST_TOOLTIP_LANG.lock(), lang) {
         drop(app.remove_tray_by_id(TRAY_ID));
-        return install(app);
+        // `install_with` records the language only once the icon exists again.
+        return install_with(app, lang, status);
     }
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return Ok(());
@@ -458,12 +471,12 @@ fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
     tray.set_icon_as_template(true)?;
     // One string, written only when it changed: a redundant NIM_MODIFY adds
     // nothing and gives the shell one more chance to keep a stale name (D-WIN-10).
-    let text = tooltip(i18n::current(), status);
+    let text = tooltip(lang, status);
     let mut last = LAST_TOOLTIP.lock();
     if last.as_deref() != Some(text.as_str()) {
         tray.set_tooltip(Some(text.clone()))?;
         *last = Some(text);
-        *LAST_TOOLTIP_LANG.lock() = Some(i18n::current());
+        *LAST_TOOLTIP_LANG.lock() = Some(lang);
     }
     Ok(())
 }

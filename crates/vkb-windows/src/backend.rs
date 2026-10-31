@@ -81,7 +81,7 @@ impl Injector {
             return;
         }
         let inputs = input::build_segment_held(deletes, text, self.mode, held);
-        input::send(&inputs);
+        input::send_split(&inputs, deletes, self.mode);
     }
 }
 
