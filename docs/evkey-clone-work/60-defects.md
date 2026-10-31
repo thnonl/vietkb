@@ -464,3 +464,23 @@ Evidence: `qa/mac/run-appsuite-smoke/results.md`.
 Harness note (not a product defect): SIGKILL or direct-exec runs of a Regular-policy dev app leave stale Dock tiles (macOS keeps them); the suite now quits gracefully, skips SIGKILL by default and asserts no new tile after every phase. Earlier killed dev instances left tiles that only the owner can clear (the harness never touches the Dock).
 | D-MAC-40 | P2 | title bar parity (owner M9) | open any macOS window | theme toggle next to VI/EN in a title-bar row like Windows | separate 28 px `.mac-langbar` row inside the content, theme toggle a different component | owner M9 | FIXED (overlay title bar, shared caption markup/classes; visual check in qa/mac/m9-titlebar) |
 | D-MAC-41 | P2 | GUI parity (owner M10 ALIGN rows) | tray left click; app-rules rows; macros search hint; EN autostart label | as Windows | left click opened the menu; rows had a Mac layout without "Đã thêm"; hint had no "+"; EN "Open at login" | audit rows 1, 32, 25, 13 | FIXED |
+
+## Windows real-app QA — 0.2.7 candidate aa5e71f (2026-10-31, Windows Lead, dev-channel build)
+
+Cases 1 typing (Telex/VNI), 2 VI|EN, 4 fresh defaults: PASS. Cases 3 config writes, 5 updater, 6 capture: PASS apart from the rows below. Restore verified by the Windows Lead (dev config byte-identical, Run key clean, installed VietKB relaunched, prod config hash unchanged).
+
+| id | severity | area | repro | expected | actual | status |
+|---|---|---|---|---|---|---|
+| D-WIN-01 | P1 (intermittent) | hotkeys after capture | Run hotkey-capture cases, leave the field, press F1/F2 in Notepad | F1/F2 act (enable/disable) and are swallowed | once F1 reached Notepad (opened Help in Edge); for ~6 presses F1/F2 were neither acted on nor swallowed; 13 later pairs clean. Suspect capture flag / swallow state left after capture ends | OPEN |
+| D-WIN-02 | P2 | per-app rule UI sync | Settings open; press F11 in Notepad | main window count and rules dialog switch update | config gets the rule, but the main window keeps "0 ứng dụng" and the dialog shows the switch off until reopened — UI misses the config-changed broadcast from the hook path | OPEN |
+| D-WIN-03 | P2 | Reset all / autostart | Main window open; Advanced → Đặt lại tất cả | main window autostart switch reflects the reset value | config and Run key on, main-window switch stays off (method select did update) | OPEN |
+| D-WIN-04 | P2 | theme first paint (M7) | Theme dark on dark OS; open the window via hotkey | dark from the first frame | white frame ~60–120 ms before dark paint (3/3); likely the native window/webview background — set the window background colour from the theme | OPEN |
+| D-WIN-05 | P2 | Hotkeys window layout | Capture a combo already in use (Ctrl+Shift+Z on "Đổi kiểu gõ") | warnings fit; footer visible | both rows show conflict warnings and the footer Close button is cut off below 360 px, no scroll | OPEN |
+| D-WIN-06 | P3 | capture field re-arm | Arm a field, Esc, click the same field | re-arms | does not re-arm until focus leaves the field | OPEN |
+
+Observations to confirm (Windows Lead):
+- Reset all turns autostart ON: `SystemConfig::default` has `start_with_windows: true` (schema.rs:299), so reset = default ON. Intended per 0.2.6 default; confirm with the owner if it should stay.
+- A UIA read once showed the tray tooltip as VI and EN text concatenated — check tooltip rebuild on language change.
+- A macro trigger containing a digit (`qa1`) did not expand — check whether digits are allowed in triggers (spec) and the engine's word boundary.
+- During the run a HKCU Run value `VietKB` = `E:\vietkb\target\debug\deps\vkb_windows-<hash>.exe --autostart` appeared then disappeared — possible regression of D-AUTO-01 (a debug test binary writing the real Run key). Must be checked before release.
+- MANUAL for the owner: real Alt+Tab out of an armed capture field; real tray hover after switching VI↔EN.
