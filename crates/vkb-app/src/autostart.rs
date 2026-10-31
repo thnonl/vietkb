@@ -16,7 +16,15 @@ pub use imp::{is_enabled, set};
 #[cfg(target_os = "macos")]
 mod imp {
     pub fn set(enabled: bool) -> Result<(), String> {
-        vkb_macos::set_autostart(enabled).map_err(|error| error.to_string())
+        vkb_macos::set_autostart(enabled).map_err(|error| {
+            match error.downcast_ref::<vkb_macos::autostart::TransientPath>() {
+                Some(transient) => crate::i18n::tf(
+                    "err.autostart.transient",
+                    &[("path", &transient.0.display().to_string())],
+                ),
+                None => error.to_string(),
+            }
+        })
     }
 
     pub fn is_enabled() -> bool {

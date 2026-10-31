@@ -352,5 +352,6 @@ export const vi: Record<string, string> = {
   "err.update.finalize": "Không hoàn tất được tệp tải: {error}",
   "err.update.reread": "Không đọc lại được tệp tải: {error}",
   "err.update.shaMismatch": "SHA256 của tệp tải về không khớp với bản phát hành — đã huỷ tệp.",
+  "err.autostart.transient": "VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS.",
 
 };

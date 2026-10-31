@@ -113,6 +113,20 @@ pub fn is_transient_path(exe: &Path) -> bool {
     text.starts_with("/Volumes/") || text.contains("/AppTranslocation/")
 }
 
+/// Autostart refused: the running app is on a disk image or an App
+/// Translocation path that will not exist at the next login. The app layer
+/// shows its own localized text; `Display` is the English log line.
+#[derive(Debug)]
+pub struct TransientPath(pub PathBuf);
+
+impl std::fmt::Display for TransientPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "running from a transient path ({}); move VietKB to /Applications", self.0.display())
+    }
+}
+
+impl std::error::Error for TransientPath {}
+
 /// The executable a LaunchAgent should start for the running `exe`.
 ///
 /// A transient `exe` (see [`is_transient_path`]) is replaced by the same binary
@@ -133,10 +147,7 @@ pub fn resolve_exe(exe: &Path, installed_app: &Path) -> Result<PathBuf> {
             return Ok(installed);
         }
     }
-    bail!(
-        "VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({}); hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS",
-        exe.display()
-    )
+    Err(TransientPath(exe.to_path_buf()).into())
 }
 
 /// Create or remove the LaunchAgent for the running executable.
