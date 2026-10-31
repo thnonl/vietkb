@@ -113,3 +113,13 @@ Owner, verbatim: "Hãy nhớ rằng app này là singleton. Và khi có update c
   menu has the update item. Supersedes the M5/Dev-B choice "no update badge on mac".
 - macOS menu-bar badge is monochrome in the template alpha (menu-bar tint follows the wallpaper); see 70-impl-notes-macos.md.
 - Owner, 2026-10-31, on 2-state vs adding a "system" state: "Làm theo Windows, khi mở lần đầu thì theo hệ thống, khi user toggle thì lưu user setting." → keep the 2-state toggle as implemented (no third state); the way back to following the system is "Đặt lại tất cả".
+
+## M9 — Title-bar controls on macOS like Windows (owner, 2026-10-31)
+Owner, verbatim: "Toggle theme phải ở cạnh switch ngôn ngữ, không phải trong setting nhé, phải làm giống như Windows nhé."
+- macOS windows use an overlay title bar (`titleBarStyle: Overlay`, title text hidden or drawn by
+  the page) so the update button, `VI | EN` and the theme button sit IN the title-bar row at the
+  right, level with the traffic lights — not in a separate row inside the window content.
+- Same controls, same order, same icons and behaviour as the Windows caption: update button,
+  `VI | EN`, theme button (sun/moon, 2-state per M7). The window title text stays at the left
+  after the traffic lights. The title-bar row is draggable except on the controls.
+- Replaces M6's "28 px row at the top right of the window content".
