@@ -399,3 +399,9 @@ Owner rulings, 2026-10-30:
 - A digit typed directly before letters does not block composing: `1dduwowcj` → `1được`, `3giowf` → `3giờ`, VNI `2d9e6m` → `2đêm` (spec A9 updated).
 - VNI `d9e6i` with spell check on stays `d9e6i` (correct: `êi` is not a syllable), but deleting it fully or back to its first letter and retyping must compose — pinned by the `owner_*` tests in `editing.rs`.
 - Accepted consequence of the re-judge rule: one Backspace may rewrite the word to what its surviving keys compose to (`test⌫` → `té`, `d9e6i⌫` → `đê`).
+
+## macOS port — 2026-10-31
+
+| id | severity | area | repro | expected | actual | status |
+|---|---|---|---|---|---|---|
+| D-TEST-01 | P3 (test harness) | `vkb-core/tests/no_alloc.rs` counts allocations with one global counter, so tests running in parallel threads count each other's allocations | `cargo test -p vkb-core --test no_alloc` ×5 on macOS (default parallel) | 5/5 pass | 3/5 pass; failures in `plain_append_and_boundary_do_not_allocate` or `ignored_keys_do_not_allocate`. `--test-threads=1`: 5/5 pass | OPEN — fix with a per-thread counter or a serial guard; not platform-specific |
