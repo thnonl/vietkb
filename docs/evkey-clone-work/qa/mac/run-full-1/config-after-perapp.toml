@@ -1,0 +1,18 @@
+version = 1
+[input]
+enabled = true
+method = "telex"
+[system]
+start_with_windows = false
+start_minimized = false
+notification_sound = true
+check_updates = false
+language = "vi"
+theme = "dark"
+
+[apps]
+remember_per_app = false
+[[apps.rules]]
+process = "com.apple.stickies"
+enabled = false
+

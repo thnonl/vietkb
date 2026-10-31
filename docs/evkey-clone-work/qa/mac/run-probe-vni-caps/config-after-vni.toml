@@ -1,0 +1,12 @@
+version = 1
+[input]
+enabled = true
+method = "vni"
+[system]
+start_with_windows = false
+start_minimized = false
+notification_sound = true
+check_updates = false
+language = "vi"
+theme = "dark"
+

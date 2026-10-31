@@ -405,3 +405,13 @@ Owner rulings, 2026-10-30:
 | id | severity | area | repro | expected | actual | status |
 |---|---|---|---|---|---|---|
 | D-TEST-01 | P3 (test harness) | `vkb-core/tests/no_alloc.rs` counts allocations with one global counter, so tests running in parallel threads count each other's allocations | `cargo test -p vkb-core --test no_alloc` ×5 on macOS (default parallel) | 5/5 pass | 3/5 pass; failures in `plain_append_and_boundary_do_not_allocate` or `ignored_keys_do_not_allocate`. `--test-threads=1`: 5/5 pass | FIXED in `21e40ba` — per-thread counter (const `thread_local` Cell); 10/10 pass in default parallel mode |
+
+## macOS real-app E2E — 2026-10-31 (QA, build `qa-build/VietKB.app` 0.2.6, binary sha256 `9a056ae9…f759`)
+
+Evidence: `qa/mac/run-full-2/`, `qa/mac/run-probe-vni-caps/`, report `95-e2e-report-mac.md`.
+
+| id | severity | area | repro | expected | actual | evidence | status |
+|---|---|---|---|---|---|---|---|
+| D-MAC-01 | P2 | vkb-macos / VNI | VNI, spell check on (default), synthetic keys with Shift pressed per capital letter: `VIE6T5`, `VIE6T`, `VIE6`, `VIE5` (an all-caps word, then a mark or tone digit). Same result in TextEdit plain/rich, Notes, Stickies, Chrome textarea, VS Code, Terminal | `VIỆT`, `VIÊT`, `VIÊ`, `VIẸ` (`vkb_core::simulate` gives exactly these) | digits stay literal: `VIE6T5`, `VIE6T`, `VIE6`, `VIE5`. Mixed case `Vie6T` → `ViêT` and Telex all-caps `VIEETJ`/`DDUWOWCJ` work, so it is VNI + all-caps only, and only in the macOS backend path, not the engine | `qa/mac/run-probe-vni-caps/shots/textedit-plain-vni-VN-X*.png`, `…/run-full-2/shots/*-vni-VN-C1.png` | OPEN |
+| D-MAC-02 | P2 | settings window (macOS) | Launch VietKB with `start_minimized = false` (or open from the menu) | the whole settings window incl. the footer row (Phím tắt / Nâng cao / Thoát hẳn / Đóng) is visible | window is 480×424 pt with the native title bar; the footer row is cut off at the bottom edge (button labels half visible) | `qa/mac/run-full-1/shots/gui-settings-window.png` | OPEN |
+| D-MAC-03 | P3 | owner ops / EVKey | Quit EVKey by `osascript quit app "EVKey"` | exits within 5 s | ignored for >10 s on most runs; `pkill -x EVKey` needed (QA harness falls back). Not VietKB's defect; recorded because the guardrail text names the AppleScript quit | `qa/mac/run-full-1/guardrail.log` | INFO |
