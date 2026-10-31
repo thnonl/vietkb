@@ -386,6 +386,32 @@ pub fn may_read(owner_is_ours_or_none: bool, probe_answered: bool) -> bool {
     owner_is_ours_or_none || probe_answered
 }
 
+/// Who owns the clipboard, from `GetClipboardOwner()`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnerState {
+    /// A window owns it.
+    Window,
+    /// Nobody owns it (immediate data set without an owner).
+    NoOwner,
+    /// The lookup itself failed: unknown owner, treat as "cannot probe".
+    Failed,
+}
+
+/// `GetClipboardOwner` returns NULL both for "no owner" and for errors, and
+/// windows-rs turns NULL into `Err` either way. `error` is the HRESULT of that
+/// `Err` (`None` for an `Ok` handle); a zero code (`S_OK`, last error cleared
+/// before the call) is "no owner", anything else is a genuine error.
+pub fn owner_state(handle_is_set: bool, error: Option<i32>) -> OwnerState {
+    if handle_is_set {
+        OwnerState::Window
+    } else {
+        match error {
+            None | Some(0) => OwnerState::NoOwner,
+            Some(_) => OwnerState::Failed,
+        }
+    }
+}
+
 /// What to do with the user's data when writing our temporary text failed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FailedWrite {
@@ -844,6 +870,19 @@ mod tests {
         // A foreign owner: only with an answered probe taken with the clipboard open.
         assert!(may_read(false, true));
         assert!(!may_read(false, false));
+    }
+
+    #[test]
+    fn no_owner_is_told_from_a_failed_lookup() {
+        assert_eq!(owner_state(true, None), OwnerState::Window);
+        // NULL with a cleared last error: nobody owns the clipboard.
+        assert_eq!(owner_state(false, Some(0)), OwnerState::NoOwner);
+        assert_eq!(owner_state(false, None), OwnerState::NoOwner);
+        // NULL with a real error code (an HRESULT from a Win32 error): failed.
+        assert_eq!(owner_state(false, Some(0x8007_0005u32 as i32)), OwnerState::Failed);
+        assert_eq!(owner_state(false, Some(-1)), OwnerState::Failed);
+        // A handle wins over a stale error.
+        assert_eq!(owner_state(true, Some(5)), OwnerState::Window);
     }
 
     #[test]

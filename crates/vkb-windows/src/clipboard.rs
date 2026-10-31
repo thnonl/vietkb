@@ -43,7 +43,7 @@ use vkb_platform::clipboard_plan::{
     classify_format, decide_paste, flag_blocks_snapshot, format_count_ok,
     garbage_admit, notification_is_ours, open_retry_delay, ownership,
     bounded_text_len, failed_write_plan, may_read, our_text_bytes, restore_decision,
-    should_clear, text_fingerprint, write_verdict, FailedWrite, OwnerCheck,
+    owner_state, should_clear, text_fingerprint, write_verdict, FailedWrite, OwnerCheck, OwnerState,
     snapshot_stable, snapshot_verdict, uses_hook_owner, within_budget, FormatClass,
     OwnSeqs, Ownership, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER,
     PRIVACY_FORMATS, REFRESH_DELAY_MS, REGISTERED_FIRST,
@@ -358,6 +358,36 @@ fn type_directly(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, hel
     input::send_split(&inputs, deletes, mode);
 }
 
+/// The current clipboard owner.
+enum Owner {
+    None,
+    Window(HWND),
+    /// `GetClipboardOwner` failed for real (not just "no owner").
+    Failed,
+}
+
+/// `GetClipboardOwner`, with "no owner" told from a real error. windows-rs maps
+/// a NULL result to `Err` for both, so the last error is cleared first and the
+/// error code decides ([`owner_state`]).
+fn current_owner() -> Owner {
+    // SAFETY: plain calls; clearing first keeps a stale error from looking real.
+    unsafe { SetLastError(WIN32_ERROR(0)) };
+    let (handle, error) = match unsafe { GetClipboardOwner() } {
+        Ok(h) => (Some(h).filter(|h| !h.is_invalid()), None),
+        Err(e) => (None, Some(e.code().0)),
+    };
+    match (owner_state(handle.is_some(), error), handle) {
+        (OwnerState::Window, Some(h)) => Owner::Window(h),
+        (OwnerState::NoOwner, _) => Owner::None,
+        _ => Owner::Failed,
+    }
+}
+
+/// Our window owns the clipboard right now (a failed lookup is "no").
+fn owner_is(ours: HWND) -> bool {
+    matches!(current_owner(), Owner::Window(h) if h == ours)
+}
+
 /// Does the current clipboard owner answer a message within `timeout_ms`?
 /// `EmptyClipboard` sends `WM_DESTROYCLIPBOARD` to the previous owner
 /// synchronously and `GetClipboardData` may ask a delayed-render owner to
@@ -369,8 +399,13 @@ fn type_directly(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, hel
 /// mode unusable (the owner is the program the user copied from), so the probe
 /// is the bound.
 fn clipboard_owner_responsive(timeout_ms: u32) -> bool {
-    let Ok(prev) = (unsafe { GetClipboardOwner() }) else { return true };
-    if prev.is_invalid() || Some(prev) == hwnd_of(&HOOK_OWNER) {
+    let prev = match current_owner() {
+        Owner::None => return true,
+        // A failed lookup is "probe failed": the caller types / skips the read.
+        Owner::Failed => return false,
+        Owner::Window(prev) => prev,
+    };
+    if Some(prev) == hwnd_of(&HOOK_OWNER) {
         return true;
     }
     if unsafe { IsHungAppWindow(prev) }.as_bool() {
@@ -400,9 +435,11 @@ fn clipboard_owner_responsive(timeout_ms: u32) -> bool {
 /// never read (its delayed render could block with the clipboard locked
 /// system-wide). Called once per read sequence, per attempt.
 fn read_allowed() -> bool {
-    let ours_or_none = match unsafe { GetClipboardOwner() } {
-        Ok(owner) => owner.is_invalid() || Some(owner) == hwnd_of(&HOOK_OWNER),
-        Err(_) => true,
+    let ours_or_none = match current_owner() {
+        Owner::None => true,
+        Owner::Window(owner) => Some(owner) == hwnd_of(&HOOK_OWNER),
+        // Unknown owner: not "ours or none"; the probe below fails too.
+        Owner::Failed => false,
     };
     let answered = ours_or_none || clipboard_owner_responsive(50);
     may_read(ours_or_none, answered)
@@ -487,6 +524,7 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     };
     // Our text is recorded BEFORE the write, so the leftover of a failing write
     // is recognised by `clear_if_ours` too.
+    let previous_text = shared.text;
     shared.text = OurText::of(text);
     let in_open = match write_temp_text(text) {
         Ok(seq) => seq,
@@ -518,13 +556,19 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
                     // EmptyClipboard failed: the user's data is still on the
                     // clipboard. Drop our copy and take a fresh snapshot later.
                     drop(guard);
+                    // Nothing was written: the text we recorded never reached
+                    // the clipboard.
+                    shared.text = previous_text;
                     if let Plan::Start(snap) = plan {
                         exec_locked(&mut shared, vec![Action::Retire(snap.data)]);
                     }
                     drop(shared);
                     post_worker(WM_APP_RESNAP);
                 }
-                FailedWrite::KeepSession => drop(guard),
+                FailedWrite::KeepSession => {
+                    drop(guard);
+                    shared.text = previous_text; // nothing was written
+                }
             }
             return false;
         }
@@ -756,7 +800,7 @@ fn drive(hwnd: HWND, mut actions: Vec<Act>) {
 fn clear_if_ours(owner: Option<HWND>, text: OurText) {
     let Some(ours) = owner else { return };
     let Some(guard) = ClipboardGuard::open(Some(ours), 1, 0) else { return };
-    let owner_is_ours = unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours);
+    let owner_is_ours = owner_is(ours);
     let marker = marker_id() != 0 && unsafe { IsClipboardFormatAvailable(marker_id()) }.is_ok();
     // The text is only read from OUR window's clipboard (it cannot hang), and
     // only when the marker alone did not decide.
@@ -908,7 +952,7 @@ fn restore_session(job: &RestoreJob<Vec<FormatData>>, owner: Option<HWND>) -> Re
             // never reads data from a foreign clipboard.
             let now = unsafe { GetClipboardSequenceNumber() };
             let owner_is_ours = owner
-                .is_some_and(|ours| unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours));
+                .is_some_and(owner_is);
             let ours = restore_decision(
                 job.urgent,
                 job.own,
@@ -1219,7 +1263,7 @@ fn log_capture_bump(in_open: u32, after_close: u32) {
 fn owner_marker_ours(expected_owner: Option<HWND>) -> bool {
     let marker = marker_id();
     let owner_ok = match expected_owner {
-        Some(ours) => unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours),
+        Some(ours) => owner_is(ours),
         // NULL owner: the marker alone proves nothing, the sequence must match.
         None => false,
     };
@@ -1250,9 +1294,7 @@ fn verify_write(expected_owner: Option<HWND>, post_close: u32) -> WriteVerdict {
     for attempt in 0..3 {
         let s1 = unsafe { GetClipboardSequenceNumber() };
         let owner_check = match expected_owner {
-            Some(ours) => OwnerCheck::Window {
-                matches: unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours),
-            },
+            Some(ours) => OwnerCheck::Window { matches: owner_is(ours) },
             // NULL owner: no window to compare, the number must match too.
             None => OwnerCheck::Null,
         };
