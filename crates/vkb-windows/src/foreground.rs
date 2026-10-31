@@ -39,6 +39,25 @@ pub fn foreground_hwnd() -> isize {
     unsafe { GetForegroundWindow() }.0 as isize
 }
 
+/// `true` when the foreground window belongs to this process (a VietKB window
+/// has the focus). Always `true` in unit tests and the E2E harness build, which
+/// have no real foreground window.
+#[cfg(not(any(test, feature = "e2e-harness")))]
+pub fn own_process_in_front() -> bool {
+    let hwnd = foreground_hwnd();
+    if hwnd == 0 {
+        return false;
+    }
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd_from(hwnd), Some(&mut pid)) };
+    pid == std::process::id()
+}
+
+#[cfg(any(test, feature = "e2e-harness"))]
+pub fn own_process_in_front() -> bool {
+    true
+}
+
 /// Lowercased executable name + pid + path + title for one window.
 ///
 /// Allocates; call only on window/process change, never per keystroke.

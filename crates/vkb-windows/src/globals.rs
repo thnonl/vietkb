@@ -68,6 +68,12 @@ pub fn hotkey_capture() -> bool {
     until != 0 && capture_now_ms() < until
 }
 
+/// Make the running capture lapse now (the deadline passing without a refresh).
+#[cfg(test)]
+pub fn expire_hotkey_capture() {
+    HOTKEY_CAPTURE_UNTIL_MS.store(1, Ordering::SeqCst);
+}
+
 /// Thread id of the hook thread, for `PostThreadMessageW`. 0 = not running.
 pub static THREAD_ID: AtomicU32 = AtomicU32::new(0);
 

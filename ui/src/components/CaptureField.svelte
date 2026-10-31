@@ -65,7 +65,9 @@
       api
         .setHotkeyCapture(true)
         .then(() => {
-          capturing = true;
+          // Answered after the field stopped: the backend was told "stopped"
+          // after this renewal, so do not believe the capture is armed.
+          capturing = editing;
         })
         .catch(() => {
           capturing = false;
@@ -144,6 +146,12 @@
     warning = null;
     onproblem?.(null);
     seq++;
+  };
+
+  /** Esc ends the capture but keeps the focus, so a click on the same field is
+   *  not a focus event: it must arm the capture again. */
+  const rearm = () => {
+    if (!editing) begin();
   };
 
   const validate = async (candidate: string) => {
@@ -304,6 +312,7 @@
     aria-label={t("capture.aria", { label, value: (editing ? shown : value) || t("capture.unset") })}
     onfocus={begin}
     onblur={reset}
+    onclick={rearm}
     onkeydown={onkeydown}
     onkeyup={onkeyup}>
     {#if editing}

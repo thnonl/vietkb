@@ -99,6 +99,13 @@ pub struct HookRuntime {
     /// The trigger key whose key-down was swallowed last, and when (it is
     /// refreshed by every swallowed repeat).
     trigger_last: Option<(u16, Instant)>,
+    /// The hotkey capture was running at the last key event (to notice its end).
+    was_capturing: bool,
+    /// The last non-modifier key whose key-down reached the page while a capture
+    /// was running, and when (refreshed by every repeat). Its repeats and key-up
+    /// that arrive after the capture ended belong to that press: the matcher
+    /// never saw the key-down, so it must not see the rest either.
+    passed_in_capture: Option<(u16, Instant)>,
     cfg: Option<Arc<AppConfig>>,
     base: BaseSettings,
     rule: Option<vkb_config::AppRule>,
@@ -139,6 +146,8 @@ impl HookRuntime {
             down: [0; 4],
             trigger_swallowed: [0; 4],
             trigger_last: None,
+            was_capturing: false,
+            passed_in_capture: None,
             cfg: None,
             base: BaseSettings::default(),
             rule: None,
@@ -256,6 +265,15 @@ impl HookRuntime {
 
         let vk = info.vkCode as u16;
 
+        // The capture can end between two keys (blur, window close, Esc, or its
+        // deadline lapsing): settle the hook-side state exactly once, on the
+        // first event that sees it over.
+        let capturing = self.capture_active();
+        if self.was_capturing && !capturing {
+            self.end_capture();
+        }
+        self.was_capturing = capturing;
+
         // Our own injections re-enter the hook; never feed them back.
         if info.dwExtraInfo == input::injected_tag() {
             trace.stage("own-injection");
@@ -263,7 +281,7 @@ impl HookRuntime {
         }
         // Capturing a shortcut (spec C.6 step 2): synthetic text packets (IME,
         // on-screen keyboard, other injectors) must not reach the engine either.
-        if vk == keys::VK_PACKET && globals::hotkey_capture() {
+        if vk == keys::VK_PACKET && capturing {
             trace.stage("capture-packet");
             self.reset_engine();
             return Decision::PASS;
@@ -346,7 +364,7 @@ impl HookRuntime {
         // converted or swallowed, so the chord reaches the page being recorded
         // into. The key-up of a trigger swallowed before capture began is still
         // swallowed.
-        if globals::hotkey_capture() {
+        if capturing {
             self.hotkeys.discard_latches();
             // The auto-repeat of a trigger swallowed before capture began stays
             // swallowed (its key-up is swallowed too, so the page never sees an
@@ -367,9 +385,35 @@ impl HookRuntime {
                 trace.stage("capture-trigger-up");
                 return Decision::SWALLOW;
             }
+            if !is_modifier {
+                // The key-down reaches the page; remember it so the repeats and
+                // the key-up after a capture that ends mid-hold do not fire.
+                self.passed_in_capture = if down { Some((vk, Instant::now())) } else { None };
+            }
             trace.stage("capture");
             self.reset_engine();
             return Decision::PASS;
+        }
+
+        // A key whose key-down went to the page during the capture: the rest of
+        // that press (repeats, key-up) goes there too, unmatched. A fresh press
+        // (or a repeat that is not recent: the key-up was lost) starts clean.
+        if !is_modifier {
+            if let Some((key, at)) = self.passed_in_capture {
+                if key == vk {
+                    if !down {
+                        self.passed_in_capture = None;
+                        trace.stage("capture-held-up");
+                        return Decision::PASS;
+                    }
+                    if repeat && at.elapsed() < TRIGGER_REPEAT_WINDOW {
+                        self.passed_in_capture = Some((vk, Instant::now()));
+                        trace.stage("capture-held-repeat");
+                        return Decision::PASS;
+                    }
+                    self.passed_in_capture = None;
+                }
+            }
         }
 
         // A trigger key-down that was swallowed stays swallowed for as long as it
@@ -981,6 +1025,25 @@ impl HookRuntime {
         ime::to_unicode(vk, scan, &state)
     }
 
+    /// The hotkey capture is running and the window recording it is the one in
+    /// front. A capture that outlives its field (a lost blur, Alt+Tab) must not
+    /// stop the hotkeys in other applications for the rest of its deadline.
+    fn capture_active(&self) -> bool {
+        globals::hotkey_capture() && foreground::own_process_in_front()
+    }
+
+    /// The capture just ended: nothing the matcher or the swallowed-trigger bits
+    /// learned during it may leak into the next presses.
+    fn end_capture(&mut self) {
+        self.hotkeys.discard_latches();
+        self.reset_engine();
+        // A bit without a physically held key is a lost key-up; a held one still
+        // owes its key-up a swallow.
+        for (bits, down) in self.trigger_swallowed.iter_mut().zip(self.down) {
+            *bits &= down;
+        }
+    }
+
     fn sync_global_toggle(&mut self) {
         let global = globals::enabled();
         if global != self.last_global {
@@ -1551,5 +1614,119 @@ toggle_mode = "release"
         assert!(key(&mut rt, 0x44, true).swallow, "DD -> Đ across a bare Shift");
         key(&mut rt, 0x44, false);
         key(&mut rt, keys::VK_LSHIFT, false);
+    }
+
+    // -- D-WIN-01: nothing from a capture may leak into the presses after it ----
+
+    /// Leaves the process-wide capture flag off, whatever the test did.
+    struct CaptureOff;
+    impl Drop for CaptureOff {
+        fn drop(&mut self) {
+            globals::set_hotkey_capture(false);
+        }
+    }
+
+    #[test]
+    fn capture_off_then_f1_f2_act_and_are_swallowed() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _off = CaptureOff;
+        let mut rt = quiet_runtime();
+        globals::set_hotkey_capture(true);
+        // The chord being recorded reaches the page and acts on nothing.
+        assert!(!key(&mut rt, keys::VK_F2, true).swallow);
+        assert!(!key(&mut rt, keys::VK_F2, false).swallow);
+        assert!(globals::enabled(), "F2 did not disable while capturing");
+        globals::set_hotkey_capture(false);
+        assert!(key(&mut rt, keys::VK_F2, true).swallow, "F2 is a trigger again");
+        assert!(key(&mut rt, keys::VK_F2, false).swallow);
+        assert!(!globals::enabled());
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        assert!(key(&mut rt, keys::VK_F1, false).swallow);
+        assert!(globals::enabled());
+    }
+
+    #[test]
+    fn trigger_held_across_the_capture_end_does_not_fire_or_orphan() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _off = CaptureOff;
+        let mut rt = quiet_runtime();
+        globals::set_hotkey_capture(true);
+        assert!(!key(&mut rt, keys::VK_F2, true).swallow, "down reaches the field");
+        globals::set_hotkey_capture(false);
+        // Auto-repeat and the key-up of the press the page already has.
+        assert!(!key(&mut rt, keys::VK_F2, true).swallow, "repeat follows its key-down");
+        assert!(!key(&mut rt, keys::VK_F2, false).swallow, "key-up follows its key-down");
+        assert!(globals::enabled(), "a press that began in the capture fires nothing");
+        // The next presses are ordinary.
+        assert!(key(&mut rt, keys::VK_F2, true).swallow);
+        assert!(key(&mut rt, keys::VK_F2, false).swallow);
+        assert!(!globals::enabled());
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        assert!(key(&mut rt, keys::VK_F1, false).swallow);
+        assert!(globals::enabled());
+    }
+
+    #[test]
+    fn swallowed_trigger_held_into_the_capture_is_swallowed_to_its_key_up_only() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _off = CaptureOff;
+        let mut rt = quiet_runtime();
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        globals::set_hotkey_capture(true);
+        assert!(key(&mut rt, keys::VK_F1, true).swallow, "repeat of a swallowed trigger");
+        assert!(key(&mut rt, keys::VK_F1, false).swallow, "its key-up too");
+        assert!(!rt.trigger_is_swallowed(keys::VK_F1));
+        globals::set_hotkey_capture(false);
+        assert!(key(&mut rt, keys::VK_F1, true).swallow, "the next press acts");
+        assert!(key(&mut rt, keys::VK_F1, false).swallow);
+        assert!(!key(&mut rt, keys::VK_F1, false).swallow, "and leaves no bit behind");
+    }
+
+    #[test]
+    fn swallowed_trigger_released_after_the_capture_ended_still_swallows_its_up() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _off = CaptureOff;
+        let mut rt = quiet_runtime();
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        globals::set_hotkey_capture(true);
+        assert!(!key(&mut rt, 0x41, true).swallow);
+        key(&mut rt, 0x41, false);
+        globals::set_hotkey_capture(false);
+        assert!(key(&mut rt, keys::VK_F1, false).swallow, "no orphan key-up for the app");
+    }
+
+    #[test]
+    fn lapsed_deadline_ends_the_capture_like_an_explicit_stop() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _off = CaptureOff;
+        let mut rt = quiet_runtime();
+        globals::set_hotkey_capture(true);
+        assert!(!key(&mut rt, keys::VK_F2, true).swallow);
+        globals::expire_hotkey_capture();
+        assert!(!globals::hotkey_capture());
+        assert!(!key(&mut rt, keys::VK_F2, false).swallow);
+        assert!(globals::enabled());
+        assert!(key(&mut rt, keys::VK_F2, true).swallow, "F2 acts once the deadline lapsed");
+        assert!(key(&mut rt, keys::VK_F2, false).swallow);
+        assert!(!globals::enabled());
+    }
+
+    #[test]
+    fn capture_end_drops_matcher_latches_and_stale_bits() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _off = CaptureOff;
+        let mut rt = quiet_runtime();
+        assert!(key(&mut rt, keys::VK_F1, true).swallow);
+        assert!(key(&mut rt, keys::VK_F1, false).swallow);
+        // A lost key-up left a bit for a key that is not held.
+        rt.set_trigger_swallowed(0x41, true);
+        globals::set_hotkey_capture(true);
+        key(&mut rt, 0x42, true);
+        key(&mut rt, 0x42, false);
+        globals::set_hotkey_capture(false);
+        key(&mut rt, 0x42, true);
+        key(&mut rt, 0x42, false);
+        assert!(!rt.trigger_is_swallowed(0x41), "stale bit dropped at the end");
+        assert!(!key(&mut rt, 0x41, true).swallow);
     }
 }

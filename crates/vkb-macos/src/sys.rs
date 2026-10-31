@@ -433,7 +433,9 @@ impl Host for MacHost {
         secure_input_enabled()
     }
     fn hotkey_capture(&mut self) -> bool {
-        globals::hotkey_capture()
+        // A capture that outlives its field (lost blur, app switch) must not
+        // stop the hotkeys in other apps for the rest of its deadline.
+        globals::hotkey_capture() && frontmost_pid() == std::process::id() as i32
     }
     fn replace(&mut self, deletes: u32, text: &str) {
         send_replace(deletes, text);

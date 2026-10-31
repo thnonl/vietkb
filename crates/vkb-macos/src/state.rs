@@ -149,6 +149,12 @@ pub struct Runtime {
     /// Keys whose key-down was swallowed as a hotkey trigger (the key-up follows).
     trigger_swallowed: [u64; 4],
     trigger_last: Option<(u16, Instant)>,
+    /// The hotkey capture was running at the last key event (to notice its end).
+    was_capturing: bool,
+    /// The last non-modifier key whose key-down reached the page during a
+    /// capture, and when (refreshed by every repeat): its repeats and key-up
+    /// after the capture ended belong to that press, which the matcher never saw.
+    passed_in_capture: Option<(u16, Instant)>,
     cfg: Option<Arc<AppConfig>>,
     config_version: u64,
     base: BaseSettings,
@@ -184,6 +190,8 @@ impl Runtime {
             down: [0; 4],
             trigger_swallowed: [0; 4],
             trigger_last: None,
+            was_capturing: false,
+            passed_in_capture: None,
             cfg: None,
             config_version: globals::config_version(),
             base: BaseSettings::default(),
@@ -249,6 +257,18 @@ impl Runtime {
         self.reset_engine();
         self.hotkeys.discard_latches();
         self.trigger_swallowed = [0; 4];
+    }
+
+    /// The capture just ended: nothing the matcher or the swallowed-trigger bits
+    /// learned during it may leak into the next presses.
+    fn end_capture(&mut self) {
+        self.hotkeys.discard_latches();
+        self.reset_engine();
+        // A bit without a physically held key is a lost key-up; a held one still
+        // owes its key-up a swallow.
+        for (bits, down) in self.trigger_swallowed.iter_mut().zip(self.down) {
+            *bits &= down;
+        }
     }
 
     /// Forget the word and every latched hotkey (tap re-enabled after a timeout).
@@ -326,10 +346,19 @@ impl Runtime {
         self.set_down(vk, down);
         self.sync_global_toggle();
 
+        // The capture can end between two keys (blur, window close, Esc, or its
+        // deadline lapsing): settle the hook-side state once, on the first event
+        // that sees it over.
+        let capturing = self.host.hotkey_capture();
+        if self.was_capturing && !capturing {
+            self.end_capture();
+        }
+        self.was_capturing = capturing;
+
         // Capturing a new shortcut (S-07): nothing is matched, converted or
         // swallowed, so the chord reaches the page being recorded into. The
         // key-up of a trigger swallowed before capture began is still swallowed.
-        if self.host.hotkey_capture() {
+        if capturing {
             self.hotkeys.discard_latches();
             // The auto-repeat of a trigger swallowed before capture began stays
             // swallowed (its key-up is swallowed too, so the page never sees an
@@ -348,8 +377,32 @@ impl Runtime {
             if !down && !is_modifier && self.take_trigger_swallowed(vk) {
                 return Decision::SWALLOW;
             }
+            if !is_modifier {
+                // The key-down reaches the page; remember it so the repeats and
+                // the key-up after a capture that ends mid-hold do not fire.
+                self.passed_in_capture = if down { Some((vk, Instant::now())) } else { None };
+            }
             self.reset_engine();
             return Decision::PASS;
+        }
+
+        // A key whose key-down went to the page during the capture: the rest of
+        // that press (repeats, key-up) goes there too, unmatched. A fresh press
+        // (or a repeat that is not recent: the key-up was lost) starts clean.
+        if !is_modifier {
+            if let Some((key, at)) = self.passed_in_capture {
+                if key == vk {
+                    if !down {
+                        self.passed_in_capture = None;
+                        return Decision::PASS;
+                    }
+                    if repeat && at.elapsed() < TRIGGER_REPEAT_WINDOW {
+                        self.passed_in_capture = Some((vk, Instant::now()));
+                        return Decision::PASS;
+                    }
+                    self.passed_in_capture = None;
+                }
+            }
         }
 
         // A swallowed trigger stays swallowed while held (auto-repeat).
@@ -1213,6 +1266,54 @@ mod tests {
         assert_eq!(rig.rt.on_event(&up), Decision::SWALLOW);
         // A fresh press afterwards reaches the page.
         assert_eq!(rig.rt.on_event(&down), Decision::PASS);
+    }
+
+    #[test]
+    fn a_trigger_held_across_the_capture_end_neither_fires_nor_orphans() {
+        let _guard = globals::TEST_LOCK.lock();
+        let commands = Arc::new(Mutex::new(Vec::new()));
+        let sink = commands.clone();
+        globals::set_command_callback(move |cmd| sink.lock().push(cmd));
+        let mut rig = rig(Some(quiet_config()));
+        let fl = flags::CONTROL | flags::ALTERNATE | flags::DEV_LCTRL | flags::DEV_LALT;
+        let s = mac_code('s');
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_CONTROL, flags::CONTROL | flags::DEV_LCTRL, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_OPTION, fl, None));
+        *rig.capture.lock() = true;
+        let down = RawEvent::key(EventKind::KeyDown, s, fl, Some('s'));
+        let up = RawEvent::key(EventKind::KeyUp, s, fl, Some('s'));
+        assert_eq!(rig.rt.on_event(&down), Decision::PASS, "recorded into the field");
+        *rig.capture.lock() = false;
+        let mut repeat = down;
+        repeat.autorepeat = true;
+        assert_eq!(rig.rt.on_event(&repeat), Decision::PASS, "repeat follows its key-down");
+        assert_eq!(rig.rt.on_event(&up), Decision::PASS, "key-up follows its key-down");
+        assert!(commands.lock().is_empty(), "a press that began in the capture fires nothing");
+        // The next press is an ordinary trigger.
+        assert_eq!(rig.rt.on_event(&down), Decision::SWALLOW);
+        assert_eq!(rig.rt.on_event(&up), Decision::SWALLOW);
+        assert!(commands.lock().contains(&BackendCommand::OpenSettings));
+    }
+
+    #[test]
+    fn capture_end_drops_stale_trigger_bits_but_keeps_held_ones() {
+        let _guard = globals::TEST_LOCK.lock();
+        globals::set_command_callback(|_| {});
+        let mut rig = rig(Some(quiet_config()));
+        let fl = flags::CONTROL | flags::ALTERNATE | flags::DEV_LCTRL | flags::DEV_LALT;
+        let s = mac_code('s');
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_CONTROL, flags::CONTROL | flags::DEV_LCTRL, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_OPTION, fl, None));
+        let down = RawEvent::key(EventKind::KeyDown, s, fl, Some('s'));
+        let up = RawEvent::key(EventKind::KeyUp, s, fl, Some('s'));
+        assert_eq!(rig.rt.on_event(&down), Decision::SWALLOW);
+        rig.rt.set_trigger_swallowed(0x41, true); // a lost key-up left this behind
+        *rig.capture.lock() = true;
+        press(&mut rig.rt, 'b');
+        *rig.capture.lock() = false;
+        press(&mut rig.rt, 'b');
+        assert!(!rig.rt.trigger_is_swallowed(0x41), "stale bit dropped");
+        assert_eq!(rig.rt.on_event(&up), Decision::SWALLOW, "the held trigger still owes its key-up");
     }
 
     #[test]
