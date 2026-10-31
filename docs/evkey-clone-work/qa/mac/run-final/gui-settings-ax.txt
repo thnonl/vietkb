@@ -1,0 +1,2 @@
+AXWindow: Cài đặt VietKB
+AXStaticText: Cài đặt VietKB

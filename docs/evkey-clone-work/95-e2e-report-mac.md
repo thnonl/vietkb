@@ -172,3 +172,39 @@ this QA (cause unknown, no crash report); relaunched manually with `open -a EVKe
 - The VNI and per-app phases of `run-full-1` aborted at the harness idle gate (own Telex events reset HID idle; fixed with `SKIP_IDLE_GATE`) and were rerun as `run-full-2`; no results from the aborted phases.
 - Per-app rule tested only for `enabled=false`; `method` rules and `remember_per_app` not exercised. `app_exclude` is unbound on macOS (decision M2).
 - Terminal uses 3 repetitions, Chrome address bar only B1/B2/E2 (fresh profile, no inline autocomplete seen).
+
+## Final regression — 2026-10-31
+
+Build: `qa-build/VietKB.app` v0.2.6, sha256 `d9684596…226eb59` (not rebuilt). Harness `scripts/mac-e2e/run.sh` (all phases, extras on). Evidence: `qa/mac/run-final/` (`results.md`, `results.jsonl`, `guardrail.log`, `harness.log`, `shots/`). Run exit code 0, 13:36–13:51 (+07). Idle gate passed first try (HID idle 438 s); no retry needed.
+
+Per-target results (249 cases, 249 PASS, 0 FAIL, 0 skipped):
+
+| Target | Telex | VNI |
+|---|---|---|
+| textedit-plain | 66 PASS | 29 PASS |
+| textedit-rich | 33 PASS | 29 PASS |
+| notes | 8 PASS | 8 PASS |
+| stickies | 10 PASS | 8 PASS |
+| chrome-textarea | 8 PASS | 8 PASS |
+| chrome-omnibox | 3 PASS | n/a (not in VNI set) |
+| vscode | 8 PASS | 8 PASS |
+| terminal | 8 PASS | 8 PASS |
+| secure (password dialog) | 1 PASS | 1 PASS |
+| gui (settings, status item, menu, toggle icon) | 5 PASS | n/a |
+
+Per-app phase (`textedit-plain`, `stickies`; Stickies rule `enabled=false`) ran and exited 0. Its rows are not tagged separately in `results.jsonl`, so they are counted in the Telex rows above.
+
+Stability (x10 repetitions, all reps pass): 40 of 40 stability rows pass, `repsPass == reps` on every row. Terminal uses 3 reps by harness design. Slow (x2) and burst (x10) variants included.
+
+Guardrails:
+- EVKey: running before the run (pid 26744). Quit by the harness at 13:36:58 with a `KILL` log line, fallback `pkill` at 13:37:09. Relaunched by the trap at 13:51:08, now pid 36203 (running).
+- VietKB: launched directly with a temp HOME, one process per phase, each killed and logged. No VietKB process remains.
+- Owner files: manifest identical before and after. The real `~/Library/Application Support/VietKB` was never created.
+- Input source: ABC at start and end; no change.
+- Physical-input watcher: no abort (exit 6 never occurred).
+- Pre-existing TextEdit (pid 19829) and Terminal (pid 49785) were running before the run and were not started or killed by it. The harness reports TextEdit as still running afterward, as expected.
+- Temp dir `/tmp/vkbe2e.*` removed.
+
+Failures: none. No D-MAC entry added. No phase was skipped.
+
+Lead note (2026-10-31): the Notes screenshots of this run showed the owner's note list and were deleted before commit. Harness follow-up: screenshot only the note body (or hide the sidebar/list) for the Notes target.
