@@ -343,9 +343,6 @@ impl Runtime {
         let is_modifier = keys::is_modifier(vk);
         let modifiers = self.mods.modifiers();
         let repeat = down && ev.autorepeat;
-        self.set_down(vk, down);
-        self.sync_global_toggle();
-
         // The capture can end between two keys (blur, window close, Esc, or its
         // deadline lapsing): settle the hook-side state once, on the first event
         // that sees it over.
@@ -354,6 +351,9 @@ impl Runtime {
             self.end_capture();
         }
         self.was_capturing = capturing;
+
+        self.set_down(vk, down);
+        self.sync_global_toggle();
 
         // Capturing a new shortcut (S-07): nothing is matched, converted or
         // swallowed, so the chord reaches the page being recorded into. The
@@ -1293,6 +1293,26 @@ mod tests {
         assert_eq!(rig.rt.on_event(&down), Decision::SWALLOW);
         assert_eq!(rig.rt.on_event(&up), Decision::SWALLOW);
         assert!(commands.lock().contains(&BackendCommand::OpenSettings));
+    }
+
+    #[test]
+    fn a_held_triggers_key_up_as_the_first_event_after_capture_stays_swallowed() {
+        let _guard = globals::TEST_LOCK.lock();
+        globals::set_command_callback(|_| {});
+        let mut rig = rig(Some(quiet_config()));
+        let fl = flags::CONTROL | flags::ALTERNATE | flags::DEV_LCTRL | flags::DEV_LALT;
+        let s = mac_code('s');
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_CONTROL, flags::CONTROL | flags::DEV_LCTRL, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_OPTION, fl, None));
+        let down = RawEvent::key(EventKind::KeyDown, s, fl, Some('s'));
+        let up = RawEvent::key(EventKind::KeyUp, s, fl, Some('s'));
+        assert_eq!(rig.rt.on_event(&down), Decision::SWALLOW);
+        *rig.capture.lock() = true;
+        // Capture starts and ends with no key event in between.
+        rig.rt.on_event(&RawEvent::key(EventKind::KeyDown, mac_code('b'), 0, Some('b')));
+        rig.rt.on_event(&RawEvent::key(EventKind::KeyUp, mac_code('b'), 0, Some('b')));
+        *rig.capture.lock() = false;
+        assert_eq!(rig.rt.on_event(&up), Decision::SWALLOW, "no orphan key-up");
     }
 
     #[test]

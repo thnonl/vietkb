@@ -360,6 +360,7 @@ The macro (gõ tắt) table: a short trigger expands into longer text when follo
 | `macros.err.triggerLong` | Từ tắt dài tối đa 32 ký tự, đang có {n} | Abbreviations can be up to 32 characters (this one has {n}) |
 | `macros.err.noText` | Phần thay thế không được để trống — muốn bỏ thì xoá cả mục. | The expansion can't be empty. To remove it, delete the entry. |
 | `macros.err.textLong` | Nội dung dài tối đa 500 ký tự, đang có {n} | Expansions can be up to 500 characters (this one has {n}) |
+| `macros.warn.digitsTelex` | Có từ tắt chứa chữ số. Kiểu gõ Telex không mở rộng được chúng, chỉ VNI mới được. | Some abbreviations contain digits. Telex can't expand them; only VNI can. |
 | `macros.err.digitsTelex` | Kiểu gõ Telex không mở rộng được từ tắt có chữ số. Bỏ chữ số, hoặc đổi sang VNI. | Telex can't expand an abbreviation with digits. Remove the digit, or switch to VNI. |
 | `macros.err.previewRename` | Chế độ xem trước: không đổi tên được. | Preview mode: can't rename. |
 | `macros.deleted` | Đã xoá {n} mục gõ tắt | Deleted {n} abbreviations |
@@ -475,4 +476,4 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS. |
 
-Total: 347 keys.
+Total: 348 keys.

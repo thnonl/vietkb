@@ -55,6 +55,14 @@ pub fn apply(window: &tauri::WebviewWindow) {
     }
 }
 
+/// The OS appearance changed under an open window.
+pub fn on_os_theme(window: &tauri::Window, os: tauri::Theme) {
+    let dark = is_dark(configured_theme(), Some(os));
+    if let Err(error) = window.set_background_color(Some(color(dark))) {
+        tracing::warn!(%error, "could not set the window background");
+    }
+}
+
 /// The theme setting changed: repaint the native background of every window.
 pub fn apply_all(app: &tauri::AppHandle) {
     for window in app.webview_windows().values() {

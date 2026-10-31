@@ -283,6 +283,7 @@ export const en: Record<string, string> = {
   "macros.err.triggerLong": "Abbreviations can be up to 32 characters (this one has {n})",
   "macros.err.noText": "The expansion can't be empty. To remove it, delete the entry.",
   "macros.err.textLong": "Expansions can be up to 500 characters (this one has {n})",
+  "macros.warn.digitsTelex": "Some abbreviations contain digits. Telex can't expand them; only VNI can.",
   "macros.err.digitsTelex": "Telex can't expand an abbreviation with digits. Remove the digit, or switch to VNI.",
   "macros.err.previewRename": "Preview mode: can't rename.",
   "macros.deleted": "Deleted {n} abbreviations",

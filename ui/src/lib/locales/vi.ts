@@ -283,6 +283,7 @@ export const vi: Record<string, string> = {
   "macros.err.triggerLong": "Từ tắt dài tối đa 32 ký tự, đang có {n}",
   "macros.err.noText": "Phần thay thế không được để trống — muốn bỏ thì xoá cả mục.",
   "macros.err.textLong": "Nội dung dài tối đa 500 ký tự, đang có {n}",
+  "macros.warn.digitsTelex": "Có từ tắt chứa chữ số. Kiểu gõ Telex không mở rộng được chúng, chỉ VNI mới được.",
   "macros.err.digitsTelex": "Kiểu gõ Telex không mở rộng được từ tắt có chữ số. Bỏ chữ số, hoặc đổi sang VNI.",
   "macros.err.previewRename": "Chế độ xem trước: không đổi tên được.",
   "macros.deleted": "Đã xoá {n} mục gõ tắt",

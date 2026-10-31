@@ -784,6 +784,8 @@ fn main() {
             WindowEvent::Focused(true) => {
                 refocus_modal(window.app_handle(), window.label());
             }
+            // The OS theme flipped: with theme=System the native background follows.
+            WindowEvent::ThemeChanged(os) => window_bg::on_os_theme(window, *os),
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![

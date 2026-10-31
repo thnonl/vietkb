@@ -110,6 +110,15 @@
     editorOpen = true;
   };
 
+  // Digit triggers only fire under VNI (spec A6). Warn once when Telex is the
+  // method and such entries exist; saving a new one is refused by the backend.
+  let warnedDigits = false;
+  $effect(() => {
+    const risky = app.method === "telex" && rows.some((row) => /[0-9]/.test(row.trigger));
+    if (risky && !warnedDigits) app.toast("info", t("macros.warn.digitsTelex"), 9000);
+    warnedDigits = risky;
+  });
+
   const saveMacro = async () => {
     const trigger = editTrigger.trim();
     const expansion = editExpansion.trim();
@@ -117,10 +126,6 @@
     if (/\s/.test(trigger)) return void (formError = t("macros.err.spaces"));
     if (Array.from(trigger).length > 32)
       return void (formError = t("macros.err.triggerLong", { n: Array.from(trigger).length }));
-    // 20-spec A6: a Telex word holds letters only, so a trigger with a digit
-    // could never match there. VNI digits are word keys and work.
-    if (app.method === "telex" && /[0-9]/.test(trigger))
-      return void (formError = t("macros.err.digitsTelex"));
     if (!expansion)
       return void (formError = t("macros.err.noText"));
     if (Array.from(expansion).length > 500)

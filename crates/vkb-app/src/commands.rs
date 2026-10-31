@@ -972,14 +972,22 @@ fn validate_macro(trigger: &str, expansion: &str) -> Result<(String, String), St
 
 /// 20-spec A6: a Telex word holds letters only, so a digit ends it and a
 /// trigger containing one can never match there (VNI digits are word keys).
-fn digit_trigger_blocked(method: InputMethod, trigger: &str) -> bool {
-    method == InputMethod::Telex && trigger.chars().any(|ch| ch.is_ascii_digit())
+/// Refused only when no active method can fire it: the global method is Telex
+/// and no per-app rule overrides it with another method.
+fn digit_trigger_blocked(cfg: &AppConfig, trigger: &str) -> bool {
+    trigger.chars().any(|ch| ch.is_ascii_digit())
+        && cfg.input.method == InputMethod::Telex
+        && cfg
+            .apps
+            .rules
+            .iter()
+            .all(|rule| rule.method.map_or(true, |method| method == InputMethod::Telex))
 }
 
 #[tauri::command]
 pub fn upsert_macro(trigger: String, expansion: String) -> Result<(), String> {
     let (trigger, expansion) = validate_macro(&trigger, &expansion)?;
-    if digit_trigger_blocked(config_cell().read().input.method, &trigger) {
+    if digit_trigger_blocked(&config_cell().read(), &trigger) {
         return Err(crate::i18n::t("err.macro.digitsTelex"));
     }
     update_config(|draft| {
@@ -1556,9 +1564,17 @@ mod tests {
     }
 
     #[test]
-    fn digit_triggers_are_blocked_only_for_telex() {
-        assert!(digit_trigger_blocked(InputMethod::Telex, "qa1"));
-        assert!(!digit_trigger_blocked(InputMethod::Telex, "qa"));
-        assert!(!digit_trigger_blocked(InputMethod::Vni, "qa1"));
+    fn digit_triggers_are_blocked_only_when_no_method_can_fire_them() {
+        let mut cfg = AppConfig::default();
+        cfg.input.method = InputMethod::Telex;
+        assert!(digit_trigger_blocked(&cfg, "qa1"));
+        assert!(!digit_trigger_blocked(&cfg, "qa"));
+        let mut rule = vkb_config::AppRule::new("game.exe");
+        rule.method = Some(InputMethod::Vni);
+        cfg.apps.rules.push(rule);
+        assert!(!digit_trigger_blocked(&cfg, "qa1"), "a VNI app can fire it");
+        cfg.apps.rules.clear();
+        cfg.input.method = InputMethod::Vni;
+        assert!(!digit_trigger_blocked(&cfg, "qa1"));
     }
 }

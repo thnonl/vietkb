@@ -341,7 +341,7 @@ class Store {
       if (next.input) this.status = { ...(this.status ?? demoStatus), ...next.input };
     } catch (error) {
       this.toast("error", t("toast.saveFailed", { error: errorText(error) }));
-      await this.reload();
+      await this.reload(true);
     } finally {
       this.inFlight = null;
       if (Object.keys(this.pending).length > 0) this.schedule();
@@ -378,10 +378,12 @@ class Store {
     }
   }
 
-  async reload(): Promise<void> {
+  async reload(force = false): Promise<void> {
     if (this.previewMode) return;
     try {
       const [settings, status] = await Promise.all([api.getSettings(), api.getStatus()]);
+      // A local edit made while this was in flight is newer than the answer.
+      if (!force && (this.inFlight || Object.keys(this.pending).length > 0)) return;
       this.settings = settings;
       this.status = status;
       this.syncLang();
