@@ -7,6 +7,10 @@ Drives the real VietKB `.app` binary against real macOS apps with synthetic CGEv
 |---|---|
 | `run.sh` | Driver. Owns the process, config and input-source guardrails; builds and runs the harness per phase. |
 | `vkbe2e.swift` | Harness: key synthesis, physical-input watcher, focus guard, per-app target openers, case tables, report. |
+| `appsuite.swift` | App-level suite (CAP-1/2/3/4/14): LaunchServices launch, Dock/activation policy, window z-order and visibility, AX-driven GUI, quit paths. Compiled together with `vkbe2e.swift` (run.sh copies that file to `main.swift`). |
+| `build-dev-app.sh` | Builds the dev-channel bundle (`vn.vietkb.app.dev`, config dir `VietKB Dev`) into `target/dev-app/` for the app suite. |
+| `site-check.py` | Static site / README / release-notes checker (CAP-19, grep half of CAP-18). Pure file reads. |
+| `strings-audit.py` | App string audit: locales vs source, hardcoded-string heuristic, Rust i18n table (CAP-20). Pure file reads. |
 
 ## Run
 
@@ -65,3 +69,40 @@ Expected values come from `crates/vkb-core/tests/editing.rs` (`owner_*`), the co
 
 `preflight`, `inputsource [id]`, `watch <s>` (who generates input events), `front`, `winlist [pid]`,
 `axdump <pid> [right]` (click a status item), `stickies-cleanup` (remove a leftover test note), `report`.
+
+## App suite and static checks (CAP-1/2/3/4/14/19/20)
+
+```sh
+scripts/mac-e2e/build-dev-app.sh                       # once per build: target/dev-app/"VietKB Dev.app" (vn.vietkb.app.dev)
+scripts/mac-e2e/run.sh --phases static                 # site + README + strings: file reads only, no gate, no process
+scripts/mac-e2e/run.sh --phases app --idle-wait 1800   # app suite (waits up to 30 min for >= 60 s HID idle, else aborts untouched)
+scripts/mac-e2e/run.sh --phases app --app-phases single,quit
+```
+
+App phases: `main` (launch, Dock, windows/modals, language, relaunch), `badlang`, `hidden` (start hidden, second launch, SIGTERM),
+`single` (owner rule M8 singleton: `open -n`, other HOME, second .app copy, direct exec), `update` (badge; SKIP until the app exposes one),
+`quit` (Cmd+Q via AX, Dock Quit via AX, osascript quit; SIGKILL only with `VKB_E2E_SIGKILL=1`), `tap` (opt-in: direct exec that inherits
+this shell's grants, so the event tap exists; an exec-launched Regular app leaves a stale Dock tile, so it is not default).
+
+Rules the suite enforces on itself: dev-channel bundle only (identifier must end `.dev`, else refused); never starts while any
+instance of that bundle id runs; one dev instance alive at a time; no key, no click, no coordinate on the menu bar (all AX on our pid; the
+Dock tile is touched only when its AXURL is our bundle); graceful quit first (AX Quit, then SIGTERM, SIGKILL last resort, logged);
+after every phase it asserts no new Dock tile of the dev bundle and no running instance remains (`APP-DOCK-<phase>`); it aborts at the next
+step if HID idle drops under 8 s; the owner's VietKB pids are logged before/after. Screenshots: VietKB windows by id and a tile-sized crop of the Dock.
+Web content is read after a read-only AX hit test "primes" WebKit's tree; the status-item menu cannot be opened by AXPress (finding D-MAC-13).
+
+### Cases the harness now automates (63 ids; A = full, P = partial)
+
+| Capability | Check ids | Catalog cases |
+|---|---|---|
+| CAP-1 LaunchServices launch, temp HOME | APP-01, 60..6z | LCY-06 P, LCY-07 A |
+| CAP-2 Dock / policy | APP-02, 06, 08, 13, 14, 16, 30, 41, DOCK-* | DCK-01 P, DCK-02 A, DCK-03 A, DCK-05 A, DCK-06 P, DCK-08 P, DOC-13 A |
+| CAP-3 z-order / visibility / occlusion | APP-03, 06-*, 07, 08-*, 12, 15, 16, 21 | WIN-01 P, WIN-06 P, WIN-07 P, WIN-08 A, WIN-15 P, WIN-16 P, WIN-17 P, WIN-18 A, WIN-22 P, DOC-10 P |
+| CAP-4 GUI by AX (modals, VI/EN, config read-back) | APP-04, 05, 05b, 09, 10, 11, 17..25 | LNG-01 P, LNG-02 P, LNG-03 A, LNG-04 A, LNG-05 A, LNG-06 P, LNG-08 P, LNG-15 P, DOC-05 P, DOC-06 A, DOC-07 A, DOC-08 P, DOC-16 P, I18-01 P, MBR-01 A, MBR-02 / A11-01 (AXPress part only) |
+| CAP-14 quit paths | APP-23, 34, 40, 41, 42, 51 | LCY-01 A, LCY-02 A, LCY-03 A, LCY-05 P, LCY-08 P (modal, not file dialog), LCY-12 A |
+| CAP-19 site | SITE-01..14 (`site-check.py`) | LNG-20 A, 21 A, 22 A, 23 A, 24 P, 25 P, 28 A, 29 P, 30 A; DOC-01..04 P, 05 P, 06 P, 07 P, 10 P, 12 A, 13 P, 15 P, 22 P, 23 A |
+| CAP-20 strings | STR-01..08 (`strings-audit.py`) | LNG-06 P, LNG-07 P, I18-05 A (table; live menu read is blocked) |
+
+Not automatable under guardrails section 6 (tray menu cannot be opened by AX): MBR-02..08, WIN-02/03, DCK-04, status-item halves of WIN-01/06;
+WIN-05 (hotkey) needs the granted-grants `tap` mode plus synthetic keys and is not implemented. The theme toggle (M6 Mac) and the update badge
+report SKIP until the UI has them. Smoke run: `docs/evkey-clone-work/qa/mac/run-appsuite-smoke/` (dev build of main 240c440).

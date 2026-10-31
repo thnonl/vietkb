@@ -956,7 +956,7 @@ func report() {
     for l in s.split(separator: "\n") {
         if var o = try? JSONSerialization.jsonObject(with: Data(l.utf8)) as? [String: Any] {
             // re-judge text cases (v1 harness mis-counted multi-word repetitions): verdict = NFC(actual) == NFC(expected)
-            if let e = o["expected"] as? String, let a = o["actual"] as? String, o["target"] as? String != "gui", o["verdict"] as? String != "ABORT" {
+            if let e = o["expected"] as? String, let a = o["actual"] as? String, o["method"] as? String != "-", o["verdict"] as? String != "ABORT" {
                 let ok = nfc(a.trimmingCharacters(in: .whitespaces)) == nfc(e.trimmingCharacters(in: .whitespaces))
                 if ok != ((o["verdict"] as? String) == "PASS") { o["note"] = "\(o["note"] ?? "") [re-judged by report: was \(o["verdict"] ?? "")]" }
                 o["verdict"] = ok ? "PASS" : "FAIL"
@@ -964,9 +964,9 @@ func report() {
             rows.append(o)
         }
     }
-    var md = "| target | method | id | input (keys) | expected | actual | verdict | evidence |\n|---|---|---|---|---|---|---|---|\n"
+    var md = "| target | method | id | cases | input (keys) | expected | actual | verdict | evidence |\n|---|---|---|---|---|---|---|---|---|\n"
     func esc(_ x: Any?) -> String { "`" + String(describing: x ?? "").replacingOccurrences(of: "|", with: "\\|").replacingOccurrences(of: "\n", with: "⏎") + "`" }
-    for r in rows { md += "| \(r["target"] ?? "") | \(r["method"] ?? "") | \(r["id"] ?? "") | \(esc(r["keys"])) | \(esc(r["expected"])) | \(esc(r["actual"])) | \(r["verdict"] ?? "") | \(r["evidence"] ?? "") |\n" }
+    for r in rows { md += "| \(r["target"] ?? "") | \(r["method"] ?? "") | \(r["id"] ?? "") | \(r["cases"] ?? "") | \(esc(r["keys"])) | \(esc(r["expected"])) | \(esc(r["actual"])) | \(r["verdict"] ?? "") | \(r["evidence"] ?? "") |\n" }
     var tally: [String: (Int, Int, Int)] = [:]
     for r in rows { let k = "\(r["target"] ?? "")"; var c = tally[k] ?? (0, 0, 0); switch r["verdict"] as? String { case "PASS": c.0 += 1; case "FAIL": c.1 += 1; default: c.2 += 1 }; tally[k] = c }
     md += "\n| target | PASS | FAIL | other |\n|---|---|---|---|\n"
@@ -995,6 +995,21 @@ case "inputsource":
     print(inputSourceID()); exit(0)
 case "report":
     report(); exit(0)
+case "appsuite":   // CAP-1/2/3/4/14: launch the dev-channel bundle via LaunchServices and drive/inspect it by AX only. See appsuite.swift
+    if !FileManager.default.fileExists(atPath: outDir + "/results.jsonl") { FileManager.default.createFile(atPath: outDir + "/results.jsonl", contents: nil, attributes: nil) }
+    resultsHandle = FileHandle(forWritingAtPath: outDir + "/results.jsonl"); _ = try? resultsHandle?.seekToEnd()
+    guard AXIsProcessTrusted(), CGPreflightScreenCaptureAccess() else { log("ABORT: Accessibility / Screen Recording grant missing for this shell"); exit(3) }
+    let idleNow = hidIdle()
+    log("appsuite idle=\(Int(idleNow))s")
+    if env["SKIP_IDLE_GATE"] == nil && idleNow < 60 { log("ABORT: owner not idle (\(idleNow) s < 60 s). Nothing launched."); exit(4) }
+    exit(runAppSuite(app: opt("app") ?? "", phases: Set((opt("phases") ?? "main,badlang,hidden,single,update,quit").split(separator: ",").map(String.init)), withTextEdit: !args.contains("--no-textedit")))
+case "docktile":   // read-only: is there a Dock tile for this bundle path? (AX read of the Dock, no action)
+    print(dockTile(appPath: args.dropFirst().first ?? "").map { "tile \($0.1)" } ?? "no tile"); exit(0)
+case "appdump":   // recon: launch the dev bundle (LaunchServices or --direct) with a temp HOME, dump AX/Dock/status-item state, reap it
+    guard hidIdle() >= 60 else { print("owner not idle"); exit(4) }
+    do { try appDump(app: opt("app") ?? "", home: opt("home") ?? NSTemporaryDirectory() + "vkb-dump-home", mode: args.contains("--direct") ? .direct : .launchServices) }
+    catch { print("appdump failed: \(error)") }
+    exit(0)
 case "axdump":   // debugging aid: click the status item of a pid (left or right) and report the windows that appear
     let pid = Int32(args.dropFirst().first ?? "0") ?? 0
     let right = args.contains("right")

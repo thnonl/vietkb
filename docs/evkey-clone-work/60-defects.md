@@ -447,3 +447,18 @@ Evidence: `qa/mac/run-full-2/`, `qa/mac/run-probe-vni-caps/`, report `95-e2e-rep
 | D-MAC-33 | P3 | review fixes | window unfocused when the capture field arms; panic in an `update_config` closure; first paint | field knows it is not armed; no stuck re-entrancy flag; stored theme before first paint | `set_hotkey_capture` returned Ok when ignored; `IN_UPDATE` stayed set after a panic; the theme was set by the deferred module script | compile / clippy | FIXED - command returns `Err` and `CaptureField` resets (and re-arms on the renewal); drop guard for `IN_UPDATE`; classic `ui/public/theme-boot.js` in `<head>` (CSP-safe) |
 
 S-11 / S-12 verdict, 2026-10-31: not Mac defects. `vkb-windows` `state.rs` has the same `Toggle = !effective_enabled()` and the same `remember_app` rule persistence (`86-feature-parity.md` decision 3: persist remembered state like EVKey's `blacklist`), so macOS matches Windows exactly; the macOS behaviour is pinned by `toggle_in_a_rule_off_app_matches_windows`. Changing either is a cross-platform product decision, not done here.
+
+## macOS app-suite findings — 2026-10-31 (QA harness `scripts/mac-e2e` app suite, dev-channel build of 240c440)
+
+Evidence: `qa/mac/run-appsuite-smoke/results.md`.
+
+| id | severity | area | repro | expected | actual | evidence | status |
+|---|---|---|---|---|---|---|---|
+| D-MAC-13 | P2 | menu-bar item / VoiceOver (A11) | AXPress (VoiceOver VO-Space) on the status item found via the pid's AXExtrasMenuBar | the menu opens | AXPress returns success, no popup window and no AXMenu appear; the tray menu is not reachable without a mouse event, so VoiceOver / Switch Control users cannot open it (APP-05b) | APP-05b | OPEN (candidate; needs a manual VoiceOver confirmation) |
+| D-MAC-14 | P3 | Shortcuts window copy (Mac) | Read the capture-field accessible names | Mac key names (⌃⇧, ⌃⌥S) | `… — phím tắt hiện tại Ctrl+Shift`, `Ctrl+Shift+Z`, `Ctrl+Alt+S` (Windows names in aria-labels) (APP-11, MAC-I18-01) | APP-11 | OPEN |
+| D-MAC-15 | P2 | config.toml parsing (LNG-05) | `language = "xx"` (or `"EN"`) with `method = "vni"`, `start_minimized = false` | falls back to vi, other fields kept, window opens | the whole file is discarded and rewritten with defaults (method telex, start_minimized true, no window) | APP-25-xx, APP-25-EN | OPEN |
+| D-MAC-16 | P1 | singleton (owner rule M8) | second launch (`open -n`, other HOME, second .app copy, direct exec) while the instance runs hidden | no second process/item/tap (holds) AND the running instance shows its settings window | process, status item, tap are singular, but no window is shown | APP-6a..6d, APP-6*w | OPEN (a Dev is implementing M8) |
+| D-MAC-17 | P2 | site / README / release notes | `site-check.py` | no stale claims | F-keys "settable in Shortcuts…" (site vi+en, release notes), raw-zone "Mark URLs or code", "three more windows" (4 exist), README lacks the `vkb-macos` row, release notes omit Input Monitoring (DOC-06/07/10/15/23) | SITE-08/06, 08/07, 08/10, 12, 13 | OPEN |
+| D-MAC-18 | P3 | locales | `strings-audit.py` STR-02 | no dead keys | `common.add` is defined in vi/en and never used | STR-02 | OPEN |
+
+Harness note (not a product defect): SIGKILL or direct-exec runs of a Regular-policy dev app leave stale Dock tiles (macOS keeps them); the suite now quits gracefully, skips SIGKILL by default and asserts no new tile after every phase. Earlier killed dev instances left tiles that only the owner can clear (the harness never touches the Dock).
