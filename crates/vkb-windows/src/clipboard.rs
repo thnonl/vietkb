@@ -41,10 +41,11 @@ use std::time::{Duration, Instant};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use vkb_platform::clipboard_plan::{
-    classify_format, decide_paste, flag_blocks_snapshot, format_count_ok, notification_is_ours,
-    push_bounded, seq_after_close, GARBAGE_CAP, REFRESH_DELAY_MS,
+    classify_format, classify_write, decide_paste, flag_blocks_snapshot, format_count_ok, notification_is_ours,
+    push_bounded, snapshot_stable, GARBAGE_CAP, REFRESH_DELAY_MS,
     restore_action, restore_due, settle_remaining_ms, snapshot_verdict, within_budget, FormatClass,
-    PasteDecision, RestoreAction, Verdict, PRIVACY_FORMATS, REGISTERED_FIRST, SETTLE_MS,
+    OwnSeqs, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER, PRIVACY_FORMATS,
+    REGISTERED_FIRST, SETTLE_MS,
 };
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{
@@ -54,7 +55,7 @@ use windows::Win32::Foundation::{
 use windows::Win32::System::DataExchange::{
     AddClipboardFormatListener, CloseClipboard, EmptyClipboard, EnumClipboardFormats,
     GetClipboardData, GetClipboardFormatNameW, GetClipboardOwner, GetClipboardSequenceNumber,
-    OpenClipboard, RegisterClipboardFormatW, RemoveClipboardFormatListener, SetClipboardData,
+    IsClipboardFormatAvailable, OpenClipboard, RegisterClipboardFormatW, RemoveClipboardFormatListener, SetClipboardData,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Memory::{
@@ -109,8 +110,8 @@ struct Snap {
 /// The user's clipboard while our temporary text is on it.
 struct Session {
     data: Vec<FormatData>,
-    /// Sequence number right after our last write.
-    expected_seq: u32,
+    /// Sequence numbers of our last write.
+    own: OwnSeqs,
     /// When we last wrote (the settle wait counts from here).
     last_write: Instant,
 }
@@ -119,9 +120,9 @@ struct Session {
 struct Shared {
     snapshot: Option<Snap>,
     session: Option<Session>,
-    /// Sequence number right after we put the user's data back (the adopted
-    /// snapshot): that notification is ours, no re-capture.
-    restored_seq: Option<u32>,
+    /// Sequence numbers of the write that put the user's data back (the
+    /// adopted snapshot): that notification is ours, no re-capture.
+    restored_seq: Option<OwnSeqs>,
     /// Old user data the hook retired; the worker zeroes and frees it so the
     /// hook thread never pays for large buffers.
     garbage: Vec<Vec<FormatData>>,
@@ -285,13 +286,13 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     let current = unsafe { GetClipboardSequenceNumber() };
     let decision = decide_paste(
         true,
-        shared.session.as_ref().map(|s| s.expected_seq),
+        shared.session.as_ref().map(|s| s.own),
         shared.snapshot.as_ref().map(|s| s.seq),
         current,
     );
     if decision == PasteDecision::TypeDirectly {
         // A session whose clipboard moved on is the user's data now: forget it.
-        if shared.session.as_ref().is_some_and(|s| s.expected_seq != current) {
+        if shared.session.as_ref().is_some_and(|s| !s.own.matches(current)) {
             if let Some(old) = shared.session.take() {
                 retire(&mut shared, old.data);
             }
@@ -308,7 +309,7 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     if unsafe { GetClipboardSequenceNumber() } != current {
         return false;
     }
-    let Some(seq) = write_temp_text(text) else {
+    let Some(in_open) = write_temp_text(text) else {
         // Possibly emptied half way: put the user's data back right now.
         let data = match decision {
             PasteDecision::ContinueSession => shared.session.take().map(|s| s.data),
@@ -316,39 +317,46 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
         };
         if let Some(data) = data {
             let complete = restore_locked(&data);
-            // Sequence number of the data we just put back, read AFTER closing
-            // (CloseClipboard advances it) and still under the shared lock. Keep
-            // it as the snapshot, so the next expansion can paste again (a
-            // re-capture would refuse: our flags are on it).
-            let in_open = unsafe { GetClipboardSequenceNumber() };
+            let restored_open = unsafe { GetClipboardSequenceNumber() };
             drop(guard);
-            let seq = seq_after_close(in_open, unsafe { GetClipboardSequenceNumber() });
-            if let (true, Some(seq)) = (complete, seq) {
-                shared.restored_seq = Some(seq);
-                if let Some(old) = shared.snapshot.replace(Snap { seq, data }) {
-                    retire(&mut shared, old.data);
+            // Keep what we put back as the snapshot, so the next expansion can
+            // paste again (a re-capture would refuse: our flags are on it).
+            match (complete, verify_write(Some(owner))) {
+                (true, WriteVerdict::Ours(seq) | WriteVerdict::Unstable(seq)) => {
+                    let own = OwnSeqs { in_open: restored_open, after_close: seq };
+                    shared.restored_seq = Some(own);
+                    if let Some(old) = shared.snapshot.replace(Snap { seq, data }) {
+                        retire(&mut shared, old.data);
+                    }
                 }
-            } else {
-                retire(&mut shared, data);
+                _ => retire(&mut shared, data),
             }
         }
         return false;
     };
-    // CloseClipboard advances the sequence number: record OUR write's number
-    // after it (D-WIN-16), still under the shared lock so the listener cannot
-    // look before it is stored.
+    // CloseClipboard advances the sequence number (D-WIN-16), so the number that
+    // identifies OUR write is only known after the close, and only trusted when
+    // owner + marker + a stable bracket say the clipboard is ours.
     drop(guard);
-    let Some(seq) = seq_after_close(seq, unsafe { GetClipboardSequenceNumber() }) else {
-        // Somebody else wrote in between: the clipboard is theirs now. Forget
-        // the old copy and type.
-        let old = match decision {
-            PasteDecision::ContinueSession => shared.session.take().map(|s| s.data),
-            _ => shared.snapshot.take().map(|s| s.data),
-        };
-        if let Some(old) = old {
-            retire(&mut shared, old);
+    let own = match verify_write(Some(owner)) {
+        WriteVerdict::Ours(after) | WriteVerdict::Unstable(after) => {
+            // Unstable keeps the session: user data is never discarded on
+            // uncertainty (the latest number is recorded; the in-open one stays
+            // ours too).
+            OwnSeqs { in_open, after_close: after }
         }
-        return false;
+        WriteVerdict::Foreign => {
+            // Owner/marker prove somebody else wrote: the clipboard is theirs
+            // now. Forget the old copy and type.
+            let old = match decision {
+                PasteDecision::ContinueSession => shared.session.take().map(|s| s.data),
+                _ => shared.snapshot.take().map(|s| s.data),
+            };
+            if let Some(old) = old {
+                retire(&mut shared, old);
+            }
+            return false;
+        }
     };
     match decision {
         PasteDecision::StartSession => {
@@ -356,16 +364,13 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
                 retire(&mut shared, old.data); // stale session: not freed on the hook thread
             }
             if let Some(snap) = shared.snapshot.take() {
-                shared.session = Some(Session {
-                    data: snap.data,
-                    expected_seq: seq,
-                    last_write: Instant::now(),
-                });
+                shared.session =
+                    Some(Session { data: snap.data, own, last_write: Instant::now() });
             }
         }
         _ => {
             if let Some(session) = shared.session.as_mut() {
-                session.expected_seq = seq;
+                session.own = own;
                 session.last_write = Instant::now();
             }
         }
@@ -550,8 +555,8 @@ fn on_update(hwnd: HWND) {
         // Read AFTER taking the lock: the hook records its write's sequence
         // number under this lock, so a paste in flight cannot look foreign.
         let current = unsafe { GetClipboardSequenceNumber() };
-        let session_seq = shared.session.as_ref().map(|s| s.expected_seq);
-        if notification_is_ours(session_seq, shared.restored_seq, current) {
+        let session_own = shared.session.as_ref().map(|s| s.own);
+        if notification_is_ours(session_own, shared.restored_seq, current) {
             return; // our temporary text, or the user's data we put back
         }
         shared.restored_seq = None;
@@ -572,14 +577,12 @@ fn refresh_snapshot(hwnd: HWND) {
     if SHARED.lock().session.is_some() {
         return;
     }
-    let opened = ClipboardGuard::open(Some(hwnd), 5, 20).and_then(|guard| {
-        let in_open = unsafe { GetClipboardSequenceNumber() };
-        let data = capture(&guard)?;
-        Some((in_open, data))
-    });
-    // The guard is closed here; the number that matters is the one after it.
-    let snap = opened.and_then(|(in_open, data)| {
-        let seq = seq_after_close(in_open, unsafe { GetClipboardSequenceNumber() })?;
+    let opened = ClipboardGuard::open(Some(hwnd), 5, 20).and_then(|guard| capture(&guard));
+    // The guard is closed here. The snapshot's number is read in a bracket with
+    // no clipboard open and accepted only if it did not move (a foreign write in
+    // the gap would make the number newer than the data: reject).
+    let snap = opened.and_then(|data| {
+        let seq = stable_seq()?;
         Some(Snap { seq, data })
     });
     let mut shared = SHARED.lock();
@@ -641,23 +644,26 @@ fn restore_session(done: Session, owner: Option<HWND>) {
         if let Some(guard) = ClipboardGuard::open(owner, 1, 0) {
             // Checked while we hold the clipboard: nobody can write in between.
             let now = unsafe { GetClipboardSequenceNumber() };
-            if restore_action(done.expected_seq, now) == RestoreAction::Abandon {
+            if restore_action(done.own, now) == RestoreAction::Abandon {
                 tracing::debug!("clipboard changed after our paste; not restoring");
                 return;
             }
             let complete = restore_locked(&done.data);
             let in_open = unsafe { GetClipboardSequenceNumber() };
             drop(guard);
-            // CloseClipboard advances the sequence number: adopt the value after it.
-            let seq = seq_after_close(in_open, unsafe { GetClipboardSequenceNumber() });
             if !complete {
                 tracing::warn!("clipboard restore incomplete");
                 return;
             }
-            if let (Some(seq), true) = (seq, ENABLED.load(Ordering::SeqCst)) {
+            // Adopt only what owner + marker + a stable bracket prove is our
+            // restored data (never trust a bare number, D-WIN-16).
+            let verdict = verify_write(owner);
+            if let (WriteVerdict::Ours(after) | WriteVerdict::Unstable(after), true) =
+                (verdict, ENABLED.load(Ordering::SeqCst))
+            {
                 let mut shared = SHARED.lock();
-                shared.restored_seq = Some(seq);
-                shared.snapshot = Some(Snap { seq, data: done.data });
+                shared.restored_seq = Some(OwnSeqs { in_open, after_close: after });
+                shared.snapshot = Some(Snap { seq: after, data: done.data });
             }
             return;
         }
@@ -686,6 +692,10 @@ fn restore_locked(snapshot: &[FormatData]) -> bool {
     // (an empty clipboard has nothing to flag).
     if !snapshot.is_empty() {
         set_privacy_flags();
+    }
+    // Ownership marker: lets the bracket after the close prove this state is ours.
+    if !set_marker() {
+        complete = false;
     }
     complete
 }
@@ -832,8 +842,68 @@ fn write_temp_text(text: &str) -> Option<u32> {
         return None;
     }
     set_privacy_flags();
+    // Without the marker the bracket could never recognise this write: treat a
+    // failure like any other failed write.
+    if !set_marker() {
+        return None;
+    }
     let seq = unsafe { GetClipboardSequenceNumber() };
     (seq != 0).then_some(seq)
+}
+
+fn marker_id() -> u32 {
+    static ID: OnceCell<u32> = OnceCell::new();
+    *ID.get_or_init(|| {
+        let wide: Vec<u16> = OWNED_MARKER.encode_utf16().chain(std::iter::once(0)).collect();
+        unsafe { RegisterClipboardFormatW(PCWSTR(wide.as_ptr())) }
+    })
+}
+
+/// Clipboard must be open. One tiny `HGLOBAL`, no nonce: ownership is proved by
+/// owner window + marker together.
+fn set_marker() -> bool {
+    let id = marker_id();
+    id != 0 && set_bytes(id, &[1u8])
+}
+
+/// Two reads of the sequence number with no clipboard open; `Some` only when it
+/// did not move. Retried a few times (the close bump may land late).
+fn stable_seq() -> Option<u32> {
+    for _ in 0..3 {
+        let s1 = unsafe { GetClipboardSequenceNumber() };
+        let s2 = unsafe { GetClipboardSequenceNumber() };
+        if let Some(seq) = snapshot_stable(s1, s2) {
+            return Some(seq);
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    None
+}
+
+/// After one of OUR writes, with the clipboard closed: owner window + marker +
+/// stable sequence number, bracketed. `expected_owner == None` (NULL-owner
+/// fallback) relies on the marker and the bracket only.
+fn verify_write(expected_owner: Option<HWND>) -> WriteVerdict {
+    let marker = marker_id();
+    let mut last = WriteVerdict::Unstable(0);
+    for attempt in 0..3 {
+        let s1 = unsafe { GetClipboardSequenceNumber() };
+        let owner_ok = match expected_owner {
+            Some(ours) => unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours),
+            None => true,
+        };
+        let marker_present = marker != 0 && unsafe { IsClipboardFormatAvailable(marker) }.is_ok();
+        let s2 = unsafe { GetClipboardSequenceNumber() };
+        last = classify_write(owner_ok, marker_present, s1, s2);
+        if !matches!(last, WriteVerdict::Unstable(_)) {
+            break;
+        }
+        if attempt < 2 {
+            // Let a late close bump land; microseconds, never a sleep on the hook.
+            std::thread::yield_now();
+        }
+    }
+    last
 }
 
 fn privacy_ids() -> &'static [u32; 3] {
@@ -917,7 +987,9 @@ mod tests {
         let backup = capture(&guard).expect("capture");
         let seq = write_temp_text("khác").expect("write");
         assert_eq!(
-            restore_action(seq, unsafe { GetClipboardSequenceNumber() }),
+            restore_action(OwnSeqs { in_open: seq, after_close: seq }, unsafe {
+                GetClipboardSequenceNumber()
+            }),
             RestoreAction::Restore
         );
         assert!(restore_locked(&backup));

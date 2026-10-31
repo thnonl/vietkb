@@ -70,6 +70,8 @@ pub enum FormatClass {
     Derived,
     /// A privacy flag format: dropped, replaced by ours.
     Flag,
+    /// Our own ownership marker ([`OWNED_MARKER`]): not user data, never copied.
+    Marker,
     /// Cannot be copied and is not derivable (metafiles, private handle ranges,
     /// OLE `DataObject`, owner-display): restoring would lose it.
     Lossy,
@@ -88,6 +90,7 @@ pub fn classify_format(id: u32, name: Option<&str>) -> FormatClass {
             Some(n) if PRIVACY_FORMATS.iter().any(|f| f.eq_ignore_ascii_case(n)) => {
                 FormatClass::Flag
             }
+            Some(n) if n.eq_ignore_ascii_case(OWNED_MARKER) => FormatClass::Marker,
             // The OLE data object only lives in the owner process.
             Some(n) if n.eq_ignore_ascii_case("DataObject") => FormatClass::Lossy,
             Some(_) => FormatClass::Copy,
@@ -153,22 +156,6 @@ pub fn settle_remaining_ms(elapsed_ms: u64) -> u64 {
     SETTLE_MS.saturating_sub(elapsed_ms)
 }
 
-/// `CloseClipboard` itself advances `GetClipboardSequenceNumber` (3 in a
-/// replica), so a number read while the clipboard is still open never matches
-/// the notification that follows our own write (D-WIN-16). Our write's number is
-/// therefore read AFTER closing, under the shared lock. This is how many steps
-/// past the in-open value still count as the close's own bump; more means
-/// somebody else wrote in between.
-pub const MAX_CLOSE_BUMP: u32 = 8;
-
-/// The sequence number to record for our write: `after_close` when it is within
-/// [`MAX_CLOSE_BUMP`] of the value read while open (wrapping), else `None`
-/// (a foreign write got in: not ours, record nothing).
-pub fn seq_after_close(in_open: u32, after_close: u32) -> Option<u32> {
-    let bump = after_close.wrapping_sub(in_open);
-    (after_close != 0 && bump <= MAX_CLOSE_BUMP).then_some(after_close)
-}
-
 /// Pause before the worker opens the clipboard to re-snapshot after a foreign
 /// change, so it never collides with the target's own `OpenClipboard` for a
 /// paste in flight (D-WIN-17) and bursts of changes collapse into one capture.
@@ -193,17 +180,72 @@ pub fn restore_due(elapsed_ms: u64) -> bool {
     settle_remaining_ms(elapsed_ms) == 0
 }
 
-/// Is a `WM_CLIPBOARDUPDATE` our own write? `session_expected` is the sequence
-/// number recorded under the shared lock right after a paste, `restored_seq`
-/// the one right after we put the user's data back (adopted as the next
-/// snapshot, so it must not be re-captured); `current` was read AFTER taking
-/// the same lock, so a write in flight cannot look foreign.
+/// The clipboard sequence numbers that identify one of OUR writes. A write
+/// moves the number while the clipboard is open and `CloseClipboard` moves it
+/// again (D-WIN-16), so both values are ours; which one a listener sees depends
+/// on timing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OwnSeqs {
+    pub in_open: u32,
+    pub after_close: u32,
+}
+
+impl OwnSeqs {
+    /// `0` means "unavailable" and never matches.
+    pub fn matches(&self, current: u32) -> bool {
+        current != 0 && (current == self.in_open || current == self.after_close)
+    }
+}
+
+/// Is a `WM_CLIPBOARDUPDATE` our own write? `session` / `restored` are the
+/// numbers recorded under the shared lock for our last paste and for the user's
+/// data we put back (adopted as the next snapshot, so not re-captured);
+/// `current` is read AFTER taking the same lock, so a write in flight cannot
+/// look foreign.
 pub fn notification_is_ours(
-    session_expected: Option<u32>,
-    restored_seq: Option<u32>,
+    session: Option<OwnSeqs>,
+    restored: Option<OwnSeqs>,
     current: u32,
 ) -> bool {
-    current != 0 && (session_expected == Some(current) || restored_seq == Some(current))
+    session.is_some_and(|s| s.matches(current)) || restored.is_some_and(|s| s.matches(current))
+}
+
+/// Name of the private marker format set together with every clipboard content
+/// WE write (temporary text and restored data). Its presence, together with
+/// the owner window, proves a clipboard state is ours without comparing
+/// sequence-number distances. It is not user data: never snapshotted.
+pub const OWNED_MARKER: &str = "VietKB.Owned";
+
+/// What the bracket after one of our writes found.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WriteVerdict {
+    /// Owner and marker are ours and the sequence number was stable: `seq`.
+    Ours(u32),
+    /// Owner/marker prove somebody else wrote: the clipboard is theirs.
+    Foreign,
+    /// Owner and marker are ours but the number kept moving (our own close
+    /// bump landing late, or a write racing it): keep the session, remember the
+    /// latest number. User data is never discarded on uncertainty.
+    Unstable(u32),
+}
+
+/// `owner_is_ours`: `GetClipboardOwner()` is our window (or we wrote with the
+/// NULL owner, in which case only the marker counts). `s1` / `s2`: sequence
+/// number read before and after the owner/marker probes, with no clipboard open.
+pub fn classify_write(owner_is_ours: bool, marker_present: bool, s1: u32, s2: u32) -> WriteVerdict {
+    if !owner_is_ours || !marker_present {
+        WriteVerdict::Foreign
+    } else if s1 == s2 && s2 != 0 {
+        WriteVerdict::Ours(s2)
+    } else {
+        WriteVerdict::Unstable(s2)
+    }
+}
+
+/// Snapshot of a foreign (read-only) clipboard: accepted only at a number that
+/// did not move across the bracket.
+pub fn snapshot_stable(s1: u32, s2: u32) -> Option<u32> {
+    (s1 == s2 && s2 != 0).then_some(s2)
 }
 
 /// Privacy: does a clipboard flag format forbid keeping a copy of the data?
@@ -217,13 +259,6 @@ pub fn flag_blocks_snapshot(name: &str, value: Option<u32>) -> bool {
     !matches!(value, Some(v) if v != 0)
 }
 
-/// `true` only when the clipboard is exactly as we left it: no one else wrote
-/// to it since we did. `0` means the sequence number is unavailable, which is
-/// never treated as "ours".
-pub fn still_ours(expected_seq: u32, current_seq: u32) -> bool {
-    expected_seq != 0 && expected_seq == current_seq
-}
-
 /// What to do with the saved user clipboard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RestoreAction {
@@ -233,8 +268,9 @@ pub enum RestoreAction {
     Abandon,
 }
 
-pub fn restore_action(expected_seq: u32, current_seq: u32) -> RestoreAction {
-    if still_ours(expected_seq, current_seq) {
+/// Restore only while the clipboard is still exactly one of our writes.
+pub fn restore_action(expected: OwnSeqs, current: u32) -> RestoreAction {
+    if expected.matches(current) {
         RestoreAction::Restore
     } else {
         RestoreAction::Abandon
@@ -263,20 +299,20 @@ pub enum PasteDecision {
     TypeDirectly,
 }
 
-/// `session_expected`: sequence right after our last write, while a session is
+/// `session_expected`: the numbers of our last write, while a session is
 /// active. `snapshot_seq`: sequence the ready (faithful) snapshot was taken at.
 /// `current`: `GetClipboardSequenceNumber()` now. `0` is "unavailable" and never
 /// matches.
 pub fn decide_paste(
     enabled: bool,
-    session_expected: Option<u32>,
+    session_expected: Option<OwnSeqs>,
     snapshot_seq: Option<u32>,
     current: u32,
 ) -> PasteDecision {
     if !enabled || current == 0 {
         return PasteDecision::TypeDirectly;
     }
-    if session_expected == Some(current) {
+    if session_expected.is_some_and(|s| s.matches(current)) {
         return PasteDecision::ContinueSession;
     }
     if snapshot_seq == Some(current) {
@@ -321,60 +357,11 @@ mod tests {
     }
 
     #[test]
-    fn paste_needs_a_fresh_snapshot() {
-        use PasteDecision::*;
-        // No snapshot, no session: type.
-        assert_eq!(decide_paste(true, None, None, 10), TypeDirectly);
-        // Snapshot taken at the current sequence: paste.
-        assert_eq!(decide_paste(true, None, Some(10), 10), StartSession);
-        // Clipboard changed since the snapshot: type.
-        assert_eq!(decide_paste(true, None, Some(10), 11), TypeDirectly);
-        // Mode off: type, whatever is ready.
-        assert_eq!(decide_paste(false, Some(10), Some(10), 10), TypeDirectly);
-    }
-
-    #[test]
-    fn session_continues_only_while_the_clipboard_is_ours() {
-        use PasteDecision::*;
-        assert_eq!(decide_paste(true, Some(20), None, 20), ContinueSession);
-        // Someone copied since our write: the session is dead.
-        assert_eq!(decide_paste(true, Some(20), None, 21), TypeDirectly);
-        // ... unless a fresh snapshot of the new content is ready.
-        assert_eq!(decide_paste(true, Some(20), Some(21), 21), StartSession);
-        // The session wins when both match (our own temp text).
-        assert_eq!(decide_paste(true, Some(20), Some(20), 20), ContinueSession);
-    }
-
-    #[test]
-    fn unavailable_sequence_never_pastes() {
-        use PasteDecision::*;
-        assert_eq!(decide_paste(true, Some(0), Some(0), 0), TypeDirectly);
-        assert_eq!(decide_paste(true, None, Some(0), 0), TypeDirectly);
-        assert_eq!(decide_paste(true, None, Some(u32::MAX), 0), TypeDirectly);
-        assert_eq!(decide_paste(true, None, Some(u32::MAX), u32::MAX), StartSession);
-    }
-
-    #[test]
     fn settle_counts_from_the_last_write() {
         assert_eq!(settle_remaining_ms(0), SETTLE_MS);
         assert_eq!(settle_remaining_ms(SETTLE_MS - 1), 1);
         assert_eq!(settle_remaining_ms(SETTLE_MS), 0);
         assert_eq!(settle_remaining_ms(u64::MAX), 0);
-    }
-
-    #[test]
-    fn close_bump_is_part_of_our_write() {
-        // Replica: 100 while open, +3 from CloseClipboard.
-        assert_eq!(seq_after_close(100, 103), Some(103));
-        assert_eq!(seq_after_close(100, 100), Some(100));
-        assert_eq!(seq_after_close(100, 100 + MAX_CLOSE_BUMP), Some(100 + MAX_CLOSE_BUMP));
-        // Too far: a foreign write got in between.
-        assert_eq!(seq_after_close(100, 100 + MAX_CLOSE_BUMP + 1), None);
-        // Going backwards, or 0 (unavailable), is never ours.
-        assert_eq!(seq_after_close(100, 99), None);
-        assert_eq!(seq_after_close(100, 0), None);
-        // u32 wrap.
-        assert_eq!(seq_after_close(u32::MAX - 1, 1), Some(1));
     }
 
     #[test]
@@ -400,31 +387,6 @@ mod tests {
     }
 
     #[test]
-    fn our_own_notification_is_recognised() {
-        // The hook recorded 30 under the lock; the listener reads 30 afterwards.
-        assert!(notification_is_ours(Some(30), None, 30));
-        // A different number is a foreign write.
-        assert!(!notification_is_ours(Some(30), None, 31));
-        // No session: nothing is "ours".
-        assert!(!notification_is_ours(None, None, 30));
-        assert!(!notification_is_ours(Some(0), Some(0), 0));
-        // Our own restore (adopted as the snapshot) is not re-captured ...
-        assert!(notification_is_ours(None, Some(40), 40));
-        // ... but a later foreign write is.
-        assert!(!notification_is_ours(None, Some(40), 41));
-    }
-
-    #[test]
-    fn adopted_restore_is_a_matching_snapshot() {
-        use PasteDecision::*;
-        // restore -> snapshot {seq: 40}: the next expansion pastes again
-        // without a re-capture (which would see our own privacy flags).
-        assert_eq!(decide_paste(true, None, Some(40), 40), StartSession);
-        // Anything copied afterwards makes it stale.
-        assert_eq!(decide_paste(true, None, Some(40), 41), TypeDirectly);
-    }
-
-    #[test]
     fn privacy_flags_block_the_snapshot() {
         assert!(flag_blocks_snapshot("ExcludeClipboardContentFromMonitorProcessing", Some(1)));
         assert!(flag_blocks_snapshot("ExcludeClipboardContentFromMonitorProcessing", None));
@@ -433,14 +395,6 @@ mod tests {
         assert!(flag_blocks_snapshot("CanUploadToCloudClipboard", None));
         assert!(!flag_blocks_snapshot("CanIncludeInClipboardHistory", Some(1)));
         assert!(!flag_blocks_snapshot("canuploadtocloudclipboard", Some(1)));
-    }
-
-    #[test]
-    fn sequence_zero_and_wrap() {
-        assert!(!still_ours(u32::MAX, 0));
-        assert!(still_ours(u32::MAX, u32::MAX));
-        assert_eq!(restore_action(u32::MAX, 0), RestoreAction::Abandon);
-        assert_eq!(restore_action(5, 0), RestoreAction::Abandon);
     }
 
 
@@ -512,11 +466,102 @@ mod tests {
         assert!(!within_budget(usize::MAX, 1));
     }
 
+    fn own(in_open: u32, after_close: u32) -> OwnSeqs {
+        OwnSeqs { in_open, after_close }
+    }
+
     #[test]
-    fn restore_only_when_nobody_else_wrote() {
-        assert_eq!(restore_action(7, 7), RestoreAction::Restore);
-        assert_eq!(restore_action(7, 8), RestoreAction::Abandon);
-        assert_eq!(restore_action(0, 0), RestoreAction::Abandon);
-        assert!(!still_ours(0, 5));
+    fn own_seqs_match_both_values_and_never_zero() {
+        let o = own(100, 103);
+        assert!(o.matches(100));
+        assert!(o.matches(103));
+        assert!(!o.matches(101));
+        assert!(!o.matches(104));
+        assert!(!own(0, 0).matches(0));
+    }
+
+    #[test]
+    fn write_verdicts() {
+        // Stable, owner and marker ours.
+        assert_eq!(classify_write(true, true, 103, 103), WriteVerdict::Ours(103));
+        // Number still moving but owner+marker ours: keep the session.
+        assert_eq!(classify_write(true, true, 103, 104), WriteVerdict::Unstable(104));
+        assert_eq!(classify_write(true, true, 0, 0), WriteVerdict::Unstable(0));
+        // Owner or marker prove somebody else wrote.
+        assert_eq!(classify_write(false, true, 103, 103), WriteVerdict::Foreign);
+        assert_eq!(classify_write(true, false, 103, 103), WriteVerdict::Foreign);
+        assert_eq!(classify_write(false, false, 1, 2), WriteVerdict::Foreign);
+    }
+
+    #[test]
+    fn snapshot_needs_a_stable_bracket() {
+        assert_eq!(snapshot_stable(7, 7), Some(7));
+        assert_eq!(snapshot_stable(7, 8), None);
+        assert_eq!(snapshot_stable(0, 0), None);
+    }
+
+    #[test]
+    fn marker_is_never_user_data() {
+        assert_eq!(classify_format(0xC0F0, Some("vietkb.owned")), FormatClass::Marker);
+        // It does not make a snapshot lossy.
+        let f = [(CF_UNICODETEXT, None), (0xC0F0, Some(OWNED_MARKER))];
+        assert_eq!(snapshot_verdict(f), Verdict::Faithful);
+    }
+
+    #[test]
+    fn our_own_notification_is_recognised() {
+        // Either the in-open or the after-close number is ours.
+        assert!(notification_is_ours(Some(own(100, 103)), None, 100));
+        assert!(notification_is_ours(Some(own(100, 103)), None, 103));
+        assert!(!notification_is_ours(Some(own(100, 103)), None, 104));
+        assert!(!notification_is_ours(None, None, 30));
+        assert!(!notification_is_ours(Some(own(0, 0)), Some(own(0, 0)), 0));
+        // Our restore (adopted as the snapshot) is not re-captured, a later
+        // foreign write is.
+        assert!(notification_is_ours(None, Some(own(40, 43)), 43));
+        assert!(!notification_is_ours(None, Some(own(40, 43)), 44));
+    }
+
+    #[test]
+    fn paste_needs_a_fresh_snapshot() {
+        use PasteDecision::*;
+        assert_eq!(decide_paste(true, None, None, 10), TypeDirectly);
+        assert_eq!(decide_paste(true, None, Some(10), 10), StartSession);
+        assert_eq!(decide_paste(true, None, Some(10), 11), TypeDirectly);
+        assert_eq!(decide_paste(false, Some(own(10, 10)), Some(10), 10), TypeDirectly);
+    }
+
+    #[test]
+    fn session_continues_only_while_the_clipboard_is_ours() {
+        use PasteDecision::*;
+        assert_eq!(decide_paste(true, Some(own(18, 20)), None, 20), ContinueSession);
+        assert_eq!(decide_paste(true, Some(own(18, 20)), None, 18), ContinueSession);
+        assert_eq!(decide_paste(true, Some(own(18, 20)), None, 21), TypeDirectly);
+        assert_eq!(decide_paste(true, Some(own(18, 20)), Some(21), 21), StartSession);
+        assert_eq!(decide_paste(true, Some(own(20, 20)), Some(20), 20), ContinueSession);
+    }
+
+    #[test]
+    fn adopted_restore_is_a_matching_snapshot() {
+        use PasteDecision::*;
+        assert_eq!(decide_paste(true, None, Some(40), 40), StartSession);
+        assert_eq!(decide_paste(true, None, Some(40), 41), TypeDirectly);
+    }
+
+    #[test]
+    fn unavailable_sequence_never_pastes() {
+        use PasteDecision::*;
+        assert_eq!(decide_paste(true, Some(own(0, 0)), Some(0), 0), TypeDirectly);
+        assert_eq!(decide_paste(true, None, Some(u32::MAX), 0), TypeDirectly);
+        assert_eq!(decide_paste(true, None, Some(u32::MAX), u32::MAX), StartSession);
+    }
+
+    #[test]
+    fn restore_only_while_the_clipboard_is_one_of_our_writes() {
+        assert_eq!(restore_action(own(7, 9), 9), RestoreAction::Restore);
+        assert_eq!(restore_action(own(7, 9), 7), RestoreAction::Restore);
+        assert_eq!(restore_action(own(7, 9), 10), RestoreAction::Abandon);
+        assert_eq!(restore_action(own(0, 0), 0), RestoreAction::Abandon);
+        assert_eq!(restore_action(own(u32::MAX, u32::MAX), 0), RestoreAction::Abandon);
     }
 }
