@@ -34,6 +34,8 @@ pub fn is_injected(user_data: i64) -> bool {
 }
 
 /// How long a bundle-id lookup is reused while the frontmost pid is unchanged.
+/// How long a fired `enabled` value is expected to come back through the config.
+const OWN_WRITE_TTL: Duration = Duration::from_secs(2);
 const APP_TTL: Duration = Duration::from_millis(1500);
 /// A swallowed trigger counts as still held (a repeat is swallowed) only while
 /// its last swallowed down is this recent.
@@ -175,7 +177,9 @@ pub struct Runtime {
     /// `enabled` values this tap fired to the backend whose write-back into the
     /// config has not been seen yet (D-MAC-48). A config that shows one of them
     /// is our own echo, not an outside edit, and must not override the live flag.
-    own_writes: Vec<bool>,
+    /// Entries expire after `OWN_WRITE_TTL`: a write the backend skipped (value
+    /// already in the config) or failed never echoes back.
+    own_writes: Vec<(bool, Instant)>,
     sink: Option<Box<dyn EngineSink>>,
     secure_logged: Option<Instant>,
 }
@@ -254,14 +258,22 @@ impl Runtime {
             // Our own write-back arrives late and in order: a snapshot that
             // shows an older toggle of ours (press, press again before the
             // first echo) must not flip the live flag back.
-            match self.own_writes.iter().position(|&value| value == cfg.input.enabled) {
-                Some(index) => {
-                    self.own_writes.drain(..=index);
-                }
-                None => {
-                    self.own_writes.clear();
-                    globals::store_enabled(cfg.input.enabled);
-                    self.last_global = cfg.input.enabled;
+            self.own_writes
+                .retain(|(_, at)| at.elapsed() < OWN_WRITE_TTL);
+            let wanted = cfg.input.enabled;
+            if self.own_writes.last().is_some_and(|&(value, _)| value == wanted) {
+                // The echo of our newest write: everything older is settled.
+                self.own_writes.clear();
+            } else {
+                match self.own_writes.iter().position(|&(value, _)| value == wanted) {
+                    Some(index) => {
+                        self.own_writes.drain(..=index);
+                    }
+                    None => {
+                        self.own_writes.clear();
+                        globals::store_enabled(wanted);
+                        self.last_global = wanted;
+                    }
                 }
             }
         }
@@ -584,12 +596,12 @@ impl Runtime {
             }
             self.engine.set_macro_only(self.macro_only_active());
             // Only a value that will change the config is expected back.
-            let known = self.own_writes.last().copied().or(self.config_enabled);
+            let known = self.own_writes.last().map(|&(value, _)| value).or(self.config_enabled);
             if known != Some(enabled) {
                 if self.own_writes.len() >= 8 {
                     self.own_writes.remove(0);
                 }
-                self.own_writes.push(enabled);
+                self.own_writes.push((enabled, Instant::now()));
             }
             globals::fire_enabled(enabled);
             globals::fire_command(BackendCommand::Enable(enabled));
@@ -1562,6 +1574,39 @@ mod tests {
         rig.rt.apply_config(Arc::new(off.clone()));
         rig.rt.apply_config(Arc::new(on));
         rig.rt.apply_config(Arc::new(off));
+        assert!(!globals::enabled());
+    }
+
+    /// Press, press, the backend skips the write (no echo ever), then a real
+    /// outside edit to off arrives after the entries expired: adopted.
+    #[test]
+    fn expired_unechoed_writes_do_not_swallow_an_outside_edit() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(Some(quiet_config()));
+        rig.rt.set_enabled(false);
+        rig.rt.set_enabled(true);
+        let old = Instant::now() - OWN_WRITE_TTL - Duration::from_millis(1);
+        for entry in rig.rt.own_writes.iter_mut() {
+            entry.1 = old;
+        }
+        let mut off = quiet_config();
+        off.input.enabled = false;
+        rig.rt.apply_config(Arc::new(off));
+        assert!(!globals::enabled());
+    }
+
+    /// The echo of the newest write settles every older entry.
+    #[test]
+    fn the_newest_echo_clears_older_entries() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(Some(quiet_config()));
+        rig.rt.set_enabled(false);
+        rig.rt.set_enabled(true);
+        rig.rt.set_enabled(false);
+        let mut off = quiet_config();
+        off.input.enabled = false;
+        rig.rt.apply_config(Arc::new(off));
+        assert!(rig.rt.own_writes.is_empty());
         assert!(!globals::enabled());
     }
 
