@@ -625,6 +625,18 @@ impl Runtime {
             return None;
         }
         if let Some(ch) = typed {
+            if ch.is_ascii_alphabetic() {
+                // Synthetic events (UI automation, remote-desktop and remapping
+                // tools) take their string from the keycode alone and ignore
+                // the Shift / Caps Lock flags they carry, so `V` arrives as
+                // `v`. The flags are what the app applies, so they decide the
+                // case (D-MAC-01).
+                return Some(if self.mods.shift ^ self.mods.caps_lock {
+                    ch.to_ascii_uppercase()
+                } else {
+                    ch.to_ascii_lowercase()
+                });
+            }
             if !ch.is_control() || keys::is_word_boundary(vk) {
                 return Some(ch);
             }
@@ -1263,5 +1275,69 @@ mod tests {
         let caps = RawEvent::key(EventKind::FlagsChanged, keys::MAC_CAPS_LOCK, flags::ALPHA_SHIFT, None);
         assert_eq!(rig.rt.on_event(&caps), Decision::PASS);
         assert_eq!(press(&mut rig.rt, 's'), Decision::PASS);
+    }
+
+    /// Types `text` like the E2E harness: Shift down/up around every capital
+    /// letter, digits and lowercase letters unshifted. `string_follows_flags`
+    /// false mimics synthetic events whose Unicode string ignores Shift.
+    fn type_shifted(rt: &mut Runtime, text: &str, string_follows_flags: bool) {
+        for ch in text.chars() {
+            let shifted = ch.is_ascii_uppercase();
+            let code = mac_code(ch.to_ascii_lowercase());
+            let fl = if shifted { flags::SHIFT | flags::DEV_LSHIFT } else { 0 };
+            let typed = if string_follows_flags { ch } else { ch.to_ascii_lowercase() };
+            if shifted {
+                rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_SHIFT, fl, None));
+            }
+            rt.on_event(&RawEvent::key(EventKind::KeyDown, code, fl, Some(typed)));
+            rt.on_event(&RawEvent::key(EventKind::KeyUp, code, fl, Some(typed)));
+            if shifted {
+                rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_SHIFT, 0, None));
+            }
+        }
+    }
+
+    fn injections(word: &str, string_follows_flags: bool) -> Vec<(u32, String)> {
+        let mut cfg = quiet_config();
+        cfg.input.method = InputMethod::Vni;
+        let mut rig = rig(Some(cfg));
+        type_shifted(&mut rig.rt, word, string_follows_flags);
+        let replaced = rig.log.lock().replaced.clone();
+        replaced
+    }
+
+    /// D-MAC-01: a synthetic `V` carries the string `v` plus the Shift flag; the
+    /// engine must still see a capital, or the rewrite comes out lowercase.
+    #[test]
+    fn vni_all_caps_word_takes_mark_and_tone_digits() {
+        let _guard = globals::TEST_LOCK.lock();
+        for follows in [true, false] {
+            assert_eq!(
+                injections("VIE6T5", follows),
+                vec![(1, "Ê".to_string()), (2, "ỆT".to_string())],
+                "string_follows_flags={follows}"
+            );
+            assert_eq!(injections("VIE6", follows), vec![(1, "Ê".to_string())]);
+        }
+        // A tone digit after a capitals-only word gives the same rewrite either way.
+        for word in ["VIE5", "VIE6T"] {
+            assert_eq!(injections(word, false), injections(word, true), "{word}");
+            assert!(!injections(word, false).is_empty(), "{word} must be converted");
+        }
+    }
+
+    #[test]
+    fn caps_lock_flag_decides_letter_case_when_the_string_disagrees() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        let rt = &mut rig.rt;
+        // Caps Lock on, string says `v`: the engine sees `V`; Shift+Caps is lowercase again.
+        rt.mods.sync(flags::ALPHA_SHIFT);
+        assert_eq!(rt.char_for(0x56, Some('v')), Some('V'));
+        rt.mods.sync(flags::ALPHA_SHIFT | flags::SHIFT);
+        assert_eq!(rt.char_for(0x56, Some('V')), Some('v'));
+        // Non-letters and non-ASCII letters keep the layout's own character.
+        assert_eq!(rt.char_for(0x36, Some('6')), Some('6'));
+        assert_eq!(rt.char_for(0x41, Some('ă')), Some('ă'));
     }
 }
