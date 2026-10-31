@@ -3,6 +3,7 @@
 One English term per concept, same rule as `90-copy-voice.md`. Used by the site (`site/en/`)
 and the app's English UI (27-mac-decisions M6). If a term changes, change it here first.
 English voice: plain, short, no "we"; "you" only where it is the point; sentence case for labels.
+US spelling ("recognize", "capitalization"). Contractions in messages and errors ("Couldn't save…", "can't"), not in labels. No em-dash inside sentences; use a full stop, comma or parentheses (window titles like "Shortcuts — VietKB" keep theirs). Hints under a label are third person ("Starts when…", "Switches…"). Ellipsis only on buttons and menu items that open a window or dialog ("Shortcuts…", "Open settings…").
 
 ## Product and platform
 
@@ -27,8 +28,8 @@ English voice: plain, short, no "we"; "you" only where it is the point; sentence
 - khôi phục từ gõ sai → **Restore misspelled words** (setting); **Restore misspelled word** (hotkey, one word). Means: put back exactly the keys typed when a word isn't valid Vietnamese. Hint: "Puts back the keys you typed when a word isn't valid Vietnamese."
 - viết hoa đầu câu → **Auto-capitalize sentences**.
 - vùng gõ thô → **Raw text zones** — URLs/code left exactly as typed.
-- âm báo / âm thanh khi bật/tắt → **Toggle sound**.
-- kiểu chuyển bật/tắt → **Toggle on** — options **Key release** (default) / **Key press**.
+- âm báo / âm thanh khi bật/tắt → **On/off sound**. Not "Toggle sound" (reads as a command).
+- kiểu chuyển bật/tắt → **Switch when** — options **Key released** (default) / **Key pressed**. Not "Toggle on" (reads as "turn on").
 
 ## Text expansion (gõ tắt)
 
