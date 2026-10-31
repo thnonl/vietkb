@@ -385,22 +385,18 @@ pub fn adopt_autostart_registry(fallback: bool) {
         return;
     };
 
-    let changed = {
-        let mut cfg = config_cell().write();
-        if cfg.system.start_with_windows == actual {
-            false
-        } else {
-            cfg.system.start_with_windows = actual;
-            true
-        }
-    };
-    if !changed {
+    // Same lock as every other config write, so this read-modify-write cannot
+    // interleave with a UI patch or a backend hotkey write. No `after_change`:
+    // this runs before the tray and the first window exist.
+    let _guard = CONFIG_WRITE.lock();
+    let mut next = config_cell().read().clone();
+    if next.system.start_with_windows == actual {
         return;
     }
-
-    let next = config_cell().read().clone();
-    if let Err(error) = vkb_config::save(&next) {
+    next.system.start_with_windows = actual;
+    if let Err(error) = commit_locked(next) {
         tracing::warn!(%error, "could not persist the adopted autostart value");
+        return;
     }
     tracing::info!(enabled = actual, "autostart adopted from the registry");
 }
@@ -701,14 +697,34 @@ pub fn patch_settings(patch: serde_json::Value) -> Result<SettingsView, String> 
 /// Apply `mutate` to the live config as one atomic read-modify-write: nothing
 /// else can change the config between the read and the save, so a UI patch and
 /// a backend hotkey write each land as a field patch on the latest state.
+///
+/// A mutation that leaves the config unchanged is not written to disk (so the
+/// "is it already that value?" test belongs inside `mutate`, not before it).
+///
+/// `CONFIG_WRITE` is **not re-entrant**: never call `update_config` (or anything
+/// that does) from inside `mutate`. Debug builds assert on it.
 pub(crate) fn update_config(
     mutate: impl FnOnce(&mut AppConfig) -> Result<(), String>,
 ) -> Result<SettingsView, String> {
+    thread_local! {
+        static IN_UPDATE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    debug_assert!(
+        !IN_UPDATE.with(|flag| flag.get()),
+        "update_config called from inside an update_config closure (CONFIG_WRITE is not re-entrant)"
+    );
     let view = {
         let _guard = CONFIG_WRITE.lock();
         let mut draft = config_cell().read().clone();
-        mutate(&mut draft)?;
-        commit_locked(draft)?
+        IN_UPDATE.with(|flag| flag.set(true));
+        let mutated = mutate(&mut draft);
+        IN_UPDATE.with(|flag| flag.set(false));
+        mutated?;
+        if draft == *config_cell().read() {
+            to_view(&draft)
+        } else {
+            commit_locked(draft)?
+        }
     };
     // Outside the lock: the tray refresh and window retitle wait on the main
     // thread, which may itself be blocked on `CONFIG_WRITE` in a sync command.

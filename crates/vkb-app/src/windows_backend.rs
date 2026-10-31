@@ -146,16 +146,14 @@ pub fn flush_perf() {
 
 /// Hotkey toggled Vietnamese on/off: make the file and the tray say the same.
 fn apply_enabled(enabled: bool) {
-    if commands::config_cell().read().input.enabled != enabled {
-        if let Err(error) = commands::update_config(|cfg| {
-            cfg.input.enabled = enabled;
-            Ok(())
-        }) {
-            tracing::warn!(%error, enabled, "could not persist the enabled state");
-        }
-    } else if let Some(app) = commands::app_handle() {
-        // Same value but the tray may still be stale (e.g. a repeated press).
-        crate::tray::refresh(app, &commands::status_now());
+    // The "already that value?" test is inside `update_config`: an unchanged
+    // config is not written, and the follow-up still refreshes the tray (a
+    // repeated press may find it stale).
+    if let Err(error) = commands::update_config(|cfg| {
+        cfg.input.enabled = enabled;
+        Ok(())
+    }) {
+        tracing::warn!(%error, enabled, "could not persist the enabled state");
     }
     tracing::info!(
         enabled,

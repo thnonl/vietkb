@@ -251,6 +251,24 @@
   grid-template-columns: 1fr 248px;
   align-items: center;
 }
+/* The toggle-mode switch sits in the 248 px column of a fixed 520 px window
+ * (fit.ts only grows macOS windows). A longer English label shrinks the buttons
+ * and ellipsises instead of pushing the row wider. */
+.v4row.hkrow > .seg {
+  justify-self: end;
+  min-width: 0;
+  max-width: 248px;
+  flex: 0 1 auto;
+}
+.v4row.hkrow > .seg > button {
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v4row.hkrow .l {
+  white-space: normal;
+}
 /* A row that carries an amber warning line grows to 64 px so the message
  * never overlaps the field or the next row. */
 .v4row.hkrow.tall {
