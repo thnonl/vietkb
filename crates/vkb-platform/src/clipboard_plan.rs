@@ -345,6 +345,89 @@ pub fn classify_write(owner_is_ours: bool, marker_present: bool, s1: u32, s2: u3
     }
 }
 
+/// How the clipboard was opened for one of our writes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnerCheck {
+    /// Our owner window: `matches` = `GetClipboardOwner()` is that window.
+    Window { matches: bool },
+    /// The NULL-owner fallback: no window to compare.
+    Null,
+}
+
+/// After one of OUR writes, with the clipboard closed: the verdict from owner,
+/// marker and a stable bracket. `in_open` is the number read while the
+/// clipboard was open and `post_close` the one read right after the close
+/// (`CloseClipboard` advances it, D-WIN-16). The NULL-owner path must compare
+/// against `post_close`; comparing `in_open` can never match and the adoption of
+/// the restored data would silently never happen.
+pub fn write_verdict(
+    owner: OwnerCheck,
+    marker_present: bool,
+    in_open: u32,
+    post_close: u32,
+    s1: u32,
+    s2: u32,
+) -> WriteVerdict {
+    let _ = in_open; // recorded by the caller in `OwnSeqs`, never compared here
+    let owner_ok = match owner {
+        OwnerCheck::Window { matches } => matches,
+        OwnerCheck::Null => null_owner_ok(post_close, s1),
+    };
+    classify_write(owner_ok, marker_present, s1, s2)
+}
+
+/// What the restore saw in the (text-only) clipboard when our proof failed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rescue {
+    /// Plain text only (see [`plain_text_only`]).
+    pub plain_only: bool,
+    /// The text equals what we wrote ([`text_fingerprint`]).
+    pub text_equal: bool,
+}
+
+/// Restore or abandon, from what was observed while the clipboard was open.
+///
+/// `owner_marker_ours`: our owner window owns it AND the marker is present
+/// (never true for the NULL-owner fallback). `owner_is_ours`: the owner window
+/// alone (urgent data of a failed write has no marker). `rescue`: only filled in
+/// when the base proof failed and reading the text was allowed.
+pub fn restore_decision(
+    urgent: bool,
+    own: OwnSeqs,
+    rounds: u32,
+    owner_marker_ours: bool,
+    owner_is_ours: bool,
+    seq: u32,
+    rescue: Option<Rescue>,
+) -> RestoreAction {
+    if urgent {
+        return if urgent_proof(owner_is_ours, own.matches(seq)) {
+            RestoreAction::Restore
+        } else {
+            RestoreAction::Abandon
+        };
+    }
+    let base = restore_action(own, owner_marker_ours, seq);
+    let text_equal = rescue.is_some_and(|r| text_rescue_allowed(rounds, r.plain_only) && r.text_equal);
+    restore_action_text(base, text_equal)
+}
+
+/// After a give-up: empty the clipboard when our temporary text is still on it
+/// (owner ours AND marker or equal text), or when a manager re-set exactly our
+/// plain text (the same conditions as the restore rescue). Never touches other
+/// content.
+pub fn should_clear(owner_is_ours: bool, marker_present: bool, rescue: Option<Rescue>) -> bool {
+    let equal = rescue.is_some_and(|r| r.text_equal);
+    let plain_equal = rescue.is_some_and(|r| r.plain_only && r.text_equal);
+    (owner_is_ours && (marker_present || equal)) || plain_equal
+}
+
+/// The size our text occupies as `CF_UNICODETEXT` (units + the terminator).
+/// A clipboard text of any other size cannot be ours: compare before decoding.
+pub fn our_text_bytes(units: usize) -> usize {
+    2 * (units + 1)
+}
+
 /// Snapshot of a foreign (read-only) clipboard: accepted only at a number that
 /// did not move across the bracket.
 pub fn snapshot_stable(s1: u32, s2: u32) -> Option<u32> {
@@ -703,6 +786,79 @@ mod tests {
         assert_eq!(open_retry_delay(0, 0, Some(0)), None);
         assert_eq!(open_retry_delay(0, 0, Some(19)), None);
         assert_eq!(open_retry_delay(0, 500, Some(100)), None);
+    }
+
+    #[test]
+    fn null_owner_adoption_compares_the_post_close_number() {
+        // The close advanced the number: 40 while open, 43 after, stable probes.
+        let v = write_verdict(OwnerCheck::Null, true, 40, 43, 43, 43);
+        assert_eq!(v, WriteVerdict::Ours(43));
+        // A probe that does not match the post-close number is not proven ours.
+        assert_eq!(write_verdict(OwnerCheck::Null, true, 40, 43, 44, 44), WriteVerdict::Foreign);
+        // The old comparison (in-open number) could never match after the bump.
+        assert_ne!(write_verdict(OwnerCheck::Null, true, 40, 43, 40, 40), WriteVerdict::Ours(40));
+        // Window owners: the owner flag decides, the in-open number is ignored.
+        assert_eq!(
+            write_verdict(OwnerCheck::Window { matches: true }, true, 40, 43, 43, 43),
+            WriteVerdict::Ours(43)
+        );
+        assert_eq!(
+            write_verdict(OwnerCheck::Window { matches: false }, true, 40, 43, 43, 43),
+            WriteVerdict::Foreign
+        );
+        // No marker: foreign, owner or not.
+        assert_eq!(write_verdict(OwnerCheck::Null, false, 40, 43, 43, 43), WriteVerdict::Foreign);
+    }
+
+    #[test]
+    fn restore_decision_covers_every_proof() {
+        let own = OwnSeqs { in_open: 10, after_close: 13 };
+        let plain = Some(Rescue { plain_only: true, text_equal: true });
+        // Numbers match.
+        assert_eq!(restore_decision(false, own, 0, false, false, 13, None), RestoreAction::Restore);
+        // Late bump but owner + marker ours.
+        assert_eq!(restore_decision(false, own, 0, true, true, 14, None), RestoreAction::Restore);
+        // Foreign copy: no proof, no rescue.
+        assert_eq!(restore_decision(false, own, 0, false, false, 20, None), RestoreAction::Abandon);
+        // Manager re-set our plain text: rescued in round 0 only.
+        assert_eq!(restore_decision(false, own, 0, false, false, 20, plain), RestoreAction::Restore);
+        assert_eq!(restore_decision(false, own, 1, false, false, 20, plain), RestoreAction::Abandon);
+        // Not plain text only, or not our text: never rescued.
+        let rich = Some(Rescue { plain_only: false, text_equal: true });
+        let other = Some(Rescue { plain_only: true, text_equal: false });
+        assert_eq!(restore_decision(false, own, 0, false, false, 20, rich), RestoreAction::Abandon);
+        assert_eq!(restore_decision(false, own, 0, false, false, 20, other), RestoreAction::Abandon);
+        // Urgent data: owner window or number, never the NULL owner alone.
+        assert_eq!(restore_decision(true, own, 0, false, true, 99, None), RestoreAction::Restore);
+        assert_eq!(restore_decision(true, own, 0, false, false, 10, None), RestoreAction::Restore);
+        assert_eq!(restore_decision(true, own, 0, false, false, 99, None), RestoreAction::Abandon);
+        // The rescue never applies to urgent data.
+        assert_eq!(restore_decision(true, own, 0, false, false, 99, plain), RestoreAction::Abandon);
+    }
+
+    #[test]
+    fn clear_decision_only_touches_our_text() {
+        let eq = Some(Rescue { plain_only: true, text_equal: true });
+        let rich_eq = Some(Rescue { plain_only: false, text_equal: true });
+        let neq = Some(Rescue { plain_only: true, text_equal: false });
+        // Owner ours + marker: clear (text not even read).
+        assert!(should_clear(true, true, None));
+        // Owner ours, marker gone, text equal: clear.
+        assert!(should_clear(true, false, rich_eq));
+        // A manager re-set our plain text (owner foreign): clear.
+        assert!(should_clear(false, false, eq));
+        // Foreign owner with rich content, or other text, or nothing known: keep.
+        assert!(!should_clear(false, false, rich_eq));
+        assert!(!should_clear(false, false, neq));
+        assert!(!should_clear(false, true, None));
+        assert!(!should_clear(true, false, neq));
+        assert!(!should_clear(true, false, None));
+    }
+
+    #[test]
+    fn text_size_check_precedes_decoding() {
+        assert_eq!(our_text_bytes(0), 2);
+        assert_eq!(our_text_bytes(5), 12);
     }
 
     #[test]

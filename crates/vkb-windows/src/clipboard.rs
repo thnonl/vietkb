@@ -40,10 +40,11 @@ use vkb_platform::clipboard_book::{
     Action, RestoreJob, RestoreResult, SessionBook, QUIT_RETRY_MS,
 };
 use vkb_platform::clipboard_plan::{
-    classify_format, classify_write, decide_paste, flag_blocks_snapshot, format_count_ok,
-    garbage_admit, notification_is_ours, null_owner_ok, open_retry_delay, ownership,
-    plain_text_only, restore_action, restore_action_text, text_fingerprint, text_rescue_allowed,
-    snapshot_stable, snapshot_verdict, urgent_proof, uses_hook_owner, within_budget, FormatClass,
+    classify_format, decide_paste, flag_blocks_snapshot, format_count_ok,
+    garbage_admit, notification_is_ours, open_retry_delay, ownership,
+    our_text_bytes, plain_text_only, restore_action, restore_decision, should_clear,
+    text_fingerprint, write_verdict, OwnerCheck, Rescue,
+    snapshot_stable, snapshot_verdict, uses_hook_owner, within_budget, FormatClass,
     OwnSeqs, Ownership, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER,
     PRIVACY_FORMATS, REFRESH_DELAY_MS, REGISTERED_FIRST,
 };
@@ -110,6 +111,20 @@ struct Snap {
     data: Vec<FormatData>,
 }
 
+/// Identity of the text we wrote: fingerprint and length in UTF-16 units (the
+/// length is compared first, so a huge foreign text is never decoded).
+#[derive(Clone, Copy)]
+struct OurText {
+    fp: u64,
+    units: usize,
+}
+
+impl OurText {
+    fn of(text: &str) -> Self {
+        Self { fp: text_fingerprint(text), units: text.encode_utf16().count() }
+    }
+}
+
 type Book = SessionBook<Vec<FormatData>>;
 type Act = Action<Vec<FormatData>>;
 
@@ -120,9 +135,9 @@ struct Shared {
     restored_seq: Option<OwnSeqs>,
     /// Session / generation bookkeeping (pure, see `clipboard_book`).
     book: Book,
-    /// Fingerprint of the text we wrote last (the narrow text rescue compares
-    /// the clipboard with it; only the newest session is ever restored).
-    text_fp: u64,
+    /// The text we wrote last (the narrow text rescue and the post-give-up clear
+    /// compare the clipboard with it; only the newest session is ever restored).
+    text: OurText,
     /// Old user data the hook retired; the worker zeroes and frees it so the
     /// hook thread never pays for large buffers (bounded by bytes).
     garbage: Vec<Vec<FormatData>>,
@@ -133,7 +148,7 @@ static SHARED: Mutex<Shared> = Mutex::new(Shared {
     snapshot: None,
     restored_seq: None,
     book: SessionBook::new(),
-    text_fp: 0,
+    text: OurText { fp: 0, units: 0 },
     garbage: Vec::new(),
     garbage_bytes: 0,
 });
@@ -226,10 +241,10 @@ fn exec_locked(shared: &mut Shared, actions: Vec<Act>) -> Todo {
                 shared.restored_seq = None;
             }
             Action::GiveUp(generation) => {
-                todo.clear_ours = true;
                 tracing::error!(generation, "clipboard restore gave up at its deadline");
                 crate::debuglog::note(&format!("clipboard-restore GIVE UP gen={generation}"));
             }
+            Action::ClearIfOurs => todo.clear_ours = true,
         }
     }
     todo
@@ -464,7 +479,7 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     // owner + marker + a stable bracket say the clipboard is ours.
     drop(guard);
     let post_close = unsafe { GetClipboardSequenceNumber() };
-    let own = match verify_write(Some(owner), post_close) {
+    let own = match verify_write(Some(owner), in_open, post_close) {
         // Unstable keeps the session: user data is never discarded on
         // uncertainty.
         WriteVerdict::Ours(after) | WriteVerdict::Unstable(after) => {
@@ -484,6 +499,9 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     match decision {
         PasteDecision::StartSession => {
             let Some(snap) = started.take() else {
+                // Unreachable: the snapshot was taken under the lock we still
+                // hold, and a missing one returned before the write.
+                debug_assert!(false, "clipboard snapshot vanished after the write");
                 tracing::error!("clipboard snapshot vanished after the write");
                 return false;
             };
@@ -493,7 +511,7 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
         }
         _ => shared.book.continue_session(own, now_ms()),
     }
-    shared.text_fp = text_fingerprint(text);
+    shared.text = OurText::of(text);
     drop(shared);
 
     let inputs = input::build_paste(deletes, mode, chord, held);
@@ -669,27 +687,46 @@ fn drive(hwnd: HWND, mut actions: Vec<Act>) {
         if todo.snapshot && ENABLED.load(Ordering::SeqCst) {
             unsafe { SetTimer(hwnd, TIMER_REFRESH, REFRESH_DELAY_MS, None) };
         }
+        let text = SHARED.lock().text;
         if todo.clear_ours {
-            clear_if_ours(owner);
+            clear_if_ours(owner, text);
         }
         let Some(job) = todo.restore else { return };
-        let text_fp = SHARED.lock().text_fp;
-        let result = restore_session(&job, owner, text_fp);
+        let result = restore_session(&job, owner, text);
         actions = SHARED.lock().book.restore_result(job, result, now_ms());
     }
 }
 
-/// A restore gave up and its user data was zeroed: if our temporary text is
-/// still on the clipboard (owner + marker ours), empty it so a later Ctrl+V
-/// cannot paste it. Bounded: one open try, never retried.
-fn clear_if_ours(owner: Option<HWND>) {
+/// A restore gave up and its user data was zeroed: empty the clipboard when our
+/// temporary text is still on it ([`should_clear`]: owner ours AND marker or
+/// equal text; or a manager re-set exactly our plain text), so a later Ctrl+V
+/// cannot paste it. Bounded: one open try, never retried; a foreign owner is
+/// probed BEFORE the clipboard is opened and its text is only read after a size
+/// check.
+fn clear_if_ours(owner: Option<HWND>, text: OurText) {
     let Some(ours) = owner else { return };
-    if let Some(guard) = ClipboardGuard::open(Some(ours), 1, 0) {
-        if owner_marker_ours(Some(ours)) && unsafe { EmptyClipboard() }.is_ok() {
-            tracing::warn!("clipboard emptied: our temporary text was left after a give-up");
-        }
-        drop(guard);
+    // May a foreign text be read at all? Decided before the clipboard is opened.
+    let may_read_text = text.fp != 0 && clipboard_owner_responsive(50);
+    let Some(guard) = ClipboardGuard::open(Some(ours), 1, 0) else { return };
+    let owner_is_ours = unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours);
+    let marker = marker_id() != 0 && unsafe { IsClipboardFormatAvailable(marker_id()) }.is_ok();
+    // The text is only needed when owner + marker alone do not decide.
+    let rescue = (may_read_text && !(owner_is_ours && marker)).then(|| rescue_view(text));
+    if should_clear(owner_is_ours, marker, rescue) && unsafe { EmptyClipboard() }.is_ok() {
+        tracing::warn!("clipboard emptied: our temporary text was left after a give-up");
     }
+    drop(guard);
+}
+
+/// Clipboard must be open and the owner probe must have passed. What the
+/// (possibly foreign) clipboard holds relative to our text: plain text only
+/// (formats listed, no data read) and equal text (size compared before any
+/// decoding).
+fn rescue_view(text: OurText) -> Rescue {
+    let plain_only = list_formats()
+        .is_some_and(|ids| plain_text_only(ids.iter().map(|(id, n)| (*id, n.as_deref()))));
+    let text_equal = plain_only && clipboard_text_fp(text) == Some(text.fp);
+    Rescue { plain_only, text_equal }
 }
 
 /// Mode flipped (or the worker just started): listen + first snapshot, or
@@ -831,8 +868,13 @@ fn refresh_snapshot(hwnd: HWND) {
 fn restore_session(
     job: &RestoreJob<Vec<FormatData>>,
     owner: Option<HWND>,
-    text_fp: u64,
+    text: OurText,
 ) -> RestoreResult {
+    // May a FOREIGN-owned clipboard's text be read for the rescue? The owner
+    // probe runs BEFORE the clipboard is opened (a hung delayed-render owner
+    // would block `GetClipboardData` with the clipboard locked system-wide).
+    let may_read_text =
+        !job.urgent && job.rounds == 0 && text.fp != 0 && clipboard_owner_responsive(50);
     let started = Instant::now();
     let mut attempt = 0u32;
     loop {
@@ -843,29 +885,27 @@ fn restore_session(
         if let Some(guard) = ClipboardGuard::open(open_owner, 1, 0) {
             // Checked while we hold the clipboard: nobody can write in between.
             let now = unsafe { GetClipboardSequenceNumber() };
-            let ours = if job.urgent {
-                // A failed write: our owner window still owns it, or the number
-                // is one recorded at the failure. The NULL owner is no proof.
-                let owner_is_ours = owner
-                    .is_some_and(|ours| unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours));
-                urgent_proof(owner_is_ours, job.own.matches(now))
-            } else {
-                let base = restore_action(job.own, owner_marker_ours(owner), now);
-                let text_equal = base == RestoreAction::Abandon
-                    && text_fp != 0
-                    && list_formats().is_some_and(|ids| {
-                        text_rescue_allowed(
-                            job.rounds,
-                            plain_text_only(ids.iter().map(|(id, n)| (*id, n.as_deref()))),
-                        )
-                    })
-                    && clipboard_text_fp() == Some(text_fp);
-                if text_equal {
-                    tracing::debug!("clipboard text equals ours without the marker; restoring");
-                    crate::debuglog::note("clipboard-text-rescue fired");
-                }
-                restore_action_text(base, text_equal) == RestoreAction::Restore
-            };
+            let owner_is_ours = owner
+                .is_some_and(|ours| unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours));
+            let owner_marker = owner_marker_ours(owner);
+            // The rescue view is only built when the base proof fails and the
+            // probe allowed reading the text.
+            let rescue = (may_read_text
+                && restore_action(job.own, owner_marker, now) == RestoreAction::Abandon)
+                .then(|| rescue_view(text));
+            let ours = restore_decision(
+                job.urgent,
+                job.own,
+                job.rounds,
+                owner_marker,
+                owner_is_ours,
+                now,
+                rescue,
+            ) == RestoreAction::Restore;
+            if ours && !job.urgent && rescue.is_some_and(|r| r.text_equal) {
+                tracing::debug!("clipboard text equals ours without the marker; restoring");
+                crate::debuglog::note("clipboard-text-rescue fired");
+            }
             if !ours {
                 tracing::debug!("clipboard changed after our paste; not restoring");
                 return RestoreResult::Foreign;
@@ -890,7 +930,7 @@ fn restore_session(
             }
             // Adopt only what owner + marker + a stable bracket prove is our
             // restored data (never trust a bare number, D-WIN-16).
-            let adopt = match verify_write(open_owner, post_close) {
+            let adopt = match verify_write(open_owner, in_open, post_close) {
                 WriteVerdict::Ours(after) | WriteVerdict::Unstable(after) => {
                     Some(OwnSeqs { in_open, after_close: after })
                 }
@@ -1053,16 +1093,21 @@ fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
     Some(formats)
 }
 
-/// Clipboard must be open. Fingerprint of the current `CF_UNICODETEXT`.
-fn clipboard_text_fp() -> Option<u64> {
+/// Clipboard must be open and the owner probe passed. Fingerprint of the
+/// current `CF_UNICODETEXT`, but only when its size is exactly that of our text:
+/// anything else cannot be ours and is never decoded.
+fn clipboard_text_fp(text: OurText) -> Option<u64> {
     let handle = unsafe { GetClipboardData(CF_UNICODETEXT) }.ok().filter(|h| !h.is_invalid())?;
     let global = HGLOBAL(handle.0);
     let size = unsafe { GlobalSize(global) };
+    if size != our_text_bytes(text.units) {
+        return None;
+    }
     let ptr = unsafe { GlobalLock(global) } as *const u16;
     if ptr.is_null() {
         return None;
     }
-    // SAFETY: bounded by the allocation size.
+    // SAFETY: `size` bytes, checked against the length of our own text.
     let units = unsafe { std::slice::from_raw_parts(ptr, size / 2) };
     let end = units.iter().position(|u| *u == 0).unwrap_or(units.len());
     let fp = text_fingerprint(&String::from_utf16_lossy(&units[..end]));
@@ -1164,19 +1209,21 @@ fn stable_seq() -> Option<u32> {
 /// stable sequence number, bracketed. `expected_owner == None` (NULL-owner
 /// fallback) additionally requires the number to equal `post_close`, the one
 /// read right after the close (NOT the in-open one: the close advances it).
-fn verify_write(expected_owner: Option<HWND>, post_close: u32) -> WriteVerdict {
+fn verify_write(expected_owner: Option<HWND>, in_open: u32, post_close: u32) -> WriteVerdict {
     let marker = marker_id();
     let mut last = WriteVerdict::Unstable(0);
     for attempt in 0..3 {
         let s1 = unsafe { GetClipboardSequenceNumber() };
-        let owner_ok = match expected_owner {
-            Some(ours) => unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours),
+        let owner_check = match expected_owner {
+            Some(ours) => OwnerCheck::Window {
+                matches: unsafe { GetClipboardOwner() }.is_ok_and(|now| now == ours),
+            },
             // NULL owner: no window to compare, the number must match too.
-            None => null_owner_ok(post_close, s1),
+            None => OwnerCheck::Null,
         };
         let marker_present = marker != 0 && unsafe { IsClipboardFormatAvailable(marker) }.is_ok();
         let s2 = unsafe { GetClipboardSequenceNumber() };
-        last = classify_write(owner_ok, marker_present, s1, s2);
+        last = write_verdict(owner_check, marker_present, in_open, post_close, s1, s2);
         if !matches!(last, WriteVerdict::Unstable(_)) {
             break;
         }

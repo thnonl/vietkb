@@ -109,6 +109,9 @@ pub enum Action<T> {
     DropSnapshot,
     /// A deadline ran out: this generation's data was dropped (log it).
     GiveUp(u64),
+    /// After a give-up: empty the clipboard if our temporary text is still on
+    /// it (the executor decides with `clipboard_plan::should_clear`).
+    ClearIfOurs,
 }
 
 #[derive(Debug)]
@@ -303,6 +306,8 @@ impl<T> SessionBook<T> {
             out.push(Action::GiveUp(e.generation));
             out.push(Action::Retire(e.payload));
         }
+        // The user's data is gone: do not leave our text behind for a Ctrl+V.
+        out.push(Action::ClearIfOurs);
         out.push(Action::StopTimer);
     }
 
@@ -1076,6 +1081,11 @@ mod tests {
 
     use std::collections::{HashMap, HashSet};
 
+    use crate::clipboard_plan::{
+        restore_action, restore_decision, should_clear, write_verdict, OwnerCheck, Rescue,
+        RestoreAction, WriteVerdict,
+    };
+
     /// xorshift64*, no dependencies.
     struct Rng(u64);
 
@@ -1110,7 +1120,14 @@ mod tests {
         Plain,
     }
 
-    /// The clipboard oracle: what is on the real clipboard.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Who {
+        Hook,
+        Null,
+        Foreign,
+    }
+
+    /// What is on the fake clipboard.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum Clip {
         Empty,
@@ -1118,15 +1135,72 @@ mod tests {
         User,
         /// Our temporary text (owner + marker ours).
         Temp,
-        /// A half-written state of ours (failed write / incomplete restore).
+        /// A failed write left our text without the marker.
         Partial,
+        /// A restore wrote the user's data only partly.
+        PartialRestore,
         /// Somebody else's content.
         Foreign,
+        /// A manager re-set exactly our plain text (owner foreign, no marker).
+        Stripped,
+        /// The user copied exactly the same plain text as ours.
+        ForeignSame,
     }
 
-    impl Clip {
-        fn ours(self) -> bool {
-            matches!(self, Clip::Temp | Clip::Partial)
+    /// A fake clipboard with the observable state the real proof looks at:
+    /// owner, sequence number (writes advance it, `CloseClipboard` advances it
+    /// by 3), marker, plain-text flag and the text fingerprint.
+    struct Fake {
+        seq: u32,
+        owner: Who,
+        marker: bool,
+        plain_only: bool,
+        text: Option<u64>,
+        clip: Clip,
+    }
+
+    impl Fake {
+        fn set(&mut self, owner: Who, marker: bool, plain: bool, text: Option<u64>, clip: Clip) {
+            self.owner = owner;
+            self.marker = marker;
+            self.plain_only = plain;
+            self.text = text;
+            self.clip = clip;
+        }
+
+        /// The hook wrote `fp` as our temporary text; returns the numbers it records.
+        fn hook_write(&mut self, fp: u64) -> OwnSeqs {
+            self.seq += 3; // Empty, text, marker
+            let in_open = self.seq;
+            self.set(Who::Hook, true, true, Some(fp), Clip::Temp);
+            self.seq += 3; // CloseClipboard
+            OwnSeqs { in_open, after_close: self.seq }
+        }
+
+        /// A failed write: emptied by us, our text set, marker NOT set.
+        fn hook_partial(&mut self, fp: u64, with_text: bool) -> OwnSeqs {
+            self.seq += 1;
+            let in_open = self.seq;
+            if with_text {
+                self.set(Who::Hook, false, true, Some(fp), Clip::Partial);
+            } else {
+                self.set(Who::Hook, false, true, None, Clip::Empty);
+            }
+            self.seq += 3;
+            OwnSeqs { in_open, after_close: self.seq }
+        }
+
+        fn foreign_copy(&mut self, same_text: Option<u64>, fp: u64) {
+            self.seq += 4;
+            match same_text {
+                Some(ours) => self.set(Who::Foreign, false, true, Some(ours), Clip::ForeignSame),
+                None => self.set(Who::Foreign, false, false, Some(fp), Clip::Foreign),
+            }
+        }
+
+        fn clear(&mut self) {
+            self.seq += 1;
+            self.set(Who::Null, false, true, None, Clip::Empty);
         }
     }
 
@@ -1146,11 +1220,16 @@ mod tests {
         last_done_gen: u64,
         restores: HashMap<u32, u32>,
         gave_up: u32,
-        clip: Clip,
+        fake: Fake,
         /// Generation of the session whose text is on the clipboard.
         clip_gen: u64,
         last_paste: u64,
+        /// Fingerprint of the last text the hook wrote.
+        our_fp: u64,
+        fp_counter: u64,
         foreign_survived: u32,
+        rescued: u32,
+        null_adopted: u32,
     }
 
     impl Model {
@@ -1169,10 +1248,21 @@ mod tests {
                 last_done_gen: 0,
                 restores: HashMap::new(),
                 gave_up: 0,
-                clip: Clip::User,
+                fake: Fake {
+                    seq: 100,
+                    owner: Who::Foreign,
+                    marker: false,
+                    plain_only: false,
+                    text: None,
+                    clip: Clip::User,
+                },
                 clip_gen: 0,
                 last_paste: 0,
+                our_fp: 0,
+                fp_counter: 1000,
                 foreign_survived: 0,
+                rescued: 0,
+                null_adopted: 0,
             }
         }
 
@@ -1182,9 +1272,19 @@ mod tests {
             self.next_id
         }
 
+        fn new_fp(&mut self) -> u64 {
+            self.fp_counter += 1;
+            self.fp_counter
+        }
+
         fn exit(&mut self, id: u32) {
             assert!(self.created.contains(&id), "unknown payload {id}");
             assert!(self.exited.insert(id), "payload {id} exited twice");
+        }
+
+        /// Our text (or a half-written state of it) is on the clipboard.
+        fn text_left(&self) -> bool {
+            matches!(self.fake.clip, Clip::Temp | Clip::Partial)
         }
 
         fn apply(&mut self, actions: Vec<Action<u32>>, ctx: Ctx) {
@@ -1226,7 +1326,7 @@ mod tests {
                             self.last_done_gen
                         );
                         // Never overwrite the text of a NEWER session.
-                        if self.clip.ours() {
+                        if self.text_left() {
                             assert!(
                                 job.generation >= self.clip_gen,
                                 "restore of gen {} over the text of gen {}",
@@ -1279,45 +1379,122 @@ mod tests {
                             "gave up at {} before the deadline {deadline}",
                             self.now
                         );
-                        // The executor empties the clipboard if our text is
-                        // still on it, so a later Ctrl+V cannot paste it.
-                        if self.clip.ours() {
-                            self.clip = Clip::Empty;
-                        }
                         self.gave_up += 1;
+                    }
+                    Action::ClearIfOurs => {
+                        // The executor's clear: same pure decision as the real one.
+                        let rescue = Some(Rescue {
+                            plain_only: self.fake.plain_only,
+                            text_equal: self.fake.text == Some(self.our_fp),
+                        });
+                        if should_clear(self.fake.owner == Who::Hook, self.fake.marker, rescue) {
+                            self.fake.clear();
+                        }
+                        // Nothing of ours may survive a give-up.
+                        assert!(
+                            !matches!(
+                                self.fake.clip,
+                                Clip::Temp | Clip::Partial | Clip::Stripped
+                            ),
+                            "our text ({:?}) survived the give-up",
+                            self.fake.clip
+                        );
                     }
                     Action::Snapshot | Action::SkipSnapshot | Action::DropSnapshot => {}
                 }
             }
         }
 
-        /// What a real executor would answer, given the clipboard.
+        /// One restore attempt against the fake clipboard, with the REAL pure
+        /// proof, write verdict and adoption rules.
+        fn attempt(&mut self, job: &RestoreJob<u32>, r: &mut Rng) -> RestoreResult {
+            if r.below(5) == 0 {
+                return RestoreResult::Busy;
+            }
+            // Attempts 3..4 open with the NULL owner; the proof keeps using ours.
+            let open_null = r.below(4) == 0;
+            let owner_is_ours = self.fake.owner == Who::Hook;
+            let owner_marker = owner_is_ours && self.fake.marker;
+            let base = restore_action(job.own, owner_marker, self.fake.seq);
+            let rescue = (!job.urgent && job.rounds == 0 && base == RestoreAction::Abandon)
+                .then_some(Rescue {
+                    plain_only: self.fake.plain_only,
+                    text_equal: self.fake.text == Some(self.our_fp),
+                });
+            let decision = restore_decision(
+                job.urgent,
+                job.own,
+                job.rounds,
+                owner_marker,
+                owner_is_ours,
+                self.fake.seq,
+                rescue,
+            );
+            if decision == RestoreAction::Abandon {
+                if matches!(self.fake.clip, Clip::Foreign | Clip::ForeignSame | Clip::Stripped) {
+                    self.foreign_survived += 1;
+                }
+                return RestoreResult::Foreign;
+            }
+            // What is being overwritten must be ours (or ours-equivalent).
+            match self.fake.clip {
+                Clip::Foreign => panic!("a restore overwrote genuinely foreign data"),
+                Clip::Stripped | Clip::ForeignSame => {
+                    assert!(
+                        job.rounds == 0 && !job.urgent,
+                        "text rescue outside round 0 / on urgent data"
+                    );
+                    self.rescued += 1;
+                }
+                _ => {}
+            }
+            let who = if open_null { Who::Null } else { Who::Hook };
+            if r.below(5) == 0 {
+                // Written only partly (marker set, user data incomplete).
+                self.fake.seq += 1;
+                let in_open = self.fake.seq;
+                self.fake.set(who, true, false, None, Clip::PartialRestore);
+                self.fake.seq += 3;
+                return RestoreResult::Incomplete {
+                    own: Some(OwnSeqs { in_open, after_close: self.fake.seq }),
+                };
+            }
+            self.fake.seq += 2;
+            let in_open = self.fake.seq;
+            self.fake.set(who, true, false, None, Clip::User);
+            self.fake.seq += 3; // CloseClipboard
+            let post_close = self.fake.seq;
+            // The probe after the close, with an occasional late bump.
+            let s1 = self.fake.seq;
+            if r.below(6) == 0 {
+                self.fake.seq += 1;
+            }
+            let s2 = self.fake.seq;
+            let owner_check = if open_null {
+                OwnerCheck::Null
+            } else {
+                OwnerCheck::Window { matches: self.fake.owner == Who::Hook }
+            };
+            let verdict = write_verdict(owner_check, self.fake.marker, in_open, post_close, s1, s2);
+            let adopt = match verdict {
+                WriteVerdict::Ours(a) | WriteVerdict::Unstable(a) => {
+                    Some(OwnSeqs { in_open, after_close: a })
+                }
+                WriteVerdict::Foreign => None,
+            };
+            // Marker present and the clipboard ours: the adoption must succeed on
+            // BOTH the window and the NULL-owner path (post-close comparison).
+            assert!(adopt.is_some(), "a restore we just wrote was not recognised as ours");
+            if open_null {
+                self.null_adopted += 1;
+            }
+            RestoreResult::Done { adopt }
+        }
+
         fn result(&mut self, r: &mut Rng) {
             let Some(job) = self.inflight.take() else { return };
             let generation = job.generation;
-            let result = if !self.clip.ours() {
-                // Not ours any more (a copy, a restore by someone else ...): the
-                // proof fails, the restore must NOT overwrite it.
-                RestoreResult::Foreign
-            } else {
-                match r.below(5) {
-                    0 => RestoreResult::Done { adopt: Some(own(70)) },
-                    1 => RestoreResult::Done { adopt: None },
-                    2 => RestoreResult::Busy,
-                    3 => RestoreResult::Incomplete { own: Some(own(71)) },
-                    _ => RestoreResult::Incomplete { own: None },
-                }
-            };
-            match result {
-                RestoreResult::Done { .. } => self.clip = Clip::User,
-                RestoreResult::Incomplete { .. } => self.clip = Clip::Partial,
-                RestoreResult::Foreign => {
-                    if self.clip == Clip::Foreign {
-                        self.foreign_survived += 1;
-                    }
-                }
-                RestoreResult::Busy => {}
-            }
+            let result = self.attempt(&job, r);
             let done = matches!(result, RestoreResult::Done { .. } | RestoreResult::Foreign);
             let actions = self.book.restore_result(job, result, self.now);
             if done {
@@ -1351,9 +1528,9 @@ mod tests {
             // (finished, foreign, discarded or given-up paths all clean up).
             if !self.book.pending() {
                 assert!(
-                    !self.clip.ours(),
+                    !self.text_left(),
                     "our text ({:?}) left on the clipboard with nothing pending",
-                    self.clip
+                    self.fake.clip
                 );
             }
         }
@@ -1365,46 +1542,59 @@ mod tests {
                 let actions = self.book.timer(self.now);
                 self.apply(actions, Ctx::Plain);
             }
-            match r.below(18) {
+            match r.below(20) {
                 0 | 1 if !self.flushing && self.inflight.is_none() => {
                     let id = self.new_id();
-                    let (generation, a) = self.book.start_session(id, own(id), self.now);
+                    self.our_fp = self.new_fp();
+                    let own_seqs = self.fake.hook_write(self.our_fp);
+                    let (generation, a) = self.book.start_session(id, own_seqs, self.now);
                     self.gens.insert(id, generation);
                     self.apply(a, Ctx::Gen(generation));
                     let a = self.book.paste_sent(self.now);
                     self.apply(a, Ctx::Plain);
-                    self.clip = Clip::Temp;
                     self.clip_gen = generation;
                     self.last_paste = self.now;
                 }
                 2 if !self.flushing && self.book.current_own().is_some() => {
-                    self.book.continue_session(own(9), self.now);
+                    self.our_fp = self.new_fp();
+                    let own_seqs = self.fake.hook_write(self.our_fp);
+                    self.book.continue_session(own_seqs, self.now);
                     let a = self.book.paste_sent(self.now);
                     self.apply(a, Ctx::Plain);
-                    self.clip = Clip::Temp;
                     self.last_paste = self.now;
                 }
                 3 if !self.flushing && self.book.current_own().is_some() => {
-                    let a = self.book.current_to_urgent(own(11), self.now);
+                    let fp = self.new_fp();
+                    let with_text = r.below(2) == 0;
+                    if with_text {
+                        self.our_fp = fp;
+                    }
+                    let own_seqs = self.fake.hook_partial(fp, with_text);
+                    let a = self.book.current_to_urgent(own_seqs, self.now);
                     self.apply(a, Ctx::Plain);
-                    self.clip = Clip::Partial;
                 }
                 4 if !self.flushing => {
                     let id = self.new_id();
-                    let (generation, a) = self.book.urgent_failed_write(id, own(id), self.now);
+                    let fp = self.new_fp();
+                    let with_text = r.below(2) == 0;
+                    if with_text {
+                        self.our_fp = fp;
+                    }
+                    let own_seqs = self.fake.hook_partial(fp, with_text);
+                    let (generation, a) = self.book.urgent_failed_write(id, own_seqs, self.now);
                     self.gens.insert(id, generation);
                     self.apply(a, Ctx::Gen(generation));
-                    self.clip = Clip::Partial;
                     self.clip_gen = generation;
                 }
                 5 => {
                     let had_current = self.book.current_own().is_some();
-                    let a = self.book.discard_current();
-                    self.apply(a, Ctx::Discard);
                     if had_current {
                         // Owner + marker proved somebody else wrote.
-                        self.clip = Clip::Foreign;
+                        let fp = self.new_fp();
+                        self.fake.foreign_copy(None, fp);
                     }
+                    let a = self.book.discard_current();
+                    self.apply(a, Ctx::Discard);
                 }
                 6 => {
                     let a = self.book.timer(self.now);
@@ -1431,11 +1621,25 @@ mod tests {
                     self.book.mode_on();
                 }
                 14 | 15 => {
-                    // The user copies something: foreign content, the listener
-                    // reports a change that is not ours.
-                    self.clip = Clip::Foreign;
+                    // The user copies something (a quarter of the time exactly
+                    // our plain text): the listener reports a foreign change.
+                    let fp = self.new_fp();
+                    let same = (r.below(4) == 0 && self.our_fp != 0).then_some(self.our_fp);
+                    self.fake.foreign_copy(same, fp);
                     let a = self.book.notification(false);
                     self.apply(a, Ctx::Plain);
+                }
+                16 if self.fake.clip == Clip::Temp => {
+                    // A manager re-sets our text without the marker.
+                    self.fake.seq += 4;
+                    let our_fp = self.our_fp;
+                    self.fake.set(Who::Foreign, false, true, Some(our_fp), Clip::Stripped);
+                    let a = self.book.notification(false);
+                    self.apply(a, Ctx::Plain);
+                }
+                17 => {
+                    // A late bump (a service reads our text): content unchanged.
+                    self.fake.seq += 1;
                 }
                 _ => {}
             }
@@ -1456,6 +1660,8 @@ mod tests {
             assert!(m.restores.values().any(|n| *n > 1), "seed {seed}: no retried restore");
             assert!(m.gave_up > 0, "seed {seed}: no flush gave up");
             assert!(m.foreign_survived > 0, "seed {seed}: no foreign copy met a restore");
+            assert!(m.rescued > 0, "seed {seed}: the text rescue never fired");
+            assert!(m.null_adopted > 0, "seed {seed}: no NULL-owner adoption");
         }
     }
 
@@ -1486,11 +1692,7 @@ mod tests {
             // the flush itself must add at least one.
             let attempts_before = newest.map(|n| m.restores.get(&n).copied().unwrap_or(0));
             let quit = r.below(2) == 0;
-            let (budget, _pace) = if quit {
-                (QUIT_BUDGET_MS, QUIT_RETRY_MS)
-            } else {
-                (MODE_OFF_BUDGET_MS, MODE_OFF_RETRY_MS)
-            };
+            let budget = if quit { QUIT_BUDGET_MS } else { MODE_OFF_BUDGET_MS };
             m.flushing = true;
             m.deadline = Some(m.now + budget);
             flushes += 1;
@@ -1520,7 +1722,7 @@ mod tests {
             }
             assert!(!m.book.pending(), "seed {seed}: a flush left data behind");
             assert!(m.inflight.is_none());
-            assert!(!m.clip.ours(), "seed {seed}: our text left behind after the flush");
+            assert!(!m.text_left(), "seed {seed}: our text left behind after the flush");
             for id in &present {
                 assert!(m.exited.contains(id), "seed {seed}: payload {id} never exited");
             }
@@ -1532,7 +1734,8 @@ mod tests {
                     "seed {seed}: newest payload {n} had {before} attempts at the flush, {after} after"
                 );
             }
-            // The give-up is exact: never later than the deadline.
+            // The give-up is exact on the book clock: never later than the
+            // deadline (the real timer adds SetTimer granularity, ~15 ms).
             assert!(
                 m.now - start <= budget,
                 "seed {seed}: flush took {} ms (budget {budget})",
