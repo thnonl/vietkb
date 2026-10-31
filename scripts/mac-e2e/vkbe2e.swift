@@ -844,6 +844,7 @@ func calibrateIdle() {
 
 func vietkbWindows(pid: Int32) -> [Win] { windows().filter { $0.pid == pid } }
 
+var guiStateRestored = true   // false when a GUI check left the engine toggled: GUI-5 then refuses to run
 /// GUI smoke: settings window, status item, menu. Pure screenshots + AX text; no typing except one Escape to close the menu.
 func guiSmoke(vkPid: Int32) throws {
     log("==== GUI smoke (VietKB pid \(vkPid)) ====")
@@ -867,8 +868,8 @@ func guiSmoke(vkPid: Int32) throws {
         let p = shotRegion(fr.insetBy(dx: -2, dy: -1), "gui-statusitem-on")
         let desc = (axCopy(item, kAXDescriptionAttribute as String) as? String ?? "") + " / " + (axCopy(item, kAXTitleAttribute as String) as? String ?? "")
         rows.append(["id": "GUI-3", "item": "menu-bar status item present", "verdict": "PASS", "evidence": p, "note": "AXExtrasMenuBar item frame \(fr), desc '\(desc)'"])
-        var (rc, fresh) = clickStatusItem(pid: vkPid, frame: fr, right: false)
-        if fresh.isEmpty { (rc, fresh) = clickStatusItem(pid: vkPid, frame: fr, right: true) }
+        // M10: a LEFT click toggles V/E; the menu opens on right click only. Never left-click here to "try" the menu.
+        let (rc, fresh) = clickStatusItem(pid: vkPid, frame: fr, right: true)
         if let m = fresh.max(by: { $0.bounds.height < $1.bounds.height }) {
             let mp = shot(m.id, "gui-statusitem-menu")
             rows.append(["id": "GUI-4", "item": "menu-bar menu opens", "verdict": "PASS", "evidence": mp, "note": "\(rc); menu window id \(m.id) owner \(m.owner) layer \(m.layer) \(m.bounds)"])
@@ -880,6 +881,30 @@ func guiSmoke(vkPid: Int32) throws {
             rows.append(["id": "GUI-4", "item": "menu-bar menu opens", "verdict": "FAIL", "evidence": "", "note": "\(rc), no new window appeared"])
         }
         usleep(400_000)
+        // GUI-4b (M10): left click flips V/E, a second left click flips back. The icon crop hash is the state probe.
+        func iconHash(_ name: String) -> String {
+            let rel = shotRegion((statusItem(pid: vkPid)?.1 ?? fr).insetBy(dx: -2, dy: -1), name)
+            return sh("/usr/bin/shasum", ["-a", "256", outDir + "/" + rel]).out.split(separator: " ").first.map(String.init) ?? ""
+        }
+        let h0 = iconHash("gui-statusitem-left-0-start")
+        _ = clickStatusItem(pid: vkPid, frame: fr, right: false); usleep(900_000)
+        let h1 = iconHash("gui-statusitem-left-1-after-click")
+        _ = clickStatusItem(pid: vkPid, frame: fr, right: false); usleep(900_000)
+        let h2 = iconHash("gui-statusitem-left-2-after-second-click")
+        var restored = h2 == h0
+        var fixNote = ""
+        if !restored { // restore the original state before anything else runs, and say so
+            _ = clickStatusItem(pid: vkPid, frame: fr, right: false); usleep(900_000)
+            let h3 = iconHash("gui-statusitem-left-3-restore")
+            restored = h3 == h0; fixNote = "; extra click needed to restore, restored=\(restored)"
+        }
+        let flips = !h0.isEmpty && h1 != h0 && h2 == h0
+        rows.append(["id": "GUI-4b", "item": "left click on the status item toggles V/E and a second left click toggles back (M10)", "verdict": flips ? "PASS" : "FAIL",
+                     "evidence": "shots/gui-statusitem-left-0-start.png / -1-after-click.png / -2-after-second-click.png",
+                     "note": "icon changed after click 1: \(h1 != h0), back after click 2: \(h2 == h0)\(fixNote)"])
+        rows.append(["id": "GUI-4c", "item": "original V/E state restored after the left-click checks (asserted before GUI-5)", "verdict": restored ? "PASS" : "FAIL",
+                     "evidence": "", "note": "icon equals the start icon: \(restored)"])
+        guiStateRestored = restored
     } else {
         rows.append(["id": "GUI-3", "item": "menu-bar status item present", "verdict": "FAIL", "evidence": "", "note": "no AXExtrasMenuBar item"])
     }
@@ -893,6 +918,15 @@ func guiSmoke(vkPid: Int32) throws {
 func guiToggle(vkPid: Int32, t: Target) throws {
     guard let (_, fr) = statusItem(pid: vkPid) else { log("no status item for toggle shot"); return }
     let a = shotRegion(fr.insetBy(dx: -2, dy: -1), "gui-statusitem-V-before-toggle")
+    func hh(_ rel: String) -> String { sh("/usr/bin/shasum", ["-a", "256", outDir + "/" + rel]).out.split(separator: " ").first.map(String.init) ?? "" }
+    // precondition: engine ON (V). GUI-3 stored the ON icon; a different icon means an earlier check left it toggled (D-MAC-48 root cause)
+    let onRef = outDir + "/shots/gui-statusitem-on.png"
+    if !guiStateRestored || (FileManager.default.fileExists(atPath: onRef) && hh(a) != hh("shots/gui-statusitem-on.png")) {
+        record(["target": "gui", "method": "-", "id": "GUI-5", "keys": "precondition", "expected": "engine ON (V) before the toggle check",
+                "actual": "icon differs from the start icon: an earlier check left the state toggled", "verdict": "FAIL", "evidence": a,
+                "note": "refused to send Ctrl+Shift; state not trusted (no cascade)"])
+        return
+    }
     try guardFront(t, "gui toggle")
     try typeScript("{CTRL+SHIFT}", speed: .fast, check: {})
     usleep(900_000)
@@ -905,7 +939,7 @@ func guiToggle(vkPid: Int32, t: Target) throws {
     try typeScript("{CTRL+SHIFT}", speed: .fast, check: {})
     usleep(900_000)
     let c = shotRegion((statusItem(pid: vkPid)?.1 ?? fr).insetBy(dx: -2, dy: -1), "gui-statusitem-V-after-second-toggle")
-    func h(_ rel: String) -> String { sh("/usr/bin/shasum", ["-a", "256", outDir + "/" + rel]).out.split(separator: " ").first.map(String.init) ?? "" }
+    func h(_ rel: String) -> String { hh(rel) }
     let differs = h(a) != h(b) && h(a) == h(c)
     record(["target": "gui", "method": "-", "id": "GUI-5", "keys": "{CTRL+SHIFT} x2 with 'tieengs' typed while off", "expected": "icon image changes V -> E -> V; text raw while off",
             "actual": "icon differs: \(h(a) != h(b)), restored: \(h(a) == h(c)); text while off: \(offText)", "verdict": (differs && offText == "tieengs") ? "PASS" : "FAIL",
