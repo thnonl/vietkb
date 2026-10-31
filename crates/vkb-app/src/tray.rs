@@ -334,12 +334,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .on_menu_event(|app, event| handle_event(app, event.id.as_ref()));
 
-    // Left click toggles Vietnamese on/off, the menu is right-click only (on
-    // macOS also ctrl-click, which AppKit delivers as a right click). Same on
-    // both platforms (M10).
+    // Left click toggles Vietnamese on/off, the menu is right-click only. Same
+    // on both platforms (M10). On macOS ctrl-click also opens the menu:
+    // tray-icon 0.25.1 reports it as a plain Left click with no modifier info,
+    // so the handler reads the live modifier flags itself.
     let builder = builder
         .show_menu_on_left_click(false)
-        .on_tray_icon_event(|_tray, event| {
+        .on_tray_icon_event(|tray, event| {
             // `Up`, not `Down`: one toggle per physical click.
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
@@ -347,6 +348,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
                 ..
             } = event
             {
+                #[cfg(target_os = "macos")]
+                if control_held() {
+                    show_menu_async(tray);
+                    return;
+                }
+                #[cfg(not(target_os = "macos"))]
+                let _ = tray;
                 toggle_from_left_click();
             }
         });
@@ -358,6 +366,27 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     builder.build(app)?;
 
     Ok(())
+}
+
+/// True while the Control key is down (`+[NSEvent modifierFlags]`, the state
+/// at the time of the call, which is the click we are handling).
+#[cfg(target_os = "macos")]
+fn control_held() -> bool {
+    use objc2_app_kit::{NSEvent, NSEventModifierFlags};
+    NSEvent::modifierFlags_class().contains(NSEventModifierFlags::Control)
+}
+
+/// Pop the tray menu programmatically. Tauri has no public call for it, so go
+/// through `with_inner_tray_icon` to tray-icon's `show_menu`, which attaches the
+/// menu to the NSStatusItem and `performClick`s its button. Done from a helper
+/// thread because `with_inner_tray_icon` blocks until the main thread has run
+/// the closure, and we are already inside a main-thread event callback.
+#[cfg(target_os = "macos")]
+fn show_menu_async(tray: &tauri::tray::TrayIcon) {
+    let tray = tray.clone();
+    std::thread::spawn(move || {
+        let _ = tray.with_inner_tray_icon(|inner| inner.show_menu());
+    });
 }
 
 /// Swallow the second half of a double-click. Windows reports a double-click on

@@ -28,7 +28,8 @@ static QUITTING: AtomicBool = AtomicBool::new(false);
 const MAIN_LABEL: &str = "main";
 
 /// Height of the custom caption the page draws on Windows. macOS windows use the
-/// native title bar (traffic lights) instead, so the page there is that much shorter.
+/// overlay title bar (traffic lights over the page) plus a page-drawn caption row
+/// of `MAC_CAPTION_PX` instead.
 const CAPTION_PX: f64 = 36.0;
 
 /// Height of the caption row the page draws under the overlay title bar on macOS
@@ -344,8 +345,9 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         .resizable(false)
         .maximizable(false)
         .minimizable(false)
-        // macOS keeps the native title bar (traffic lights); the page hides its
-        // own caption there (`data-platform="macos"`).
+        // macOS: native frame with an overlay title bar (traffic lights over the
+        // page, set below); the page draws its own mac caption row there
+        // (`.cap-bar.mac`). Windows: frameless, the page draws the caption.
         .decorations(cfg!(target_os = "macos"))
         // Frameless windows get no system border, so the native shadow is the
         // only thing separating this window from whatever is behind it. The 1 px

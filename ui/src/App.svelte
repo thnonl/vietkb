@@ -17,7 +17,7 @@
 
   onMount(() => {
     void app.init().then(() => {
-      // macOS: the native title bar takes height the page cannot use; grow to fit.
+      // macOS: grow the window if the sheet is taller than the estimated height.
       void document.fonts.ready.then(() => fitWindowToContent());
       const theme = new URLSearchParams(window.location.search).get("theme");
       if (theme === "light" || theme === "dark") app.applyTheme(theme);

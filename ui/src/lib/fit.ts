@@ -1,10 +1,10 @@
 // macOS: make the window's content area as tall as the page needs.
 //
-// The Rust side opens each window at the Windows content height minus the custom
-// caption, plus an estimate of the native title bar (`TITLEBAR_PT` in
-// crates/vkb-app/src/main.rs). The real title bar height differs between macOS
-// releases, and Tauri's `inner_size` on a decorated macOS window reports the
-// whole frame, not the area the page can use. So the page measures itself: if
+// The Rust side opens each window at the Windows content height with the caption
+// swapped for the 28 pt mac caption row (`MAC_CAPTION_PX` in
+// crates/vkb-app/src/main.rs). The window uses an overlay title bar, so the
+// webview covers the whole frame; fonts and the Accessibility banner can still
+// make the sheet taller than that estimate. So the page measures itself: if
 // the sheet's content is taller than the viewport it really has, the window
 // grows by the difference and nothing is clipped (D-MAC-02). It never shrinks
 // a window.
