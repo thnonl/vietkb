@@ -78,9 +78,11 @@ label → "Mở cùng macOS" (same `system.start_with_windows` key).
   screen, dialog, toast, banner, tray/menu-bar menu, tooltip and Rust-side user-facing message.
   This supersedes the contract C7 note that product terms and long copy stay Vietnamese-only.
 - Uses the existing `system.language` config key (`vi` | `en`); no schema change.
-- Quick toggle `VI | EN` sits next to the theme toggle in the title bar on Windows. On macOS
-  (native title bar, theme follows the system) it sits at the same top-right spot of the window
-  content. Switching applies instantly to every open window and the menu, no restart.
+- Quick toggle `VI | EN` sits next to the theme toggle in the title bar on Windows. On macOS it
+  sits at the same top-right spot of the window content, **next to a theme toggle** (owner,
+  2026-10-31: "Ở Mac cũng phải có toggle dark mode") with the same three states as Windows
+  (Theo hệ thống / Sáng / Tối, default Theo hệ thống on Mac), stored in `system.theme`. This
+  replaces the earlier rule that the Mac app always follows the system appearance. Switching applies instantly to every open window and the menu, no restart.
 - The GitHub Pages site gets an English version with a language switch in the header; Vietnamese
   stays the default at `/`, English at `/en/`. Both languages cover Windows and macOS.
 - English copy is written/polished by the copywriter; tone follows 90-copy-voice.md adapted to English.
