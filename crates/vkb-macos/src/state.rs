@@ -1206,7 +1206,7 @@ mod tests {
         // Capture starts while the key is still held: its repeats and key-up
         // stay swallowed, so the page never sees an unmatched key-down.
         *rig.capture.lock() = true;
-        let mut repeat = down.clone();
+        let mut repeat = down;
         repeat.autorepeat = true;
         assert_eq!(rig.rt.on_event(&repeat), Decision::SWALLOW);
         let up = RawEvent::key(EventKind::KeyUp, s, fl, Some('s'));
