@@ -439,14 +439,18 @@ pub fn set_autostart(enabled: bool) -> Result<bool, String> {
     AUTOSTART_SYNCED.store(true, Ordering::Relaxed);
     AUTOSTART_STATE.store(actual, Ordering::Relaxed);
 
-    let mut next = config_cell().read().clone();
-    next.system.start_with_windows = actual;
-    save_and_publish(next)?;
+    update_config(|cfg| {
+        cfg.system.start_with_windows = actual;
+        Ok(())
+    })?;
 
     Ok(actual)
 }
 
-pub(crate) fn save_and_publish(next: AppConfig) -> Result<SettingsView, String> {
+/// Persist `next` and store it in the live cell. The caller holds
+/// `CONFIG_WRITE`. Nothing here may wait on the main thread: the follow-up
+/// ([`after_change`], tray and window work) runs after the lock is released.
+fn commit_locked(next: AppConfig) -> Result<SettingsView, String> {
     vkb_config::save(&next).map_err(|error| error.to_string())?;
     let view = {
         let mut cfg = config_cell().write();
@@ -461,7 +465,6 @@ pub(crate) fn save_and_publish(next: AppConfig) -> Result<SettingsView, String> 
         *cfg = next;
         to_view(&cfg)
     };
-    after_change();
     Ok(view)
 }
 
@@ -701,36 +704,43 @@ pub fn patch_settings(patch: serde_json::Value) -> Result<SettingsView, String> 
 pub(crate) fn update_config(
     mutate: impl FnOnce(&mut AppConfig) -> Result<(), String>,
 ) -> Result<SettingsView, String> {
-    let _guard = CONFIG_WRITE.lock();
-    let mut draft = config_cell().read().clone();
-    mutate(&mut draft)?;
-    save_and_publish(draft)
+    let view = {
+        let _guard = CONFIG_WRITE.lock();
+        let mut draft = config_cell().read().clone();
+        mutate(&mut draft)?;
+        commit_locked(draft)?
+    };
+    // Outside the lock: the tray refresh and window retitle wait on the main
+    // thread, which may itself be blocked on `CONFIG_WRITE` in a sync command.
+    after_change();
+    Ok(view)
 }
 
 #[tauri::command]
 pub fn reset_settings(section: String) -> Result<SettingsView, String> {
     let defaults = AppConfig::default();
-    let mut draft = config_cell().read().clone();
-    match section.as_str() {
-        "input" => draft.input = defaults.input,
-        "typing" => draft.typing = defaults.typing,
-        "hotkeys" => draft.hotkeys = defaults.hotkeys,
-        "system" => draft.system = defaults.system,
-        "ui" => draft.ui = defaults.ui,
-        "apps" => draft.apps = defaults.apps,
-        // "all" resets settings, never the user's macros: those are data, not
-        // preferences, and losing 5000 of them to one click would be a defect.
-        "all" => {
-            draft.input = defaults.input;
-            draft.typing = defaults.typing;
-            draft.hotkeys = defaults.hotkeys;
-            draft.system = defaults.system;
-            draft.ui = defaults.ui;
-            draft.apps = defaults.apps;
+    update_config(|draft| {
+        match section.as_str() {
+            "input" => draft.input = defaults.input,
+            "typing" => draft.typing = defaults.typing,
+            "hotkeys" => draft.hotkeys = defaults.hotkeys,
+            "system" => draft.system = defaults.system,
+            "ui" => draft.ui = defaults.ui,
+            "apps" => draft.apps = defaults.apps,
+            // "all" resets settings, never the user's macros: those are data, not
+            // preferences, and losing 5000 of them to one click would be a defect.
+            "all" => {
+                draft.input = defaults.input;
+                draft.typing = defaults.typing;
+                draft.hotkeys = defaults.hotkeys;
+                draft.system = defaults.system;
+                draft.ui = defaults.ui;
+                draft.apps = defaults.apps;
+            }
+            other => return Err(format!("mục không hợp lệ: {other}")),
         }
-        other => return Err(format!("mục không hợp lệ: {other}")),
-    }
-    save_and_publish(draft)
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -740,11 +750,15 @@ pub fn get_status() -> StatusView {
 
 #[tauri::command]
 pub fn toggle_enabled() -> StatusView {
-    let mut draft = config_cell().read().clone();
-    draft.input.enabled = !draft.input.enabled;
-    let play_sound = draft.system.notification_sound;
-    let enabled = draft.input.enabled;
-    match save_and_publish(draft) {
+    let mut play_sound = false;
+    let mut enabled = false;
+    let saved = update_config(|draft| {
+        draft.input.enabled = !draft.input.enabled;
+        play_sound = draft.system.notification_sound;
+        enabled = draft.input.enabled;
+        Ok(())
+    });
+    match saved {
         Ok(view) => {
             // `after_change` already pushed the config; the flag itself is set
             // here too so the very next keystroke sees it, not the next tick.
@@ -798,9 +812,10 @@ fn status_view_from_view(view: &SettingsView) -> StatusView {
 pub fn set_method(method: String) -> Result<StatusView, String> {
     let parsed =
         InputMethod::from_str(&method).ok_or_else(|| crate::i18n::t("err.method.invalid"))?;
-    let mut draft = config_cell().read().clone();
-    draft.input.method = parsed;
-    let view = save_and_publish(draft)?;
+    let view = update_config(|draft| {
+        draft.input.method = parsed;
+        Ok(())
+    })?;
     Ok(status_view_from_view(&view))
 }
 
@@ -854,18 +869,22 @@ fn validate_macro(trigger: &str, expansion: &str) -> Result<(String, String), St
 #[tauri::command]
 pub fn upsert_macro(trigger: String, expansion: String) -> Result<(), String> {
     let (trigger, expansion) = validate_macro(&trigger, &expansion)?;
-    let mut draft = config_cell().read().clone();
-    draft.macros.insert(trigger, expansion);
-    save_and_publish(draft).map(|_| ())
+    update_config(|draft| {
+        draft.macros.insert(trigger, expansion);
+        Ok(())
+    })
+    .map(|_| ())
 }
 
 #[tauri::command]
 pub fn delete_macros(triggers: Vec<String>) -> Result<(), String> {
-    let mut draft = config_cell().read().clone();
-    for trigger in triggers {
-        draft.macros.remove(&trigger);
-    }
-    save_and_publish(draft).map(|_| ())
+    update_config(|draft| {
+        for trigger in triggers {
+            draft.macros.remove(&trigger);
+        }
+        Ok(())
+    })
+    .map(|_| ())
 }
 
 const MACRO_MAX_ROWS: usize = 5000;
@@ -951,11 +970,12 @@ pub fn import_macros(path: String) -> Result<usize, String> {
         return Err(crate::i18n::tf("err.import.noLines", &[("file", &display)]));
     }
 
-    let mut draft = config_cell().read().clone();
-    for (trigger, expansion) in &parsed {
-        draft.macros.insert(trigger.clone(), expansion.clone());
-    }
-    save_and_publish(draft)?;
+    update_config(|draft| {
+        for (trigger, expansion) in &parsed {
+            draft.macros.insert(trigger.clone(), expansion.clone());
+        }
+        Ok(())
+    })?;
     Ok(parsed.len())
 }
 
@@ -999,27 +1019,29 @@ pub fn set_app_rule(process: String, enabled: bool) -> Result<(), String> {
     if process.is_empty() {
         return Err(crate::i18n::t("err.rule.noProcess"));
     }
-    let mut draft = config_cell().read().clone();
-    let exists = draft
-        .apps
-        .rules
-        .iter()
-        .any(|rule| rule.process.eq_ignore_ascii_case(&process));
-    if exists {
-        if let Some(rule) = draft
+    update_config(|draft| {
+        let exists = draft
             .apps
             .rules
-            .iter_mut()
-            .find(|rule| rule.process.eq_ignore_ascii_case(&process))
-        {
+            .iter()
+            .any(|rule| rule.process.eq_ignore_ascii_case(&process));
+        if exists {
+            if let Some(rule) = draft
+                .apps
+                .rules
+                .iter_mut()
+                .find(|rule| rule.process.eq_ignore_ascii_case(&process))
+            {
+                rule.enabled = Some(enabled);
+            }
+        } else {
+            let mut rule = vkb_config::AppRule::new(process);
             rule.enabled = Some(enabled);
+            draft.apps.rules.push(rule);
         }
-    } else {
-        let mut rule = vkb_config::AppRule::new(process);
-        rule.enabled = Some(enabled);
-        draft.apps.rules.push(rule);
-    }
-    save_and_publish(draft).map(|_| ())
+        Ok(())
+    })
+    .map(|_| ())
 }
 
 /// Additive command (not in contract §6): the frozen `set_app_rule` can only
@@ -1040,33 +1062,37 @@ pub fn set_app_rule_overrides(
         None => None,
     };
 
-    let mut draft = config_cell().read().clone();
-    if let Some(rule) = draft
-        .apps
-        .rules
-        .iter_mut()
-        .find(|rule| rule.process.eq_ignore_ascii_case(&process))
-    {
-        rule.charset = charset;
-        rule.method = method;
-    } else {
-        let mut rule = vkb_config::AppRule::new(process);
-        rule.enabled = Some(true);
-        rule.charset = charset;
-        rule.method = method;
-        draft.apps.rules.push(rule);
-    }
-    save_and_publish(draft).map(|_| ())
+    update_config(|draft| {
+        if let Some(rule) = draft
+            .apps
+            .rules
+            .iter_mut()
+            .find(|rule| rule.process.eq_ignore_ascii_case(&process))
+        {
+            rule.charset = charset;
+            rule.method = method;
+        } else {
+            let mut rule = vkb_config::AppRule::new(process);
+            rule.enabled = Some(true);
+            rule.charset = charset;
+            rule.method = method;
+            draft.apps.rules.push(rule);
+        }
+        Ok(())
+    })
+    .map(|_| ())
 }
 
 #[tauri::command]
 pub fn delete_app_rule(process: String) -> Result<(), String> {
-    let mut draft = config_cell().read().clone();
-    draft
-        .apps
-        .rules
-        .retain(|rule| !rule.process.eq_ignore_ascii_case(&process));
-    save_and_publish(draft).map(|_| ())
+    update_config(|draft| {
+        draft
+            .apps
+            .rules
+            .retain(|rule| !rule.process.eq_ignore_ascii_case(&process));
+        Ok(())
+    })
+    .map(|_| ())
 }
 
 #[tauri::command]

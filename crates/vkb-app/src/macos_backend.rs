@@ -3,7 +3,7 @@
 //! Same shape as `windows_backend.rs`: the tap runs on its own run-loop thread
 //! and must never block on file I/O or tray work, so both callbacks only push an
 //! [`Event`] onto a channel. A single worker thread applies each event in order,
-//! through the config path the Tauri commands use (`save_and_publish`), which
+//! through the config path the Tauri commands use (`update_config`), which
 //! persists the file, refreshes the tray, emits `vkb:status` and pushes the new
 //! config into the tap (`vkb_macos::set_config`) without a restart.
 //!
@@ -30,7 +30,7 @@ use crate::commands;
 const RETRY_GAP: Duration = Duration::from_secs(5);
 
 /// Backend-side retry period while the tap is not installed. Cheap: one
-/// `AXIsProcessTrusted` call per tick, and the worker blocks once the tap runs.
+/// `is_hook_ready` check per tick once the tap runs.
 const TIMER_GAP: Duration = Duration::from_secs(3);
 
 enum Event {
@@ -107,9 +107,13 @@ fn timer_should_install(quitting: bool, hook_ready: bool, trusted: bool) -> bool
 /// then retries quietly.
 fn timer_tick() {
     static WARNED: AtomicBool = AtomicBool::new(false);
+    // Cheapest check first: a running tap needs nothing.
+    if vkb_macos::is_hook_ready() {
+        return;
+    }
     if !timer_should_install(
         crate::QUITTING.load(Ordering::SeqCst),
-        vkb_macos::is_hook_ready(),
+        false,
         vkb_macos::has_accessibility_permission(),
     ) {
         return;
@@ -185,13 +189,9 @@ pub fn push_config() {
 
 fn worker(events: Receiver<Event>) {
     loop {
-        // Wake periodically only while the tap is missing; once it runs, block.
-        let received = if vkb_macos::is_hook_ready() || crate::QUITTING.load(Ordering::SeqCst) {
-            events.recv().map_err(|_| RecvTimeoutError::Disconnected)
-        } else {
-            events.recv_timeout(TIMER_GAP)
-        };
-        let event = match received {
+        // Always wake: a tap that dies after install must be retried too.
+        // `timer_tick` is a no-op while the tap is ready.
+        let event = match events.recv_timeout(TIMER_GAP) {
             Ok(event) => event,
             Err(RecvTimeoutError::Timeout) => {
                 timer_tick();

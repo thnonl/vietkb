@@ -3,7 +3,7 @@
 //! The hook owns a message-loop thread and must never be blocked by file I/O
 //! or tray work, so both backend callbacks only push an [`Event`] onto a
 //! channel. A single worker thread applies each event in order, through the
-//! same config path the Tauri commands use (`save_and_publish`), which
+//! same config path the Tauri commands use (`update_config`), which
 //! persists the file, refreshes the tray, emits `vkb:status` and pushes the
 //! new config into the hook (`vkb_windows::set_config`) without a restart.
 //!
@@ -146,10 +146,11 @@ pub fn flush_perf() {
 
 /// Hotkey toggled Vietnamese on/off: make the file and the tray say the same.
 fn apply_enabled(enabled: bool) {
-    let mut draft = commands::config_cell().read().clone();
-    if draft.input.enabled != enabled {
-        draft.input.enabled = enabled;
-        if let Err(error) = commands::save_and_publish(draft) {
+    if commands::config_cell().read().input.enabled != enabled {
+        if let Err(error) = commands::update_config(|cfg| {
+            cfg.input.enabled = enabled;
+            Ok(())
+        }) {
             tracing::warn!(%error, enabled, "could not persist the enabled state");
         }
     } else if let Some(app) = commands::app_handle() {
@@ -194,9 +195,10 @@ fn apply_command(command: BackendCommand) {
 
 /// Read-modify-write the config through the commands' own save path.
 fn update(mutate: impl FnOnce(&mut AppConfig)) {
-    let mut draft = commands::config_cell().read().clone();
-    mutate(&mut draft);
-    if let Err(error) = commands::save_and_publish(draft) {
+    if let Err(error) = commands::update_config(|cfg| {
+        mutate(cfg);
+        Ok(())
+    }) {
         tracing::warn!(%error, "could not persist a hook-driven change");
     }
 }
@@ -220,22 +222,23 @@ fn toggle_app_exclude() {
         tracing::warn!("no foreground app to exclude");
         return;
     };
-    let mut draft = commands::config_cell().read().clone();
-    let global = draft.input.enabled;
-    match draft
-        .apps
-        .rules
-        .iter_mut()
-        .find(|rule| rule.process.eq_ignore_ascii_case(&process))
-    {
-        Some(rule) => rule.enabled = Some(!rule.enabled.unwrap_or(global)),
-        None => {
-            let mut rule = vkb_config::AppRule::new(process.clone());
-            rule.enabled = Some(!global);
-            draft.apps.rules.push(rule);
+    if let Err(error) = commands::update_config(|draft| {
+        let global = draft.input.enabled;
+        match draft
+            .apps
+            .rules
+            .iter_mut()
+            .find(|rule| rule.process.eq_ignore_ascii_case(&process))
+        {
+            Some(rule) => rule.enabled = Some(!rule.enabled.unwrap_or(global)),
+            None => {
+                let mut rule = vkb_config::AppRule::new(process.clone());
+                rule.enabled = Some(!global);
+                draft.apps.rules.push(rule);
+            }
         }
-    }
-    if let Err(error) = commands::save_and_publish(draft) {
+        Ok(())
+    }) {
         tracing::warn!(%error, process, "could not persist the app rule");
     }
 }
