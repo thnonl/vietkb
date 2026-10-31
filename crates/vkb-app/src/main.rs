@@ -2,6 +2,8 @@
 
 mod commands;
 mod running_apps;
+#[cfg(target_os = "macos")]
+mod macos_shell;
 mod tray;
 mod update;
 #[cfg(any(windows, target_os = "macos"))]
@@ -66,19 +68,60 @@ fn main_content_height() -> f64 {
 
 /// Disable the main window for a modal.
 ///
-/// macOS: `set_enabled(false)` begins a sheet on the window, which is not
-/// idempotent — a second call with the modal already up stacks another sheet and
-/// wedges the parent. Skip it when the window is already disabled. Windows keeps
-/// its unconditional call.
+/// Windows: `EnableWindow(false)`. macOS: no sheet. `set_enabled(false)` there
+/// begins a half-transparent sheet the size of the main window; it is ordered
+/// above the main window's child windows too, so it painted over the modal and
+/// the modal looked hidden (D-MAC-04). The modal stays above its parent as a
+/// child window and `refocus_modal` hands focus back to it whenever the main
+/// window is activated while a modal is open.
 fn disable_for_modal(main: &tauri::WebviewWindow) {
-    #[cfg(target_os = "macos")]
-    if matches!(main.is_enabled(), Ok(false)) {
-        return;
-    }
+    #[cfg(not(target_os = "macos"))]
     if let Err(error) = main.set_enabled(false) {
         tracing::warn!(%error, "could not disable the main window for a modal");
     }
+    #[cfg(target_os = "macos")]
+    let _ = main;
 }
+
+/// macOS modality: the main window never keeps focus while a modal is open.
+#[cfg(target_os = "macos")]
+fn refocus_modal(app: &tauri::AppHandle) {
+    let modal = AUX_LABELS
+        .iter()
+        .find_map(|label| app.get_webview_window(label));
+    if let Some(modal) = modal {
+        let _ = modal.set_focus();
+    }
+}
+
+/// Make the app a regular (Dock) app and bring it to the front. A window of an
+/// Accessory app opens behind whatever app is frontmost and cannot take focus,
+/// so every window that is about to show calls this first (D-MAC-04/05, M3).
+#[cfg(target_os = "macos")]
+fn enter_foreground(app: &tauri::AppHandle) {
+    if let Err(error) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
+        tracing::warn!(%error, "could not show the Dock icon");
+    }
+    macos_shell::activate(app);
+}
+#[cfg(not(target_os = "macos"))]
+fn enter_foreground(_app: &tauri::AppHandle) {}
+
+/// Back to a menu-bar-only app once no window is left.
+#[cfg(target_os = "macos")]
+fn leave_foreground_if_idle(app: &tauri::AppHandle, closing: &str) {
+    let any = app
+        .webview_windows()
+        .keys()
+        .any(|label| label.as_str() != closing);
+    if !any {
+        if let Err(error) = app.set_activation_policy(tauri::ActivationPolicy::Accessory) {
+            tracing::warn!(%error, "could not hide the Dock icon");
+        }
+    }
+}
+#[cfg(not(target_os = "macos"))]
+fn leave_foreground_if_idle(_app: &tauri::AppHandle, _closing: &str) {}
 
 /// Bring the settings window forward from anywhere (tray, hotkey, second
 /// launch), building it if it is not there yet.
@@ -122,6 +165,7 @@ pub fn show_settings_tab(app: &tauri::AppHandle, tab: &str) {
 }
 
 fn open_settings(app: &tauri::AppHandle) {
+    enter_foreground(app);
     if let Some(window) = app.get_webview_window(MAIN_LABEL) {
         let _ = window.show();
         let _ = window.unminimize();
@@ -179,6 +223,7 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         other => return Err(format!("cửa sổ không hợp lệ: {other}")),
     };
 
+    enter_foreground(app);
     let main = app.get_webview_window(MAIN_LABEL);
 
     if let Some(window) = app.get_webview_window(label) {
@@ -569,15 +614,23 @@ fn main() {
                 #[cfg(windows)]
                 crate::windows_backend::flush_perf();
             }
-            WindowEvent::Destroyed => match window.label() {
-                MAIN_LABEL => close_aux(window.app_handle()),
-                label if AUX_LABELS.contains(&label) => {
-                    if let Some(main) = window.app_handle().get_webview_window(MAIN_LABEL) {
-                        let _ = main.set_enabled(true);
+            WindowEvent::Destroyed => {
+                match window.label() {
+                    MAIN_LABEL => close_aux(window.app_handle()),
+                    #[cfg(not(target_os = "macos"))]
+                    label if AUX_LABELS.contains(&label) => {
+                        if let Some(main) = window.app_handle().get_webview_window(MAIN_LABEL) {
+                            let _ = main.set_enabled(true);
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
-            },
+                leave_foreground_if_idle(window.app_handle(), window.label());
+            }
+            #[cfg(target_os = "macos")]
+            WindowEvent::Focused(true) if window.label() == MAIN_LABEL => {
+                refocus_modal(window.app_handle());
+            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
@@ -620,6 +673,13 @@ fn main() {
         .expect("error while building VietKB");
 
     app.run(|_handle, event| match event {
+        // Dock click with no window on screen (macOS): the settings window.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { has_visible_windows, .. } => {
+            if !has_visible_windows {
+                show_settings(_handle);
+            }
+        }
         // Destroying the last window asks for an exit. In tray mode the answer
         // is no: the tray icon and the keyboard hook are the app, and the
         // settings window comes back on demand. A requested exit (the tray's
