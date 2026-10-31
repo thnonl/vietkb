@@ -47,7 +47,7 @@ US spelling ("recognize", "capitalization"). Contractions in messages and errors
 - phím tắt → **shortcut** / window **Shortcuts** — keyboard shortcuts only. "tổ hợp phím" → "key combination" only when the combination itself is meant.
 - Chuyển bật / tắt (hotkey) → **Vietnamese on/off**.
 - Khởi động cùng Windows → **Start with Windows**.
-- Mở cùng macOS → **Open at login** — Apple's wording (Login Items).
+- Mở cùng macOS → **Start with macOS** — mirrors Windows' "Start with Windows" (owner rule M10: consistent with Windows).
 - Chạy ẩn → **Start hidden**.
 - Thoát hẳn / Thoát VietKB → **Quit** / **Quit VietKB**.
 - Nâng cao → **Advanced**. Giới thiệu → **About**.

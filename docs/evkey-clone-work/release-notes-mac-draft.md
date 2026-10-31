@@ -1,4 +1,6 @@
-# VietKB cho macOS (bản nháp)
+# VietKB cho macOS (bản nháp — đã thay thế)
+
+> Bản nháp này đã được thay bằng phần *Cài trên macOS* trong `release-notes-0.2.7.md`. Giữ lại để tham khảo; không dùng để phát hành.
 
 Bản đầu tiên cho Mac. Một tệp `.dmg` dùng được cho cả máy Apple silicon (M1 trở lên) lẫn máy Intel. Cần macOS 11 trở lên.
 
