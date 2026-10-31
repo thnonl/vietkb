@@ -178,30 +178,6 @@ pub fn restore_retry(rounds_done: u32) -> Option<u32> {
     DELAYS_MS.get(rounds_done as usize).copied()
 }
 
-/// FNV-1a over the UTF-16 units of the text we put on the clipboard. A clipboard
-/// manager / cloud sync / RDP may re-set our temporary text without our marker;
-/// equal text still means "our content" for the restore decision.
-pub fn text_fingerprint(text: &str) -> u64 {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for unit in text.encode_utf16() {
-        for byte in unit.to_le_bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-    }
-    hash
-}
-
-/// A restore the sequence/owner/marker checks would abandon still goes ahead
-/// when the clipboard text is exactly what we wrote (`text_equal`).
-pub fn restore_action_text(base: RestoreAction, text_equal: bool) -> RestoreAction {
-    if base == RestoreAction::Abandon && text_equal {
-        RestoreAction::Restore
-    } else {
-        base
-    }
-}
-
 /// Restore attempts 0..3 open the clipboard with the hook's owner window; the
 /// later ones fall back to the NULL owner (the handle may have gone stale).
 /// Proof checks always use the hook owner, whichever handle opened.
@@ -223,19 +199,13 @@ pub fn urgent_proof(owner_is_ours: bool, seq_matches: bool) -> bool {
     owner_is_ours || seq_matches
 }
 
-/// Is the clipboard plain text only (the formats Windows derives from one
-/// `CF_UNICODETEXT`, plus our own flags and marker)? Only then may "same text"
-/// rescue a restore: anything richer is somebody else's content.
-pub fn plain_text_only<'a>(formats: impl IntoIterator<Item = (u32, Option<&'a str>)>) -> bool {
-    formats.into_iter().all(|(id, name)| {
-        matches!(id, CF_TEXT | CF_UNICODETEXT | 7 | 16)
-            || matches!(classify_format(id, name), FormatClass::Flag | FormatClass::Marker)
-    })
-}
+/// Total user-data bytes the hook may leave queued for the worker to zero and
+/// free. Above this the caller frees on its own thread (rare) and logs.
+pub const MAX_GARBAGE_BYTES: usize = 128 << 20;
 
-/// The fingerprint rescue is allowed once, on plain text only (`rounds == 0`).
-pub fn text_rescue_allowed(rounds: u32, plain_only: bool) -> bool {
-    rounds == 0 && plain_only
+/// `true` = queue `add` bytes for the worker; `false` = over the cap, free now.
+pub fn garbage_admit(retained: usize, add: usize) -> bool {
+    retained.saturating_add(add) <= MAX_GARBAGE_BYTES
 }
 
 /// NULL-owner fallback (no window to compare): the marker alone proves nothing,
@@ -680,25 +650,6 @@ mod tests {
     }
 
     #[test]
-    fn text_rescue_is_plain_text_and_first_round_only() {
-        let plain = [
-            (CF_UNICODETEXT, None),
-            (CF_TEXT, None),
-            (7, None),
-            (16, None),
-            (0xC001, Some("CanIncludeInClipboardHistory")),
-            (0xC002, Some(OWNED_MARKER)),
-        ];
-        assert!(plain_text_only(plain));
-        // Anything richer is somebody else's content.
-        assert!(!plain_text_only([(CF_UNICODETEXT, None), (0xC0A1, Some("HTML Format"))]));
-        assert!(!plain_text_only([(CF_UNICODETEXT, None), (CF_DIB, None)]));
-        assert!(text_rescue_allowed(0, true));
-        assert!(!text_rescue_allowed(1, true));
-        assert!(!text_rescue_allowed(0, false));
-    }
-
-    #[test]
     fn restore_rounds_back_off_then_park() {
         assert_eq!(restore_retry(0), Some(500));
         assert_eq!(restore_retry(MAX_RESTORE_ROUNDS - 1), Some(2000));
@@ -707,33 +658,18 @@ mod tests {
     }
 
     #[test]
-    fn fingerprint_tells_our_text_apart() {
-        assert_eq!(text_fingerprint("tiếng"), text_fingerprint("tiếng"));
-        assert_ne!(text_fingerprint("tiếng"), text_fingerprint("tieng"));
-        assert_ne!(text_fingerprint(""), text_fingerprint("a"));
-    }
-
-    #[test]
-    fn same_text_rescues_an_abandoned_restore() {
-        assert_eq!(
-            restore_action_text(RestoreAction::Abandon, true),
-            RestoreAction::Restore
-        );
-        assert_eq!(
-            restore_action_text(RestoreAction::Abandon, false),
-            RestoreAction::Abandon
-        );
-        assert_eq!(
-            restore_action_text(RestoreAction::Restore, false),
-            RestoreAction::Restore
-        );
-    }
-
-    #[test]
     fn null_owner_needs_a_sequence_match() {
         assert!(null_owner_ok(10, 10));
         assert!(!null_owner_ok(10, 13));
         assert!(!null_owner_ok(0, 0));
+    }
+
+    #[test]
+    fn garbage_queue_is_capped_by_bytes() {
+        assert!(garbage_admit(0, MAX_GARBAGE_BYTES));
+        assert!(!garbage_admit(0, MAX_GARBAGE_BYTES + 1));
+        assert!(!garbage_admit(MAX_GARBAGE_BYTES - 1, 2));
+        assert!(!garbage_admit(usize::MAX, 1));
     }
 }
 
