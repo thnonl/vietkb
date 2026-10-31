@@ -386,6 +386,38 @@ pub fn may_read(owner_is_ours_or_none: bool, probe_answered: bool) -> bool {
     owner_is_ours_or_none || probe_answered
 }
 
+/// What to do with the user's data when writing our temporary text failed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FailedWrite {
+    /// The clipboard was already emptied: the user's data exists only in
+    /// memory, queue its restore (urgent).
+    Urgent,
+    /// `EmptyClipboard` failed, nothing changed and the user's data is still on
+    /// the clipboard: drop our copy of the snapshot (a fresh one follows).
+    RetireSnapshot,
+    /// Nothing changed and there is no new data: the running session stays as is.
+    KeepSession,
+}
+
+/// `starting`: this paste would have started a session from a snapshot.
+/// `emptied`: `EmptyClipboard` succeeded before the write failed.
+pub fn failed_write_plan(starting: bool, emptied: bool) -> FailedWrite {
+    match (emptied, starting) {
+        (true, _) => FailedWrite::Urgent,
+        (false, true) => FailedWrite::RetireSnapshot,
+        (false, false) => FailedWrite::KeepSession,
+    }
+}
+
+/// Length of the text in a `CF_UNICODETEXT` buffer that may hold more than our
+/// text: the index of the first NUL within the first `our_units + 1` units.
+/// `None` = no terminator that early, so the text is longer than ours (cannot be
+/// ours); never reads or decodes beyond our own length.
+pub fn bounded_text_len(units: &[u16], our_units: usize) -> Option<usize> {
+    let bound = units.len().min(our_units + 1);
+    units[..bound].iter().position(|u| *u == 0)
+}
+
 /// The size our text occupies as `CF_UNICODETEXT` (units + the terminator).
 /// A clipboard text of any other size cannot be ours: compare before decoding.
 pub fn our_text_bytes(units: usize) -> usize {
@@ -812,6 +844,33 @@ mod tests {
         // A foreign owner: only with an answered probe taken with the clipboard open.
         assert!(may_read(false, true));
         assert!(!may_read(false, false));
+    }
+
+    #[test]
+    fn failed_writes_are_handled_by_what_they_changed() {
+        // Emptied: the data lives only in memory, restore it.
+        assert_eq!(failed_write_plan(true, true), FailedWrite::Urgent);
+        assert_eq!(failed_write_plan(false, true), FailedWrite::Urgent);
+        // EmptyClipboard failed: the user's data is untouched on the clipboard.
+        assert_eq!(failed_write_plan(true, false), FailedWrite::RetireSnapshot);
+        assert_eq!(failed_write_plan(false, false), FailedWrite::KeepSession);
+    }
+
+    #[test]
+    fn bounded_text_len_never_looks_past_our_length() {
+        let ours = [b'a' as u16, b'b' as u16, 0];
+        assert_eq!(bounded_text_len(&ours, 2), Some(2));
+        // A bigger buffer with our text and garbage after the NUL.
+        let big = [b'a' as u16, b'b' as u16, 0, 7, 7, 7];
+        assert_eq!(bounded_text_len(&big, 2), Some(2));
+        // A longer foreign text: no terminator within our length + 1.
+        let longer = [b'a' as u16, b'b' as u16, b'c' as u16, 0];
+        assert_eq!(bounded_text_len(&longer, 2), None);
+        // A buffer shorter than the bound without a NUL.
+        assert_eq!(bounded_text_len(&[1, 2], 5), None);
+        assert_eq!(bounded_text_len(&[], 0), None);
+        // An empty text of ours.
+        assert_eq!(bounded_text_len(&[0, 9], 0), Some(0));
     }
 
     #[test]

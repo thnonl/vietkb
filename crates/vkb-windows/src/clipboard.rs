@@ -42,8 +42,8 @@ use vkb_platform::clipboard_book::{
 use vkb_platform::clipboard_plan::{
     classify_format, decide_paste, flag_blocks_snapshot, format_count_ok,
     garbage_admit, notification_is_ours, open_retry_delay, ownership,
-    may_read, our_text_bytes, restore_decision, should_clear, text_fingerprint,
-    write_verdict, OwnerCheck,
+    bounded_text_len, failed_write_plan, may_read, our_text_bytes, restore_decision,
+    should_clear, text_fingerprint, write_verdict, FailedWrite, OwnerCheck,
     snapshot_stable, snapshot_verdict, uses_hook_owner, within_budget, FormatClass,
     OwnSeqs, Ownership, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER,
     PRIVACY_FORMATS, REFRESH_DELAY_MS, REGISTERED_FIRST,
@@ -86,6 +86,8 @@ const WM_APP_FLUSH: u32 = 0x8000 + 0x23;
 const WM_APP_GC: u32 = 0x8000 + 0x24;
 /// Run the restore timer logic now (urgent data is waiting).
 const WM_APP_KICK: u32 = 0x8000 + 0x25;
+/// Take a fresh snapshot (after the debounce).
+const WM_APP_RESNAP: u32 = 0x8000 + 0x26;
 const TIMER_SETTLE: usize = 1;
 const TIMER_REFRESH: usize = 2;
 
@@ -467,6 +469,13 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     if unsafe { GetClipboardSequenceNumber() } != current {
         return false;
     }
+    // The owner may have changed since the probe above: probe the CURRENT owner
+    // again, now that the clipboard is open, before the first write
+    // (`EmptyClipboard` sends `WM_DESTROYCLIPBOARD` to it, synchronously). Our
+    // own window or nobody needs no probe. No answer: the guard closes, type.
+    if !clipboard_owner_responsive(20) {
+        return false;
+    }
     // The snapshot moves into the plan BEFORE anything is written (a missing
     // one, which the decision above rules out, just means "type").
     let plan = match decision {
@@ -479,25 +488,46 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     // Our text is recorded BEFORE the write, so the leftover of a failing write
     // is recognised by `clear_if_ours` too.
     shared.text = OurText::of(text);
-    let Some(in_open) = write_temp_text(text) else {
-        // Possibly emptied half way. The clipboard is still open: record its
-        // sequence number (and the one after the close) as the proof the
-        // worker restores against, close, and queue the restore (up to 64 MB,
-        // never restored on the hook thread). Then type instead.
-        let failed_open = unsafe { GetClipboardSequenceNumber() };
-        drop(guard);
-        let failed_own =
-            OwnSeqs { in_open: failed_open, after_close: unsafe { GetClipboardSequenceNumber() } };
-        let actions = match plan {
-            Plan::Continue => shared.book.current_to_urgent(failed_own, now_ms()),
-            Plan::Start(snap) => {
-                shared.book.urgent_failed_write(snap.data, failed_own, now_ms()).1
+    let in_open = match write_temp_text(text) {
+        Ok(seq) => seq,
+        Err(failure) => {
+            let starting = matches!(plan, Plan::Start(_));
+            match failed_write_plan(starting, failure == WriteFailure::Emptied) {
+                FailedWrite::Urgent => {
+                    // The clipboard was emptied. It is still open: record its
+                    // sequence number (and the one after the close) as the
+                    // proof the worker restores against, close, and queue the
+                    // restore (up to 64 MB, never restored on the hook thread).
+                    let failed_open = unsafe { GetClipboardSequenceNumber() };
+                    drop(guard);
+                    let failed_own = OwnSeqs {
+                        in_open: failed_open,
+                        after_close: unsafe { GetClipboardSequenceNumber() },
+                    };
+                    let actions = match plan {
+                        Plan::Continue => shared.book.current_to_urgent(failed_own, now_ms()),
+                        Plan::Start(snap) => {
+                            shared.book.urgent_failed_write(snap.data, failed_own, now_ms()).1
+                        }
+                    };
+                    exec_locked(&mut shared, actions);
+                    drop(shared);
+                    post_worker(WM_APP_KICK);
+                }
+                FailedWrite::RetireSnapshot => {
+                    // EmptyClipboard failed: the user's data is still on the
+                    // clipboard. Drop our copy and take a fresh snapshot later.
+                    drop(guard);
+                    if let Plan::Start(snap) = plan {
+                        exec_locked(&mut shared, vec![Action::Retire(snap.data)]);
+                    }
+                    drop(shared);
+                    post_worker(WM_APP_RESNAP);
+                }
+                FailedWrite::KeepSession => drop(guard),
             }
-        };
-        exec_locked(&mut shared, actions);
-        drop(shared);
-        post_worker(WM_APP_KICK);
-        return false;
+            return false;
+        }
     };
     // CloseClipboard advances the sequence number (D-WIN-16), so the number that
     // identifies OUR write is only known after the close, and only trusted when
@@ -634,6 +664,10 @@ unsafe extern "system" fn worker_proc(
                 let actions = SHARED.lock().book.paste_sent(now_ms());
                 drive(hwnd, actions);
             });
+            LRESULT(0)
+        }
+        WM_APP_RESNAP => {
+            unsafe { SetTimer(hwnd, TIMER_REFRESH, REFRESH_DELAY_MS, None) };
             LRESULT(0)
         }
         WM_APP_KICK => {
@@ -1079,25 +1113,29 @@ fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
 /// Clipboard must be open and OUR window must own it (the only caller,
 /// `clear_if_ours`, checks that first: this function does no owner probe and
 /// must never read a foreign clipboard). Fingerprint of the current
-/// `CF_UNICODETEXT`, but only when its size is exactly that of our text:
-/// anything else cannot be ours and is never decoded.
+/// `CF_UNICODETEXT`: the allocation must be at least as big as our text, and
+/// only the first `units + 1` units are looked at (NUL-terminated within our
+/// length, else it is not ours): nothing longer is ever decoded.
 fn clipboard_text_fp(text: OurText) -> Option<u64> {
     let handle = unsafe { GetClipboardData(CF_UNICODETEXT) }.ok().filter(|h| !h.is_invalid())?;
     let global = HGLOBAL(handle.0);
     let size = unsafe { GlobalSize(global) };
-    if size != our_text_bytes(text.units) {
+    // The allocation may be larger than our text (providers round up): accept
+    // anything at least as big, but look at our length + 1 units only.
+    if size < our_text_bytes(text.units) {
         return None;
     }
     let ptr = unsafe { GlobalLock(global) } as *const u16;
     if ptr.is_null() {
         return None;
     }
-    // SAFETY: `size` bytes, checked against the length of our own text.
-    let units = unsafe { std::slice::from_raw_parts(ptr, size / 2) };
-    let end = units.iter().position(|u| *u == 0).unwrap_or(units.len());
-    let fp = text_fingerprint(&String::from_utf16_lossy(&units[..end]));
+    // SAFETY: at least `our_text_bytes(units)` = 2 * (units + 1) bytes, and we
+    // never look past units + 1 units.
+    let units = unsafe { std::slice::from_raw_parts(ptr, text.units + 1) };
+    let fp = bounded_text_len(units, text.units)
+        .map(|end| text_fingerprint(&String::from_utf16_lossy(&units[..end])));
     let _ = unsafe { GlobalUnlock(global) };
-    Some(fp)
+    fp
 }
 
 /// Clipboard must be open. First `DWORD` of a (tiny) flag format.
@@ -1117,24 +1155,36 @@ fn read_dword(id: u32) -> Option<u32> {
     Some(value)
 }
 
+/// How far a failed [`write_temp_text`] got.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WriteFailure {
+    /// `EmptyClipboard` failed: nothing changed.
+    NotEmptied,
+    /// The clipboard was emptied, then a later step failed.
+    Emptied,
+}
+
 /// Clipboard must be open. Replaces it with `text` (opt-out flags included) and
-/// returns the sequence number right after the write, `None` on any failure.
-fn write_temp_text(text: &str) -> Option<u32> {
+/// returns the sequence number right after the write.
+fn write_temp_text(text: &str) -> Result<u32, WriteFailure> {
     let mut units: Vec<u16> = text.encode_utf16().collect();
     units.push(0);
     let bytes: Vec<u8> = units.iter().flat_map(|u| u.to_le_bytes()).collect();
-    unsafe { EmptyClipboard() }.ok()?;
+    unsafe { EmptyClipboard() }.map_err(|_| WriteFailure::NotEmptied)?;
     if !set_bytes(CF_UNICODETEXT, &bytes) {
-        return None;
+        return Err(WriteFailure::Emptied);
     }
     set_privacy_flags();
     // Without the marker the bracket could never recognise this write: treat a
     // failure like any other failed write.
     if !set_marker() {
-        return None;
+        return Err(WriteFailure::Emptied);
     }
     let seq = unsafe { GetClipboardSequenceNumber() };
-    (seq != 0).then_some(seq)
+    if seq == 0 {
+        return Err(WriteFailure::Emptied);
+    }
+    Ok(seq)
 }
 
 fn marker_id() -> u32 {
