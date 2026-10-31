@@ -261,6 +261,13 @@ impl HookRuntime {
             trace.stage("own-injection");
             return Decision::PASS;
         }
+        // Capturing a shortcut (spec C.6 step 2): synthetic text packets (IME,
+        // on-screen keyboard, other injectors) must not reach the engine either.
+        if vk == keys::VK_PACKET && globals::hotkey_capture() {
+            trace.stage("capture-packet");
+            self.reset_engine();
+            return Decision::PASS;
+        }
         let packet_char = if vk == keys::VK_PACKET {
             let Some(ch) = char::from_u32(u32::from(info.scanCode as u16)) else {
                 trace.stage("invalid-packet");
@@ -335,6 +342,21 @@ impl HookRuntime {
         let repeat = down && was_down;
         self.sync_global_toggle();
 
+        // Capturing a new shortcut (spec C.6 step 2): nothing is matched,
+        // converted or swallowed, so the chord reaches the page being recorded
+        // into. The key-up of a trigger swallowed before capture began is still
+        // swallowed.
+        if globals::hotkey_capture() {
+            self.hotkeys.discard_latches();
+            if !down && !is_modifier && self.take_trigger_swallowed(vk) {
+                trace.stage("capture-trigger-up");
+                return Decision::SWALLOW;
+            }
+            trace.stage("capture");
+            self.reset_engine();
+            return Decision::PASS;
+        }
+
         // A trigger key-down that was swallowed stays swallowed for as long as it
         // is held: an auto-repeat follows the bit, not the matcher latch (the
         // chord's modifier may already be up). A fresh key-down never inherits a
@@ -351,21 +373,6 @@ impl HookRuntime {
                 return Decision::SWALLOW;
             }
             self.set_trigger_swallowed(vk, false);
-        }
-
-        // Capturing a new shortcut (spec C.6 step 2): nothing is matched,
-        // converted or swallowed, so the chord reaches the page being recorded
-        // into. The key-up of a trigger swallowed before capture began is still
-        // swallowed.
-        if globals::hotkey_capture() {
-            self.hotkeys.discard_latches();
-            if !down && !is_modifier && self.take_trigger_swallowed(vk) {
-                trace.stage("capture-trigger-up");
-                return Decision::SWALLOW;
-            }
-            trace.stage("capture");
-            self.reset_engine();
-            return Decision::PASS;
         }
 
         // 1. Hotkeys before anything else: the trigger must never reach the app.

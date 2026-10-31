@@ -326,18 +326,6 @@ impl Runtime {
         self.set_down(vk, down);
         self.sync_global_toggle();
 
-        // A swallowed trigger stays swallowed while held (auto-repeat).
-        if down && !is_modifier && self.trigger_is_swallowed(vk) {
-            let held = self
-                .trigger_last
-                .is_some_and(|(key, at)| key == vk && at.elapsed() < TRIGGER_REPEAT_WINDOW);
-            if repeat && held {
-                self.trigger_last = Some((vk, Instant::now()));
-                return Decision::SWALLOW;
-            }
-            self.set_trigger_swallowed(vk, false);
-        }
-
         // Capturing a new shortcut (S-07): nothing is matched, converted or
         // swallowed, so the chord reaches the page being recorded into. The
         // key-up of a trigger swallowed before capture began is still swallowed.
@@ -348,6 +336,18 @@ impl Runtime {
             }
             self.reset_engine();
             return Decision::PASS;
+        }
+
+        // A swallowed trigger stays swallowed while held (auto-repeat).
+        if down && !is_modifier && self.trigger_is_swallowed(vk) {
+            let held = self
+                .trigger_last
+                .is_some_and(|(key, at)| key == vk && at.elapsed() < TRIGGER_REPEAT_WINDOW);
+            if repeat && held {
+                self.trigger_last = Some((vk, Instant::now()));
+                return Decision::SWALLOW;
+            }
+            self.set_trigger_swallowed(vk, false);
         }
 
         // 1. Hotkeys first: the trigger must never reach the app.

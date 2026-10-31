@@ -761,6 +761,13 @@ pub(crate) fn update_config(
     thread_local! {
         static IN_UPDATE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
+    // Clears the flag on every exit, including a panic inside `mutate`.
+    struct InUpdate;
+    impl Drop for InUpdate {
+        fn drop(&mut self) {
+            IN_UPDATE.with(|flag| flag.set(false));
+        }
+    }
     debug_assert!(
         !IN_UPDATE.with(|flag| flag.get()),
         "update_config called from inside an update_config closure (CONFIG_WRITE is not re-entrant)"
@@ -769,8 +776,9 @@ pub(crate) fn update_config(
         let _guard = CONFIG_WRITE.lock();
         let mut draft = config_cell().read().clone();
         IN_UPDATE.with(|flag| flag.set(true));
+        let reset = InUpdate;
         let mutated = mutate(&mut draft);
-        IN_UPDATE.with(|flag| flag.set(false));
+        drop(reset);
         mutated?;
         if !CONFIG_UNSAVED.load(Ordering::Relaxed) && draft == *config_cell().read() {
             to_view(&draft)
@@ -1352,22 +1360,23 @@ static CAPTURE_OWNER: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::n
 /// instead of firing its action (S-07, spec C.6 step 2). The backends also let
 /// the flag lapse after ~30 s without a refresh.
 #[tauri::command]
-pub fn set_hotkey_capture(window: tauri::Window, active: bool) {
+pub fn set_hotkey_capture(window: tauri::Window, active: bool) -> Result<(), String> {
     let mut owner = CAPTURE_OWNER.lock();
     if active {
         // A window that is not focused cannot be recording (its blur was lost
         // or the webview is hidden): never re-arm what `Focused(false)` cleared.
         if !window.is_focused().unwrap_or(false) {
-            return;
+            return Err("window is not focused".into());
         }
         *owner = Some(window.label().to_string());
     } else if owner.as_deref().is_some_and(|label| label != window.label()) {
         // Another window took over the capture; this one's "stopped" is stale.
-        return;
+        return Ok(());
     } else {
         *owner = None;
     }
     apply_hotkey_capture(active);
+    Ok(())
 }
 
 /// A window lost focus or was destroyed: if it was the one capturing, it can

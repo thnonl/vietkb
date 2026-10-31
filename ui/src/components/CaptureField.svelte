@@ -50,14 +50,26 @@
     const now = editing;
     if (now === capturing || !api.isTauri()) return;
     capturing = now;
-    void api.setHotkeyCapture(now).catch(() => {});
+    // Refused (the window is not focused): do not believe the capture is armed.
+    // The renewal below retries while the field is focused.
+    void api.setHotkeyCapture(now).catch(() => {
+      if (now) capturing = false;
+    });
   });
   // The backend lets a capture lapse after ~30 s; renew it while focused.
   $effect(() => {
     if (!editing || !api.isTauri()) return;
     const timer = setInterval(() => {
       // A hidden or unfocused webview must not re-arm what the backend cleared.
-      if (document.hasFocus()) void api.setHotkeyCapture(true).catch(() => {});
+      if (!document.hasFocus()) return;
+      api
+        .setHotkeyCapture(true)
+        .then(() => {
+          capturing = true;
+        })
+        .catch(() => {
+          capturing = false;
+        });
     }, 10_000);
     return () => clearInterval(timer);
   });
