@@ -38,39 +38,6 @@ pub(crate) fn wants_running_app(policy: isize, bundle: &str, name: &str, is_self
     !is_self && matches!(policy, 0 | 1) && !bundle.is_empty() && !name.trim().is_empty()
 }
 
-#[cfg(test)]
-mod tidy_tests {
-    use super::{tidy_running, wants_running_app};
-
-    #[test]
-    fn picker_takes_regular_and_named_accessory_apps_only() {
-        assert!(wants_running_app(0, "com.apple.textedit", "TextEdit", false));
-        assert!(wants_running_app(1, "com.raycast.macos", "Raycast", false));
-        assert!(!wants_running_app(2, "com.apple.daemon", "Daemon", false));
-        assert!(!wants_running_app(1, "com.vendor.agent", "  ", false));
-        assert!(!wants_running_app(1, "", "Nameless", false));
-        assert!(!wants_running_app(0, "vn.vietkb.app", "VietKB", true));
-        assert!(!wants_running_app(-1, "x.y", "Y", false));
-    }
-
-    #[test]
-    fn dedups_sorts_and_drops_empty_bundles() {
-        let out = tidy_running(vec![
-            ("com.zed".into(), "Zed".into()),
-            ("com.apple.safari".into(), String::new()),
-            ("".into(), "Ghost".into()),
-            ("com.apple.safari".into(), "Safari".into()),
-        ]);
-        assert_eq!(
-            out,
-            vec![
-                ("com.apple.safari".to_string(), "Safari".to_string()),
-                ("com.zed".to_string(), "Zed".to_string()),
-            ]
-        );
-    }
-}
-
 /// True when the current OS can host a real backend.
 pub const IMPLEMENTED: bool = cfg!(target_os = "macos");
 
@@ -302,5 +269,38 @@ mod imp {
                 .emit_with(EngineAction::Swallow, HeldKeys::default())
                 .is_ok());
         }
+    }
+}
+
+#[cfg(test)]
+mod tidy_tests {
+    use super::{tidy_running, wants_running_app};
+
+    #[test]
+    fn picker_takes_regular_and_named_accessory_apps_only() {
+        assert!(wants_running_app(0, "com.apple.textedit", "TextEdit", false));
+        assert!(wants_running_app(1, "com.raycast.macos", "Raycast", false));
+        assert!(!wants_running_app(2, "com.apple.daemon", "Daemon", false));
+        assert!(!wants_running_app(1, "com.vendor.agent", "  ", false));
+        assert!(!wants_running_app(1, "", "Nameless", false));
+        assert!(!wants_running_app(0, "vn.vietkb.app", "VietKB", true));
+        assert!(!wants_running_app(-1, "x.y", "Y", false));
+    }
+
+    #[test]
+    fn dedups_sorts_and_drops_empty_bundles() {
+        let out = tidy_running(vec![
+            ("com.zed".into(), "Zed".into()),
+            ("com.apple.safari".into(), String::new()),
+            ("".into(), "Ghost".into()),
+            ("com.apple.safari".into(), "Safari".into()),
+        ]);
+        assert_eq!(
+            out,
+            vec![
+                ("com.apple.safari".to_string(), "Safari".to_string()),
+                ("com.zed".to_string(), "Zed".to_string()),
+            ]
+        );
     }
 }
