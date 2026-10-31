@@ -89,7 +89,7 @@ instance of that bundle id runs; one dev instance alive at a time; no key, no cl
 Dock tile is touched only when its AXURL is our bundle); graceful quit first (AX Quit, then SIGTERM, SIGKILL last resort, logged);
 after every phase it asserts no new Dock tile of the dev bundle and no running instance remains (`APP-DOCK-<phase>`); it aborts at the next
 step if HID idle drops under 8 s; the owner's VietKB pids are logged before/after. Screenshots: VietKB windows by id and a tile-sized crop of the Dock.
-Web content is read after a read-only AX hit test "primes" WebKit's tree; the status-item menu cannot be opened by AXPress (finding D-MAC-13).
+Web content is read after a read-only AX hit test "primes" WebKit's tree; the status-item menu cannot be opened by AXPress (finding D-MAC-34).
 
 ### Cases the harness now automates (63 ids; A = full, P = partial)
 
