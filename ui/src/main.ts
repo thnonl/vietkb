@@ -6,9 +6,17 @@ import "./styles/kit.css";
 import "./styles/v4.css";
 import "./styles/mac.css";
 
-// Theme before first paint: honour the OS until settings arrive (state.svelte.ts
-// overwrites this with the saved override).
-document.documentElement.dataset.theme = "system";
+// Theme before first paint: the last theme this app applied (mirrored into
+// localStorage by state.svelte.ts), else the OS, until settings arrive and
+// overwrite it with the saved value. No flash of the wrong theme.
+let firstTheme = "system";
+try {
+  const saved = localStorage.getItem("vkb:theme");
+  if (saved === "light" || saved === "dark") firstTheme = saved;
+} catch {
+  // Storage unavailable: follow the OS.
+}
+document.documentElement.dataset.theme = firstTheme;
 
 // Platform before first paint too (user-agent guess; the `platform` command
 // confirms it once the app initialises).

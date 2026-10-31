@@ -1355,6 +1355,11 @@ static CAPTURE_OWNER: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::n
 pub fn set_hotkey_capture(window: tauri::Window, active: bool) {
     let mut owner = CAPTURE_OWNER.lock();
     if active {
+        // A window that is not focused cannot be recording (its blur was lost
+        // or the webview is hidden): never re-arm what `Focused(false)` cleared.
+        if !window.is_focused().unwrap_or(false) {
+            return;
+        }
         *owner = Some(window.label().to_string());
     } else if owner.as_deref().is_some_and(|label| label != window.label()) {
         // Another window took over the capture; this one's "stopped" is stale.

@@ -427,6 +427,12 @@ class Store {
     // through CSS; an explicit light/dark is what the toggle stored (M7).
     const next = theme === "light" || theme === "dark" ? theme : "system";
     document.documentElement.dataset.theme = next;
+    // Mirror it so the next window can paint the right theme before settings load.
+    try {
+      localStorage.setItem("vkb:theme", next);
+    } catch {
+      // Storage unavailable: the window starts on "system" until settings arrive.
+    }
     if (!broadcast) return;
     // Every open window (main panel + secondary) follows immediately.
     this.themeChannel?.postMessage(next);
