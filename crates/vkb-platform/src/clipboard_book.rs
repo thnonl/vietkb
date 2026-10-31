@@ -30,6 +30,9 @@ pub const QUIT_BUDGET_MS: u64 = 700;
 pub const QUIT_RETRY_MS: u64 = 20;
 /// A restore that ran out of normal rounds keeps being retried this often.
 pub const PARKED_RETRY_MS: u64 = 5_000;
+/// A flush never waits so long for the settle period that no time is left for
+/// the attempt itself.
+pub const FLUSH_ATTEMPT_RESERVE_MS: u64 = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
@@ -331,8 +334,15 @@ impl<T> SessionBook<T> {
         let flushing = self.deadline_ms.is_some();
         let retry_wait = e.retry_at_ms.saturating_sub(now_ms);
         let settle_wait = match e.kind {
-            Kind::Current if !flushing && !e.settled => {
-                SETTLE_MS.saturating_sub(now_ms.saturating_sub(e.last_paste_ms))
+            Kind::Current if !e.settled => {
+                let remaining = SETTLE_MS.saturating_sub(now_ms.saturating_sub(e.last_paste_ms));
+                match self.deadline_ms {
+                    // A flush still lets the target read our text first, but
+                    // never waits past the point where one attempt still fits.
+                    Some(d) if flushing => remaining
+                        .min(d.saturating_sub(now_ms).saturating_sub(FLUSH_ATTEMPT_RESERVE_MS)),
+                    _ => remaining,
+                }
             }
             _ => 0,
         };
@@ -389,8 +399,9 @@ impl<T> SessionBook<T> {
                     return out;
                 } else {
                     let rounds = job.rounds + 1;
-                    let delay = if self.deadline_ms.is_some() {
-                        self.flush_retry_ms
+                    let delay = if let Some(d) = self.deadline_ms {
+                        // Never sleep past the deadline: the give-up is exact.
+                        self.flush_retry_ms.min(d.saturating_sub(now_ms))
                     } else {
                         restore_retry(job.rounds).map_or(PARKED_RETRY_MS, u64::from)
                     };
@@ -776,9 +787,50 @@ mod tests {
         let mut b = Book::new();
         b.start_session("user", own(1), 0);
         b.paste_sent(0);
-        let out = b.mode_off(100); // settle not over, but flushing
+        // Flushing 100 ms after the paste: the target gets to read our text
+        // first, the attempt waits out the settle period (the budget allows it).
+        let out = b.mode_off(100);
         assert_eq!(out[0], Action::DropSnapshot);
-        assert_eq!(restores(&out), vec![(1, "user")]);
+        assert_eq!(out[1], Action::ArmTimer(SETTLE_MS - 100));
+        assert_eq!(restores(&b.timer(SETTLE_MS)), vec![(1, "user")]);
+    }
+
+    #[test]
+    fn a_flush_never_waits_past_the_point_an_attempt_still_fits() {
+        let mut b = Book::new();
+        b.start_session("user", own(1), 0);
+        b.paste_sent(0);
+        // Quit budget 700 < settle 1200: wait budget - reserve, then try.
+        let out = b.quit(0);
+        assert_eq!(out[1], Action::ArmTimer(QUIT_BUDGET_MS - FLUSH_ATTEMPT_RESERVE_MS));
+        let j = job(b.timer(QUIT_BUDGET_MS - FLUSH_ATTEMPT_RESERVE_MS));
+        assert_eq!(j.max_wait_ms, Some(FLUSH_ATTEMPT_RESERVE_MS));
+    }
+
+    #[test]
+    fn a_flush_gives_up_exactly_at_a_non_dividing_deadline() {
+        let mut b = Book::new();
+        b.urgent_failed_write("u", own(1), 0);
+        // Budget 130, pace 50: the retries are 50, 50, then clamped to 30.
+        let mut j = job(b.begin_flush(0, 130, 50));
+        let mut now = 0;
+        let gave_up_at = loop {
+            let out = b.restore_result(j, RestoreResult::Busy, now);
+            if out.iter().any(|a| matches!(a, Action::GiveUp(_))) {
+                break now;
+            }
+            let Some(Action::ArmTimer(d)) = out.last() else { panic!("{out:?}") };
+            now += *d;
+            assert!(now <= 130, "the retry timer must not pass the deadline");
+            let next = b.timer(now);
+            if next.iter().any(|a| matches!(a, Action::GiveUp(_))) {
+                assert_eq!(retired(&next), vec!["u"]);
+                break now;
+            }
+            j = job(next);
+        };
+        assert_eq!(gave_up_at, 130, "the give-up happens exactly at the deadline");
+        assert!(!b.pending());
     }
 
     #[test]
@@ -786,9 +838,11 @@ mod tests {
         let mut b = Book::new();
         b.start_session("user", own(1), 0);
         b.paste_sent(0);
-        let out = b.mode_off(0);
+        // Settled long ago: the flush attempts at once.
+        let start = SETTLE_MS;
+        let out = b.mode_off(start);
         let mut j = job(out);
-        let mut now = 0;
+        let mut now = start;
         let mut rounds = 0;
         loop {
             let out = b.restore_result(j, RestoreResult::Busy, now);
@@ -811,7 +865,7 @@ mod tests {
             }
             j = job(next);
         }
-        assert!(now <= MODE_OFF_BUDGET_MS);
+        assert!(now - start <= MODE_OFF_BUDGET_MS);
         assert!(!b.pending());
     }
 
@@ -885,25 +939,29 @@ mod tests {
     #[test]
     fn a_requeued_session_needs_no_second_settle_wait() {
         let mut b = Book::new();
-        // Early in the process: now < SETTLE_MS must not delay the retry.
+        // A requeued session was settled before: its retry is not delayed by a
+        // second settle period measured from the requeue.
         b.start_session("user", own(1), 0);
-        let j = job(b.mode_off(0));
-        b.mode_on();
-        b.restore_result(j, RestoreResult::Busy, 0);
-        assert_eq!(restores(&b.timer(500)).len(), 1);
+        b.paste_sent(0);
+        let j = job(b.timer(SETTLE_MS));
+        let out = b.restore_result(j, RestoreResult::Busy, SETTLE_MS);
+        assert_eq!(out.last(), Some(&Action::ArmTimer(500)));
+        // 500 ms after the requeue is far less than SETTLE_MS: still restored.
+        assert_eq!(restores(&b.timer(SETTLE_MS + 500)).len(), 1);
     }
 
     #[test]
     fn mode_on_clears_the_deadline() {
         let mut b = Book::new();
         b.start_session("user", own(1), 0);
-        let j = job(b.mode_off(0));
-        b.restore_result(j, done(), 1);
+        b.paste_sent(0);
+        let j = job(b.mode_off(SETTLE_MS));
+        b.restore_result(j, done(), SETTLE_MS + 1);
         b.mode_on();
         // Not flushing any more: a new session waits for its settle time.
-        b.start_session("again", own(9), 100);
-        b.paste_sent(100);
-        assert_eq!(b.timer(200), vec![Action::ArmTimer(SETTLE_MS - 100)]);
+        b.start_session("again", own(9), SETTLE_MS + 100);
+        b.paste_sent(SETTLE_MS + 100);
+        assert_eq!(b.timer(SETTLE_MS + 200), vec![Action::ArmTimer(SETTLE_MS - 100)]);
     }
 
     // -- quit --------------------------------------------------------------
@@ -942,9 +1000,9 @@ mod tests {
         let mut b = Book::new();
         b.start_session("user", own(1), 0);
         b.paste_sent(0);
-        let out = b.quit(50);
-        let j = job(out);
-        let out = b.restore_result(j, done(), 51);
+        // Quit long after the paste: no settle wait left, one attempt now.
+        let j = job(b.quit(SETTLE_MS + 50));
+        let out = b.restore_result(j, done(), SETTLE_MS + 51);
         assert!(matches!(out[0], Action::Finished { restored: true, .. }));
         assert!(!b.pending());
     }
@@ -1052,7 +1110,27 @@ mod tests {
         Plain,
     }
 
-    /// The model executor: tracks where every payload id is.
+    /// The clipboard oracle: what is on the real clipboard.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Clip {
+        Empty,
+        /// The user's data (a restore finished).
+        User,
+        /// Our temporary text (owner + marker ours).
+        Temp,
+        /// A half-written state of ours (failed write / incomplete restore).
+        Partial,
+        /// Somebody else's content.
+        Foreign,
+    }
+
+    impl Clip {
+        fn ours(self) -> bool {
+            matches!(self, Clip::Temp | Clip::Partial)
+        }
+    }
+
+    /// The model executor: tracks where every payload id is, and the clipboard.
     struct Model {
         book: SessionBook<u32>,
         now: u64,
@@ -1068,6 +1146,11 @@ mod tests {
         last_done_gen: u64,
         restores: HashMap<u32, u32>,
         gave_up: u32,
+        clip: Clip,
+        /// Generation of the session whose text is on the clipboard.
+        clip_gen: u64,
+        last_paste: u64,
+        foreign_survived: u32,
     }
 
     impl Model {
@@ -1086,6 +1169,10 @@ mod tests {
                 last_done_gen: 0,
                 restores: HashMap::new(),
                 gave_up: 0,
+                clip: Clip::User,
+                clip_gen: 0,
+                last_paste: 0,
+                foreign_survived: 0,
             }
         }
 
@@ -1138,6 +1225,29 @@ mod tests {
                             job.generation,
                             self.last_done_gen
                         );
+                        // Never overwrite the text of a NEWER session.
+                        if self.clip.ours() {
+                            assert!(
+                                job.generation >= self.clip_gen,
+                                "restore of gen {} over the text of gen {}",
+                                job.generation,
+                                self.clip_gen
+                            );
+                        }
+                        // The target gets its settle period (urgent data and
+                        // later rounds excepted; a flush may cut it short only
+                        // when no more than the attempt reserve is left).
+                        if !job.urgent && job.rounds == 0 {
+                            let waited = self.now - self.last_paste;
+                            let cut_short = self.flushing
+                                && self
+                                    .deadline
+                                    .is_some_and(|d| d.saturating_sub(self.now) <= FLUSH_ATTEMPT_RESERVE_MS);
+                            assert!(
+                                waited >= SETTLE_MS || cut_short,
+                                "restore only {waited} ms after the paste"
+                            );
+                        }
                         if self.flushing {
                             assert!(job.max_wait_ms.is_some(), "flush job without a budget");
                         } else {
@@ -1169,6 +1279,11 @@ mod tests {
                             "gave up at {} before the deadline {deadline}",
                             self.now
                         );
+                        // The executor empties the clipboard if our text is
+                        // still on it, so a later Ctrl+V cannot paste it.
+                        if self.clip.ours() {
+                            self.clip = Clip::Empty;
+                        }
                         self.gave_up += 1;
                     }
                     Action::Snapshot | Action::SkipSnapshot | Action::DropSnapshot => {}
@@ -1176,17 +1291,33 @@ mod tests {
             }
         }
 
+        /// What a real executor would answer, given the clipboard.
         fn result(&mut self, r: &mut Rng) {
             let Some(job) = self.inflight.take() else { return };
             let generation = job.generation;
-            let result = match r.below(6) {
-                0 => RestoreResult::Done { adopt: Some(own(70)) },
-                1 => RestoreResult::Done { adopt: None },
-                2 => RestoreResult::Busy,
-                3 => RestoreResult::Incomplete { own: Some(own(71)) },
-                4 => RestoreResult::Incomplete { own: None },
-                _ => RestoreResult::Foreign,
+            let result = if !self.clip.ours() {
+                // Not ours any more (a copy, a restore by someone else ...): the
+                // proof fails, the restore must NOT overwrite it.
+                RestoreResult::Foreign
+            } else {
+                match r.below(5) {
+                    0 => RestoreResult::Done { adopt: Some(own(70)) },
+                    1 => RestoreResult::Done { adopt: None },
+                    2 => RestoreResult::Busy,
+                    3 => RestoreResult::Incomplete { own: Some(own(71)) },
+                    _ => RestoreResult::Incomplete { own: None },
+                }
             };
+            match result {
+                RestoreResult::Done { .. } => self.clip = Clip::User,
+                RestoreResult::Incomplete { .. } => self.clip = Clip::Partial,
+                RestoreResult::Foreign => {
+                    if self.clip == Clip::Foreign {
+                        self.foreign_survived += 1;
+                    }
+                }
+                RestoreResult::Busy => {}
+            }
             let done = matches!(result, RestoreResult::Done { .. } | RestoreResult::Foreign);
             let actions = self.book.restore_result(job, result, self.now);
             if done {
@@ -1216,6 +1347,15 @@ mod tests {
                 assert!(self.armed.is_some(), "pending data without an armed timer");
             }
             assert!(stored.len() <= 2, "more than two stored entries");
+            // Our temporary text is never left behind once nothing is pending
+            // (finished, foreign, discarded or given-up paths all clean up).
+            if !self.book.pending() {
+                assert!(
+                    !self.clip.ours(),
+                    "our text ({:?}) left on the clipboard with nothing pending",
+                    self.clip
+                );
+            }
         }
 
         fn step(&mut self, r: &mut Rng) {
@@ -1225,7 +1365,7 @@ mod tests {
                 let actions = self.book.timer(self.now);
                 self.apply(actions, Ctx::Plain);
             }
-            match r.below(16) {
+            match r.below(18) {
                 0 | 1 if !self.flushing && self.inflight.is_none() => {
                     let id = self.new_id();
                     let (generation, a) = self.book.start_session(id, own(id), self.now);
@@ -1233,25 +1373,38 @@ mod tests {
                     self.apply(a, Ctx::Gen(generation));
                     let a = self.book.paste_sent(self.now);
                     self.apply(a, Ctx::Plain);
+                    self.clip = Clip::Temp;
+                    self.clip_gen = generation;
+                    self.last_paste = self.now;
                 }
                 2 if !self.flushing && self.book.current_own().is_some() => {
                     self.book.continue_session(own(9), self.now);
                     let a = self.book.paste_sent(self.now);
                     self.apply(a, Ctx::Plain);
+                    self.clip = Clip::Temp;
+                    self.last_paste = self.now;
                 }
-                3 if !self.flushing => {
+                3 if !self.flushing && self.book.current_own().is_some() => {
                     let a = self.book.current_to_urgent(own(11), self.now);
                     self.apply(a, Ctx::Plain);
+                    self.clip = Clip::Partial;
                 }
                 4 if !self.flushing => {
                     let id = self.new_id();
                     let (generation, a) = self.book.urgent_failed_write(id, own(id), self.now);
                     self.gens.insert(id, generation);
                     self.apply(a, Ctx::Gen(generation));
+                    self.clip = Clip::Partial;
+                    self.clip_gen = generation;
                 }
                 5 => {
+                    let had_current = self.book.current_own().is_some();
                     let a = self.book.discard_current();
                     self.apply(a, Ctx::Discard);
+                    if had_current {
+                        // Owner + marker proved somebody else wrote.
+                        self.clip = Clip::Foreign;
+                    }
                 }
                 6 => {
                     let a = self.book.timer(self.now);
@@ -1277,6 +1430,13 @@ mod tests {
                     self.deadline = None;
                     self.book.mode_on();
                 }
+                14 | 15 => {
+                    // The user copies something: foreign content, the listener
+                    // reports a change that is not ours.
+                    self.clip = Clip::Foreign;
+                    let a = self.book.notification(false);
+                    self.apply(a, Ctx::Plain);
+                }
                 _ => {}
             }
             self.check();
@@ -1295,6 +1455,7 @@ mod tests {
             assert!(m.next_id > 100, "seed {seed}: too few payloads");
             assert!(m.restores.values().any(|n| *n > 1), "seed {seed}: no retried restore");
             assert!(m.gave_up > 0, "seed {seed}: no flush gave up");
+            assert!(m.foreign_survived > 0, "seed {seed}: no foreign copy met a restore");
         }
     }
 
@@ -1321,11 +1482,11 @@ mod tests {
                 present.push(j.payload);
             }
             let newest = present.iter().copied().max_by_key(|id| m.gens[id]);
-            // Attempts of the newest payload BEFORE the flush: it must grow.
-            let attempts_before =
-                newest.map(|n| m.restores.get(&n).copied().unwrap_or(0));
+            // Attempts of the newest payload BEFORE the flush event is applied:
+            // the flush itself must add at least one.
+            let attempts_before = newest.map(|n| m.restores.get(&n).copied().unwrap_or(0));
             let quit = r.below(2) == 0;
-            let (budget, pace) = if quit {
+            let (budget, _pace) = if quit {
                 (QUIT_BUDGET_MS, QUIT_RETRY_MS)
             } else {
                 (MODE_OFF_BUDGET_MS, MODE_OFF_RETRY_MS)
@@ -1359,6 +1520,7 @@ mod tests {
             }
             assert!(!m.book.pending(), "seed {seed}: a flush left data behind");
             assert!(m.inflight.is_none());
+            assert!(!m.clip.ours(), "seed {seed}: our text left behind after the flush");
             for id in &present {
                 assert!(m.exited.contains(id), "seed {seed}: payload {id} never exited");
             }
@@ -1370,9 +1532,10 @@ mod tests {
                     "seed {seed}: newest payload {n} had {before} attempts at the flush, {after} after"
                 );
             }
+            // The give-up is exact: never later than the deadline.
             assert!(
-                m.now - start <= budget + pace,
-                "seed {seed}: flush took {} ms (budget {budget} + pace {pace})",
+                m.now - start <= budget,
+                "seed {seed}: flush took {} ms (budget {budget})",
                 m.now - start
             );
         }
