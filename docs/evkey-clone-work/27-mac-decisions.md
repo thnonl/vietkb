@@ -86,3 +86,14 @@ label → "Mở cùng macOS" (same `system.start_with_windows` key).
 - The GitHub Pages site gets an English version with a language switch in the header; Vietnamese
   stays the default at `/`, English at `/en/`. Both languages cover Windows and macOS.
 - English copy is written/polished by the copywriter; tone follows 90-copy-voice.md adapted to English.
+
+## M7 — Theme default follows the system (owner, 2026-10-31; Windows and macOS)
+Owner, verbatim (given in the Windows session): "Default theme của app sẽ theo system, khi user bật
+dark/light mode sẽ được lưu lại."
+- Default `system.theme = system` on both platforms; migration no longer rewrites `system` to `dark`.
+- With `system`, every window follows the OS appearance live.
+- The theme toggle shows the effective light/dark state; clicking stores an explicit `light`/`dark`
+  in config.toml (persists across restarts, applies to every window).
+- "Đặt lại tất cả" / Reset all returns the theme to `system`.
+- Existing 0.2.6 files with `theme = "dark"` stay dark (indistinguishable from a chosen dark).
+- Supersedes the Mac-only three-state toggle of M6.
