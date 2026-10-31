@@ -213,7 +213,13 @@ fn worker(events: Receiver<Event>) {
 }
 
 /// Hotkey toggled Vietnamese on/off: make the file and the tray say the same.
-fn apply_enabled(enabled: bool) {
+fn apply_enabled(queued: bool) {
+    // The event can be older than the tap's state (two presses before this ran):
+    // the tap's own flag is the truth, the queued value only a hint (D-MAC-48).
+    let enabled = vkb_macos::is_enabled();
+    if enabled != queued {
+        tracing::debug!(queued, enabled, "stale enabled event; using the tap's value");
+    }
     // A field patch under the config lock (S-17). The "already that value?"
     // test is inside `update_config`: an unchanged config is not written, and
     // a no-op write does not broadcast, so the tray is redrawn explicitly.
@@ -238,7 +244,9 @@ fn apply_enabled(enabled: bool) {
 fn apply_command(command: BackendCommand) {
     match command {
         BackendCommand::Enable(enabled) => {
-            // Sent right after `Enabled`; skip the duplicate write.
+            // Sent right after `Enabled`; skip the duplicate write. Like
+            // `apply_enabled`, write the tap's current value, not the queued one.
+            let enabled = vkb_macos::is_enabled();
             if commands::config_cell().read().input.enabled == enabled {
                 return;
             }

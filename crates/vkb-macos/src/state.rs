@@ -172,6 +172,10 @@ pub struct Runtime {
     remember_per_app: bool,
     last_global: bool,
     config_enabled: Option<bool>,
+    /// `enabled` values this tap fired to the backend whose write-back into the
+    /// config has not been seen yet (D-MAC-48). A config that shows one of them
+    /// is our own echo, not an outside edit, and must not override the live flag.
+    own_writes: Vec<bool>,
     sink: Option<Box<dyn EngineSink>>,
     secure_logged: Option<Instant>,
 }
@@ -210,6 +214,7 @@ impl Runtime {
             remember_per_app: false,
             last_global: globals::enabled(),
             config_enabled: None,
+            own_writes: Vec::new(),
             sink,
             secure_logged: None,
         };
@@ -246,8 +251,19 @@ impl Runtime {
         // Adopt `input.enabled` only when it changed in the file, so a hotkey
         // toggle is not reset by an unrelated settings save.
         if self.config_enabled != Some(cfg.input.enabled) {
-            globals::store_enabled(cfg.input.enabled);
-            self.last_global = cfg.input.enabled;
+            // Our own write-back arrives late and in order: a snapshot that
+            // shows an older toggle of ours (press, press again before the
+            // first echo) must not flip the live flag back.
+            match self.own_writes.iter().position(|&value| value == cfg.input.enabled) {
+                Some(index) => {
+                    self.own_writes.drain(..=index);
+                }
+                None => {
+                    self.own_writes.clear();
+                    globals::store_enabled(cfg.input.enabled);
+                    self.last_global = cfg.input.enabled;
+                }
+            }
         }
         self.config_enabled = Some(cfg.input.enabled);
 
@@ -567,6 +583,14 @@ impl Runtime {
                 self.host.toggle_sound(enabled);
             }
             self.engine.set_macro_only(self.macro_only_active());
+            // Only a value that will change the config is expected back.
+            let known = self.own_writes.last().copied().or(self.config_enabled);
+            if known != Some(enabled) {
+                if self.own_writes.len() >= 8 {
+                    self.own_writes.remove(0);
+                }
+                self.own_writes.push(enabled);
+            }
             globals::fire_enabled(enabled);
             globals::fire_command(BackendCommand::Enable(enabled));
         }
@@ -1501,6 +1525,44 @@ mod tests {
         let next = !rig.rt.effective_enabled();
         rig.rt.set_enabled(next);
         assert!(!rig.rt.effective_enabled(), "the rule still wins in that app");
+    }
+
+    /// D-MAC-48: two toggles in a row, then the write-back of the *first* one
+    /// arrives. The stale snapshot must not turn Vietnamese off again.
+    #[test]
+    fn a_late_echo_of_an_older_toggle_does_not_revert_the_live_flag() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(Some(quiet_config()));
+        assert!(globals::enabled());
+        rig.rt.set_enabled(false);
+        rig.rt.set_enabled(true);
+        assert!(globals::enabled());
+        let mut stale = quiet_config();
+        stale.input.enabled = false;
+        rig.rt.apply_config(Arc::new(stale));
+        assert!(globals::enabled(), "stale echo of the first toggle");
+        let mut latest = quiet_config();
+        latest.input.enabled = true;
+        rig.rt.apply_config(Arc::new(latest));
+        assert!(globals::enabled());
+    }
+
+    /// An edit that is not ours (settings UI, file reload) is still adopted.
+    #[test]
+    fn an_outside_enabled_edit_is_still_adopted() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(Some(quiet_config()));
+        rig.rt.set_enabled(false);
+        rig.rt.set_enabled(true);
+        let mut off = quiet_config();
+        off.input.enabled = false;
+        let mut on = quiet_config();
+        on.input.enabled = true;
+        // Our echoes first (false, then true), then the user's own off.
+        rig.rt.apply_config(Arc::new(off.clone()));
+        rig.rt.apply_config(Arc::new(on));
+        rig.rt.apply_config(Arc::new(off));
+        assert!(!globals::enabled());
     }
 
     #[test]
