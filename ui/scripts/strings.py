@@ -37,7 +37,6 @@ group("Title bar and language toggle", "Windows caption bar buttons; the VI | EN
  ("titlebar.update.title", "Có bản cập nhật v{version} — mở Giới thiệu", "Update v{version} available — open About"),
  ("titlebar.theme.light", "Sáng", "Light"),
  ("titlebar.theme.dark", "Tối", "Dark"),
- ("titlebar.theme.system", "Theo hệ thống", "System"),
  ("titlebar.theme.aria", "Giao diện: {theme}. Bấm để đổi", "Appearance: {theme}. Click to change."),
  ("titlebar.theme.title", "Giao diện: {theme} — bấm để đổi", "Appearance: {theme}. Click to change."),
  ("titlebar.minimize", "Thu nhỏ", "Minimize"),

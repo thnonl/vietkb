@@ -68,12 +68,8 @@ impl AppConfig {
                 rule.method = Some(InputMethod::Telex);
             }
         }
-        // Windows has no "follow the system" theme: an old file resolves to Dark
-        // once, and the next save writes the concrete value. macOS keeps it
-        // (27-mac-decisions M6).
-        if !cfg!(target_os = "macos") && self.system.theme == crate::schema::Theme::System {
-            self.system.theme = crate::schema::Theme::Dark;
-        }
+        // The theme is deliberately not migrated (27-mac-decisions M7): `system`
+        // stays `system`, and a 0.2.6 file with `dark` stays dark.
         self
     }
 }
@@ -135,10 +131,10 @@ mod tests {
         assert_eq!(cfg.typing.modern_tone, back.typing.modern_tone);
         assert_eq!(cfg.hotkeys.enable, back.hotkeys.enable);
         assert_eq!(back.version, SCHEMA_VERSION);
-        let want = if cfg!(target_os = "macos") { "system" } else { "dark" };
+        assert_eq!(cfg.system.theme, crate::schema::Theme::System);
         assert!(
-            text.contains(&format!("theme = \"{want}\"")),
-            "default theme must serialize as {want}:\n{text}"
+            text.contains("theme = \"system\""),
+            "default theme must serialize as system:\n{text}"
         );
         assert_eq!(cfg, back, "default config must round-trip");
     }
@@ -292,7 +288,7 @@ dc = "được"
     }
 
     #[test]
-    fn system_theme_is_kept_on_macos_and_migrates_to_dark_elsewhere() {
+    fn system_theme_is_kept_by_migration() {
         let src = r#"version = 1
 [system]
 theme = "system"
@@ -300,15 +296,21 @@ start_with_windows = false
 language = "en"
 "#;
         let cfg = AppConfig::from_toml(src).unwrap();
-        let kept = cfg!(target_os = "macos");
-        assert_eq!(
-            cfg.system.theme,
-            if kept { crate::schema::Theme::System } else { crate::schema::Theme::Dark }
-        );
+        assert_eq!(cfg.system.theme, crate::schema::Theme::System);
         assert!(!cfg.system.start_with_windows);
         assert_eq!(cfg.system.language, crate::schema::Language::En);
         let saved = cfg.to_toml().unwrap();
-        assert_eq!(saved.contains("theme = \"system\""), kept);
+        assert!(saved.contains("theme = \"system\""));
+    }
+
+    #[test]
+    fn a_0_2_6_file_with_dark_stays_dark_and_a_missing_theme_is_system() {
+        let cfg = AppConfig::from_toml("version = 1\n[system]\ntheme = \"dark\"\n").unwrap();
+        assert_eq!(cfg.system.theme, crate::schema::Theme::Dark);
+        let cfg = AppConfig::from_toml("version = 1\n[system]\ntheme = \"light\"\n").unwrap();
+        assert_eq!(cfg.system.theme, crate::schema::Theme::Light);
+        let cfg = AppConfig::from_toml("version = 1\n").unwrap();
+        assert_eq!(cfg.system.theme, crate::schema::Theme::System);
     }
 
     #[test]

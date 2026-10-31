@@ -23,7 +23,6 @@ export const vi: Record<string, string> = {
   "titlebar.update.title": "Có bản cập nhật v{version} — mở Giới thiệu",
   "titlebar.theme.light": "Sáng",
   "titlebar.theme.dark": "Tối",
-  "titlebar.theme.system": "Theo hệ thống",
   "titlebar.theme.aria": "Giao diện: {theme}. Bấm để đổi",
   "titlebar.theme.title": "Giao diện: {theme} — bấm để đổi",
   "titlebar.minimize": "Thu nhỏ",

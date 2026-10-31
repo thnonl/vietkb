@@ -778,9 +778,15 @@ pub(crate) fn update_config(
 
 #[tauri::command]
 pub fn reset_settings(section: String) -> Result<SettingsView, String> {
+    update_config(|draft| reset_section(draft, &section))
+}
+
+/// Put one section (or `all`) of `draft` back to the defaults; the theme goes
+/// back to `system` with the rest of `system`.
+fn reset_section(draft: &mut AppConfig, section: &str) -> Result<(), String> {
     let defaults = AppConfig::default();
-    update_config(|draft| {
-        match section.as_str() {
+    {
+        match section {
             "input" => draft.input = defaults.input,
             "typing" => draft.typing = defaults.typing,
             "hotkeys" => draft.hotkeys = defaults.hotkeys,
@@ -800,7 +806,7 @@ pub fn reset_settings(section: String) -> Result<SettingsView, String> {
             other => return Err(crate::i18n::tf("err.reset.invalid", &[("value", other)])),
         }
         Ok(())
-    })
+    }
 }
 
 #[tauri::command]
@@ -1365,6 +1371,18 @@ mod tests {
         let cfg = patched(r#"{"hotkeys":{"enable":"Ctrl+Shift","disable":""}}"#);
         assert_eq!(cfg.hotkeys.enable.as_ref().unwrap().as_str(), "Ctrl+Shift");
         assert!(cfg.hotkeys.disable.is_none());
+    }
+
+    #[test]
+    fn reset_all_returns_the_theme_to_system() {
+        let mut cfg = AppConfig::default();
+        apply_patch(&mut cfg, &serde_json::json!({ "system": { "theme": "dark" } })).unwrap();
+        assert_eq!(cfg.system.theme, vkb_config::Theme::Dark);
+        reset_section(&mut cfg, "all").unwrap();
+        assert_eq!(cfg.system.theme, vkb_config::Theme::System);
+        apply_patch(&mut cfg, &serde_json::json!({ "system": { "theme": "light" } })).unwrap();
+        reset_section(&mut cfg, "system").unwrap();
+        assert_eq!(cfg.system.theme, vkb_config::Theme::System);
     }
 
     #[test]

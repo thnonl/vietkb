@@ -114,7 +114,7 @@ const demoSettings: SettingsView = {
     notificationSound: true,
     startMinimized: true,
     language: "vi",
-    theme: "dark",
+    theme: "system",
     checkUpdates: true,
   },
   ui: { windowWidth: 1040, windowHeight: 720, lastTab: "overview" },
@@ -423,15 +423,9 @@ class Store {
   }
 
   applyTheme(theme: string, broadcast = true): void {
-    // Windows: light or dark (anything else is dark). macOS also has "system",
-    // which follows System Settings > Appearance and is the Mac default.
-    const next = isMacOS()
-      ? theme === "light" || theme === "dark"
-        ? theme
-        : "system"
-      : theme === "light"
-        ? "light"
-        : "dark";
+    // "system" (the default on both platforms) follows the OS appearance live
+    // through CSS; an explicit light/dark is what the toggle stored (M7).
+    const next = theme === "light" || theme === "dark" ? theme : "system";
     document.documentElement.dataset.theme = next;
     if (!broadcast) return;
     // Every open window (main panel + secondary) follows immediately.

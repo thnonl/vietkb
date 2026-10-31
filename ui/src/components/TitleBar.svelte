@@ -6,6 +6,7 @@
   import { t } from "../lib/lang.svelte";
   import LangToggle from "./LangToggle.svelte";
   import MacThemeToggle from "./MacThemeToggle.svelte";
+  import { effectiveTheme } from "../lib/theme.svelte";
   // Product mark, identical in every window: the keycap `V` (Vietnamese on)
   // from the approved set (design/logo11/keycap/v-20.png). The title bar never
   // switches to `E` — the tray icon carries the on/off state.
@@ -33,9 +34,9 @@
     light: "titlebar.theme.light",
     dark: "titlebar.theme.dark",
   };
-  const normalize = (value: string | undefined): Theme => (value === "light" ? "light" : "dark");
-
-  const theme = $derived(normalize(app.settings?.system.theme));
+  // The button shows the EFFECTIVE state: with `system` (the default) that is
+  // whatever the OS is using right now. A click stores the opposite explicitly.
+  const theme = $derived<Theme>(effectiveTheme(app.settings?.system.theme));
   const label = $derived(t(LABEL_KEY[theme]));
   // The icon shows what the click will do, not what is on now: sun when the
   // next click selects light, moon when it selects dark, half circle when it

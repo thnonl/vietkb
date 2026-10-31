@@ -40,7 +40,6 @@ Windows caption bar buttons; the VI | EN toggle also appears at the top right of
 | `titlebar.update.title` | Có bản cập nhật v{version} — mở Giới thiệu | Update v{version} available — open About |
 | `titlebar.theme.light` | Sáng | Light |
 | `titlebar.theme.dark` | Tối | Dark |
-| `titlebar.theme.system` | Theo hệ thống | System |
 | `titlebar.theme.aria` | Giao diện: {theme}. Bấm để đổi | Appearance: {theme}. Click to change. |
 | `titlebar.theme.title` | Giao diện: {theme} — bấm để đổi | Appearance: {theme}. Click to change. |
 | `titlebar.minimize` | Thu nhỏ | Minimize |
@@ -472,4 +471,4 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Open at login. |
 
-Total: 344 keys.
+Total: 343 keys.

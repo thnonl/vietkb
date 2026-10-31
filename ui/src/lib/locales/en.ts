@@ -23,7 +23,6 @@ export const en: Record<string, string> = {
   "titlebar.update.title": "Update v{version} available — open About",
   "titlebar.theme.light": "Light",
   "titlebar.theme.dark": "Dark",
-  "titlebar.theme.system": "System",
   "titlebar.theme.aria": "Appearance: {theme}. Click to change.",
   "titlebar.theme.title": "Appearance: {theme}. Click to change.",
   "titlebar.minimize": "Minimize",
