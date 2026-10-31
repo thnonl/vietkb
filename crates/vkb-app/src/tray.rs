@@ -230,6 +230,9 @@ fn badged_template(base: &'static [u8]) -> tauri::Result<tauri::image::Image<'st
     Ok(tauri::image::Image::new_owned(pixels, width, height))
 }
 
+/// The tooltip last handed to the shell.
+static LAST_TOOLTIP: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::new(None);
+
 fn tooltip(lang: Lang, status: &StatusView) -> String {
     let base = base_tooltip(lang, status.enabled);
     match update::available_version() {
@@ -430,7 +433,14 @@ fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
     // `set_icon` may reset the template flag; set it again.
     #[cfg(target_os = "macos")]
     tray.set_icon_as_template(true)?;
-    tray.set_tooltip(Some(tooltip(i18n::current(), status)))?;
+    // One string, written only when it changed: a redundant NIM_MODIFY adds
+    // nothing and gives the shell one more chance to keep a stale name (D-WIN-10).
+    let text = tooltip(i18n::current(), status);
+    let mut last = LAST_TOOLTIP.lock();
+    if last.as_deref() != Some(text.as_str()) {
+        tray.set_tooltip(Some(text.clone()))?;
+        *last = Some(text);
+    }
     Ok(())
 }
 
@@ -542,6 +552,18 @@ mod tests {
     fn update_item_label_names_the_version() {
         assert_eq!(update_menu_label(Lang::Vi, "0.9.9"), "Có bản cập nhật v0.9.9");
         assert_eq!(update_menu_label(Lang::En, "0.9.9"), "Update v0.9.9 available");
+    }
+
+    /// D-WIN-10: the tooltip is exactly one language, never VI + EN together.
+    #[test]
+    fn tooltip_is_a_single_language() {
+        for enabled in [true, false] {
+            let vi = base_tooltip(Lang::Vi, enabled);
+            let en = base_tooltip(Lang::En, enabled);
+            assert_eq!(vi.matches("VietKB").count(), 1);
+            assert_eq!(en.matches("VietKB").count(), 1);
+            assert!(!vi.contains(&en) && !en.contains(&vi));
+        }
     }
 
     /// S-19: the tooltip is the approved copy in both languages.

@@ -356,6 +356,8 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         .shadow(true)
         .transparent(false)
         .background_color(window_bg::initial(app))
+        .theme(window_bg::configured_window_theme())
+        .initialization_script(window_bg::init_script())
         .visible(false);
     #[cfg(target_os = "macos")]
     {
@@ -480,6 +482,8 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
     .shadow(true)
     .transparent(false)
     .background_color(window_bg::initial(app))
+    .theme(window_bg::configured_window_theme())
+    .initialization_script(window_bg::init_script())
     // Hidden at build time; placed and shown below in one go.
     .visible(false);
     // macOS: overlay title bar, the page draws the caption row (TitleBar.svelte).
