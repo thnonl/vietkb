@@ -123,3 +123,12 @@ Owner, verbatim: "Toggle theme phải ở cạnh switch ngôn ngữ, không ph�
   `VI | EN`, theme button (sun/moon, 2-state per M7). The window title text stays at the left
   after the traffic lights. The title-bar row is draggable except on the controls.
 - Replaces M6's "28 px row at the top right of the window content".
+
+## M10 — Mac GUI consistent with Windows (owner, 2026-10-31)
+Owner, verbatim: "GUI trên Mac phải consistence với trên Windows."
+- Default: the Mac GUI looks and behaves like the Windows GUI — same screens, layout, controls,
+  order, icons, copy, sizes and interactions. A Mac difference is allowed only where macOS forces it
+  (traffic lights instead of caption buttons, menu-bar instead of tray, permissions banner, ⌘-based
+  OS shortcuts) or where the owner approved it; each surviving difference is listed in the M10
+  audit table (52-test-cases-mac.md or 27-mac-decisions.md) with the reason.
+- Earlier Mac-only deviations (M3/M4/M6, Dev-B UI choices) are re-checked against this rule.
