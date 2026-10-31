@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Icon from "./Icon.svelte";
+  import { t } from "../lib/lang.svelte";
 
   let {
     open = $bindable(false),
@@ -44,7 +45,7 @@
 <dialog class="sheetdlg" bind:this={el} onclose={onDialogClose} aria-label={title} onclick={backdrop}>
   <div class="dlg-head">
     <h2>{title}</h2>
-    <button type="button" class="btn ghost icon sm" aria-label="Đóng" onclick={close}>
+    <button type="button" class="btn ghost icon sm" aria-label={t("common.close")} onclick={close}>
       <Icon name="close" small />
     </button>
   </div>

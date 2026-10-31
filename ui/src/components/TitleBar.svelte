@@ -3,6 +3,8 @@
   import { app } from "../lib/state.svelte";
   import { openWindow } from "../lib/window.svelte";
   import { platformState } from "../lib/platform.svelte";
+  import { t } from "../lib/lang.svelte";
+  import LangToggle from "./LangToggle.svelte";
   // Product mark, identical in every window: the keycap `V` (Vietnamese on)
   // from the approved set (design/logo11/keycap/v-20.png). The title bar never
   // switches to `E` — the tray icon carries the on/off state.
@@ -26,11 +28,14 @@
   // persists `settings.system.theme` and broadcasts it to every open window.
   const ORDER = ["light", "dark"] as const;
   type Theme = (typeof ORDER)[number];
-  const LABEL: Record<Theme, string> = { light: "Sáng", dark: "Tối" };
+  const LABEL_KEY: Record<Theme, string> = {
+    light: "titlebar.theme.light",
+    dark: "titlebar.theme.dark",
+  };
   const normalize = (value: string | undefined): Theme => (value === "light" ? "light" : "dark");
 
   const theme = $derived(normalize(app.settings?.system.theme));
-  const label = $derived(LABEL[theme]);
+  const label = $derived(t(LABEL_KEY[theme]));
   // The icon shows what the click will do, not what is on now: sun when the
   // next click selects light, moon when it selects dark, half circle when it
   // goes back to following Windows. The tooltip/aria-label keep naming the
@@ -88,19 +93,20 @@
       class:off={!showUpdate}
       aria-hidden={!showUpdate}
       tabindex={showUpdate ? 0 : -1}
-      aria-label={showUpdate ? "Có bản cập nhật — mở Giới thiệu" : undefined}
-      title={showUpdate ? `Có bản cập nhật v${app.updateVersion ?? ""} — mở Giới thiệu` : undefined}
+      aria-label={showUpdate ? t("titlebar.update.aria") : undefined}
+      title={showUpdate ? t("titlebar.update.title", { version: app.updateVersion ?? "" }) : undefined}
       onclick={() => openWindow("about")}>
       <svg viewBox="0 0 16 16" aria-hidden="true">
         <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
         <path d="M3 13.1h10" />
       </svg>
     </button>
+    <LangToggle />
     <button
       type="button"
       class="tslot"
-      aria-label={`Giao diện: ${label}. Bấm để đổi`}
-      title={`Giao diện: ${label} — bấm để đổi`}
+      aria-label={t("titlebar.theme.aria", { theme: label })}
+      title={t("titlebar.theme.title", { theme: label })}
       onclick={cycleTheme}>
       {#if nextTheme === "light"}
         <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -118,8 +124,8 @@
       <button
         type="button"
         class="wbtn"
-        aria-label="Thu nhỏ"
-        title="Thu nhỏ"
+        aria-label={t("titlebar.minimize")}
+        title={t("titlebar.minimize")}
         disabled={!win}
         onclick={minimize}>
         <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" /></svg>
@@ -128,12 +134,16 @@
     <button
       type="button"
       class="wbtn x"
-      aria-label="Đóng, VietKB vẫn chạy"
-      title="Đóng, VietKB vẫn chạy"
+      aria-label={t("titlebar.close")}
+      title={t("titlebar.close")}
       disabled={!win}
       onclick={close}>
       <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M.5.5l9 9M9.5.5l-9 9" /></svg>
     </button>
   </div>
 </header>
+{:else}
+  <!-- macOS: no custom caption, so the language switch gets a slim row of its
+       own at the top right of the window content (styles/mac.css). -->
+  <div class="mac-langbar"><LangToggle /></div>
 {/if}

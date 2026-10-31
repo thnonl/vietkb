@@ -6,6 +6,7 @@
   import * as api from "../lib/api";
   import { closeCurrent } from "../lib/window.svelte";
   import { formatNumber } from "../lib/hotkey";
+  import { t } from "../lib/lang.svelte";
   import type { MacroRow } from "../lib/bindings";
 
   const DEMO: MacroRow[] = [
@@ -109,17 +110,17 @@
   const saveMacro = async () => {
     const trigger = editTrigger.trim();
     const expansion = editExpansion.trim();
-    if (!trigger) return void (formError = "Nhập từ tắt, ví dụ dc");
-    if (/\s/.test(trigger)) return void (formError = "Từ tắt viết liền, không có dấu cách");
+    if (!trigger) return void (formError = t("macros.err.noTrigger"));
+    if (/\s/.test(trigger)) return void (formError = t("macros.err.spaces"));
     if (Array.from(trigger).length > 32)
-      return void (formError = `Từ tắt dài tối đa 32 ký tự, đang có ${Array.from(trigger).length}`);
+      return void (formError = t("macros.err.triggerLong", { n: Array.from(trigger).length }));
     if (!expansion)
-      return void (formError = "Phần thay thế không được để trống — muốn bỏ thì xoá cả mục.");
+      return void (formError = t("macros.err.noText"));
     if (Array.from(expansion).length > 500)
-      return void (formError = `Nội dung dài tối đa 500 ký tự, đang có ${Array.from(expansion).length}`);
+      return void (formError = t("macros.err.textLong", { n: Array.from(expansion).length }));
 
     const renaming = Boolean(originalTrigger && originalTrigger !== trigger);
-    if (renaming && local) return void (formError = "Chế độ xem trước: không đổi tên được.");
+    if (renaming && local) return void (formError = t("macros.err.previewRename"));
     if (local) {
       const existing = DEMO.findIndex((row) => row.trigger === trigger);
       if (existing >= 0) DEMO[existing] = { trigger, expansion };
@@ -157,15 +158,15 @@
     try {
       await api.deleteMacros(triggers);
       await refresh();
-      app.toast("info", `Đã xoá ${formatNumber(targets.length)} mục gõ tắt`, 5000, {
-        label: "Hoàn tác",
+      app.toast("info", t("macros.deleted", { n: formatNumber(targets.length) }), 5000, {
+        label: t("common.undo"),
         run: () => {
           for (const row of targets) void api.upsertMacro(row.trigger, row.expansion);
           setTimeout(() => void refresh(), 200);
         },
       });
     } catch (failure) {
-      app.fail("Không xoá được", failure);
+      app.fail(t("macros.deleteFailed"), failure);
     }
   };
 
@@ -186,7 +187,7 @@
       await api.upsertMacro(candidate, row.expansion);
       await refresh();
     } catch (failure) {
-      app.fail("Không nhân bản được", failure);
+      app.fail(t("macros.duplicateFailed"), failure);
     }
   };
 
@@ -200,39 +201,39 @@
 
   // ------------------------------------------------------------ file transfer
   const importFile = async () => {
-    if (local) return void app.toast("info", "Cần backend để nhập tệp.");
+    if (local) return void app.toast("info", t("macros.needBackendImport"));
     try {
       const { open: openDialog } = await import("@tauri-apps/plugin-dialog");
       const path = await openDialog({
         multiple: false,
         directory: false,
-        title: "Chọn tệp gõ tắt",
-        filters: [{ name: "Tệp gõ tắt", extensions: ["txt", "tsv"] }],
+        title: t("macros.importDialog"),
+        filters: [{ name: t("macros.fileFilter"), extensions: ["txt", "tsv"] }],
       });
       if (typeof path !== "string") return;
       const count = await api.importMacros(path);
-      app.toast("success", `Đã nhập ${formatNumber(count)} mục`);
+      app.toast("success", t("macros.imported", { n: formatNumber(count) }));
       await refresh();
     } catch (failure) {
-      app.fail("Không nhập được tệp", failure);
+      app.fail(t("macros.importFailed"), failure);
     }
   };
 
   const exportFile = async () => {
-    if (local) return void app.toast("info", "Cần backend để xuất tệp.");
+    if (local) return void app.toast("info", t("macros.needBackendExport"));
     try {
       const { save } = await import("@tauri-apps/plugin-dialog");
       const path = await save({
-        title: "Lưu danh sách gõ tắt",
-        defaultPath: "vietkb-go-tat.tsv",
-        filters: [{ name: "Tệp gõ tắt", extensions: ["tsv", "txt"] }],
+        title: t("macros.exportDialog"),
+        defaultPath: t("macros.exportFile"),
+        filters: [{ name: t("macros.fileFilter"), extensions: ["tsv", "txt"] }],
       });
       if (!path) return;
       const count = await api.exportMacros(path);
       const name = path.split(/[\\/]/).pop() ?? path;
-      app.toast("success", `Đã xuất ${formatNumber(count)} mục ra ${name}`);
+      app.toast("success", t("macros.exported", { n: formatNumber(count), name }));
     } catch (failure) {
-      app.fail("Không xuất được tệp", failure);
+      app.fail(t("macros.exportFailed"), failure);
     }
   };
 
@@ -245,9 +246,9 @@
     try {
       await api.upsertMacro(sample.trigger, sample.expansion);
       await refresh();
-      app.toast("success", "Đã thêm 1 mục");
+      app.toast("success", t("macros.addedOne"));
     } catch (failure) {
-      app.fail("Không thêm được mục", failure);
+      app.fail(t("macros.addOneFailed"), failure);
     }
   };
 
@@ -269,7 +270,7 @@
       if (local) void refresh();
       else await refresh();
     } catch (failure) {
-      app.fail("Không thêm được ví dụ", failure);
+      app.fail(t("macros.seedFailed"), failure);
     }
   };
 </script>
@@ -283,28 +284,28 @@
       bind:this={searchEl}
       bind:value={query}
       type="search"
-      placeholder="Tìm từ tắt hoặc nội dung"
-      aria-label="Tìm từ tắt hoặc nội dung"
+      placeholder={t("macros.search")}
+      aria-label={t("macros.search")}
       spellcheck="false" />
     <span class="kk"><Keycap text="Ctrl" small /><span class="plus">+</span><Keycap text="F" small /></span>
   </div>
   <button type="button" class="btn" onclick={importFile}>
     <Icon name="download" />
-    Nhập từ tệp…
+    {t("macros.import")}
   </button>
   <button type="button" class="btn" onclick={exportFile} disabled={total === 0}>
     <Icon name="upload" />
-    Xuất ra tệp…
+    {t("macros.export")}
   </button>
   <button type="button" class="btn pri" onclick={openNew}>
     <Icon name="plus" />
-    Thêm
+    {t("macros.add")}
   </button>
 </div>
 
 <div class="tbl">
   {#if loading}
-    <div class="tr"><span style="grid-column:1/-1;padding-left:16px" class="muted">Đang tải…</span></div>
+    <div class="tr"><span style="grid-column:1/-1;padding-left:16px" class="muted">{t("common.loading")}</span></div>
   {:else if loadError}
     <div class="tr"><span style="grid-column:1/-1;padding-left:16px;color:var(--bad)">{loadError}</span></div>
   {:else if rows.length === 0 && !query.trim()}
@@ -316,8 +317,8 @@
         <Icon name="arrow-right" />
         <span class="sample">được</span>
       </div>
-      <b>Chưa có gõ tắt nào</b>
-      <p>Gõ dc rồi bấm dấu cách sẽ ra “được”. Thêm vài mục mẫu để thử:</p>
+      <b>{t("macros.empty.title")}</b>
+      <p>{t("macros.empty.body")}</p>
       <div class="samples">
         {#each [
           { trigger: "dc", expansion: "được" },
@@ -332,13 +333,13 @@
         {/each}
       </div>
       <div class="inline">
-        <button type="button" class="btn pri" onclick={seedExamples}>Thêm cả 3 mục</button>
-        <button type="button" class="btn" onclick={importFile}>Nhập từ tệp…</button>
+        <button type="button" class="btn pri" onclick={seedExamples}>{t("macros.empty.addAll")}</button>
+        <button type="button" class="btn" onclick={importFile}>{t("macros.import")}</button>
       </div>
     </div>
   {:else if rows.length === 0}
     <div class="tr">
-      <span style="grid-column:1/-1;padding-left:16px">Không có mục nào khớp “{query}”</span>
+      <span style="grid-column:1/-1;padding-left:16px">{t("macros.noMatch", { query })}</span>
     </div>
     <div class="tr">
       <span style="grid-column:1/-1;padding-left:16px">
@@ -346,7 +347,7 @@
           type="button"
           class="link"
           onclick={() => { editTrigger = query.trim(); editExpansion = ""; originalTrigger = null; formError = null; editorOpen = true; }}>
-          {Array.from(query.trim()).length > 9 ? "Thêm mục này" : `Thêm “${query.trim()}”`}
+          {Array.from(query.trim()).length > 9 ? t("macros.addThis") : t("macros.addQuery", { query: query.trim() })}
         </button>
       </span>
     </div>
@@ -356,11 +357,11 @@
         <button
           type="button"
           class="cb mix"
-          aria-label="Bỏ chọn tất cả"
+          aria-label={t("macros.deselectAll")}
           onclick={() => (selected = [])}>
           <svg viewBox="0 0 12 12"><path d="M3 6h6" /></svg>
         </button>
-        <span>Đã chọn <span class="num">{formatNumber(selected.length)}</span> <small>trong <span class="num">{formatNumber(total)}</span></small></span>
+        <span>{t("macros.selected")} <span class="num">{formatNumber(selected.length)}</span> <small>{t("macros.selectedOf")} <span class="num">{formatNumber(total)}</span></small></span>
       </span>
       <button
         type="button"
@@ -368,33 +369,33 @@
         disabled={selected.length !== 1}
         onclick={() => selectedRows[0] && openEdit(selectedRows[0])}>
         <Icon name="edit" small />
-        Sửa
+        {t("common.edit")}
       </button>
       <button type="button" class="btn ghost sm" onclick={exportFile}>
         <Icon name="upload" small />
-        Xuất…
+        {t("macros.exportShort")}
       </button>
       <button type="button" class="btn ghost sm danger" onclick={() => doDelete(selectedRows)}>
         <Icon name="trash" small />
-        Xoá
+        {t("common.delete")}
       </button>
       <span class="vsep"></span>
       <button type="button" class="btn ghost sm" onclick={() => (selected = [])}>
-        Bỏ chọn <Keycap text="Esc" small />
+        {t("macros.deselect")} <Keycap text="Esc" small />
       </button>
     </div>
   {:else if !macroOn}
     <div class="bulk">
       <span class="n" style="font-weight:400">
-        Gõ tắt đang tắt, các mục chưa có tác dụng ·
-        <button type="button" class="lnk" onclick={() => app.patch({ typing: { macroEnabled: true } })}>Bật</button>
+        {t("macros.off")}
+        <button type="button" class="lnk" onclick={() => app.patch({ typing: { macroEnabled: true } })}>{t("macros.turnOn")}</button>
       </span>
     </div>
   {:else}
     <div class="tr head">
       <span class="c0"></span>
-      <span class="c1">Từ tắt</span>
-      <span>Nội dung</span>
+      <span class="c1">{t("macros.col.trigger")}</span>
+      <span>{t("macros.col.text")}</span>
       <span></span>
     </div>
   {/if}
@@ -408,7 +409,7 @@
               type="button"
               class="cb"
               class:on={selected.includes(row.trigger)}
-              aria-label={`Chọn ${row.trigger}`}
+              aria-label={t("macros.selectRow", { trigger: row.trigger })}
               aria-pressed={selected.includes(row.trigger)}
               onclick={() => toggleSelect(row.trigger)}>
               {#if selected.includes(row.trigger)}
@@ -419,30 +420,30 @@
           <span class="c1"><Keycap text={row.trigger} mono /></span>
           <span class="ex">
             <em>{row.expansion}</em>
-            {#if row.expansion.includes("\n")}<span class="tag n">+1 dòng</span>{/if}
+            {#if row.expansion.includes("\n")}<span class="tag n">{t("macros.extraLine")}</span>{/if}
           </span>
           <span class="acts">
             <button
               type="button"
               class="btn ghost icon sm"
-              aria-label={`Sửa ${row.trigger}`}
-              title="Sửa"
+              aria-label={t("macros.editRow", { trigger: row.trigger })}
+              title={t("common.edit")}
               onclick={() => openEdit(row)}>
               <Icon name="edit" />
             </button>
             <button
               type="button"
               class="btn ghost icon sm"
-              aria-label={`Tuỳ chọn khác cho ${row.trigger}`}
-              title="Tuỳ chọn khác"
+              aria-label={t("macros.moreRow", { trigger: row.trigger })}
+              title={t("macros.more")}
               onclick={() => (menuFor = menuFor === row.trigger ? null : row.trigger)}>
               <Icon name="more" />
             </button>
           </span>
           {#if menuFor === row.trigger}
             <div class="rowmenu" role="menu">
-              <button type="button" role="menuitem" onclick={() => duplicate(row)}>Nhân bản</button>
-              <button type="button" role="menuitem" class="danger" onclick={() => doDelete([row])}>Xoá</button>
+              <button type="button" role="menuitem" onclick={() => duplicate(row)}>{t("macros.duplicate")}</button>
+              <button type="button" role="menuitem" class="danger" onclick={() => doDelete([row])}>{t("common.delete")}</button>
             </div>
           {/if}
         </div>
@@ -454,55 +455,55 @@
 <div class="mfoot">
   <span>
     {#if total === 1 && !query.trim()}
-      Có 1 mục
+      {t("macros.footer.one")}
     {:else if query.trim()}
-      <span class="num">{formatNumber(rows.length)}</span> kết quả trong
-      <span class="num">{formatNumber(total)}</span> mục · cuộn để xem hết
+      <span class="num">{formatNumber(rows.length)}</span> {t("macros.footer.results")}
+      <span class="num">{formatNumber(total)}</span> {t("macros.footer.entries")}
     {:else}
-      <span class="num">{formatNumber(total)}</span> mục · cuộn để xem hết
+      <span class="num">{formatNumber(total)}</span> {t("macros.footer.entries")}
     {/if}
   </span>
   <button
     type="button"
     class="btn ghost sm"
-    title="Đóng, VietKB vẫn chạy"
+    title={t("titlebar.close")}
     onclick={closeCurrent}>
-    Đóng
+    {t("common.close")}
   </button>
 </div>
 
 <Modal
   bind:open={editorOpen}
-  title={originalTrigger ? "Sửa từ tắt" : "Thêm từ tắt"}
+  title={originalTrigger ? t("macros.editor.edit") : t("macros.editor.new")}
   onclose={() => (formError = null)}>
   <div class="form">
     <label class="field">
-      <span>Từ tắt</span>
+      <span>{t("macros.field.trigger")}</span>
       <input
         class="input"
         bind:value={editTrigger}
-        placeholder="ví dụ: dc"
+        placeholder={t("macros.field.triggerPh")}
         maxlength="32"
         spellcheck="false" />
-      <span class="hint">Từ tắt viết liền, không có dấu cách.</span>
+      <span class="hint">{t("macros.field.triggerHint")}</span>
     </label>
     <label class="field">
-      <span>Nội dung</span>
+      <span>{t("macros.field.text")}</span>
       <textarea
         class="input"
         bind:value={editExpansion}
-        placeholder="ví dụ: được · Enter để xuống dòng"
+        placeholder={t("macros.field.textPh")}
         spellcheck="false"></textarea>
-      <span class="hint">{editExpansion.length} ký tự</span>
+      <span class="hint">{t("macros.field.chars", { n: editExpansion.length })}</span>
     </label>
     {#if formError}
       <p class="form-error" role="alert">{formError}</p>
     {/if}
   </div>
   {#snippet footer()}
-    <button type="button" class="btn ghost" onclick={() => (editorOpen = false)}>Huỷ</button>
+    <button type="button" class="btn ghost" onclick={() => (editorOpen = false)}>{t("common.cancel")}</button>
     <button type="button" class="btn pri" onclick={saveMacro} disabled={busy}>
-      {busy ? "Đang lưu…" : "Lưu"}
+      {busy ? t("macros.saving") : t("common.save")}
     </button>
   {/snippet}
 </Modal>

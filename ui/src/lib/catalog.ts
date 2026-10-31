@@ -1,12 +1,14 @@
 // Product catalogues: input methods and hotkey actions.
 // Vietnamese product terminology is kept verbatim from EVKey (contract C7).
 
+import { t } from "./lang.svelte";
 import { detectOS } from "./platform.svelte";
 
 export interface MethodInfo {
   slug: string;
   label: string;
-  hint: string;
+  /** i18n key of the one-line hint. */
+  hintKey: string;
   example: string;
 }
 
@@ -14,13 +16,13 @@ export const METHODS: MethodInfo[] = [
   {
     slug: "telex",
     label: "Telex",
-    hint: "Gõ chữ cái để thêm dấu: aa → â, ow → ơ, s → dấu sắc.",
+    hintKey: "method.telex.hint",
     example: "vieejt → việt",
   },
   {
     slug: "vni",
     label: "VNI",
-    hint: "Gõ số để thêm dấu: a1 → á, a6 → â, o7 → ơ.",
+    hintKey: "method.vni.hint",
     example: "vie6t5 → việt",
   },
 ];
@@ -32,16 +34,17 @@ export const methodLabel = (slug: string): string =>
  *  `modern_tone = true` is kiểu mới — tone on the first vowel: hòa, thúy — as
  *  `vkb_core::tone::target` places it. */
 export const TONE_STYLES = [
-  { modern: true, name: "Kiểu mới", example: "hòa, thúy" },
-  { modern: false, name: "Kiểu cũ", example: "hoà, thuý" },
+  { modern: true, nameKey: "tone.modern", example: "hòa, thúy" },
+  { modern: false, nameKey: "tone.classic", example: "hoà, thuý" },
 ] as const;
 
 export type HotkeyGroup = "state" | "tools";
 
 export interface HotkeyAction {
   field: HotkeyActionField;
-  label: string;
-  hint: string;
+  /** i18n keys; resolve with `t()` at render time so a language switch applies. */
+  labelKey: string;
+  hintKey: string;
   group: HotkeyGroup;
   /** `""` means "no shortcut by default". */
   fallback: string;
@@ -78,71 +81,73 @@ export const DEFAULT_HOTKEYS: Record<HotkeyActionField, string> = {
 export const HOTKEY_ACTIONS: HotkeyAction[] = [
   {
     field: "enable",
-    label: "Bật tiếng Việt",
-    hint: "Chuyển sang chế độ gõ tiếng Việt, giữ nguyên kiểu gõ đang chọn.",
+    labelKey: "hotkey.enable.label",
+    hintKey: "hotkey.enable.hint",
     group: "state",
     fallback: "F1",
   },
   {
     field: "disable",
-    label: "Tắt tiếng Việt",
-    hint: "Trả bàn phím về gõ tiếng Anh bình thường.",
+    labelKey: "hotkey.disable.label",
+    hintKey: "hotkey.disable.hint",
     group: "state",
     fallback: "F2",
   },
   {
     field: "toggle",
-    label: "Chuyển bật / tắt",
-    hint: "Một phím duy nhất để đổi trạng thái, tiện khi chỉ muốn một phím tắt.",
+    labelKey: "hotkey.toggle.label",
+    hintKey: "hotkey.toggle.hint",
     group: "state",
     fallback: "",
   },
   {
     field: "restoreWord",
-    label: "Khôi phục từ gõ sai",
-    hint: "Khôi phục đúng các phím bạn vừa gõ khi từ bị nhận sai.",
+    labelKey: "hotkey.restoreWord.label",
+    hintKey: "hotkey.restoreWord.hint",
     group: "state",
     fallback: "",
   },
   {
     field: "appExclude",
-    label: "Bật / tắt loại trừ ứng dụng",
-    hint: "Tạm bỏ qua danh sách loại trừ cho cửa sổ đang mở.",
+    labelKey: "hotkey.appExclude.label",
+    hintKey: "hotkey.appExclude.hint",
     group: "state",
     fallback: "F11",
   },
   {
     field: "macroPanel",
-    label: "Bảng gõ tắt",
-    hint: "Mở nhanh danh sách gõ tắt để tra hoặc sửa.",
+    labelKey: "hotkey.macroPanel.label",
+    hintKey: "hotkey.macroPanel.hint",
     group: "tools",
     fallback: "F8",
   },
   {
     field: "macroToggle",
-    label: "Bật / tắt gõ tắt",
-    hint: "Tắt gõ tắt mà không phải vào cài đặt.",
+    labelKey: "hotkey.macroToggle.label",
+    hintKey: "hotkey.macroToggle.hint",
     group: "tools",
     fallback: "F9",
   },
   {
     field: "openSettings",
-    label: "Mở cài đặt",
-    hint: "Mở cửa sổ này từ bất cứ đâu.",
+    labelKey: "hotkey.openSettings.label",
+    hintKey: "hotkey.openSettings.hint",
     group: "tools",
     fallback: "Ctrl+Alt+S",
   },
   {
     field: "cycleMethod",
-    label: "Đổi kiểu gõ",
-    hint: "Chuyển qua lại Telex ↔ VNI.",
+    labelKey: "hotkey.cycleMethod.label",
+    hintKey: "hotkey.cycleMethod.hint",
     group: "tools",
     fallback: "",
   },
 ];
 
-export const hotkeyActionLabel = (field: string): string =>
-  HOTKEY_ACTIONS.find((a) => a.field === field)?.label ?? field;
+export const hotkeyActionLabel = (field: string): string => {
+  const action = HOTKEY_ACTIONS.find((a) => a.field === field);
+  return action ? t(action.labelKey) : field;
+};
 
 /** Safe keys to suggest: system F-keys we never bind by default, in EVKey spirit. */
 export const HOTKEY_SUGGESTIONS = [

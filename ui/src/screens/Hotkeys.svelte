@@ -7,6 +7,7 @@
   import * as api from "../lib/api";
   import { closeCurrent } from "../lib/window.svelte";
   import { platformState } from "../lib/platform.svelte";
+  import { t } from "../lib/lang.svelte";
   import { DEFAULT_HOTKEYS, hotkeyActionLabel } from "../lib/catalog";
   import { canonicalize, prettyHotkey } from "../lib/hotkey";
   import type { HotkeyActionField } from "../lib/catalog";
@@ -17,12 +18,13 @@
 
   // The four actions that earned a row in v4. Everything else stays in
   // config.toml or on the main window; the file is not a feature list.
-  const rows: { field: HotkeyActionField; label: string }[] = [
-    { field: "toggle", label: "Bật/tắt tiếng Việt" },
-    { field: "cycleMethod", label: "Đổi kiểu gõ" },
-    { field: "restoreWord", label: "Khôi phục từ gõ sai" },
-    { field: "openSettings", label: "Mở cài đặt" },
+  const ROWS: { field: HotkeyActionField; labelKey: string }[] = [
+    { field: "toggle", labelKey: "hotkeys.row.toggle" },
+    { field: "cycleMethod", labelKey: "hotkeys.row.cycleMethod" },
+    { field: "restoreWord", labelKey: "hotkeys.row.restoreWord" },
+    { field: "openSettings", labelKey: "hotkeys.row.openSettings" },
   ];
+  const rows = $derived(ROWS.map((row) => ({ field: row.field, label: t(row.labelKey) })));
 
   const save = (field: HotkeyActionField, next: string) => {
     app.patch({ hotkeys: { [field]: next } });
@@ -61,7 +63,10 @@
         .filter(([other, otherValue]) => other !== field && otherValue === value)
         .map(([other]) => labelForField(other));
       if (others.length > 0) {
-        out[field] = `“${prettyHotkey(value)}” đã dùng cho ${others.join(", ")}. Chọn tổ hợp khác.`;
+        out[field] = t("hotkeys.conflict.stored", {
+          key: prettyHotkey(value),
+          others: others.join(", "),
+        });
       }
     }
     return out;
@@ -88,7 +93,7 @@
     }
     const text =
       problem.kind === "conflict"
-        ? `Tổ hợp này đã dùng cho ${problem.text}. Chọn tổ hợp khác.`
+        ? t("hotkeys.conflict.pending", { action: problem.text })
         : problem.text;
     live = { ...live, [field]: { kind: problem.kind, text } };
     if (problem.kind === "conflict") {
@@ -99,7 +104,7 @@
           ...live,
           [other]: {
             kind: "conflict",
-            text: `Tổ hợp này đã dùng cho ${labelForField(field)}. Chọn tổ hợp khác.`,
+            text: t("hotkeys.conflict.pending", { action: labelForField(field) }),
           },
         };
       }
@@ -127,18 +132,18 @@
     await app.resetSection("hotkeys");
     live = {};
     clashPartner = null;
-    app.toast("success", "Đã đặt lại tất cả phím tắt");
+    app.toast("success", t("hotkeys.resetDone"));
   };
 </script>
 
 <div class="v4win">
-  <TitleBar title="Phím tắt" subtitle="VietKB" showMark={false} showMinimize={false} />
+  <TitleBar title={t("win.hotkeys.title")} subtitle="VietKB" showMark={false} showMinimize={false} />
 
   <main class="v4sheet">
     <div class="v4intro">
-      Bấm vào ô, nhấn tổ hợp mới.
-      <span class="k sm">Esc</span> để bỏ,
-      <span class="k sm">{platformState.mac ? "⌫" : "Backspace"}</span> để xoá phím tắt.
+      {t("hotkeys.intro.a")}
+      <span class="k sm">Esc</span> {t("hotkeys.intro.esc")}
+      <span class="k sm">{platformState.mac ? "⌫" : "Backspace"}</span> {t("hotkeys.intro.del")}
     </div>
 
     {#each rows as row, index (row.field)}
@@ -169,24 +174,24 @@
     {/each}
 
     <div class="v4row hkrow">
-      <div class="l"><b>Kiểu chuyển bật/tắt</b></div>
+      <div class="l"><b>{t("hotkeys.mode")}</b></div>
       <Segmented
         value={settings?.hotkeys.toggleMode ?? "release"}
-        label="Kiểu chuyển bật/tắt"
+        label={t("hotkeys.mode")}
         onchange={(mode) => app.patch({ hotkeys: { toggleMode: mode } })}
         options={[
-          { value: "release", label: "Khi nhả phím" },
-          { value: "press", label: "Khi nhấn phím" },
+          { value: "release", label: t("hotkeys.mode.release") },
+          { value: "press", label: t("hotkeys.mode.press") },
         ]} />
     </div>
 
     <footer class="v4foot">
       <button type="button" class="v4lk" onclick={resetAll}>
         <Icon name="reset" small />
-        Đặt lại tất cả
+        {t("hotkeys.resetAll")}
       </button>
       <span class="sp"></span>
-      <button type="button" class="btn pri" onclick={closeCurrent}>Đóng</button>
+      <button type="button" class="btn pri" onclick={closeCurrent}>{t("common.close")}</button>
     </footer>
   </main>
 </div>

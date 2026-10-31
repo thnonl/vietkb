@@ -294,6 +294,8 @@ fn after_change() {
     crate::macos_backend::push_config();
 
     if let Some(app) = app_handle() {
+        // The tray menu and native window titles follow `system.language`.
+        crate::i18n::retitle_windows(app);
         crate::tray::refresh(app, &status);
         if let Err(error) = app.emit("vkb:status", status) {
             tracing::warn!(%error, "could not broadcast status");
@@ -403,7 +405,7 @@ pub fn set_autostart(enabled: bool) -> Result<bool, String> {
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         use tauri_plugin_autostart::ManagerExt;
-        let app = app_handle().ok_or("ứng dụng chưa sẵn sàng")?;
+        let app = app_handle().ok_or_else(|| crate::i18n::t("err.notReady"))?;
         let manager = app.autolaunch();
         let result = if enabled {
             manager.enable()
@@ -764,7 +766,8 @@ fn status_view_from_view(view: &SettingsView) -> StatusView {
 
 #[tauri::command]
 pub fn set_method(method: String) -> Result<StatusView, String> {
-    let parsed = InputMethod::from_str(&method).ok_or("kiểu gõ không hợp lệ")?;
+    let parsed =
+        InputMethod::from_str(&method).ok_or_else(|| crate::i18n::t("err.method.invalid"))?;
     let mut draft = config_cell().read().clone();
     draft.input.method = parsed;
     let view = save_and_publish(draft)?;
@@ -795,22 +798,24 @@ fn validate_macro(trigger: &str, expansion: &str) -> Result<(String, String), St
     let trigger_len = trigger.chars().count();
     let expansion_len = expansion.chars().count();
     if trigger.is_empty() {
-        return Err("Nhập từ tắt, ví dụ dc".into());
+        return Err(crate::i18n::t("err.macro.noTrigger"));
     }
     if trigger.chars().any(char::is_whitespace) {
-        return Err("Từ tắt viết liền, không có dấu cách".into());
+        return Err(crate::i18n::t("err.macro.spaces"));
     }
     if trigger_len > 32 {
-        return Err(format!(
-            "Từ tắt dài tối đa 32 ký tự, đang có {trigger_len}"
+        return Err(crate::i18n::tf(
+            "err.macro.triggerLong",
+            &[("n", &trigger_len.to_string())],
         ));
     }
     if expansion.is_empty() {
-        return Err("Phần thay thế không được để trống — muốn bỏ thì xoá cả mục.".into());
+        return Err(crate::i18n::t("err.macro.noText"));
     }
     if expansion_len > 500 {
-        return Err(format!(
-            "Nội dung dài tối đa 500 ký tự, đang có {expansion_len}"
+        return Err(crate::i18n::tf(
+            "err.macro.textLong",
+            &[("n", &expansion_len.to_string())],
         ));
     }
     Ok((trigger.to_string(), expansion.to_string()))
@@ -866,6 +871,13 @@ fn unescape_tsv(value: &str) -> String {
     out
 }
 
+fn bad_line(display: &str, line_no: usize) -> String {
+    crate::i18n::tf(
+        "err.import.badLine",
+        &[("file", display), ("line", &line_no.to_string())],
+    )
+}
+
 /// Import a TSV macro list (27 C#8): UTF-8, no BOM, `trigger<TAB>expansion`,
 /// optional `#vkb1` header, `\n`/`\t` escapes. All-or-nothing: the first bad
 /// line rejects the whole file and nothing is written.
@@ -877,11 +889,10 @@ pub fn import_macros(path: String) -> Result<usize, String> {
         .unwrap_or_else(|| path.clone());
     let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
     if bytes.len() > MACRO_MAX_BYTES {
-        return Err(format!("Không đọc được tệp {display}: tệp lớn hơn 2 MB."));
+        return Err(crate::i18n::tf("err.import.tooBig", &[("file", &display)]));
     }
-    let body = String::from_utf8(bytes).map_err(|_| {
-        format!("Không đọc được tệp {display}: tệp không phải UTF-8.")
-    })?;
+    let body = String::from_utf8(bytes)
+        .map_err(|_| crate::i18n::tf("err.import.notUtf8", &[("file", &display)]))?;
     let body = body.trim_start_matches('\u{feff}');
 
     let mut parsed: Vec<(String, String)> = Vec::new();
@@ -895,29 +906,19 @@ pub fn import_macros(path: String) -> Result<usize, String> {
             continue;
         }
         let Some((trigger, expansion)) = line.split_once('\t') else {
-            return Err(format!(
-                "Không đọc được tệp {display}: dòng {line_no} không đúng dạng. Chưa nhập mục nào."
-            ));
+            return Err(bad_line(&display, line_no));
         };
         match validate_macro(&unescape_tsv(trigger), &unescape_tsv(expansion)) {
             Ok(row) => parsed.push(row),
-            Err(_) => {
-                return Err(format!(
-                    "Không đọc được tệp {display}: dòng {line_no} không đúng dạng. Chưa nhập mục nào."
-                ))
-            }
+            Err(_) => return Err(bad_line(&display, line_no)),
         }
         if parsed.len() > MACRO_MAX_ROWS {
-            return Err(format!(
-                "Không đọc được tệp {display}: quá 5.000 mục. Chưa nhập mục nào."
-            ));
+            return Err(crate::i18n::tf("err.import.tooMany", &[("file", &display)]));
         }
     }
 
     if parsed.is_empty() {
-        return Err(format!(
-            "Không đọc được tệp {display}: không có dòng nào. Chưa nhập mục nào."
-        ));
+        return Err(crate::i18n::tf("err.import.noLines", &[("file", &display)]));
     }
 
     let mut draft = config_cell().read().clone();
@@ -966,7 +967,7 @@ pub fn list_app_rules() -> Vec<AppRuleRow> {
 pub fn set_app_rule(process: String, enabled: bool) -> Result<(), String> {
     let process = process.trim().to_ascii_lowercase();
     if process.is_empty() {
-        return Err("tên tiến trình không được để trống".into());
+        return Err(crate::i18n::t("err.rule.noProcess"));
     }
     let mut draft = config_cell().read().clone();
     let exists = draft
@@ -1085,7 +1086,7 @@ pub fn open_config_folder() -> Result<(), String> {
             .arg(&dir)
             .spawn()
             .map(|_| ())
-            .map_err(|error| format!("không mở được thư mục: {error}"))
+            .map_err(|error| crate::i18n::tf("err.openFolder", &[("error", &error.to_string())]))
     }
     #[cfg(target_os = "macos")]
     {
@@ -1093,7 +1094,7 @@ pub fn open_config_folder() -> Result<(), String> {
             .arg(&dir)
             .spawn()
             .map(|_| ())
-            .map_err(|error| format!("không mở được thư mục: {error}"))
+            .map_err(|error| crate::i18n::tf("err.openFolder", &[("error", &error.to_string())]))
     }
     #[cfg(all(not(windows), not(target_os = "macos")))]
     {
@@ -1101,7 +1102,7 @@ pub fn open_config_folder() -> Result<(), String> {
             .arg(&dir)
             .spawn()
             .map(|_| ())
-            .map_err(|error| format!("không mở được thư mục: {error}"))
+            .map_err(|error| crate::i18n::tf("err.openFolder", &[("error", &error.to_string())]))
     }
 }
 

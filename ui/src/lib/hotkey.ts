@@ -4,6 +4,7 @@
 // crates/vkb-config/src/hotkey.rs so the field can show the stored form
 // instantly; `parse_hotkey` remains the authority and is called on every change.
 
+import { langState, t } from "./lang.svelte";
 import { isMacOS } from "./platform.svelte";
 
 const NAMED: Record<string, string> = {
@@ -77,7 +78,7 @@ export const canonicalize = (input: string): CanonicalResult => {
     else if (lower === "win" || lower === "windows" || lower === "super" || lower === "meta")
       win = true;
     else {
-      if (key !== null) return { canonical: null, error: `Không nhận ra phím: ${token}` };
+      if (key !== null) return { canonical: null, error: t("hk.err.unknownKey", { key: token }) };
       const named = NAMED[lower] ?? (lower.startsWith("f") ? null : NAMED[lower]);
       if (named) key = named;
       else if (/^f([1-9]|1[0-9]|2[0-4])$/.test(lower)) key = lower.toUpperCase();
@@ -86,16 +87,16 @@ export const canonicalize = (input: string): CanonicalResult => {
     }
   }
 
-  if (bad) return { canonical: null, error: `Không nhận ra phím: ${trimmed}` };
+  if (bad) return { canonical: null, error: t("hk.err.unknownKey", { key: trimmed }) };
   const hasModifier = ctrl || alt || shift || win;
   if (!hasModifier && key !== null && !/^F\d+$/.test(key)) {
     return {
       canonical: null,
-      error: `Phím tắt cần ít nhất một phím Ctrl/Alt/Shift/Win: ${trimmed}`,
+      error: t("hk.err.needModifier", { key: trimmed }),
     };
   }
   if (!hasModifier && key === null) {
-    return { canonical: null, error: "Phím tắt rỗng" };
+    return { canonical: null, error: t("hk.err.empty") };
   }
 
   const parts: string[] = [];
@@ -128,60 +129,62 @@ export const prettyHotkey = (value: string): string =>
     ? value.split("+").map(keyLabel).join("")
     : value.replaceAll("+", " + ");
 
-/** Số lớn kiểu Việt: 148 → 148, 5000 → 5.000. */
-export const formatNumber = (value: number): string => value.toLocaleString("vi-VN");
+/** Grouped digits by UI language: vi 5.000, en 5,000. */
+export const formatNumber = (value: number): string =>
+  value.toLocaleString(langState.lang === "en" ? "en-US" : "vi-VN");
 
-/** Combinations Windows owns; assignment is refused with a calm reason. */
+/** Combinations Windows owns; assignment is refused with a calm reason (i18n keys). */
 const RESERVED: Record<string, string> = {
-  "Win+L": "Windows đã dùng Win + L để khoá máy. Hãy nhấn tổ hợp khác.",
-  "Alt+Tab": "Windows đã dùng Alt + Tab để chuyển cửa sổ. Hãy nhấn tổ hợp khác.",
-  "Ctrl+Alt+Delete":
-    "Windows đã dùng Ctrl + Alt + Del để mở màn hình bảo mật. Hãy nhấn tổ hợp khác.",
-  "Ctrl+Shift+Escape":
-    "Windows đã dùng Ctrl + Shift + Esc để mở Task Manager. Hãy nhấn tổ hợp khác.",
+  "Win+L": "hk.reserved.winL",
+  "Alt+Tab": "hk.reserved.altTab",
+  "Ctrl+Alt+Delete": "hk.reserved.cad",
+  "Ctrl+Shift+Escape": "hk.reserved.taskmgr",
 };
 
-/** Common application shortcuts: allowed, but warned about (27 C#7). */
+/** Common application shortcuts: allowed, but warned about (27 C#7). Values are i18n keys. */
 const COMMON: Record<string, string> = {
-  "Ctrl+Z": "Hoàn tác",
-  "Ctrl+Y": "Làm lại",
-  "Ctrl+Shift+Z": "Làm lại",
-  "Ctrl+C": "Sao chép",
-  "Ctrl+V": "Dán",
-  "Ctrl+X": "Cắt",
-  "Ctrl+A": "Chọn tất cả",
-  "Ctrl+S": "Lưu",
-  "Ctrl+F": "Tìm",
-  "Ctrl+Shift+T": "Mở lại tab",
-  "Alt+Shift": "Đổi bàn phím của Windows",
-  "Win+Space": "Đổi bàn phím của Windows",
-  "Ctrl+Space": "Bộ gõ tiếng Trung, Nhật",
+  "Ctrl+Z": "hk.common.undo",
+  "Ctrl+Y": "hk.common.redo",
+  "Ctrl+Shift+Z": "hk.common.redo",
+  "Ctrl+C": "hk.common.copy",
+  "Ctrl+V": "hk.common.paste",
+  "Ctrl+X": "hk.common.cut",
+  "Ctrl+A": "hk.common.selectAll",
+  "Ctrl+S": "hk.common.save",
+  "Ctrl+F": "hk.common.find",
+  "Ctrl+Shift+T": "hk.common.reopenTab",
+  "Alt+Shift": "hk.common.winKeyboard",
+  "Win+Space": "hk.common.winKeyboard",
+  "Ctrl+Space": "hk.common.cjk",
 };
 
 /** macOS: ⌘ combinations are the app shortcuts everybody has in their fingers,
  *  so they are warned about, never refused. Nothing is reserved. */
 const MAC_COMMON: Record<string, string> = {
-  "Win+C": "Sao chép",
-  "Win+V": "Dán",
-  "Win+X": "Cắt",
-  "Win+A": "Chọn tất cả",
-  "Win+S": "Lưu",
-  "Win+F": "Tìm",
-  "Win+Z": "Hoàn tác",
-  "Win+Shift+Z": "Làm lại",
-  "Win+Q": "Thoát ứng dụng",
-  "Win+W": "Đóng cửa sổ",
-  "Win+Space": "Spotlight",
-  "Ctrl+Space": "Đổi bàn phím của macOS",
+  "Win+C": "hk.common.copy",
+  "Win+V": "hk.common.paste",
+  "Win+X": "hk.common.cut",
+  "Win+A": "hk.common.selectAll",
+  "Win+S": "hk.common.save",
+  "Win+F": "hk.common.find",
+  "Win+Z": "hk.common.undo",
+  "Win+Shift+Z": "hk.common.redo",
+  "Win+Q": "hk.common.quit",
+  "Win+W": "hk.common.closeWindow",
+  "Win+Space": "hk.common.spotlight",
+  "Ctrl+Space": "hk.common.macKeyboard",
 };
 
-export const reservedReason = (canonical: string): string | null =>
-  isMacOS() ? null : (RESERVED[canonical] ?? null);
+export const reservedReason = (canonical: string): string | null => {
+  if (isMacOS()) return null;
+  const key = RESERVED[canonical];
+  return key ? t(key) : null;
+};
 
 export const commonWarning = (canonical: string): string | null => {
-  const action = (isMacOS() ? MAC_COMMON : COMMON)[canonical];
-  if (!action) return null;
-  return `${prettyHotkey(canonical)} là phím ${action} ở hầu hết ứng dụng. Vẫn đặt được nếu bạn muốn.`;
+  const actionKey = (isMacOS() ? MAC_COMMON : COMMON)[canonical];
+  if (!actionKey) return null;
+  return t("hk.warning", { combo: prettyHotkey(canonical), action: t(actionKey) });
 };
 
 /** A hotkey that cannot work on Windows (reserved) or may collide (common app). */

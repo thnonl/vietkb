@@ -15,6 +15,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::tf;
+
 /// The repository the app ships from.
 pub const REPO_URL: &str = "https://github.com/thnonl/vietkb";
 const LATEST_API: &str = "https://api.github.com/repos/thnonl/vietkb/releases/latest";
@@ -26,12 +28,12 @@ const USER_AGENT: &str = concat!(
 );
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 const STARTUP_DELAY: Duration = Duration::from_secs(5);
-/// Shown when the release has no Windows x64 installer asset.
+/// i18n key shown when the release has no installer asset for this platform
+/// (no Windows x64 installer, or no `.dmg` on macOS).
 #[cfg(not(target_os = "macos"))]
-pub const NO_INSTALLER: &str = "Bản phát hành không có bộ cài cho Windows x64";
-/// Shown when the release has no `.dmg` asset (macOS).
+pub const NO_INSTALLER: &str = "err.update.noInstaller";
 #[cfg(target_os = "macos")]
-pub const NO_INSTALLER: &str = "Bản phát hành không có tệp .dmg cho macOS";
+pub const NO_INSTALLER: &str = "err.update.noDmg";
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -253,7 +255,7 @@ fn http_get(agent: &ureq::Agent, url: &str) -> Result<(u16, String), String> {
         .header("Accept", "application/vnd.github+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
         .call()
-        .map_err(|error| format!("Không kết nối được máy chủ cập nhật: {error}"))?;
+        .map_err(|error| tf("err.update.connect", &[("error", &error.to_string())]))?;
     let status = response.status().as_u16();
     let body = response.body_mut().read_to_string().unwrap_or_default();
     Ok((status, body))
@@ -303,12 +305,9 @@ fn fetch_latest() -> Result<Option<UpdateInfo>, String> {
                 // No release has ever been published: a valid, quiet state.
                 404 => return Ok(None),
                 403 | 429 => {
-                    return Err(format!(
-                        "GitHub đang giới hạn lượt kiểm tra (HTTP {status}). \
-                         Thử lại sau vài phút."
-                    ))
+                    return Err(tf("err.update.rateLimited", &[("status", &status.to_string())]))
                 }
-                other => return Err(format!("Máy chủ cập nhật trả lời HTTP {other}.")),
+                other => return Err(tf("err.update.http", &[("status", &other.to_string())])),
             }
         }
     };
@@ -333,7 +332,7 @@ fn is_installer_asset(name: &str, macos: bool) -> bool {
 
 fn parse_release_for(body: &str, macos: bool) -> Result<Option<UpdateInfo>, String> {
     let release: ReleaseJson = serde_json::from_str(body)
-        .map_err(|error| format!("Phản hồi cập nhật không đọc được: {error}"))?;
+        .map_err(|error| tf("err.update.parse", &[("error", &error.to_string())]))?;
 
     let Some(tag) = release.tag_name.as_deref().map(str::trim).filter(|t| !t.is_empty()) else {
         // `{}` or an empty body: nothing published.
@@ -444,7 +443,7 @@ pub async fn check_update(app: tauri::AppHandle) -> UpdateStatus {
     publish(&app, UpdateStatus::checking());
     let status = tauri::async_runtime::spawn_blocking(run_check)
         .await
-        .unwrap_or_else(|error| UpdateStatus::error(format!("Không kiểm tra được: {error}")));
+        .unwrap_or_else(|error| UpdateStatus::error(tf("err.update.checkFailed", &[("error", &error.to_string())])));
     publish(&app, status.clone());
     status
 }
@@ -457,10 +456,10 @@ pub fn update_status() -> UpdateStatus {
 #[tauri::command]
 pub async fn download_update() -> Result<DownloadOutcome, String> {
     let Some(info) = available() else {
-        return Err("Chưa có bản cập nhật để tải.".to_string());
+        return Err(crate::i18n::t("err.update.nothingToDownload"));
     };
     let Some(url) = info.asset_url.clone() else {
-        return Err(NO_INSTALLER.to_string());
+        return Err(crate::i18n::t(NO_INSTALLER));
     };
     let name = info
         .asset_name
@@ -472,7 +471,7 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
         download_to_temp(&url, &name, &changelog, &info.version)
     })
     .await
-    .unwrap_or_else(|error| Err(format!("Không tải được bản cập nhật: {error}")))?;
+    .unwrap_or_else(|error| Err(tf("err.update.downloadFailed", &[("error", &error.to_string())])))?;
 
     *DOWNLOADED
         .get_or_init(|| parking_lot::Mutex::new(None))
@@ -522,7 +521,7 @@ pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     app.opener()
         .open_url(url, None::<&str>)
-        .map_err(|error| format!("Không mở được trang tải về: {error}"))
+        .map_err(|error| tf("err.update.openPage", &[("error", &error.to_string())]))
 }
 
 /// Launch the installer that `download_update` wrote, then leave cleanly.
@@ -533,19 +532,19 @@ pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         .get_or_init(|| parking_lot::Mutex::new(None))
         .lock()
         .clone()
-        .ok_or_else(|| "Chưa tải bản cập nhật.".to_string())?;
+        .ok_or_else(|| crate::i18n::t("err.update.notDownloaded"))?;
 
     if !downloaded.path.exists() {
-        return Err("Tệp cài đặt không còn trong thư mục tạm.".to_string());
+        return Err(crate::i18n::t("err.update.installerGone"));
     }
 
     #[cfg(windows)]
     {
         let exe = std::env::current_exe()
-            .map_err(|error| format!("Không xác định được tệp chạy: {error}"))?;
+            .map_err(|error| tf("err.update.exePath", &[("error", &error.to_string())]))?;
         let script_path = download_dir().join("apply-update.cmd");
         std::fs::write(&script_path, update_script(&downloaded.path, &exe))
-            .map_err(|error| format!("Không ghi được kịch bản cập nhật: {error}"))?;
+            .map_err(|error| tf("err.update.writeScript", &[("error", &error.to_string())]))?;
 
         // Detached from this process, so it survives the quit below and can
         // start the new build once the installer is done.
@@ -557,7 +556,7 @@ pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
             .current_dir(std::env::temp_dir())
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
-            .map_err(|error| format!("Không chạy được trình cài đặt: {error}"))?;
+            .map_err(|error| tf("err.update.runInstaller", &[("error", &error.to_string())]))?;
 
         // Let `cmd` reach the setup before the hook and the single-instance
         // lock are released; the installer then replaces the files.
@@ -570,7 +569,7 @@ pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(not(windows))]
     {
         let _ = app;
-        Err("Cài đặt tại chỗ chỉ hỗ trợ Windows.".to_string())
+        Err(crate::i18n::t("err.update.winOnly"))
     }
 }
 
@@ -585,12 +584,12 @@ pub fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
     ];
     let trimmed = url.trim();
     if !ALLOWED.iter().any(|allowed| trimmed.starts_with(allowed)) {
-        return Err("Liên kết không được phép mở.".to_string());
+        return Err(crate::i18n::t("err.update.linkBlocked"));
     }
     use tauri_plugin_opener::OpenerExt;
     app.opener()
         .open_url(trimmed, None::<&str>)
-        .map_err(|error| format!("Không mở được liên kết: {error}"))
+        .map_err(|error| tf("err.update.openLink", &[("error", &error.to_string())]))
 }
 
 // ---------------------------------------------------------------------------
@@ -623,7 +622,7 @@ fn download_to_temp(
 ) -> Result<Downloaded, String> {
     let dir = download_dir();
     std::fs::create_dir_all(&dir)
-        .map_err(|error| format!("Không tạo được thư mục tải: {error}"))?;
+        .map_err(|error| tf("err.update.mkdir", &[("error", &error.to_string())]))?;
 
     let file_name = sanitize_file_name(name);
     let part = dir.join(format!("{file_name}.part"));
@@ -634,14 +633,15 @@ fn download_to_temp(
         .get(url)
         .header("Accept", "application/octet-stream")
         .call()
-        .map_err(|error| format!("Không tải được bản cập nhật: {error}"))?;
+        .map_err(|error| tf("err.update.downloadFailed", &[("error", &error.to_string())]))?;
     let status = response.status().as_u16();
     if status != 200 {
-        return Err(format!("Máy chủ tải bản cập nhật trả lời HTTP {status}."));
+        return Err(tf("err.update.serverDownload", &[("status", &status.to_string())]));
     }
 
     let mut file =
-        std::fs::File::create(&part).map_err(|error| format!("Không ghi được tệp tải: {error}"))?;
+        std::fs::File::create(&part)
+        .map_err(|error| tf("err.update.writeFile", &[("error", &error.to_string())]))?;
     let copied = {
         let mut reader = response.body_mut().as_reader();
         std::io::copy(&mut reader, &mut file)
@@ -650,24 +650,21 @@ fn download_to_temp(
     drop(file);
     if let Err(error) = copied {
         let _ = std::fs::remove_file(&part);
-        return Err(format!("Tải bản cập nhật bị gián đoạn: {error}"));
+        return Err(tf("err.update.interrupted", &[("error", &error.to_string())]));
     }
     if let Err(error) = std::fs::rename(&part, &target) {
         let _ = std::fs::remove_file(&part);
-        return Err(format!("Không hoàn tất được tệp tải: {error}"));
+        return Err(tf("err.update.finalize", &[("error", &error.to_string())]));
     }
 
     let verified = match expected_sha256(changelog) {
         Some(expected) => {
             let bytes = std::fs::read(&target)
-                .map_err(|error| format!("Không đọc lại được tệp tải: {error}"))?;
+                .map_err(|error| tf("err.update.reread", &[("error", &error.to_string())]))?;
             let actual = sha256_hex(&bytes);
             if actual != expected {
                 let _ = std::fs::remove_file(&target);
-                return Err(
-                    "SHA256 của tệp tải về không khớp với bản phát hành — đã huỷ tệp."
-                        .to_string(),
-                );
+                return Err(crate::i18n::t("err.update.shaMismatch"));
             }
             true
         }
@@ -897,9 +894,15 @@ mod tests {
     #[test]
     fn the_missing_installer_message_is_the_promised_one() {
         #[cfg(not(target_os = "macos"))]
-        assert_eq!(NO_INSTALLER, "Bản phát hành không có bộ cài cho Windows x64");
+        assert_eq!(
+            crate::i18n::tr(crate::i18n::Lang::Vi, NO_INSTALLER),
+            "Bản phát hành không có bộ cài cho Windows x64"
+        );
         #[cfg(target_os = "macos")]
-        assert_eq!(NO_INSTALLER, "Bản phát hành không có tệp .dmg cho macOS");
+        assert_eq!(
+            crate::i18n::tr(crate::i18n::Lang::Vi, NO_INSTALLER),
+            "Bản phát hành không có tệp .dmg cho macOS"
+        );
     }
 
     #[test]

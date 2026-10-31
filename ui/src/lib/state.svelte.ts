@@ -21,7 +21,8 @@ import type {
   UiView,
   UpdateStatus,
 } from "./bindings";
-import { isLang, translator, type Lang } from "./i18n";
+import { isLang, type Lang } from "./i18n";
+import { langState, t } from "./lang.svelte";
 import { isMacOS, platformState } from "./platform.svelte";
 
 export interface SettingsPatch {
@@ -123,7 +124,7 @@ const demoSettings: SettingsView = {
 export const errorText = (error: unknown): string => {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
-  return "Lỗi không xác định";
+  return t("common.unknownError");
 };
 
 class Store {
@@ -156,11 +157,18 @@ class Store {
 
   get lang(): Lang {
     const value = this.settings?.system.language;
-    return isLang(value) ? value : "vi";
+    return isLang(value) ? value : langState.lang;
   }
 
   get t() {
-    return translator(this.lang);
+    return t;
+  }
+
+  /** Mirror `system.language` into the reactive language state. Called after
+   *  every place `settings` is assigned or patched. */
+  private syncLang(): void {
+    const value = this.settings?.system.language;
+    if (isLang(value)) langState.set(value);
   }
 
   get enabled(): boolean {
@@ -192,6 +200,7 @@ class Store {
       // settings load must not wait on one more IPC round trip.
       void platformState.init();
       if (this.previewMode) {
+        demoSettings.system.language = langState.lang;
         this.settings = demoSettings;
         this.status = demoStatus;
         this.info = demoInfo;
@@ -207,6 +216,7 @@ class Store {
       this.settings = settings;
       this.status = status;
       this.info = info;
+      this.syncLang();
       this.applyTheme(settings.system.theme);
       this.unlisten = await listen<StatusView>("vkb:status", (event) => {
         this.status = event.payload;
@@ -233,7 +243,7 @@ class Store {
       this.settings = demoSettings;
       this.status = demoStatus;
       this.info = demoInfo;
-      this.toast("error", `Không đọc được cấu hình: ${errorText(error)}`, 0);
+      this.toast("error", t("toast.loadConfigFailed", { error: errorText(error) }), 0);
     } finally {
       this.loading = false;
     }
@@ -270,6 +280,7 @@ class Store {
     if (patch.apps) Object.assign(settings.apps, patch.apps);
 
     if (patch.system?.theme) this.applyTheme(patch.system.theme);
+    if (patch.system?.language) this.syncLang();
     if (patch.input?.enabled !== undefined && this.status) {
       this.status.enabled = patch.input.enabled;
     }
@@ -300,10 +311,13 @@ class Store {
     const seq = ++this.seq;
     try {
       const next = await api.patchSettings(body);
-      if (seq === this.seq && Object.keys(this.pending).length === 0) this.settings = next;
+      if (seq === this.seq && Object.keys(this.pending).length === 0) {
+        this.settings = next;
+        this.syncLang();
+      }
       if (next.input) this.status = { ...(this.status ?? demoStatus), ...next.input };
     } catch (error) {
-      this.toast("error", `Không lưu được thay đổi: ${errorText(error)}`);
+      this.toast("error", t("toast.saveFailed", { error: errorText(error) }));
       await this.reload();
     } finally {
       this.inFlight = null;
@@ -327,16 +341,17 @@ class Store {
 
   async resetSection(section: "typing" | "hotkeys" | "system" | "apps" | "all"): Promise<void> {
     if (this.previewMode) {
-      this.toast("info", "Chế độ xem trước: không có gì để đặt lại.");
+      this.toast("info", t("toast.previewReset"));
       return;
     }
     try {
       const next = await api.resetSettings(section);
       this.settings = next;
+      this.syncLang();
       this.applyTheme(next.system.theme);
-      this.toast("success", "Đã đặt lại mục này về mặc định.");
+      this.toast("success", t("toast.resetDone"));
     } catch (error) {
-      this.toast("error", `Không đặt lại được: ${errorText(error)}`);
+      this.toast("error", t("toast.resetFailed", { error: errorText(error) }));
     }
   }
 
@@ -346,6 +361,7 @@ class Store {
       const [settings, status] = await Promise.all([api.getSettings(), api.getStatus()]);
       this.settings = settings;
       this.status = status;
+      this.syncLang();
       this.applyTheme(settings.system.theme);
     } catch {
       // Already surfaced by the caller's toast.
@@ -359,7 +375,7 @@ class Store {
   async checkForUpdate(): Promise<void> {
     if (this.previewMode) {
       this.update = demoUpdate;
-      this.updateNote = "Chế độ xem trước: đang hiện bản cập nhật mẫu.";
+      this.updateNote = t("update.note.preview");
       return;
     }
     this.updateBusy = "checking";
@@ -378,25 +394,25 @@ class Store {
    *  macOS (M5): notify only, so this opens the release page instead. */
   async installUpdate(): Promise<void> {
     if (this.previewMode) {
-      this.updateNote = "Chế độ xem trước: không tải được tệp cài đặt.";
+      this.updateNote = t("update.note.previewNoDownload");
       return;
     }
     if (isMacOS()) {
       try {
         await api.installUpdate();
-        this.updateNote = "Đã mở trang tải về. Tải tệp .dmg và kéo VietKB vào Applications.";
+        this.updateNote = t("update.note.macOpened");
       } catch (error) {
         this.updateNote = errorText(error);
       }
       return;
     }
     this.updateBusy = "downloading";
-    this.updateNote = "Đang tải bản cập nhật…";
+    this.updateNote = t("update.note.downloading");
     try {
       const done: DownloadOutcome = await api.downloadUpdate();
       this.updateNote = done.verified
-        ? `Đã tải và xác minh SHA256 — bản ${done.version}. Đang cập nhật, ứng dụng sẽ tự mở lại.`
-        : `Đã tải bản ${done.version}. Đang cập nhật, ứng dụng sẽ tự mở lại.`;
+        ? t("update.note.verified", { version: done.version })
+        : t("update.note.downloaded", { version: done.version });
       this.updateBusy = "installing";
       await api.installUpdate();
     } catch (error) {
@@ -474,6 +490,7 @@ class Store {
     if (patch.ui) Object.assign(settings.ui, patch.ui);
     if (patch.apps) Object.assign(settings.apps, patch.apps);
     if (patch.system?.theme) this.applyTheme(patch.system.theme, false);
+    if (patch.system?.language) this.syncLang();
     if (patch.input?.enabled !== undefined && this.status) {
       this.status.enabled = patch.input.enabled;
     }

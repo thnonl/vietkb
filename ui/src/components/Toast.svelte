@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import { app } from "../lib/state.svelte";
+  import { t } from "../lib/lang.svelte";
 </script>
 
 <div class="toasts" aria-live="polite" aria-atomic="false">
@@ -25,7 +26,7 @@
             app.dismiss(toast.id);
           }}>{toast.action.label}</button>
       {/if}
-      <button type="button" class="x" aria-label="Đóng thông báo" onclick={() => app.dismiss(toast.id)}>
+      <button type="button" class="x" aria-label={t("toast.close")} onclick={() => app.dismiss(toast.id)}>
         <Icon name="close" small />
       </button>
     </div>

@@ -6,6 +6,7 @@
   import * as api from "../lib/api";
   import { closeCurrent, openWindow } from "../lib/window.svelte";
   import { platformState } from "../lib/platform.svelte";
+  import { t } from "../lib/lang.svelte";
   import type { SettingsView, TypingView } from "../lib/bindings";
 
   const settings = $derived(app.settings);
@@ -17,8 +18,8 @@
   const resetAll = async () => {
     const before = $state.snapshot(app.settings) as SettingsView | null;
     await app.resetSection("all");
-    app.toast("success", "Đã đặt lại tất cả cài đặt", 10000, {
-      label: "Hoàn tác",
+    app.toast("success", t("adv.resetDone"), 10000, {
+      label: t("common.undo"),
       run: () => {
         if (!before) return;
         void api.setSettings(before).then(() => app.reload());
@@ -28,53 +29,53 @@
 </script>
 
 <div class="v4win">
-  <TitleBar title="Nâng cao" subtitle="VietKB" showMark={false} showMinimize={false} />
+  <TitleBar title={t("win.advanced.title")} subtitle="VietKB" showMark={false} showMinimize={false} />
 
   <main class="v4sheet">
-    <div class="v4sh">Gõ</div>
+    <div class="v4sh">{t("adv.sec.typing")}</div>
     <div class="v4grid">
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.freeTone ?? true}
-          label="Gõ dấu ở cuối từ"
-          onchange={(next) => setTyping({ freeTone: next })} />Gõ dấu ở cuối từ
+          label={t("adv.freeTone")}
+          onchange={(next) => setTyping({ freeTone: next })} />{t("adv.freeTone")}
       </div>
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.autoHornUo ?? true}
-          label="Tự sửa ưo thành ươ"
-          onchange={(next) => setTyping({ autoHornUo: next })} />Tự sửa ưo thành ươ
+          label={t("adv.autoHornUo")}
+          onchange={(next) => setTyping({ autoHornUo: next })} />{t("adv.autoHornUo")}
       </div>
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.autoCapitalize ?? false}
-          label="Viết hoa đầu câu"
-          onchange={(next) => setTyping({ autoCapitalize: next })} />Viết hoa đầu câu
+          label={t("adv.autoCapitalize")}
+          onchange={(next) => setTyping({ autoCapitalize: next })} />{t("adv.autoCapitalize")}
       </div>
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.jfwzAsConsonant ?? true}
-          label="Cho phép f j w z làm phụ âm"
-          onchange={(next) => setTyping({ jfwzAsConsonant: next })} />Cho phép f j w z làm phụ âm
+          label={t("adv.jfwz")}
+          onchange={(next) => setTyping({ jfwzAsConsonant: next })} />{t("adv.jfwz")}
       </div>
       <div class="v4ck" class:dis={!settings?.typing.spellCheck}>
         <Checkbox
           checked={settings?.typing.restoreWrongWord ?? false}
           disabled={!settings?.typing.spellCheck}
-          label="Tự động khôi phục từ gõ sai"
-          onchange={(next) => setTyping({ restoreWrongWord: next })} />Tự động khôi phục từ gõ sai
+          label={t("adv.restoreWrong")}
+          onchange={(next) => setTyping({ restoreWrongWord: next })} />{t("adv.restoreWrong")}
       </div>
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.macroWhenDisabled ?? false}
-          label="Vẫn dùng gõ tắt khi đã tắt tiếng Việt"
-          onchange={(next) => setTyping({ macroWhenDisabled: next })} />Vẫn dùng gõ tắt khi đã tắt tiếng Việt
+          label={t("adv.macroWhenOff")}
+          onchange={(next) => setTyping({ macroWhenDisabled: next })} />{t("adv.macroWhenOff")}
       </div>
       <div class="v4ck">
         <Checkbox
           checked={settings?.typing.macroCaseFollow ?? true}
-          label="Viết hoa theo từ tắt"
-          onchange={(next) => setTyping({ macroCaseFollow: next })} />Viết hoa theo từ tắt
+          label={t("adv.macroCase")}
+          onchange={(next) => setTyping({ macroCaseFollow: next })} />{t("adv.macroCase")}
       </div>
     </div>
 
@@ -82,47 +83,47 @@
          value stays in the config; the Mac backend ignores it. The window is
          61 px shorter there (main.rs). -->
     {#if !mac}
-      <div class="v4sh">Tương thích</div>
+      <div class="v4sh">{t("adv.sec.compat")}</div>
       <div class="v4grid">
         <div class="v4ck">
           <Checkbox
             checked={settings?.typing.useClipboard ?? false}
-            label="Gửi chữ qua Clipboard"
-            onchange={(next) => setTyping({ useClipboard: next })} />Gửi chữ qua Clipboard
+            label={t("adv.clipboard")}
+            onchange={(next) => setTyping({ useClipboard: next })} />{t("adv.clipboard")}
         </div>
       </div>
     {/if}
-    <div class="v4sh">Hệ thống</div>
+    <div class="v4sh">{t("adv.sec.system")}</div>
     <div class="v4grid">
       <div class="v4ck">
         <Checkbox
           checked={settings?.system.startWithWindows ?? true}
-          label={mac ? "Mở cùng macOS" : "Khởi động cùng Windows"}
-          onchange={(next) => setSystem({ startWithWindows: next })} />{mac ? "Mở cùng macOS" : "Khởi động cùng Windows"}
+          label={mac ? t("quick.autostart.mac") : t("quick.autostart.win")}
+          onchange={(next) => setSystem({ startWithWindows: next })} />{mac ? t("quick.autostart.mac") : t("quick.autostart.win")}
       </div>
       <div class="v4ck">
         <Checkbox
           checked={settings?.system.notificationSound ?? true}
-          label="Âm thanh khi bật/tắt"
-          onchange={(next) => setSystem({ notificationSound: next })} />Âm thanh khi bật/tắt
+          label={t("adv.sound")}
+          onchange={(next) => setSystem({ notificationSound: next })} />{t("adv.sound")}
       </div>
       <div class="v4ck">
         <Checkbox
           checked={settings?.system.checkUpdates ?? true}
-          label="Tự kiểm tra cập nhật"
-          onchange={(next) => setSystem({ checkUpdates: next })} />Tự kiểm tra cập nhật
+          label={t("adv.checkUpdates")}
+          onchange={(next) => setSystem({ checkUpdates: next })} />{t("adv.checkUpdates")}
       </div>
     </div>
     <footer class="v4foot">
       <button type="button" class="v4lk" onclick={resetAll}>
         <Icon name="reset" small />
-        Đặt lại tất cả…
+        {t("adv.resetAll")}
       </button>
       <button type="button" class="v4lk" onclick={() => openWindow("about")}>
-        Giới thiệu…
+        {t("adv.about")}
       </button>
       <span class="sp"></span>
-      <button type="button" class="btn pri" onclick={closeCurrent}>Đóng</button>
+      <button type="button" class="btn pri" onclick={closeCurrent}>{t("common.close")}</button>
     </footer>
   </main>
 </div>

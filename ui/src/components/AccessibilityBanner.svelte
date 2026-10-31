@@ -2,7 +2,7 @@
   // The window is created tall exactly when Accessibility is missing (main.rs
   // `main_content_height`), so its height at mount already answers the question
   // before the first poll: seed the banner from it and no blank band is painted.
-  const BASE = 424;
+  const BASE = 452; // 424 page + 28 language row
   const BANNER = 80;
   export const seedMissing = (): boolean =>
     typeof window !== "undefined" &&
@@ -16,6 +16,7 @@
   import Icon from "./Icon.svelte";
   import * as api from "../lib/api";
   import { platformState } from "../lib/platform.svelte";
+  import { t } from "../lib/lang.svelte";
 
   // macOS only. VietKB cannot see or type keys until the app is ticked in
   // System Settings > Privacy & Security > Accessibility. The banner shows
@@ -87,9 +88,9 @@
   <div class="axbanner" role="alert">
     <span class="ico"><Icon name="warning" /></span>
     <div class="t">
-      <b>Cần quyền Trợ năng</b>
-      <span>Chưa cấp quyền thì VietKB chưa gõ được tiếng Việt.</span>
+      <b>{t("ax.title")}</b>
+      <span>{t("ax.body")}</span>
     </div>
-    <button type="button" class="btn pri" disabled={busy} onclick={ask}>Cấp quyền…</button>
+    <button type="button" class="btn pri" disabled={busy} onclick={ask}>{t("ax.grant")}</button>
   </div>
 {/if}

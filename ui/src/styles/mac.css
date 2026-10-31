@@ -51,3 +51,16 @@
   font: 400 12px/18px var(--ui);
   color: var(--t2);
 }
+
+/* Language switch row (macOS has no custom caption to hold it). 28 px tall:
+ * keep MAC_LANGBAR_PX in crates/vkb-app/src/main.rs equal to it. */
+.mac-langbar {
+  flex: none;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: var(--surface);
+}

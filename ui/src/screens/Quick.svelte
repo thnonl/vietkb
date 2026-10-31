@@ -12,6 +12,7 @@
   import type { AppRuleRow } from "../lib/bindings";
   import { formatNumber, prettyHotkey as formatHotkey } from "../lib/hotkey";
   import { platformState } from "../lib/platform.svelte";
+  import { plural, t } from "../lib/lang.svelte";
 
   const native = api.isTauri();
   const settings = $derived(app.settings);
@@ -19,7 +20,7 @@
   const prettyHotkey = $derived(formatHotkey(hotkey));
   const mac = $derived(platformState.mac);
   // Windows: "Khởi động cùng Windows"; macOS: "Mở cùng macOS" (27-mac-decisions M4).
-  const autostartLabel = $derived(mac ? "Mở cùng macOS" : "Khởi động cùng Windows");
+  const autostartLabel = $derived(mac ? t("quick.autostart.mac") : t("quick.autostart.win"));
   let axMissing = $state(seedMissing());
 
   let rules = $state<AppRuleRow[]>([]);
@@ -62,7 +63,7 @@
       }
     } catch (failure) {
       app.fail(
-        mac ? "Không đổi được mở cùng macOS" : "Không đổi được khởi động cùng Windows",
+        mac ? t("quick.autostart.fail.mac") : t("quick.autostart.fail.win"),
         failure,
       );
       autostart = settings?.system.startWithWindows ?? false;
@@ -82,7 +83,7 @@
     try {
       rules = await api.listAppRules();
     } catch (failure) {
-      app.fail("Không đọc được quy tắc", failure);
+      app.fail(t("quick.rulesLoadFailed"), failure);
     }
   };
 
@@ -103,21 +104,21 @@
     <div class="v4pad"></div>
 
     <div class="v4row main noline">
-      <div class="l"><b>Bật tiếng Việt</b><span class="hk">{prettyHotkey}</span></div>
+      <div class="l"><b>{t("quick.enable")}</b><span class="hk">{prettyHotkey}</span></div>
       <div class="c">
         <Toggle
           checked={settings?.input.enabled ?? false}
-          label="Bật tiếng Việt"
+          label={t("quick.enable")}
           onchange={(next) => app.patch({ input: { enabled: next } })} />
       </div>
     </div>
 
     <div class="v4row">
-      <div class="l"><b>Kiểu gõ</b></div>
+      <div class="l"><b>{t("quick.method")}</b></div>
       <div class="c">
         <Select
           width={96}
-          label="Kiểu gõ"
+          label={t("quick.method")}
           value={settings?.input.method ?? "telex"}
           options={METHODS.map((method) => ({ value: method.slug, label: method.label }))}
           onchange={(method) => app.patch({ input: { method } })} />
@@ -127,52 +128,52 @@
     <div class="v4sep"></div>
 
     <div class="v4row noline">
-      <div class="l"><b>Đặt dấu kiểu mới</b><span class="h serif">hòa, thúy</span></div>
+      <div class="l"><b>{t("quick.modernTone")}</b><span class="h serif">{t("quick.modernTone.example")}</span></div>
       <div class="c">
         <Toggle
           checked={settings?.typing.modernTone ?? true}
-          label="Đặt dấu kiểu mới"
+          label={t("quick.modernTone")}
           onchange={(next) => app.patch({ typing: { modernTone: next } })} />
       </div>
     </div>
 
     <div class="v4row">
-      <div class="l"><b>Kiểm tra chính tả</b></div>
+      <div class="l"><b>{t("quick.spellCheck")}</b></div>
       <div class="c">
         <Toggle
           checked={settings?.typing.spellCheck ?? true}
-          label="Kiểm tra chính tả"
+          label={t("quick.spellCheck")}
           onchange={(next) => app.patch({ typing: { spellCheck: next } })} />
       </div>
     </div>
 
     <div class="v4row">
-      <div class="l"><b>Cho phép gõ tắt</b></div>
+      <div class="l"><b>{t("quick.macroAllow")}</b></div>
       <div class="c">
         <button type="button" class="btn" onclick={() => openWindow("macros")}>
-          Bảng gõ tắt…
+          {t("quick.macroPanel")}
         </button>
         <Toggle
           checked={settings?.typing.macroEnabled ?? true}
-          label="Cho phép gõ tắt"
+          label={t("quick.macroAllow")}
           onchange={(next) => app.patch({ typing: { macroEnabled: next } })} />
       </div>
     </div>
 
     <div class="v4row">
       <div class="l">
-        <b>Loại trừ ứng dụng</b>
-        <span class="h"><span class="num">{formatNumber(rules.length)}</span> ứng dụng</span>
+        <b>{t("quick.appExclude")}</b>
+        <span class="h"><span class="num">{formatNumber(rules.length)}</span> {plural("quick.appCount", rules.length)}</span>
       </div>
       <div class="c">
-        <button type="button" class="btn" onclick={() => (dialogOpen = true)}>Danh sách ứng dụng…</button>
+        <button type="button" class="btn" onclick={() => (dialogOpen = true)}>{t("quick.appList")}</button>
       </div>
     </div>
 
     <div class="v4row sys">
       <div class="l">
         <b>{autostartLabel}</b>
-        <span class="h">{mac ? "Chạy ngay khi đăng nhập macOS" : "Chạy ngay khi đăng nhập Windows"}</span>
+        <span class="h">{mac ? t("quick.autostart.hint.mac") : t("quick.autostart.hint.win")}</span>
       </div>
       <div class="c">
         <Toggle checked={autostart} label={autostartLabel} onchange={setAutostart} />
@@ -181,28 +182,28 @@
 
     <div class="v4row sys">
       <div class="l">
-        <b>Chạy ẩn</b>
-        <span class="h">{mac ? "Mở lên không hiện cửa sổ, chỉ nằm trên thanh menu" : "Mở lên không hiện cửa sổ, chỉ nằm trong khay"}</span>
+        <b>{t("quick.startHidden")}</b>
+        <span class="h">{mac ? t("quick.startHidden.hint.mac") : t("quick.startHidden.hint.win")}</span>
       </div>
       <div class="c">
         <Toggle
           checked={settings?.system.startMinimized ?? false}
-          label="Chạy ẩn"
+          label={t("quick.startHidden")}
           onchange={(next) => app.patch({ system: { startMinimized: next } })} />
       </div>
     </div>
 
     <footer class="v4foot">
-      <button type="button" class="v4lk" onclick={() => openWindow("hotkeys")}>Phím tắt…</button>
-      <button type="button" class="v4lk" onclick={() => openWindow("advanced")}>Nâng cao…</button>
+      <button type="button" class="v4lk" onclick={() => openWindow("hotkeys")}>{t("quick.hotkeys")}</button>
+      <button type="button" class="v4lk" onclick={() => openWindow("advanced")}>{t("quick.advanced")}</button>
       <span class="sp"></span>
       <button
         type="button"
         class="btn ghost"
-        title={mac ? "Thoát hẳn, tắt luôn biểu tượng trên thanh menu" : "Thoát hẳn, tắt luôn biểu tượng trong khay"}
-        aria-label="Thoát hẳn"
-        onclick={quit}>Thoát hẳn</button>
-      <button type="button" class="btn pri" onclick={closeCurrent}>Đóng</button>
+        title={mac ? t("quick.quit.title.mac") : t("quick.quit.title.win")}
+        aria-label={t("quick.quit")}
+        onclick={quit}>{t("quick.quit")}</button>
+      <button type="button" class="btn pri" onclick={closeCurrent}>{t("common.close")}</button>
     </footer>
   </main>
 </div>

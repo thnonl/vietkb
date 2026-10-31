@@ -17,6 +17,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Wry};
 
 use crate::commands::{self, StatusView};
+use crate::i18n::{self, Lang};
 use crate::update;
 
 pub const TRAY_ID: &str = "vietkb-tray";
@@ -169,14 +170,18 @@ fn badged(base: &'static [u8], px: u32) -> tauri::Result<tauri::image::Image<'st
     Ok(tauri::image::Image::new_owned(pixels, width, height))
 }
 
-fn tooltip(status: &StatusView) -> String {
+fn tooltip(lang: Lang, status: &StatusView) -> String {
     let base = if status.enabled {
-        format!("VietKB · Tiếng Việt · {}", method_label(&status.method))
+        i18n::tf_in(lang, "tray.tip.on", &[("method", method_label(&status.method))])
     } else {
-        "VietKB · Đã tắt tiếng Việt".to_string()
+        i18n::tr(lang, "tray.tip.off").to_string()
     };
     match update::available_version() {
-        Some(version) => format!("{base} · Có bản cập nhật v{version}"),
+        Some(version) => i18n::tf_in(
+            lang,
+            "tray.tip.update",
+            &[("base", &base), ("version", &version)],
+        ),
         None => base,
     }
 }
@@ -190,15 +195,16 @@ fn method_label(slug: &str) -> &str {
 }
 
 /// Exact label of the tray's update item, so the string is testable.
-fn update_menu_label(version: &str) -> String {
-    format!("Có bản cập nhật v{version}")
+fn update_menu_label(lang: Lang, version: &str) -> String {
+    i18n::tf_in(lang, "tray.update", &[("version", version)])
 }
 
 fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> {
+    let lang = i18n::current();
     let toggle = CheckMenuItem::with_id(
         app,
         "toggle",
-        "Bật/tắt tiếng Việt",
+        i18n::tr(lang, "tray.toggle"),
         true,
         status.enabled,
         None::<&str>,
@@ -219,11 +225,11 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
         .iter()
         .map(|item| item as &dyn IsMenuItem<Wry>)
         .collect();
-    let method_menu = Submenu::with_items(app, "Kiểu gõ", true, &method_refs)?;
+    let method_menu = Submenu::with_items(app, i18n::tr(lang, "tray.method"), true, &method_refs)?;
 
-    let settings = MenuItem::with_id(app, "settings", "Mở cài đặt…", true, None::<&str>)?;
-    let hotkeys = MenuItem::with_id(app, "hotkeys", "Phím tắt…", true, None::<&str>)?;
-    let about = MenuItem::with_id(app, "about", "Giới thiệu", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", i18n::tr(lang, "tray.settings"), true, None::<&str>)?;
+    let hotkeys = MenuItem::with_id(app, "hotkeys", i18n::tr(lang, "tray.hotkeys"), true, None::<&str>)?;
+    let about = MenuItem::with_id(app, "about", i18n::tr(lang, "tray.about"), true, None::<&str>)?;
     // Only while a newer release is known: the item is the tray's third
     // affordance, and it must appear without a restart when the 5 s check finds
     // one (`refresh` rebuilds this menu).
@@ -233,14 +239,14 @@ fn build_menu(app: &AppHandle, status: &StatusView) -> tauri::Result<Menu<Wry>> 
             Some(MenuItem::with_id(
                 app,
                 "update",
-                update_menu_label(&version),
+                update_menu_label(lang, &version),
                 true,
                 None::<&str>,
             )?)
         }
         None => None,
     };
-    let quit = MenuItem::with_id(app, "quit", "Thoát VietKB", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", i18n::tr(lang, "tray.quit"), true, None::<&str>)?;
     let sep_top = PredefinedMenuItem::separator(app)?;
     let sep_open = PredefinedMenuItem::separator(app)?;
     let sep_about = PredefinedMenuItem::separator(app)?;
@@ -271,7 +277,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
 
     let builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon_for(app, &status)?)
-        .tooltip(tooltip(&status))
+        .tooltip(tooltip(i18n::current(), &status))
         .menu(&menu)
         .on_menu_event(|app, event| handle_event(app, event.id.as_ref()));
 
@@ -345,7 +351,7 @@ fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
     // `set_icon` may reset the template flag; set it again.
     #[cfg(target_os = "macos")]
     tray.set_icon_as_template(true)?;
-    tray.set_tooltip(Some(tooltip(status)))?;
+    tray.set_tooltip(Some(tooltip(i18n::current(), status)))?;
     Ok(())
 }
 
@@ -380,7 +386,8 @@ mod tests {
     /// asserted here rather than discovered by reading the menu.
     #[test]
     fn update_item_label_names_the_version() {
-        assert_eq!(update_menu_label("0.9.9"), "Có bản cập nhật v0.9.9");
+        assert_eq!(update_menu_label(Lang::Vi, "0.9.9"), "Có bản cập nhật v0.9.9");
+        assert_eq!(update_menu_label(Lang::En, "0.9.9"), "Update v0.9.9 available");
     }
 
     /// Every window the app opens must be in the capability file, or its close

@@ -3,6 +3,7 @@
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { platformState } from "../lib/platform.svelte";
+  import { t } from "../lib/lang.svelte";
   import { parseChangelog, type Block, type Inline } from "../lib/changelog";
   // The keycap mark at 48 px: the app icon itself, so About carries the same
   // mark as the title bar and the installer.
@@ -23,15 +24,15 @@
   const statusText = $derived.by(() => {
     switch (status?.state ?? "idle") {
       case "checking":
-        return "Đang kiểm tra…";
+        return t("about.status.checking");
       case "none":
-        return "Bạn đang dùng bản mới nhất";
+        return t("about.status.none");
       case "available":
-        return `Có bản cập nhật v${status?.update?.version ?? ""}`;
+        return t("about.status.available", { version: status?.update?.version ?? "" });
       case "error":
-        return status?.message ?? "Không kiểm tra được bản cập nhật.";
+        return status?.message ?? t("about.status.error");
       default:
-        return "Chưa kiểm tra";
+        return t("about.status.idle");
     }
   });
 
@@ -57,17 +58,17 @@
 {/snippet}
 
 <div class="v4win">
-  <TitleBar title="Giới thiệu" subtitle="VietKB" showMark={false} showMinimize={false} />
+  <TitleBar title={t("win.about.title")} subtitle="VietKB" showMark={false} showMinimize={false} />
 
   <main class="about-sheet">
     <div class="about-inner">
       <header class="about-head">
         <img src={markSrc} alt="" width="48" height="48" />
         <b>VietKB</b>
-        <span class="about-ver num" title="Bảng mã cũ (TCVN3, VNI Windows, VISCII) và VIQR không có trong VietKB.">{version}</span>
+        <span class="about-ver num" title={t("about.versionTitle")}>{version}</span>
       </header>
 
-      <p class="about-lead">Bộ gõ tiếng Việt cho {platformState.mac ? "macOS" : "Windows"}. Nhẹ, nhanh, và không làm phiền bạn.</p>
+      <p class="about-lead">{t("about.tagline", { os: platformState.mac ? "macOS" : "Windows" })}</p>
 
       <section class="about-story" class:folded={!!info}>
         {#if info}
@@ -79,34 +80,28 @@
               aria-controls="about-story-body"
               onclick={() => (storyOpen = !storyOpen)}
             >
-              <span>Vì sao có VietKB</span>
+              <span>{t("about.why")}</span>
               <svg class="about-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
                 <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
           </h2>
         {:else}
-          <h2>Vì sao có VietKB</h2>
+          <h2>{t("about.why")}</h2>
         {/if}
         <div id="about-story-body" hidden={!showStory}>
+          <p>{t("about.story1")}</p>
+          <p>{t("about.story2")}</p>
           <p>
-            Những bộ gõ đang có vẫn gõ đúng, nhưng mang theo cả một thời phần mềm cũ: bảng mã 8-bit,
-            hàng chục tuỳ chọn, nhiều tab.
-          </p>
-          <p>
-            VietKB có mặt vì phần dùng hằng ngày thì ít, phần phải mang theo thì nhiều. Ở đây chỉ có
-            Telex, VNI, gõ tắt và loại trừ ứng dụng, không có mục nào để bạn phải đoán.
-          </p>
-          <p>
-            Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ.
+            {t("about.story3")}
             {#if platformState.mac}
-              Cả bộ gõ nằm trên thanh menu, nhẹ và mở cửa sổ gần như tức thì.
+              {t("about.story3.mac")}
             {:else}
-              Cả bộ gõ nằm trong khay, tốn 14 MB; bộ cài khoảng 3 MB; mở cửa sổ mất khoảng 0,3 giây.
+              {t("about.story3.win")}
             {/if}
           </p>
 
-          <p class="about-close">Một bộ gõ tốt là bộ gõ bạn không phải nghĩ tới.</p>
+          <p class="about-close">{t("about.close")}</p>
         </div>
       </section>
 
@@ -117,18 +112,18 @@
 
         <div class="about-actions">
           <button type="button" class="btn" disabled={busy} onclick={check}>
-            {app.updateBusy === "checking" ? "Đang kiểm tra…" : "Kiểm tra cập nhật"}
+            {app.updateBusy === "checking" ? t("about.status.checking") : t("about.check")}
           </button>
           {#if app.updateAvailable}
             <button type="button" class="btn pri" disabled={busy} onclick={install}>
               {#if app.updateBusy === "downloading"}
-                Đang tải…
+                {t("about.downloading")}
               {:else if app.updateBusy === "installing"}
-                Đang cập nhật…
+                {t("about.installing")}
               {:else if platformState.mac}
-                Mở trang tải về
+                {t("about.openDownload")}
               {:else}
-                Cập nhật ngay
+                {t("about.updateNow")}
               {/if}
             </button>
           {/if}
@@ -141,11 +136,11 @@
         {#if info}
           <div class="about-changelog">
             <div class="about-sec-head">
-              <h2>Nhật ký thay đổi — v{info.version}</h2>
+              <h2>{t("about.changelog", { version: info.version })}</h2>
               {#if info.publishedAt}<span class="num">{info.publishedAt.slice(0, 10)}</span>{/if}
             </div>
             <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-            <div class="about-cl-body" tabindex="0" role="region" aria-label="Nhật ký thay đổi">
+            <div class="about-cl-body" tabindex="0" role="region" aria-label={t("about.changelogAria")}>
               {#each blocks as block}
                 {#if block.kind === "heading"}
                   <h3 class="cl-h" data-level={block.level}>{@render spans(block.spans)}</h3>
@@ -155,7 +150,7 @@
                   <p class="cl-p">{@render spans(block.spans)}</p>
                 {/if}
               {:else}
-                <p class="cl-p">Bản phát hành không kèm mô tả.</p>
+                <p class="cl-p">{t("about.noNotes")}</p>
               {/each}
             </div>
           </div>
@@ -166,13 +161,13 @@
 
       <footer class="about-foot">
         <div class="about-links">
-          <button type="button" class="about-lk" onclick={() => open(REPO)}>GitHub</button>
+          <button type="button" class="about-lk" onclick={() => open(REPO)}>{t("about.github")}</button>
           <span class="about-dot">·</span>
-          <button type="button" class="about-lk" onclick={() => open(ISSUES)}>Báo lỗi</button>
+          <button type="button" class="about-lk" onclick={() => open(ISSUES)}>{t("about.reportBug")}</button>
           <span class="about-dot">·</span>
-          <button type="button" class="about-lk" onclick={() => open(KOFI)}>Ko-fi</button>
+          <button type="button" class="about-lk" onclick={() => open(KOFI)}>{t("about.kofi")}</button>
         </div>
-        <p class="about-privacy">Không quảng cáo. Không thu thập nội dung bạn gõ.</p>
+        <p class="about-privacy">{t("about.privacy")}</p>
       </footer>
     </div>
   </main>

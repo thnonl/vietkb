@@ -8,6 +8,7 @@
   import { METHODS } from "../lib/catalog";
   import * as api from "../lib/api";
   import { platformState } from "../lib/platform.svelte";
+  import { t } from "../lib/lang.svelte";
   import type { AppRuleRow, RunningApp } from "../lib/bindings";
 
   // C10: the rule editor needs more room than the panel, so it is a dialog.
@@ -93,7 +94,7 @@
       await api.setAppRule(rule.process, next);
       onchanged?.();
     } catch (failure) {
-      app.fail("Không lưu được quy tắc", failure);
+      app.fail(t("rules.saveFailed"), failure);
     }
   };
 
@@ -104,7 +105,7 @@
       await api.setAppRuleOverrides(rule.process, rule.charset, rule.method);
       onchanged?.();
     } catch (failure) {
-      app.fail("Không lưu được ghi đè", failure);
+      app.fail(t("rules.overrideFailed"), failure);
       await loadRules();
     }
   };
@@ -116,7 +117,7 @@
       await api.deleteAppRule(rule.process);
       onchanged?.();
     } catch (failure) {
-      app.fail("Không xoá được quy tắc", failure);
+      app.fail(t("rules.deleteFailed"), failure);
       await loadRules();
     }
   };
@@ -134,19 +135,19 @@
       onchanged?.();
       await loadRules();
     } catch (failure) {
-      app.fail("Không thêm được ứng dụng", failure);
+      app.fail(t("rules.addFailed"), failure);
     }
   };
 </script>
 
-<Modal bind:open title={mode === "rules" ? "Loại trừ ứng dụng" : "Chọn ứng dụng đang chạy"}>
+<Modal bind:open title={mode === "rules" ? t("rules.title") : t("rules.pickTitle")}>
   {#if mode === "rules"}
-    <Row label="Loại trừ ứng dụng tự động">
-      {#snippet note()}Nhớ trạng thái bật/tắt riêng cho từng ứng dụng{/snippet}
+    <Row label={t("rules.auto")}>
+      {#snippet note()}{t("rules.auto.note")}{/snippet}
       {#snippet control()}
         <Toggle
           checked={app.settings?.apps.rememberPerApp ?? false}
-          label="Loại trừ ứng dụng tự động"
+          label={t("rules.auto")}
           onchange={(next) => app.patch({ apps: { rememberPerApp: next } })} />
       {/snippet}
     </Row>
@@ -154,7 +155,7 @@
     {#if error}
       <p class="err">{error}</p>
     {:else if rules.length === 0}
-      <p class="empty">Chưa có quy tắc nào. Thêm ứng dụng bạn chỉ dùng tiếng Anh.</p>
+      <p class="empty">{t("rules.empty")}</p>
     {:else}
       <ul class="rules">
         {#each rules as rule (rule.process)}
@@ -163,24 +164,24 @@
               <span class="proc">{rule.process}</span>
               <Toggle
                 checked={rule.enabled !== false}
-                label={`Bật tiếng Việt trong ${rule.process}`}
+                label={t("rules.enableIn", { app: rule.process })}
                 onchange={(next) => setEnabled(rule, next)} />
               <button
                 type="button"
                 class="btn ghost icon sm danger"
-                aria-label={`Xoá quy tắc ${rule.process}`}
-                title="Xoá quy tắc"
+                aria-label={t("rules.delete", { app: rule.process })}
+                title={t("rules.delete.title")}
                 onclick={() => removeRule(rule)}>
                 <Icon name="trash" />
               </button>
             </div>
             <div class="overrides">
               <label class="mini">
-                <span>Kiểu gõ</span>
+                <span>{t("rules.method")}</span>
                 <Select
                   value={rule.method ?? ""}
-                  label={`Kiểu gõ cho ${rule.process}`}
-                  options={[{ value: "", label: "Mặc định" }, ...METHODS.map((m) => ({ value: m.slug, label: m.label }))]}
+                  label={t("rules.methodFor", { app: rule.process })}
+                  options={[{ value: "", label: t("rules.methodDefault") }, ...METHODS.map((m) => ({ value: m.slug, label: m.label }))]}
                   onchange={(value) => setOverride(rule, value)} />
               </label>
             </div>
@@ -193,14 +194,14 @@
       <Icon name="search" />
       <input
         type="search"
-        placeholder="Tìm ứng dụng…"
+        placeholder={t("rules.search")}
         bind:value={query}
-        aria-label="Tìm ứng dụng" />
+        aria-label={t("rules.searchAria")} />
     </div>
     {#if busy}
-      <p class="empty">Đang tìm ứng dụng đang mở…</p>
+      <p class="empty">{t("rules.searching")}</p>
     {:else if candidates.length === 0}
-      <p class="empty">Không thấy ứng dụng nào. Mở ứng dụng rồi quay lại.</p>
+      <p class="empty">{t("rules.noneFound")}</p>
     {:else}
       <ul class="apps">
         {#each candidates as entry (entry.process)}
@@ -216,10 +217,10 @@
               disabled={added}
               onclick={() => addApp(entry)}
               title={added
-                ? `${entry.title || entry.process} đã có trong danh sách loại trừ, đang được tô sáng.`
-                : `Thêm ${entry.title || entry.process}`}>
+                ? t("rules.addedTitle", { app: entry.title || entry.process })
+                : t("rules.addTitle", { app: entry.title || entry.process })}>
               <span class="proc">{entry.process}</span>
-              <span class="title">{added && !platformState.mac ? "Đã thêm" : entry.title}</span>
+              <span class="title">{added && !platformState.mac ? t("rules.added") : entry.title}</span>
               <Icon name={added ? "check" : "plus"} />
             </button>
           </li>
@@ -232,14 +233,14 @@
     {#if mode === "rules"}
       <button type="button" class="btn ghost" onclick={() => (mode = "pick")} style="margin-right:auto">
         <Icon name="plus" />
-        Chọn ứng dụng
+        {t("rules.pickButton")}
       </button>
     {:else}
       <button type="button" class="btn ghost" onclick={() => (mode = "rules")} style="margin-right:auto">
-        ‹ Danh sách quy tắc
+        {t("rules.back")}
       </button>
     {/if}
-    <button type="button" class="btn pri" onclick={() => (open = false)}>Đóng</button>
+    <button type="button" class="btn pri" onclick={() => (open = false)}>{t("common.close")}</button>
   {/snippet}
 </Modal>
 

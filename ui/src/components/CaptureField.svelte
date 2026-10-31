@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import Keycap from "./Keycap.svelte";
+  import { t } from "../lib/lang.svelte";
   import { canonicalize, comboFromEvent, hotkeyHazard, keyToken } from "../lib/hotkey";
   import type { HotkeyActionField } from "../lib/catalog";
 
@@ -263,14 +264,14 @@
     type="button"
     class="capa"
     id={`cap-${field}`}
-    aria-label={`${label} — phím tắt hiện tại ${(editing ? shown : value) || "chưa đặt"}`}
+    aria-label={t("capture.aria", { label, value: (editing ? shown : value) || t("capture.unset") })}
     onfocus={begin}
     onblur={reset}
     onkeydown={onkeydown}
     onkeyup={onkeyup}>
     {#if editing}
       {#if keys.length === 0}
-        <span style="color:var(--t3);font:400 13px/20px var(--ui);padding:0 4px">Nhấn tổ hợp phím…</span>
+        <span style="color:var(--t3);font:400 13px/20px var(--ui);padding:0 4px">{t("capture.prompt")}</span>
       {:else}
         {#each keys as key (key)}
           <Keycap text={key} />
@@ -278,19 +279,19 @@
         {/each}
       {/if}
       <span class="caret"></span>
-      <span class="end"><Keycap text="Esc" small /> huỷ</span>
+      <span class="end"><Keycap text="Esc" small /> {t("capture.cancelHint")}</span>
     {:else if value}
       {#each keys as key (key)}
         <Keycap text={key} />
       {/each}
       {#if clash}
-        <span class="end"><span class="tag warn"><Icon name="warning" small />Trùng</span></span>
+        <span class="end"><span class="tag warn"><Icon name="warning" small />{t("capture.clash")}</span></span>
       {:else if warning}
-        <span class="end"><span class="tag warn"><Icon name="warning" small />Dễ trùng</span></span>
+        <span class="end"><span class="tag warn"><Icon name="warning" small />{t("capture.mayClash")}</span></span>
       {/if}
     {:else}
-      Chưa đặt
-      <span class="end">Đặt phím</span>
+      {t("capture.empty")}
+      <span class="end">{t("capture.setKey")}</span>
     {/if}
   </button>
 
@@ -298,8 +299,8 @@
     <button
       type="button"
       class="btn ghost icon sm"
-      aria-label={`Huỷ ghi ${label}`}
-      title="Huỷ"
+      aria-label={t("capture.cancelAria", { label })}
+      title={t("common.cancel")}
       onmousedown={(event) => event.preventDefault()}
       onclick={reset}>
       <Icon name="close" small />
@@ -308,8 +309,8 @@
     <button
       type="button"
       class="btn ghost icon sm"
-      aria-label={`Đặt lại mặc định cho ${label}`}
-      title="Đặt lại mặc định"
+      aria-label={t("capture.resetAria", { label })}
+      title={t("capture.reset")}
       onclick={onreset}>
       <Icon name="reset" small />
     </button>

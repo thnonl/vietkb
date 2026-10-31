@@ -10,6 +10,7 @@
   import { app } from "./lib/state.svelte";
   import { closeCurrent } from "./lib/window.svelte";
   import { fitWindowToContent } from "./lib/fit";
+  import { t } from "./lib/lang.svelte";
 
   const kind = new URLSearchParams(window.location.search).get("win") ?? "main";
   const modal = kind !== "main";
@@ -44,7 +45,7 @@
   <About />
 {:else if kind === "macros"}
   <div class="v4win">
-    <TitleBar title="Bảng gõ tắt" subtitle="VietKB" showMark={false} showMinimize={false} />
+    <TitleBar title={t("win.macros.title")} subtitle="VietKB" showMark={false} showMinimize={false} />
     <main class="sheet">
       {#if app.settings}
         <Macros />
@@ -58,7 +59,7 @@
     <div class="v4win">
       <TitleBar title="VietKB" />
       <main class="v4sheet">
-        <p style="font:400 13px/20px var(--ui);color:var(--t3);padding-top:16px">Đang tải…</p>
+        <p style="font:400 13px/20px var(--ui);color:var(--t3);padding-top:16px">{t("common.loading")}</p>
       </main>
     </div>
   {/if}

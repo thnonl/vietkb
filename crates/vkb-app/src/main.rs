@@ -1,6 +1,7 @@
 ﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod i18n;
 mod running_apps;
 #[cfg(target_os = "macos")]
 mod macos_shell;
@@ -37,12 +38,17 @@ const CAPTION_PX: f64 = 36.0;
 #[cfg(target_os = "macos")]
 const TITLEBAR_PT: f64 = 28.0;
 
+/// Height of the slim row that holds the VI | EN switch at the top of the page on
+/// macOS (`.mac-langbar` in ui/src/styles/mac.css). Keep equal.
+#[cfg(target_os = "macos")]
+const MAC_LANGBAR_PX: f64 = 28.0;
+
 /// Window height to request for the current platform: the measured Windows height
 /// (caption included) on Windows; on macOS the same page height without the
 /// caption, plus the native title bar.
 fn content_height(windows_height: f64) -> f64 {
     #[cfg(target_os = "macos")]
-    return windows_height - CAPTION_PX + TITLEBAR_PT;
+    return windows_height - CAPTION_PX + TITLEBAR_PT + MAC_LANGBAR_PX;
     #[cfg(not(target_os = "macos"))]
     {
         let _ = CAPTION_PX;
@@ -247,18 +253,18 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     //             cap the owner set; the sheet scrolls only if a longer
     //             changelog is clipped.
     let (label, title, width, height) = match kind {
-        "hotkeys" => ("hotkeys", "Phím tắt — VietKB", 520.0, 360.0),
+        "hotkeys" => ("hotkeys", "rwin.hotkeys", 520.0, 360.0),
         // macOS drops the `Tương thích` section (33 px heading + 28 px row, 61 px,
         // rounded to the 4 px grid) because its only option is Windows-only.
         "advanced" => (
             "advanced",
-            "Nâng cao — VietKB",
+            "rwin.advanced",
             560.0,
             if cfg!(target_os = "macos") { 328.0 } else { 388.0 },
         ),
-        "macros" => ("macros", "Bảng gõ tắt — VietKB", 720.0, 560.0),
-        "about" => ("about", "Giới thiệu — VietKB", 560.0, 556.0),
-        other => return Err(format!("cửa sổ không hợp lệ: {other}")),
+        "macros" => ("macros", "rwin.macros", 720.0, 560.0),
+        "about" => ("about", "rwin.about", 560.0, 556.0),
+        other => return Err(i18n::tf("rwin.invalid", &[("kind", other)])),
     };
 
     enter_foreground(app);
@@ -278,7 +284,7 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
 
     let url = tauri::WebviewUrl::App(format!("index.html?win={kind}").into());
     let mut builder = tauri::WebviewWindowBuilder::new(app, label, url)
-        .title(title)
+        .title(i18n::t(title))
         .inner_size(width, content_height(height))
         .resizable(false)
         .maximizable(false)
@@ -404,7 +410,7 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
         MAIN_LABEL,
         tauri::WebviewUrl::App("index.html".into()),
     )
-    .title("Cài đặt VietKB")
+    .title(i18n::t("rwin.main"))
     .inner_size(480.0, main_content_height())
     .resizable(false)
     .maximizable(false)
