@@ -178,6 +178,25 @@ pub fn restore_retry(rounds_done: u32) -> Option<u32> {
     DELAYS_MS.get(rounds_done as usize).copied()
 }
 
+/// Open attempts per restore round (`attempt` 0..MAX_OPEN_ATTEMPTS).
+pub const MAX_OPEN_ATTEMPTS: u32 = 5;
+
+/// Pause before the next `OpenClipboard` attempt after attempt `attempt`
+/// (0-based) failed, `elapsed_ms` into this restore; `None` = stop trying.
+/// Normal restores back off 20 << attempt (about 300 ms in total); a flush job
+/// (`max_wait_ms` from the book: deadline - now) never sleeps past its budget,
+/// and with a tiny budget it makes exactly one try.
+pub fn open_retry_delay(attempt: u32, elapsed_ms: u64, max_wait_ms: Option<u64>) -> Option<u64> {
+    if attempt + 1 >= MAX_OPEN_ATTEMPTS {
+        return None;
+    }
+    let delay = 20u64 << attempt;
+    match max_wait_ms {
+        Some(max) if elapsed_ms.saturating_add(delay) > max => None,
+        _ => Some(delay),
+    }
+}
+
 /// Restore attempts 0..3 open the clipboard with the hook's owner window; the
 /// later ones fall back to the NULL owner (the handle may have gone stale).
 /// Proof checks always use the hook owner, whichever handle opened.
@@ -624,6 +643,21 @@ mod tests {
         // No recorded write, or an unavailable number: never ours.
         assert_eq!(ownership(None, true, 12), Ownership::Foreign);
         assert_eq!(ownership(Some(own(7, 9)), true, 0), Ownership::Foreign);
+    }
+
+    #[test]
+    fn open_retries_back_off_and_respect_a_flush_budget() {
+        // Normal: 20, 40, 80, 160, then stop after the fifth try.
+        let normal: Vec<Option<u64>> = (0..5).map(|a| open_retry_delay(a, 0, None)).collect();
+        assert_eq!(normal, vec![Some(20), Some(40), Some(80), Some(160), None]);
+        // A flush budget caps the total: 100 ms allows 20 + 40 but not + 80.
+        assert_eq!(open_retry_delay(0, 0, Some(100)), Some(20));
+        assert_eq!(open_retry_delay(1, 20, Some(100)), Some(40));
+        assert_eq!(open_retry_delay(2, 60, Some(100)), None);
+        // A tiny (or exhausted) budget: one try, no sleeping.
+        assert_eq!(open_retry_delay(0, 0, Some(0)), None);
+        assert_eq!(open_retry_delay(0, 0, Some(19)), None);
+        assert_eq!(open_retry_delay(0, 500, Some(100)), None);
     }
 
     #[test]

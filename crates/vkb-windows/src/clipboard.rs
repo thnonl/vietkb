@@ -41,7 +41,7 @@ use vkb_platform::clipboard_book::{
 };
 use vkb_platform::clipboard_plan::{
     classify_format, classify_write, decide_paste, flag_blocks_snapshot, format_count_ok,
-    garbage_admit, notification_is_ours, null_owner_ok, ownership, restore_action,
+    garbage_admit, notification_is_ours, null_owner_ok, open_retry_delay, ownership, restore_action,
     snapshot_stable, snapshot_verdict, urgent_proof, uses_hook_owner, within_budget, FormatClass,
     OwnSeqs, Ownership, PasteDecision, RestoreAction, Verdict, WriteVerdict, OWNED_MARKER,
     PRIVACY_FORMATS, REFRESH_DELAY_MS, REGISTERED_FIRST,
@@ -144,7 +144,9 @@ fn data_bytes(data: &[FormatData]) -> usize {
 }
 
 /// Hand old user data to the worker for zeroing and freeing. Above the byte cap
-/// (worker far behind) it is zeroed and freed right here, which is rare.
+/// (worker far behind, rare) it is zeroed and freed right here. Worst case on
+/// the hook thread: one `memset` of at most `MAX_TOTAL_BYTES` (64 MiB), a few
+/// milliseconds, and only when more than 128 MiB is already queued.
 fn retire(shared: &mut Shared, data: Vec<FormatData>) {
     let bytes = data_bytes(&data);
     if bytes == 0 {
@@ -400,6 +402,11 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
     );
     if decision == PasteDecision::TypeDirectly {
         // A session whose number moved is NOT dropped here: the restore decides.
+        return false;
+    }
+    // A restore is running (its payload is out of the book): never start or
+    // continue a session meanwhile, type.
+    if shared.book.inflight() {
         return false;
     }
     // A busy previous owner would block EmptyClipboard (WM_DESTROYCLIPBOARD).
@@ -776,7 +783,9 @@ fn refresh_snapshot(hwnd: HWND) {
 /// clipboard manager that strips our marker simply makes us abandon the restore
 /// (documented limit): the content is then treated as foreign.
 fn restore_session(job: &RestoreJob<Vec<FormatData>>, owner: Option<HWND>) -> RestoreResult {
-    for attempt in 0..5u32 {
+    let started = Instant::now();
+    let mut attempt = 0u32;
+    loop {
         // `open_owner` only decides which handle OpenClipboard gets; the proof
         // checks (GetClipboardOwner / marker) keep using the hook owner, they do
         // not depend on the handle that opened the clipboard.
@@ -823,7 +832,16 @@ fn restore_session(job: &RestoreJob<Vec<FormatData>>, owner: Option<HWND>) -> Re
             };
             return RestoreResult::Done { adopt };
         }
-        thread::sleep(Duration::from_millis(20 << attempt));
+        // Normal restores back off; a flush job never sleeps past its budget
+        // (deadline - now) and makes a single try when the budget is tiny.
+        let elapsed = started.elapsed().as_millis() as u64;
+        match open_retry_delay(attempt, elapsed, job.max_wait_ms) {
+            Some(delay) => {
+                thread::sleep(Duration::from_millis(delay));
+                attempt += 1;
+            }
+            None => break,
+        }
     }
     tracing::warn!("clipboard busy; restore will be retried");
     RestoreResult::Busy

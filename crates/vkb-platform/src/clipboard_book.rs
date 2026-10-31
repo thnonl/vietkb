@@ -48,6 +48,8 @@ struct Entry<T> {
     payload: T,
     own: OwnSeqs,
     last_paste_ms: u64,
+    /// The settle wait is over (a requeued restore): no further wait.
+    settled: bool,
     retry_at_ms: u64,
     rounds: u32,
     kind: Kind,
@@ -62,6 +64,9 @@ pub struct RestoreJob<T> {
     pub own: OwnSeqs,
     pub rounds: u32,
     pub urgent: bool,
+    /// Flush jobs (mode-off / quit): the most this attempt may spend opening a
+    /// busy clipboard (deadline - now). `None` = the normal backoff.
+    pub max_wait_ms: Option<u64>,
 }
 
 /// How a restore attempt ended.
@@ -142,6 +147,11 @@ impl<T> SessionBook<T> {
         !self.pending()
     }
 
+    /// A restore attempt is running (its payload is out of the book).
+    pub fn inflight(&self) -> bool {
+        self.inflight.is_some()
+    }
+
     pub fn current_own(&self) -> Option<OwnSeqs> {
         self.entries.iter().find(|e| e.kind == Kind::Current).map(|e| e.own)
     }
@@ -176,6 +186,9 @@ impl<T> SessionBook<T> {
     /// A paste started from a fresh snapshot (`payload` = the user's data). The
     /// new session is the newest: everything older is retired.
     pub fn start_session(&mut self, payload: T, own: OwnSeqs, now_ms: u64) -> (u64, Vec<Action<T>>) {
+        // The hook refuses to start a session while a restore runs (it has no
+        // snapshot then: re-snapshotting is blocked while anything is pending).
+        debug_assert!(self.inflight.is_none(), "start_session while a restore is in flight");
         let mut out = Vec::new();
         self.retire_all(&mut out);
         self.next_generation += 1;
@@ -185,6 +198,7 @@ impl<T> SessionBook<T> {
             payload,
             own,
             last_paste_ms: now_ms,
+            settled: false,
             retry_at_ms: 0,
             rounds: 0,
             kind: Kind::Current,
@@ -197,6 +211,7 @@ impl<T> SessionBook<T> {
         if let Some(e) = self.entries.iter_mut().find(|e| e.kind == Kind::Current) {
             e.own = own;
             e.last_paste_ms = now_ms;
+            e.settled = false;
             e.retry_at_ms = 0;
         }
     }
@@ -206,6 +221,7 @@ impl<T> SessionBook<T> {
         match self.entries.iter_mut().find(|e| e.kind == Kind::Current) {
             Some(e) => {
                 e.last_paste_ms = now_ms;
+                e.settled = false;
                 e.retry_at_ms = 0;
                 vec![Action::ArmTimer(SETTLE_MS)]
             }
@@ -255,6 +271,7 @@ impl<T> SessionBook<T> {
             payload,
             own,
             last_paste_ms: now_ms,
+            settled: false,
             retry_at_ms: 0,
             rounds: 0,
             kind: Kind::Urgent,
@@ -314,7 +331,7 @@ impl<T> SessionBook<T> {
         let flushing = self.deadline_ms.is_some();
         let retry_wait = e.retry_at_ms.saturating_sub(now_ms);
         let settle_wait = match e.kind {
-            Kind::Current if !flushing => {
+            Kind::Current if !flushing && !e.settled => {
                 SETTLE_MS.saturating_sub(now_ms.saturating_sub(e.last_paste_ms))
             }
             _ => 0,
@@ -326,7 +343,9 @@ impl<T> SessionBook<T> {
         }
         let e = self.entries.remove(0);
         self.inflight = Some(e.generation);
+        let max_wait_ms = self.deadline_ms.map(|d| d.saturating_sub(now_ms));
         out.push(Action::Restore(RestoreJob {
+            max_wait_ms,
             generation: e.generation,
             payload: e.payload,
             own: e.own,
@@ -387,8 +406,9 @@ impl<T> SessionBook<T> {
                         generation: job.generation,
                         payload: job.payload,
                         own,
-                        // Retry soon; the settle wait is long over.
-                        last_paste_ms: 0,
+                        // The settle wait is long over.
+                        last_paste_ms: now_ms,
+                        settled: true,
                         retry_at_ms: now_ms + delay,
                         rounds,
                         kind,
@@ -398,7 +418,10 @@ impl<T> SessionBook<T> {
                 }
             }
         }
-        if !self.pending() {
+        if self.pending() {
+            // Whatever is still stored needs a timer; `timer` computes the wait.
+            out.push(Action::ArmTimer(0));
+        } else {
             out.push(Action::StopTimer);
         }
         out
@@ -426,6 +449,11 @@ impl<T> SessionBook<T> {
     fn begin_flush(&mut self, now_ms: u64, budget_ms: u64, retry_ms: u64) -> Vec<Action<T>> {
         self.deadline_ms = Some(now_ms + budget_ms);
         self.flush_retry_ms = retry_ms;
+        // Every stored payload is due NOW: a flush attempts each one at least
+        // once before it may give up, whatever retry pace it was parked at.
+        for e in &mut self.entries {
+            e.retry_at_ms = now_ms;
+        }
         let mut out = vec![Action::DropSnapshot];
         out.extend(self.timer(now_ms));
         out
@@ -634,15 +662,16 @@ mod tests {
         b.start_session("old", own(1), 0);
         b.paste_sent(0);
         let j = job(b.timer(SETTLE_MS));
-        // Park "old" behind a continued current: busy while a current exists.
-        b.start_session("mid", own(3), SETTLE_MS); // "old" is in flight, not stored
+        // A newer generation appears while "old" is being restored (an urgent
+        // job; the hook itself never starts a session during a restore).
+        let (g, _) = b.urgent_failed_write("mid", own(3), SETTLE_MS);
+        assert_eq!(g, 2);
         let out = b.restore_result(j, RestoreResult::Busy, SETTLE_MS);
-        // "old" came back busy after a newer generation appeared: retired.
+        // "old" came back busy after a newer generation appeared: retired,
+        // and the timer is re-armed for what remains.
         assert_eq!(retired(&out), vec!["old"]);
-        assert!(!out.iter().any(|a| matches!(a, Action::ArmTimer(_))));
-        // Only the new session remains.
-        b.paste_sent(SETTLE_MS);
-        assert_eq!(restores(&b.timer(2 * SETTLE_MS)), vec![(2, "mid")]);
+        assert_eq!(out.last(), Some(&Action::ArmTimer(0)));
+        assert_eq!(restores(&b.timer(SETTLE_MS + 1)), vec![(2, "mid")]);
     }
 
     #[test]
@@ -787,14 +816,81 @@ mod tests {
     }
 
     #[test]
-    fn mode_off_respects_the_retry_pace_of_a_stored_entry() {
+    fn a_flush_attempts_a_parked_entry_immediately() {
         let mut b = Book::new();
         b.urgent_failed_write("u1", own(1), 0);
         let j1 = job(b.timer(0));
         b.restore_result(j1, RestoreResult::Busy, 0); // stored, retry at 500
         let out = b.mode_off(10);
-        assert_eq!(out, vec![Action::DropSnapshot, Action::ArmTimer(490)]);
-        assert_eq!(restores(&b.timer(500)), vec![(1, "u1")]);
+        assert_eq!(out[0], Action::DropSnapshot);
+        // Due right now, not at its retry time.
+        let j = job(out);
+        assert_eq!((j.generation, j.max_wait_ms), (1, Some(MODE_OFF_BUDGET_MS)));
+    }
+
+    #[test]
+    fn quit_with_a_parked_entry_attempts_once_then_gives_up() {
+        let mut b = Book::new();
+        b.start_session("user", own(1), 0);
+        b.paste_sent(0);
+        // Park it at the slow pace (many busy rounds).
+        let mut now = SETTLE_MS;
+        let mut j = job(b.timer(now));
+        for _ in 0..8 {
+            let out = b.restore_result(j, RestoreResult::Busy, now);
+            let Some(Action::ArmTimer(d)) = out.last() else { panic!() };
+            now += *d;
+            j = job(b.timer(now));
+        }
+        let out = b.restore_result(j, RestoreResult::Busy, now);
+        assert_eq!(out.last(), Some(&Action::ArmTimer(PARKED_RETRY_MS)));
+        // Quit with the next retry 5 s away: exactly one attempt right now ...
+        let out = b.quit(now + 10);
+        let j = job(out);
+        assert_eq!(j.max_wait_ms, Some(QUIT_BUDGET_MS));
+        // ... which used up the whole budget, so the busy result is the end.
+        let out = b.restore_result(j, RestoreResult::Busy, now + 10 + QUIT_BUDGET_MS);
+        assert_eq!(out[0], Action::GiveUp(1));
+        assert_eq!(retired(&out), vec!["user"]);
+        assert!(out.contains(&Action::StopTimer));
+        assert!(!b.pending());
+    }
+
+    #[test]
+    fn flush_jobs_carry_the_remaining_budget() {
+        let mut b = Book::new();
+        b.urgent_failed_write("u", own(1), 0);
+        let j = job(b.quit(100));
+        assert_eq!(j.max_wait_ms, Some(QUIT_BUDGET_MS));
+        b.restore_result(j, RestoreResult::Busy, 100 + 300);
+        let j = job(b.timer(100 + 300 + QUIT_RETRY_MS));
+        assert_eq!(j.max_wait_ms, Some(QUIT_BUDGET_MS - 300 - QUIT_RETRY_MS));
+        // Normal restores keep the backoff (no cap).
+        let mut n = Book::new();
+        n.urgent_failed_write("u", own(1), 0);
+        assert_eq!(job(n.timer(0)).max_wait_ms, None);
+    }
+
+    #[test]
+    fn leftover_entries_get_a_timer_after_every_result() {
+        // Done of an older job while a newer entry is stored.
+        let mut b = Book::new();
+        b.urgent_failed_write("a", own(1), 0);
+        let j = job(b.timer(0));
+        b.urgent_failed_write("b", own(5), 1);
+        let out = b.restore_result(j, RestoreResult::Foreign, 2);
+        assert_eq!(out.last(), Some(&Action::ArmTimer(0)));
+    }
+
+    #[test]
+    fn a_requeued_session_needs_no_second_settle_wait() {
+        let mut b = Book::new();
+        // Early in the process: now < SETTLE_MS must not delay the retry.
+        b.start_session("user", own(1), 0);
+        let j = job(b.mode_off(0));
+        b.mode_on();
+        b.restore_result(j, RestoreResult::Busy, 0);
+        assert_eq!(restores(&b.timer(500)).len(), 1);
     }
 
     #[test]
@@ -916,5 +1012,305 @@ mod tests {
     fn timer_with_nothing_pending_stops() {
         let mut b = Book::new();
         assert_eq!(b.timer(5), vec![Action::StopTimer]);
+    }
+
+    // -- deterministic randomized property tests ---------------------------
+
+    use std::collections::{HashMap, HashSet};
+
+    /// xorshift64*, no dependencies.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        fn below(&mut self, n: u64) -> u64 {
+            self.next() % n.max(1)
+        }
+    }
+
+    impl<T> SessionBook<T> {
+        fn stored_payloads(&self) -> Vec<(u64, &T)> {
+            self.entries.iter().map(|e| (e.generation, &e.payload)).collect()
+        }
+    }
+
+    /// The model executor: tracks where every payload id is.
+    struct Model {
+        book: SessionBook<u32>,
+        now: u64,
+        armed: Option<u64>,
+        next_id: u32,
+        created: Vec<u32>,
+        gens: HashMap<u32, u64>,
+        exited: HashSet<u32>,
+        inflight: Option<RestoreJob<u32>>,
+        flushing: bool,
+        last_done_gen: u64,
+        restores: HashMap<u32, u32>,
+        gave_up: u32,
+    }
+
+    impl Model {
+        fn new() -> Self {
+            Self {
+                book: SessionBook::new(),
+                now: 1,
+                armed: None,
+                next_id: 0,
+                created: Vec::new(),
+                gens: HashMap::new(),
+                exited: HashSet::new(),
+                inflight: None,
+                flushing: false,
+                last_done_gen: 0,
+                restores: HashMap::new(),
+                gave_up: 0,
+            }
+        }
+
+        fn new_id(&mut self) -> u32 {
+            self.next_id += 1;
+            self.created.push(self.next_id);
+            self.next_id
+        }
+
+        fn exit(&mut self, id: u32) {
+            assert!(self.created.contains(&id), "unknown payload {id}");
+            assert!(self.exited.insert(id), "payload {id} exited twice");
+        }
+
+        fn apply(&mut self, actions: Vec<Action<u32>>) {
+            for a in actions {
+                match a {
+                    Action::Restore(job) => {
+                        assert!(self.inflight.is_none(), "two restores in flight");
+                        // Only the newest generation: everything else was retired.
+                        assert!(
+                            self.book.stored_payloads().is_empty(),
+                            "a restore started with other data still stored"
+                        );
+                        assert!(
+                            job.generation > self.last_done_gen,
+                            "restore of gen {} after a finished gen {}",
+                            job.generation,
+                            self.last_done_gen
+                        );
+                        if self.flushing {
+                            assert!(job.max_wait_ms.is_some(), "flush job without a budget");
+                        } else {
+                            assert_eq!(job.max_wait_ms, None);
+                        }
+                        *self.restores.entry(job.payload).or_default() += 1;
+                        self.inflight = Some(job);
+                    }
+                    Action::Retire(id) => self.exit(id),
+                    Action::Finished { payload, .. } => self.exit(payload),
+                    Action::ArmTimer(ms) => self.armed = Some(self.now + ms),
+                    Action::StopTimer => self.armed = None,
+                    Action::GiveUp(_) => {
+                        assert!(self.flushing, "give-up outside a flush");
+                        self.gave_up += 1;
+                    }
+                    Action::Snapshot | Action::SkipSnapshot | Action::DropSnapshot => {}
+                }
+            }
+        }
+
+        fn result(&mut self, r: &mut Rng) {
+            let Some(job) = self.inflight.take() else { return };
+            let generation = job.generation;
+            let result = match r.below(6) {
+                0 => RestoreResult::Done { adopt: Some(own(70)) },
+                1 => RestoreResult::Done { adopt: None },
+                2 => RestoreResult::Busy,
+                3 => RestoreResult::Incomplete { own: Some(own(71)) },
+                4 => RestoreResult::Incomplete { own: None },
+                _ => RestoreResult::Foreign,
+            };
+            let done = matches!(result, RestoreResult::Done { .. } | RestoreResult::Foreign);
+            let actions = self.book.restore_result(job, result, self.now);
+            if done {
+                self.last_done_gen = self.last_done_gen.max(generation);
+            }
+            self.apply(actions);
+        }
+
+        fn check(&self) {
+            let stored: Vec<u32> =
+                self.book.stored_payloads().into_iter().map(|(_, p)| *p).collect();
+            let unique: HashSet<u32> = stored.iter().copied().collect();
+            assert_eq!(unique.len(), stored.len(), "payload stored twice");
+            // Conservation: every payload is in exactly one place or exited once.
+            let inflight_id = self.inflight.as_ref().map(|j| j.payload);
+            for id in &self.created {
+                let places = u32::from(stored.contains(id))
+                    + u32::from(inflight_id == Some(*id))
+                    + u32::from(self.exited.contains(id));
+                assert_eq!(places, 1, "payload {id} is in {places} places");
+            }
+            // Single flight, in step with the book.
+            assert_eq!(self.inflight.is_some(), self.book.inflight());
+            // Timer liveness.
+            if self.book.pending() && !self.book.inflight() {
+                assert!(self.armed.is_some(), "pending data without an armed timer");
+            }
+            assert!(stored.len() <= 2, "more than two stored entries");
+        }
+
+        fn step(&mut self, r: &mut Rng) {
+            self.now += r.below(1500);
+            if self.armed.is_some_and(|t| self.now >= t) {
+                self.armed = None;
+                let actions = self.book.timer(self.now);
+                self.apply(actions);
+            }
+            match r.below(16) {
+                0 | 1 if !self.flushing && self.inflight.is_none() => {
+                    let id = self.new_id();
+                    let (generation, a) = self.book.start_session(id, own(id), self.now);
+                    self.gens.insert(id, generation);
+                    self.apply(a);
+                    let a = self.book.paste_sent(self.now);
+                    self.apply(a);
+                }
+                2 if !self.flushing && self.book.current_own().is_some() => {
+                    self.book.continue_session(own(9), self.now);
+                    let a = self.book.paste_sent(self.now);
+                    self.apply(a);
+                }
+                3 if !self.flushing => {
+                    let a = self.book.current_to_urgent(own(11), self.now);
+                    self.apply(a);
+                }
+                4 if !self.flushing => {
+                    let id = self.new_id();
+                    let (generation, a) = self.book.urgent_failed_write(id, own(id), self.now);
+                    self.gens.insert(id, generation);
+                    self.apply(a);
+                }
+                5 => {
+                    let a = self.book.discard_current();
+                    self.apply(a);
+                }
+                6 => {
+                    let a = self.book.timer(self.now);
+                    self.apply(a);
+                }
+                7..=10 => self.result(r),
+                11 => {
+                    let a = self.book.notification(r.below(2) == 0);
+                    self.apply(a);
+                }
+                12 if !self.flushing && r.below(4) == 0 => {
+                    self.flushing = true;
+                    let a = if r.below(2) == 0 {
+                        self.book.mode_off(self.now)
+                    } else {
+                        self.book.quit(self.now)
+                    };
+                    self.apply(a);
+                }
+                13 if self.flushing && r.below(3) == 0 => {
+                    self.flushing = false;
+                    self.book.mode_on();
+                }
+                _ => {}
+            }
+            self.check();
+        }
+    }
+
+    #[test]
+    fn randomized_events_keep_every_invariant() {
+        for seed in 1..=8u64 {
+            let mut r = Rng(0x9E37_79B9_7F4A_7C15 ^ (seed << 17));
+            let mut m = Model::new();
+            for _ in 0..10_000 {
+                m.step(&mut r);
+            }
+            // The run exercised the interesting paths.
+            assert!(m.next_id > 100, "seed {seed}: too few payloads");
+            assert!(m.restores.values().any(|n| *n > 1), "seed {seed}: no retried restore");
+            assert!(m.gave_up > 0, "seed {seed}: no flush gave up");
+        }
+    }
+
+    #[test]
+    fn flush_with_an_always_busy_clipboard_attempts_and_ends_in_time() {
+        let mut flushes = 0;
+        for seed in 1..=300u64 {
+            let mut r = Rng(0xD1B5_4A32_D192_ED03 ^ (seed << 13));
+            let mut m = Model::new();
+            // Warm up without flushing.
+            for _ in 0..r.below(40) {
+                m.step(&mut r);
+                if m.flushing {
+                    break;
+                }
+            }
+            if m.flushing {
+                continue;
+            }
+            // Payloads present at the flush, and the newest generation among them.
+            let mut present: Vec<u32> =
+                m.book.stored_payloads().into_iter().map(|(_, p)| *p).collect();
+            if let Some(j) = &m.inflight {
+                present.push(j.payload);
+            }
+            let newest = present.iter().copied().max_by_key(|id| m.gens[id]);
+            let quit = r.below(2) == 0;
+            let (budget, pace) = if quit {
+                (QUIT_BUDGET_MS, QUIT_RETRY_MS)
+            } else {
+                (MODE_OFF_BUDGET_MS, MODE_OFF_RETRY_MS)
+            };
+            m.flushing = true;
+            flushes += 1;
+            let start = m.now;
+            let actions = if quit { m.book.quit(m.now) } else { m.book.mode_off(m.now) };
+            m.apply(actions);
+            // Always-busy executor, time follows the timers exactly.
+            for _ in 0..10_000 {
+                if let Some(job) = m.inflight.take() {
+                    let spent = r.below(job.max_wait_ms.unwrap_or(0) + 1);
+                    m.now += spent;
+                    let a = m.book.restore_result(job, RestoreResult::Busy, m.now);
+                    m.apply(a);
+                    m.check();
+                    continue;
+                }
+                match m.armed {
+                    Some(t) => {
+                        m.now = m.now.max(t);
+                        m.armed = None;
+                        let a = m.book.timer(m.now);
+                        m.apply(a);
+                        m.check();
+                    }
+                    None => break,
+                }
+            }
+            assert!(!m.book.pending(), "seed {seed}: a flush left data behind");
+            assert!(m.inflight.is_none());
+            for id in &present {
+                assert!(m.exited.contains(id), "seed {seed}: payload {id} never exited");
+            }
+            // The newest payload present at the flush was attempted at least once.
+            if let Some(n) = newest {
+                let attempts = m.restores.get(&n).copied().unwrap_or(0);
+                assert!(attempts >= 1, "seed {seed}: newest payload {n} never attempted");
+            }
+            assert!(
+                m.now - start <= budget + pace,
+                "seed {seed}: flush took {} ms (budget {budget} + pace {pace})",
+                m.now - start
+            );
+        }
+        assert!(flushes > 100, "too few flushes exercised: {flushes}");
     }
 }
