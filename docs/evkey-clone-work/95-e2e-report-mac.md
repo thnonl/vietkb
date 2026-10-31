@@ -264,3 +264,23 @@ Owner instance log (all in `owner-instance.log`):
 - `RELAUNCH 17:48:31 pid=38269` from the same path via `open`, after the binary sha256 was re-verified unchanged (`1b023bba…49ba2`). Downtime 45 min (longer than planned: I replaced the driver mid-run to add the no-extras and toggle reruns; the first driver was SIGKILLed, not the app).
 - Owner `config.toml` sha256 `faad8a0f…9513` before, after quit, and after relaunch: unchanged.
 - EVKey was not running before or after; input source ABC unchanged; no leftover dev process; one dev instance at a time.
+
+
+## 0.2.7 RC3 — D-MAC-48 re-check on main 08b8b15 — 2026-10-31
+
+Dev-channel bundle rebuilt from a clean 08b8b15 (`build-dev-app.sh`, re-signed with the Apple Development identity, team KNB9B3B3L2), bin sha256 `065d1da9…570b`. One driver (`owner-instance.log`) ran: app suite with the owner's VietKB still up, then quit of the owner, two full typing runs with extras, then relaunch. Evidence `qa/mac/run-0.2.7-rc3/` (`app/`, `typing-1/`, `typing-2/`, `*-stdout.log`, `owner-instance.log`); manifests gitignored.
+
+| Run | Result |
+|---|---|
+| Full typing run with extras #1 (telex, vni, perapp) | rc 5: 145 PASS, 100 FAIL, 1 ABORT. GUI-5 FAIL, then the telex phase ran with the engine OFF (99 FAIL + 1 ABORT); VNI 99/99 PASS; perapp PASS |
+| Full typing run with extras #2 | identical: 145 PASS, 100 FAIL, 1 ABORT |
+| App suite (once, owner running) | rc 0, 50 PASS, 7 FAIL, all already known: APP-05b (D-MAC-34), APP-11 (D-MAC-35), APP-25-xx / -EN (D-MAC-36), APP-30 and APP-60 (D-MAC-45), APP-DOCK-quit (D-MAC-44). No new failure (RC run: 55 PASS, 7 FAIL, same ids) |
+
+D-MAC-48: NOT verified fixed, but not a product failure either. Both runs: `vietkb-telex.log` shows `enabled=true` then `enabled=false` for the two Ctrl+Shift presses, so the engine was OFF before the first press. Cause: harness GUI-4 clicks the status item with the LEFT button first, and since M10 a left click toggles V/E (no menu appears, then the harness right-clicks). Screenshot hashes confirm it: `gui-statusitem-on` == `E-after-toggle`, `V-before-toggle` == `V-after-second-toggle`. Same shape as the rc2 failure; GUI-5 alone passed because GUI-4 had not run. Next: harness fix (right click only, or restore the state after GUI-4), then one more full extras run. Details in 60-defects D-MAC-48. No product code changed.
+
+Owner instance (`owner-instance.log`):
+- Idle gate: HID idle 701 s (app suite) and 848 s (typing) on the first try.
+- `QUIT 18:02:26 pid=38269`; osascript quit worked this time (gone at 18:02:27, no -128, no TERM needed, no SIGKILL).
+- `RELAUNCH 18:33:17 pid=59860` via `open` from the same path after the binary sha256 re-check (`1b023bba…49ba2` unchanged). Downtime 30 min 50 s.
+- Owner `config.toml` sha256 `faad8a0f…9513` before, after quit and after relaunch: unchanged (both typing runs' manifests identical before/after).
+- No Dock leftovers, no dev process left, input source ABC unchanged, EVKey not running before/after, no Notes screenshots; TextEdit 19829 / Terminal 49785 pre-existed.

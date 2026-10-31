@@ -1,0 +1,54 @@
+version = 1
+
+[input]
+enabled = false
+method = "telex"
+charset = "unicode"
+mechanism = "hook"
+
+[typing]
+modern_tone = true
+free_tone = true
+jfwz_as_consonant = true
+auto_capitalize = false
+spell_check = true
+restore_wrong_word = false
+send_standard = false
+use_clipboard = false
+macro_enabled = true
+macro_when_disabled = false
+auto_horn_uo = true
+raw_zone = true
+macro_case_follow = true
+
+[hotkeys]
+enable = ""
+disable = ""
+toggle = "Ctrl+Shift"
+restore_word = "Ctrl+Shift+Z"
+app_exclude = ""
+macro_panel = ""
+macro_toggle = ""
+open_settings = "Ctrl+Alt+S"
+cycle_method = ""
+toggle_mode = "release"
+
+[system]
+start_with_windows = false
+notification_sound = true
+start_minimized = false
+language = "vi"
+theme = "dark"
+check_updates = false
+
+[ui]
+window_width = 720
+window_height = 560
+last_tab = "go"
+compact_rows = false
+
+[apps]
+remember_per_app = false
+rules = []
+
+[macros]
