@@ -243,7 +243,7 @@ fn apply_enabled(queued: bool) {
 
 fn apply_command(command: BackendCommand) {
     match command {
-        BackendCommand::Enable(enabled) => {
+        BackendCommand::Enable(_) => {
             // Sent right after `Enabled`; skip the duplicate write. Like
             // `apply_enabled`, write the tap's current value, not the queued one.
             let enabled = vkb_macos::is_enabled();
