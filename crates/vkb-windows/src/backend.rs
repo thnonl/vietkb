@@ -77,7 +77,7 @@ impl Injector {
                     input::send(&inputs);
                 }
             } else {
-                crate::clipboard::replace(deletes, text, self.mode, held);
+                crate::clipboard::replace(deletes, text, self.mode, vkb_platform::Modifiers::NONE, held);
             }
             return;
         }

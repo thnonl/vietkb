@@ -153,6 +153,29 @@ pub fn settle_remaining_ms(elapsed_ms: u64) -> u64 {
     SETTLE_MS.saturating_sub(elapsed_ms)
 }
 
+/// `true` once the settle wait is over (`elapsed_ms` after the last write).
+pub fn restore_due(elapsed_ms: u64) -> bool {
+    settle_remaining_ms(elapsed_ms) == 0
+}
+
+/// Is a `WM_CLIPBOARDUPDATE` our own write? `session_expected` is the sequence
+/// number recorded under the shared lock right after that write, `current` was
+/// read AFTER taking the same lock, so a paste in flight cannot look foreign.
+pub fn notification_is_ours(session_expected: Option<u32>, current: u32) -> bool {
+    current != 0 && session_expected == Some(current)
+}
+
+/// Privacy: does a clipboard flag format forbid keeping a copy of the data?
+/// `ExcludeClipboardContentFromMonitorProcessing` always does; the
+/// `CanIncludeInClipboardHistory` / `CanUploadToCloudClipboard` DWORDs do when 0
+/// (or unreadable: be conservative).
+pub fn flag_blocks_snapshot(name: &str, value: Option<u32>) -> bool {
+    if name.eq_ignore_ascii_case("ExcludeClipboardContentFromMonitorProcessing") {
+        return true;
+    }
+    !matches!(value, Some(v) if v != 0)
+}
+
 /// `true` only when the clipboard is exactly as we left it: no one else wrote
 /// to it since we did. `0` means the sequence number is unavailable, which is
 /// never treated as "ours".
@@ -296,6 +319,35 @@ mod tests {
         assert_eq!(settle_remaining_ms(SETTLE_MS - 1), 1);
         assert_eq!(settle_remaining_ms(SETTLE_MS), 0);
         assert_eq!(settle_remaining_ms(u64::MAX), 0);
+    }
+
+    #[test]
+    fn restore_is_due_only_after_the_settle_wait() {
+        assert!(!restore_due(0));
+        assert!(!restore_due(SETTLE_MS - 1));
+        assert!(restore_due(SETTLE_MS));
+    }
+
+    #[test]
+    fn our_own_notification_is_recognised() {
+        // The hook recorded 30 under the lock; the listener reads 30 afterwards.
+        assert!(notification_is_ours(Some(30), 30));
+        // A different number is a foreign write.
+        assert!(!notification_is_ours(Some(30), 31));
+        // No session: nothing is "ours".
+        assert!(!notification_is_ours(None, 30));
+        assert!(!notification_is_ours(Some(0), 0));
+    }
+
+    #[test]
+    fn privacy_flags_block_the_snapshot() {
+        assert!(flag_blocks_snapshot("ExcludeClipboardContentFromMonitorProcessing", Some(1)));
+        assert!(flag_blocks_snapshot("ExcludeClipboardContentFromMonitorProcessing", None));
+        assert!(flag_blocks_snapshot("CanIncludeInClipboardHistory", Some(0)));
+        assert!(flag_blocks_snapshot("CanUploadToCloudClipboard", Some(0)));
+        assert!(flag_blocks_snapshot("CanUploadToCloudClipboard", None));
+        assert!(!flag_blocks_snapshot("CanIncludeInClipboardHistory", Some(1)));
+        assert!(!flag_blocks_snapshot("canuploadtocloudclipboard", Some(1)));
     }
 
     #[test]

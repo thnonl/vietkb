@@ -41,9 +41,9 @@ use std::time::{Duration, Instant};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use vkb_platform::clipboard_plan::{
-    classify_format, decide_paste, format_count_ok, restore_action, settle_remaining_ms, snapshot_verdict,
-    within_budget, FormatClass, PasteDecision, RestoreAction, Verdict, PRIVACY_FORMATS,
-    REGISTERED_FIRST, SETTLE_MS,
+    classify_format, decide_paste, flag_blocks_snapshot, format_count_ok, notification_is_ours,
+    restore_action, restore_due, settle_remaining_ms, snapshot_verdict, within_budget, FormatClass,
+    PasteDecision, RestoreAction, Verdict, PRIVACY_FORMATS, REGISTERED_FIRST, SETTLE_MS,
 };
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{
@@ -60,19 +60,20 @@ use windows::Win32::System::Memory::{
     GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
 };
 use windows::Win32::System::Threading::GetCurrentThreadId;
-use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, IsHungAppWindow,
-    KillTimer, PostMessageW, RegisterClassW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSW,
+    KillTimer, PostMessageW, RegisterClassW, SendMessageTimeoutW, SetTimer, TranslateMessage,
+    HWND_MESSAGE, MSG, SMTO_ABORTIFHUNG, SMTO_BLOCK, WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSW,
 };
 
 use crate::input::{self, Held, SendMode};
-use crate::{globals, keys};
+use crate::globals;
+use vkb_platform::Modifiers;
 
 /// `CF_UNICODETEXT`.
 pub const CF_UNICODETEXT: u32 = 13;
 
+const WM_NULL: u32 = 0;
 const WM_TIMER: u32 = 0x0113;
 const WM_CLIPBOARDUPDATE: u32 = 0x031D;
 const WM_APP_PASTED: u32 = 0x8000 + 0x21;
@@ -84,6 +85,16 @@ const TIMER_SETTLE: usize = 1;
 struct FormatData {
     format: u32,
     bytes: Vec<u8>,
+}
+
+impl Drop for FormatData {
+    /// The user's clipboard must not linger in freed memory.
+    fn drop(&mut self) {
+        for byte in self.bytes.iter_mut() {
+            // SAFETY: `byte` is a valid, aligned, exclusive reference.
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
+    }
 }
 
 /// A faithful copy of the clipboard as of sequence number `seq`.
@@ -156,6 +167,10 @@ pub fn create_hook_owner() {
 
 /// Counterpart of [`create_hook_owner`] (hook thread, on its way out).
 pub fn destroy_hook_owner() {
+    // Under the shared lock: a restore that reads the owner there never sees a
+    // handle we are about to destroy (and falls back to the NULL owner if the
+    // handle went stale anyway).
+    let _shared = SHARED.lock();
     let raw = HOOK_OWNER.swap(0, Ordering::SeqCst);
     if raw != 0 {
         // SAFETY: created on this thread.
@@ -180,36 +195,56 @@ pub fn set_enabled(on: bool) {
 
 /// Replace `deletes` characters with `text`, synchronously. Pastes through the
 /// clipboard when that is provably lossless right now, else types the text.
-pub fn replace(deletes: u32, text: &str, mode: SendMode, held: Held) {
-    let pasted = catch_unwind(AssertUnwindSafe(|| try_paste(deletes, text, mode, held)))
+///
+/// `chord` is the modifier chord whose key-up fired this rewrite (released
+/// first, as in `build_restore`); `held` is the hook's model of the keys down.
+pub fn replace(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: Held) {
+    let pasted = catch_unwind(AssertUnwindSafe(|| try_paste(deletes, text, mode, chord, held)))
         .unwrap_or(false);
     if !pasted {
-        type_directly(deletes, text, mode, held);
+        type_directly(deletes, text, mode, chord, held);
     }
 }
 
-/// Unicode `SendInput` delivery (the safe fallback).
-fn type_directly(deletes: u32, text: &str, mode: SendMode, held: Held) {
-    let inputs = input::build_segment_held(deletes, text, mode, held);
+/// Unicode `SendInput` delivery (the safe fallback), same shape as the
+/// non-clipboard path.
+fn type_directly(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: Held) {
+    let inputs = if chord == Modifiers::NONE {
+        input::build_segment_held(deletes, text, mode, held)
+    } else {
+        input::build_restore(deletes, text, mode, chord, held)
+    };
     input::send_split(&inputs, deletes, mode);
 }
 
-/// The Shift keys that are down right now.
-fn live_shift() -> u8 {
-    let down = |vk: u16| unsafe { GetAsyncKeyState(i32::from(vk)) } < 0;
-    let mut mask = 0;
-    if down(keys::VK_LSHIFT) {
-        mask |= keys::SHIFT_L;
+/// Can the previous clipboard owner take `WM_DESTROYCLIPBOARD` right now?
+/// `EmptyClipboard` sends it synchronously; a busy owner would block the hook.
+fn previous_owner_responsive() -> bool {
+    let Ok(prev) = (unsafe { GetClipboardOwner() }) else { return true };
+    if prev.is_invalid() || Some(prev) == hwnd_of(&HOOK_OWNER) {
+        return true;
     }
-    if down(keys::VK_RSHIFT) {
-        mask |= keys::SHIFT_R;
+    if unsafe { IsHungAppWindow(prev) }.as_bool() {
+        return false;
     }
-    mask
+    // SAFETY: plain call with a short timeout; no result pointer.
+    let answer = unsafe {
+        SendMessageTimeoutW(
+            prev,
+            WM_NULL,
+            WPARAM(0),
+            LPARAM(0),
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            20,
+            None,
+        )
+    };
+    answer.0 != 0
 }
 
 /// `true` = the replacement was delivered. `false` = nothing was sent and the
 /// clipboard holds what it held (or was restored): the caller types instead.
-fn try_paste(deletes: u32, text: &str, mode: SendMode, held: Held) -> bool {
+fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: Held) -> bool {
     if !ENABLED.load(Ordering::SeqCst) {
         return false;
     }
@@ -234,11 +269,9 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, held: Held) -> bool {
         }
         return false;
     }
-    // A hung previous owner would block EmptyClipboard (WM_DESTROYCLIPBOARD).
-    if let Ok(prev) = unsafe { GetClipboardOwner() } {
-        if !prev.is_invalid() && unsafe { IsHungAppWindow(prev) }.as_bool() {
-            return false;
-        }
+    // A busy previous owner would block EmptyClipboard (WM_DESTROYCLIPBOARD).
+    if !previous_owner_responsive() {
+        return false;
     }
     // Single try: the hook never retries.
     let Some(guard) = ClipboardGuard::open(Some(owner), 1, 0) else { return false };
@@ -273,8 +306,7 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, held: Held) -> bool {
     }
     drop(shared);
 
-    let live = Held { shift: live_shift(), caps: held.caps };
-    let inputs = input::build_paste(deletes, mode, live);
+    let inputs = input::build_paste(deletes, mode, chord, held);
     let sent = input::send(&inputs);
     if let Some(worker) = hwnd_of(&WORKER_HWND) {
         // (Re)arm the restore timer, whatever happened to the batch.
@@ -377,7 +409,7 @@ unsafe extern "system" fn worker_proc(
         }
         WM_TIMER if wparam.0 == TIMER_SETTLE => {
             let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
-            let _ = catch_unwind(|| restore_due(hwnd));
+            let _ = catch_unwind(|| restore_if_due(hwnd));
             LRESULT(0)
         }
         WM_APP_MODE => {
@@ -425,15 +457,16 @@ fn on_update(hwnd: HWND) {
         clear_snapshot();
         return;
     }
-    let current = unsafe { GetClipboardSequenceNumber() };
     {
         let mut shared = SHARED.lock();
-        if let Some(session) = shared.session.as_ref() {
-            if session.expected_seq == current {
-                return; // our own temporary text
-            }
+        // Read AFTER taking the lock: the hook records its write's sequence
+        // number under this lock, so a paste in flight cannot look foreign.
+        let current = unsafe { GetClipboardSequenceNumber() };
+        if notification_is_ours(shared.session.as_ref().map(|s| s.expected_seq), current) {
+            return; // our own temporary text
+        }
+        if shared.session.take().is_some() {
             // Someone else copied: their data, never restored over.
-            shared.session = None;
             let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
         }
         shared.snapshot = None; // stale until the new one is ready
@@ -455,16 +488,23 @@ fn refresh_snapshot(hwnd: HWND) {
 
 /// Settle timer: restore only when the last write is old enough; a paste that
 /// raced the timer re-arms it instead (the target may not have read yet).
-fn restore_due(hwnd: HWND) {
-    let wait = {
-        let shared = SHARED.lock();
+fn restore_if_due(hwnd: HWND) {
+    // Age check and take happen in ONE locked section, so a paste cannot slip
+    // in between and be restored from under the target.
+    let due = {
+        let mut shared = SHARED.lock();
         let Some(session) = shared.session.as_ref() else { return };
-        settle_remaining_ms(session.last_write.elapsed().as_millis() as u64)
+        let elapsed = session.last_write.elapsed().as_millis() as u64;
+        if restore_due(elapsed) {
+            shared.session.take()
+        } else {
+            let wait = settle_remaining_ms(elapsed);
+            unsafe { SetTimer(hwnd, TIMER_SETTLE, wait as u32, None) };
+            None
+        }
     };
-    if wait > 0 {
-        unsafe { SetTimer(hwnd, TIMER_SETTLE, wait as u32, None) };
-    } else {
-        restore_now();
+    if let Some(session) = due {
+        restore_session(&session);
     }
 }
 
@@ -476,8 +516,10 @@ fn restore_now() {
 
 /// Retried with backoff while the clipboard is busy; only if still ours.
 fn restore_session(done: &Session) {
-    let owner = hwnd_of(&HOOK_OWNER);
     for attempt in 0..5u32 {
+        // Our pumped owner first; if that handle went stale (hook thread gone)
+        // the last attempts use the NULL owner.
+        let owner = if attempt < 3 { hwnd_of(&HOOK_OWNER) } else { None };
         if let Some(guard) = ClipboardGuard::open(owner, 1, 0) {
             // Checked while we hold the clipboard: nobody can write in between.
             let now = unsafe { GetClipboardSequenceNumber() };
@@ -592,6 +634,19 @@ fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
         tracing::debug!("clipboard holds formats that cannot be restored; no snapshot");
         return None;
     }
+    // Privacy: the data's owner asked to be kept out of history/cloud/monitors.
+    // Honour it before reading any real data: no snapshot, the hook types.
+    for (id, name) in &ids {
+        if classify_format(*id, name.as_deref()) != FormatClass::Flag {
+            continue;
+        }
+        let name = name.as_deref().unwrap_or_default();
+        let value = if name.eq_ignore_ascii_case(PRIVACY_FORMATS[2]) { None } else { read_dword(*id) };
+        if flag_blocks_snapshot(name, value) {
+            tracing::debug!("clipboard asks to be excluded from monitoring; no snapshot");
+            return None;
+        }
+    }
     // Pass 2: copy the HGLOBAL formats.
     let mut formats = Vec::new();
     let mut total = 0usize;
@@ -619,6 +674,23 @@ fn capture(_open: &ClipboardGuard) -> Option<Vec<FormatData>> {
         formats.push(FormatData { format: *id, bytes });
     }
     Some(formats)
+}
+
+/// Clipboard must be open. First `DWORD` of a (tiny) flag format.
+fn read_dword(id: u32) -> Option<u32> {
+    let handle = unsafe { GetClipboardData(id) }.ok().filter(|h| !h.is_invalid())?;
+    let global = HGLOBAL(handle.0);
+    if unsafe { GlobalSize(global) } < 4 {
+        return None;
+    }
+    let ptr = unsafe { GlobalLock(global) } as *const u32;
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: at least 4 bytes, possibly unaligned.
+    let value = unsafe { ptr.read_unaligned() };
+    let _ = unsafe { GlobalUnlock(global) };
+    Some(value)
 }
 
 /// Clipboard must be open. Replaces it with `text` (opt-out flags included) and

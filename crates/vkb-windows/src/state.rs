@@ -860,7 +860,7 @@ impl HookRuntime {
                 }
             } else {
                 // Synchronous in the hook, like the Unicode path (ordering by construction).
-                crate::clipboard::replace(deletes, text, self.send_mode, self.held());
+                crate::clipboard::replace(deletes, text, self.send_mode, chord, self.held());
             }
             return SendResult::default();
         }

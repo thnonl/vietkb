@@ -516,8 +516,13 @@ pub fn ctrl_v_sequence() -> Vec<INPUT> {
 
 /// The clipboard paste batch: `deletes` Backspaces, then the `Ctrl+V` chord, in
 /// one `SendInput` call so no physical key can land between them (D-WIN-14).
-pub fn build_paste(deletes: u32, mode: SendMode, held: Held) -> Vec<INPUT> {
-    let mut out = build_segment_held(deletes, "", mode, Held { shift: 0, caps: held.caps });
+///
+/// A modifier chord that triggered the rewrite is released first, as in
+/// [`build_restore`]; `held` is the hook's model of the keys still down.
+pub fn build_paste(deletes: u32, mode: SendMode, chord: Modifiers, held: Held) -> Vec<INPUT> {
+    let mut out = Vec::with_capacity(16 + (deletes as usize) * 2);
+    push_chord_release(&mut out, chord);
+    push_segment(&mut out, deletes, "", mode, Held { shift: 0, caps: held.caps });
     // A Shift the user still holds would turn the chord into Ctrl+Shift+V
     // (plain-text paste, or nothing): lift it for the chord, press it back after.
     for (bit, vk) in [
@@ -1295,7 +1300,12 @@ mod tests {
 
     #[test]
     fn paste_batch_is_backspaces_then_chord_in_one_call() {
-        let inputs = build_paste(2, SendMode::Unicode, Held { shift: keys::SHIFT_L, caps: false });
+        let inputs = build_paste(
+            2,
+            SendMode::Unicode,
+            Modifiers::NONE,
+            Held { shift: keys::SHIFT_L, caps: false },
+        );
         let seq: Vec<(u16, bool)> = inputs
             .iter()
             .map(|i| (field(i).0, is_up(i)))
