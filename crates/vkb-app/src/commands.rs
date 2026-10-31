@@ -308,13 +308,14 @@ pub fn status_now() -> StatusView {
 /// Persist, refresh the tray, broadcast to open windows and keep autostart in
 /// sync with the config.
 fn after_change() {
-    let (status, autostart, language, theme) = {
+    let (status, autostart, language, theme, rules) = {
         let cfg = config_cell().read();
         (
             status_view(&cfg),
             cfg.system.start_with_windows,
             cfg.system.language as u8,
             cfg.system.theme as u8,
+            rules_fingerprint(&cfg),
         )
     };
     sync_autostart(autostart);
@@ -346,7 +347,28 @@ fn after_change() {
         if let Err(error) = app.emit("vkb:status", status) {
             tracing::warn!(%error, "could not broadcast status");
         }
+        // Every window re-reads the settings (a Reset in one window, a hotkey
+        // on the backend worker) and the app-rule lists when `rules` moved.
+        // Every writer goes through here, so none can change the config silently.
+        if let Err(error) = app.emit("vkb:config-changed", ConfigChanged { rules }) {
+            tracing::warn!(%error, "could not broadcast the config change");
+        }
     }
+}
+
+/// Payload of `vkb:config-changed`.
+#[derive(Debug, Clone, Copy, Serialize)]
+struct ConfigChanged {
+    /// Fingerprint of `apps.rules`; the windows reload their rule lists when it
+    /// differs from the one they saw last.
+    rules: u64,
+}
+
+fn rules_fingerprint(cfg: &AppConfig) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    format!("{:?}", cfg.apps.rules).hash(&mut hasher);
+    hasher.finish()
 }
 
 fn sync_autostart(enabled: bool) {
@@ -1507,5 +1529,20 @@ mod tests {
         let value = serde_json::json!({ "ui": { "lastTab": "about" } });
         apply_patch(&mut cfg, &value).unwrap();
         assert_eq!(cfg.ui.last_tab, "system");
+    }
+
+    #[test]
+    fn rules_fingerprint_moves_only_with_the_rules() {
+        let mut cfg = AppConfig::default();
+        let base = rules_fingerprint(&cfg);
+        cfg.input.enabled = !cfg.input.enabled;
+        assert_eq!(rules_fingerprint(&cfg), base, "other settings do not move it");
+        let mut rule = vkb_config::AppRule::new("notepad.exe");
+        rule.enabled = Some(false);
+        cfg.apps.rules.push(rule);
+        let added = rules_fingerprint(&cfg);
+        assert_ne!(added, base, "F11 adds a rule");
+        cfg.apps.rules[0].enabled = Some(true);
+        assert_ne!(rules_fingerprint(&cfg), added, "flipping a rule moves it");
     }
 }

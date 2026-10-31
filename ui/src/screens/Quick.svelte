@@ -100,7 +100,10 @@
     }
   };
 
+  // Also when the list moved without this window: the per-app exclude hotkey
+  // (F11) writes the rule from the backend, other windows edit it too.
   $effect(() => {
+    void app.rulesRev;
     void loadRules();
   });
 

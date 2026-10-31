@@ -64,7 +64,9 @@
     }
   };
 
+  // Also when the rules moved without this dialog (the per-app exclude hotkey).
   $effect(() => {
+    void app.rulesRev;
     if (open) void loadRules();
   });
 

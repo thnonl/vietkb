@@ -154,6 +154,12 @@ class Store {
   private settingsUnlisten: UnlistenFn | null = null;
   private settingsChannel: BroadcastChannel | null = null;
   private updateUnlisten: UnlistenFn | null = null;
+  private configUnlisten: UnlistenFn | null = null;
+  private rulesHash: number | string | null = null;
+
+  /** Bumped when the app-rule list changed behind this window's back (the
+   *  per-app exclude hotkey, another window): lists reload on it. */
+  rulesRev = $state(0);
 
   get lang(): Lang {
     const value = this.settings?.system.language;
@@ -227,6 +233,21 @@ class Store {
         }
       });
 
+      // Any config write, from any window or from the backend worker (hotkeys),
+      // ends in this event: re-read the settings and tell the rule lists.
+      this.configUnlisten = await listen<{ rules: number | string }>(
+        "vkb:config-changed",
+        (event) => {
+          if (event.payload.rules !== this.rulesHash) {
+            this.rulesHash = event.payload.rules;
+            this.rulesRev += 1;
+          }
+          // A local edit still on its way back wins; its response is newer.
+          if (this.inFlight || Object.keys(this.pending).length > 0) return;
+          void this.reload();
+        },
+      );
+
       // The update state is one object the backend owns: the 5 s startup check,
       // a manual check and the tray all write it. Every window follows the
       // event, so the title-bar badge and the tray item appear without a
@@ -262,6 +283,8 @@ class Store {
     this.settingsChannel = null;
     this.updateUnlisten?.();
     this.updateUnlisten = null;
+    this.configUnlisten?.();
+    this.configUnlisten = null;
     if (this.timer !== undefined) clearTimeout(this.timer);
   }
 
@@ -362,7 +385,8 @@ class Store {
       this.settings = settings;
       this.status = status;
       this.syncLang();
-      this.applyTheme(settings.system.theme);
+      // Other windows reload on the same event: no need to re-broadcast.
+      this.applyTheme(settings.system.theme, false);
     } catch {
       // Already surfaced by the caller's toast.
     }
