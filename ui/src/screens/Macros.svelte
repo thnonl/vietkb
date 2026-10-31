@@ -223,8 +223,13 @@
         filters: [{ name: t("macros.fileFilter"), extensions: ["txt", "tsv"] }],
       });
       if (typeof path !== "string") return;
-      const count = await api.importMacros(path);
-      app.toast("success", t("macros.imported", { n: formatNumber(count) }));
+      const { imported, skipped } = await api.importMacros(path);
+      app.toast(
+        "success",
+        skipped > 0
+          ? t("macros.importedSkipped", { n: formatNumber(imported), skipped: formatNumber(skipped) })
+          : t("macros.imported", { n: formatNumber(imported) }),
+      );
       await refresh();
     } catch (failure) {
       app.fail(t("macros.importFailed"), failure);

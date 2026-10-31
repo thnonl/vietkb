@@ -39,3 +39,38 @@ pub fn legacy_ini_candidates() -> Vec<PathBuf> {
     out.push(config_dir().join("settings.ini"));
     out
 }
+
+/// `true` for a cargo test/bench binary (`.../target/<profile>/deps/x-<hash>`).
+/// Such a file is rebuilt, moved or left stale, so no autostart entry may ever
+/// point at it, and a test run must not clear the user's real entry either.
+pub fn is_cargo_deps_binary(exe: &std::path::Path) -> bool {
+    let in_deps = exe
+        .parent()
+        .and_then(|dir| dir.file_name())
+        .is_some_and(|name| name.eq_ignore_ascii_case("deps"));
+    in_deps
+        && exe
+            .components()
+            .any(|part| part.as_os_str().eq_ignore_ascii_case("target"))
+}
+
+/// The running process is a cargo test binary. `false` when the exe path is
+/// unknown (so disabling autostart is never blocked by a failing lookup).
+pub fn running_from_cargo_deps() -> bool {
+    std::env::current_exe().is_ok_and(|exe| is_cargo_deps_binary(&exe))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_cargo_deps_binaries_are_recognised() {
+        let deps = PathBuf::from("repo").join("target").join("debug").join("deps").join("x-1.exe");
+        assert!(is_cargo_deps_binary(&deps));
+        let app = PathBuf::from("repo").join("target").join("debug").join("vkb-app.exe");
+        assert!(!is_cargo_deps_binary(&app));
+        let installed = PathBuf::from("Programs").join("VietKB").join("vkb-app.exe");
+        assert!(!is_cargo_deps_binary(&installed));
+    }
+}

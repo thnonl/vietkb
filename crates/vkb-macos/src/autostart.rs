@@ -164,6 +164,9 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
         return set_autostart_in(&dir, Path::new(""), false);
     }
     let exe = std::env::current_exe().context("locating the current executable")?;
+    if vkb_config::paths::is_cargo_deps_binary(&exe) {
+        bail!("refusing to register a cargo test binary for autostart: {}", exe.display());
+    }
     let exe = resolve_exe(&exe, Path::new(INSTALLED_APP))?;
     set_autostart_in(&dir, &exe, true)
 }

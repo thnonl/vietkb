@@ -65,6 +65,9 @@ mod imp {
     }
 
     pub fn set(enabled: bool) -> Result<(), String> {
+        if vkb_config::paths::running_from_cargo_deps() {
+            return Err("refusing to change the Run key from a cargo test binary".to_string());
+        }
         let subkey = wide(RUN_KEY);
         let name = wide(VALUE_NAME);
 

@@ -376,6 +376,11 @@ fn sync_autostart(enabled: bool) {
     {
         return;
     }
+    // A cargo test binary never touches the user's autostart entry.
+    if vkb_config::paths::running_from_cargo_deps() {
+        tracing::warn!("autostart not changed: running from a cargo test binary");
+        return;
+    }
 
     // Dev channel: write the `VietKB Dev` value ourselves, HKCU only, quoted
     // exe plus the flag. The plugin would use an unquoted command line and may
@@ -803,10 +808,10 @@ pub(crate) fn update_config(
         drop(reset);
         mutated?;
         if !CONFIG_UNSAVED.load(Ordering::Relaxed) && draft == *config_cell().read() {
-            to_view(&draft)
-        } else {
-            commit_locked(draft)?
+            // Nothing changed and nothing is waiting to be saved: no broadcast.
+            return Ok(to_view(&draft));
         }
+        commit_locked(draft)?
     };
     // Outside the lock: the tray refresh and window retitle wait on the main
     // thread, which may itself be blocked on `CONFIG_WRITE` in a sync command.
@@ -981,6 +986,8 @@ fn digit_trigger_blocked(cfg: &AppConfig, trigger: &str) -> bool {
             .apps
             .rules
             .iter()
+            // A rule that switches Vietnamese off never types with its method.
+            .filter(|rule| rule.enabled != Some(false))
             .all(|rule| rule.method.map_or(true, |method| method == InputMethod::Telex))
 }
 
@@ -1051,8 +1058,17 @@ fn bad_line(display: &str, line_no: usize) -> String {
 /// Import a TSV macro list (27 C#8): UTF-8, no BOM, `trigger<TAB>expansion`,
 /// optional `#vkb1` header, `\n`/`\t` escapes. All-or-nothing: the first bad
 /// line rejects the whole file and nothing is written.
+/// Result of a macro import: rows written and rows left out because no active
+/// method can fire them (digit trigger under Telex).
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportOutcome {
+    pub imported: usize,
+    pub skipped: usize,
+}
+
 #[tauri::command]
-pub fn import_macros(path: String) -> Result<usize, String> {
+pub fn import_macros(path: String) -> Result<ImportOutcome, String> {
     let display = std::path::Path::new(&path)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
@@ -1091,13 +1107,27 @@ pub fn import_macros(path: String) -> Result<usize, String> {
         return Err(crate::i18n::tf("err.import.noLines", &[("file", &display)]));
     }
 
+    let mut skipped = 0usize;
+    let mut imported = 0usize;
     update_config(|draft| {
-        for (trigger, expansion) in &parsed {
+        // Re-counted on every run so the numbers describe what was written.
+        skipped = 0;
+        imported = 0;
+        let rows: Vec<&(String, String)> = parsed
+            .iter()
+            .filter(|(trigger, _)| {
+                let blocked = digit_trigger_blocked(draft, trigger);
+                skipped += usize::from(blocked);
+                !blocked
+            })
+            .collect();
+        for (trigger, expansion) in rows {
             draft.macros.insert(trigger.clone(), expansion.clone());
+            imported += 1;
         }
         Ok(())
     })?;
-    Ok(parsed.len())
+    Ok(ImportOutcome { imported, skipped })
 }
 
 #[tauri::command]
@@ -1573,6 +1603,8 @@ mod tests {
         rule.method = Some(InputMethod::Vni);
         cfg.apps.rules.push(rule);
         assert!(!digit_trigger_blocked(&cfg, "qa1"), "a VNI app can fire it");
+        cfg.apps.rules[0].enabled = Some(false);
+        assert!(digit_trigger_blocked(&cfg, "qa1"), "a disabled rule cannot fire it");
         cfg.apps.rules.clear();
         cfg.input.method = InputMethod::Vni;
         assert!(!digit_trigger_blocked(&cfg, "qa1"));

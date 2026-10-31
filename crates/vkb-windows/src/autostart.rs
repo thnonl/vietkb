@@ -86,16 +86,7 @@ fn read_value(subkey: &str, value_name: &str) -> Option<String> {
     Some(String::from_utf16_lossy(&buffer[..units]))
 }
 
-/// `true` for a cargo test/bench binary (`...\target\<profile>\deps\x-<hash>.exe`).
-/// Such a file is rebuilt, moved or left stale, and Windows would launch it at
-/// every login: no `Run` value may ever point at one (D-AUTO-01, Win QA 0.2.7).
-pub fn is_cargo_deps_binary(exe: &std::path::Path) -> bool {
-    let parent = exe.parent().and_then(|dir| dir.file_name());
-    parent.is_some_and(|name| name.eq_ignore_ascii_case("deps"))
-        && exe
-            .components()
-            .any(|part| part.as_os_str().eq_ignore_ascii_case("target"))
-}
+pub use vkb_config::paths::is_cargo_deps_binary;
 
 /// `set_autostart` against an arbitrary key/value; the public one pins both.
 fn set_in(subkey: &str, value_name: &str, enabled: bool) -> Result<()> {
@@ -109,10 +100,10 @@ fn set_in(subkey: &str, value_name: &str, enabled: bool) -> Result<()> {
 /// Create or remove the `Run` entry. Idempotent.
 pub fn set_autostart(enabled: bool) -> Result<()> {
     // Enabling would register a throw-away exe; disabling would delete the real
-    // value. A cargo test binary does neither.
-    let exe = std::env::current_exe().context("locating the current executable")?;
-    if is_cargo_deps_binary(&exe) {
-        bail!("refusing to change the Run key from a cargo test binary: {}", exe.display());
+    // value. A cargo test binary does neither. A failing exe lookup only blocks
+    // enabling (`set_in` needs the path); disabling never depends on it.
+    if vkb_config::paths::running_from_cargo_deps() {
+        bail!("refusing to change the Run key from a cargo test binary");
     }
     set_in(RUN_KEY, VALUE_NAME, enabled)
 }

@@ -155,6 +155,8 @@ class Store {
   private settingsChannel: BroadcastChannel | null = null;
   private updateUnlisten: UnlistenFn | null = null;
   private configUnlisten: UnlistenFn | null = null;
+  /** A `vkb:config-changed` arrived while a local edit was in flight. */
+  private missedChange = false;
   private rulesHash: number | string | null = null;
 
   /** Bumped when the app-rule list changed behind this window's back (the
@@ -242,8 +244,11 @@ class Store {
             this.rulesHash = event.payload.rules;
             this.rulesRev += 1;
           }
-          // A local edit still on its way back wins; its response is newer.
-          if (this.inFlight || Object.keys(this.pending).length > 0) return;
+          // A local edit still on its way back wins; reload once it has landed.
+          if (this.inFlight || Object.keys(this.pending).length > 0) {
+            this.missedChange = true;
+            return;
+          }
           void this.reload();
         },
       );
@@ -345,6 +350,10 @@ class Store {
     } finally {
       this.inFlight = null;
       if (Object.keys(this.pending).length > 0) this.schedule();
+      else if (this.missedChange) {
+        this.missedChange = false;
+        void this.reload();
+      }
     }
   }
 

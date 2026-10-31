@@ -35,7 +35,7 @@ export const upsertMacro = (trigger: string, expansion: string) =>
   invoke<void>("upsert_macro", { trigger, expansion });
 export const deleteMacros = (triggers: string[]) =>
   invoke<void>("delete_macros", { triggers });
-export const importMacros = (path: string) => invoke<number>("import_macros", { path });
+export const importMacros = (path: string) => invoke<{ imported: number; skipped: number }>("import_macros", { path });
 export const exportMacros = (path: string) => invoke<number>("export_macros", { path });
 
 export const listAppRules = () => invoke<AppRuleRow[]>("list_app_rules");
