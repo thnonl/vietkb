@@ -102,11 +102,59 @@ pub fn is_autostart_enabled_in(dir: &Path) -> bool {
     fs::read_to_string(plist_path(dir)).is_ok_and(|text| text.contains(LABEL))
 }
 
+/// Where the installed app lives; the stable path a LaunchAgent should name.
+pub const INSTALLED_APP: &str = "/Applications/VietKB.app";
+
+/// `true` for a path that will not exist at the next login: a mounted disk
+/// image (`/Volumes/...`) or the randomized read-only copy Gatekeeper runs a
+/// quarantined, never-moved app from (`.../AppTranslocation/...`).
+pub fn is_transient_path(exe: &Path) -> bool {
+    let text = exe.to_string_lossy();
+    text.starts_with("/Volumes/") || text.contains("/AppTranslocation/")
+}
+
+/// The executable a LaunchAgent should start for the running `exe`.
+///
+/// A transient `exe` (see [`is_transient_path`]) is replaced by the same binary
+/// inside `installed_app` when that copy exists; otherwise autostart is refused
+/// so no plist is written that breaks at the next login. A stable path is used
+/// as is (a dev build under `target/` still works, with a warning when it is
+/// outside `Applications`).
+pub fn resolve_exe(exe: &Path, installed_app: &Path) -> Result<PathBuf> {
+    if !is_transient_path(exe) {
+        if !exe.starts_with(installed_app) {
+            tracing::warn!(exe = %exe.display(), "autostart points outside {INSTALLED_APP}");
+        }
+        return Ok(exe.to_path_buf());
+    }
+    if let Some(name) = exe.file_name() {
+        let installed = installed_app.join("Contents").join("MacOS").join(name);
+        if installed.is_file() {
+            return Ok(installed);
+        }
+    }
+    bail!(
+        "VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({}); hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS",
+        exe.display()
+    )
+}
+
 /// Create or remove the LaunchAgent for the running executable.
+///
+/// No `launchctl bootstrap` is needed: `launchd` loads every plist in
+/// `~/Library/LaunchAgents` with `RunAtLoad` at the next login, and the app is
+/// already running now. Disabling removes the plist and never needs the
+/// executable path (so it works from any location, transient or not). A plist
+/// from an app that was later Trashed stays behind; the user removes it with the
+/// Mở cùng macOS switch while the app still exists.
 pub fn set_autostart(enabled: bool) -> Result<()> {
     let dir = launch_agents_dir().context("cannot locate ~/Library/LaunchAgents")?;
+    if !enabled {
+        return set_autostart_in(&dir, Path::new(""), false);
+    }
     let exe = std::env::current_exe().context("locating the current executable")?;
-    set_autostart_in(&dir, &exe, enabled)
+    let exe = resolve_exe(&exe, Path::new(INSTALLED_APP))?;
+    set_autostart_in(&dir, &exe, true)
 }
 
 pub fn is_autostart_enabled() -> bool {
@@ -176,6 +224,45 @@ mod tests {
         set_autostart_in(&dir, Path::new(EXE), true).unwrap();
         let written = fs::read_to_string(dir.join(PLIST_NAME)).unwrap();
         assert!(written.contains(EXE) && !written.contains("/old/"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn dmg_and_translocated_paths_are_transient() {
+        assert!(is_transient_path(Path::new("/Volumes/VietKB/VietKB.app/Contents/MacOS/vkb-app")));
+        assert!(is_transient_path(Path::new(
+            "/private/var/folders/ab/xyz/T/AppTranslocation/1234/d/VietKB.app/Contents/MacOS/vkb-app"
+        )));
+        assert!(!is_transient_path(Path::new(EXE)));
+        assert!(!is_transient_path(Path::new("/Users/me/Volumes/x")));
+    }
+
+    #[test]
+    fn transient_exe_is_redirected_to_the_installed_copy_or_refused() {
+        let root = temp_dir("resolve");
+        let app = root.join("VietKB.app");
+        let transient = Path::new("/Volumes/VietKB/VietKB.app/Contents/MacOS/vkb-app");
+
+        // Not installed: refused.
+        assert!(resolve_exe(transient, &app).is_err());
+
+        // Installed: the stable binary is used.
+        let installed = app.join("Contents/MacOS/vkb-app");
+        fs::create_dir_all(installed.parent().unwrap()).unwrap();
+        fs::write(&installed, b"").unwrap();
+        assert_eq!(resolve_exe(transient, &app).unwrap(), installed);
+
+        // A stable path is kept as is, even outside the app folder.
+        assert_eq!(resolve_exe(Path::new(EXE), &app).unwrap(), Path::new(EXE));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn disabling_removes_the_plist_without_needing_an_exe() {
+        let dir = temp_dir("disable");
+        set_autostart_in(&dir, Path::new(EXE), true).unwrap();
+        set_autostart_in(&dir, Path::new(""), false).unwrap();
+        assert!(!dir.join(PLIST_NAME).exists());
         let _ = fs::remove_dir_all(&dir);
     }
 

@@ -66,6 +66,10 @@ pub struct RawEvent {
     pub typed: Option<char>,
     /// `kCGEventSourceUserData`.
     pub user_data: i64,
+    /// `kCGEventTargetUnixProcessID`: 0 for hardware keystrokes (the window
+    /// server picks the receiver after the tap); set when the event was posted
+    /// to a specific process. See [`Runtime::refresh_app`].
+    pub target_pid: i32,
 }
 
 impl RawEvent {
@@ -77,6 +81,7 @@ impl RawEvent {
             autorepeat: false,
             typed,
             user_data: 0,
+            target_pid: 0,
         }
     }
 }
@@ -88,6 +93,10 @@ pub trait Host: Send {
     /// Lowercased bundle identifier of the frontmost application. Allocates;
     /// called only when the pid changes or the TTL lapses.
     fn frontmost_bundle(&mut self) -> Option<String>;
+    /// Lowercased bundle identifier of the process `pid`, if it has one.
+    fn bundle_for_pid(&mut self, _pid: i32) -> Option<String> {
+        None
+    }
     /// `IsSecureEventInputEnabled()`.
     fn secure_input(&mut self) -> bool;
     /// Delete `deletes` characters backwards, then type `text`, in one batch.
@@ -263,7 +272,11 @@ impl Runtime {
             self.boundary_engine();
             return Decision::PASS;
         }
-        if ev.kind == EventKind::KeyDown && self.host.secure_input() {
+        let secure = ev.kind == EventKind::KeyDown && self.host.secure_input();
+        if ev.kind == EventKind::KeyDown {
+            globals::note_secure_input(secure);
+        }
+        if secure {
             // Password fields: never convert, never swallow new keys. A trigger
             // already swallowed keeps its key-up swallowed (bits are kept).
             if self
@@ -365,7 +378,7 @@ impl Runtime {
         }
 
         // 3. Per-app enablement.
-        self.refresh_app();
+        self.refresh_app(ev.target_pid);
         self.sync_word_context();
         let enabled = self.effective_enabled();
         if !enabled && !self.macro_only_active() {
@@ -643,9 +656,18 @@ impl Runtime {
         }
     }
 
-    fn refresh_app(&mut self) {
+    /// Find the app the key goes to and resolve its rule (cached for `APP_TTL`).
+    ///
+    /// S-14: a non-activating panel (Spotlight, Alfred, Raycast) never becomes
+    /// `NSWorkspace.frontmostApplication`. When the event itself names a target
+    /// process (`kCGEventTargetUnixProcessID`, non-zero, e.g. posted with
+    /// `CGEventPostToPid`) that process wins. Hardware keystrokes carry 0 there
+    /// (the receiver is chosen after the tap), so for them this falls back to
+    /// the frontmost app, exactly as before.
+    fn refresh_app(&mut self, target_pid: i32) {
         let now = Instant::now();
-        let pid = self.host.frontmost_pid();
+        let target = (target_pid > 0).then_some(target_pid);
+        let pid = target.unwrap_or_else(|| self.host.frontmost_pid());
         if pid != 0
             && pid == self.app_pid
             && now.saturating_duration_since(self.app_checked) < APP_TTL
@@ -660,7 +682,11 @@ impl Runtime {
             self.rule = None;
             return;
         }
-        let name = self.host.frontmost_bundle().unwrap_or_default();
+        let name = match target {
+            Some(pid) => self.host.bundle_for_pid(pid),
+            None => self.host.frontmost_bundle(),
+        }
+        .unwrap_or_default();
         if pid != self.app_pid || name != self.app_name {
             self.app_pid = pid;
             self.app_name = name;
@@ -1147,6 +1173,77 @@ mod tests {
         assert_eq!(rig.rt.active_app_name(), "com.apple.textedit");
         assert!(!rig.rt.effective_enabled());
         assert!(rig.log.lock().replaced.is_empty());
+    }
+
+    #[test]
+    fn target_pid_of_the_event_overrides_the_frontmost_app() {
+        let _guard = globals::TEST_LOCK.lock();
+        struct Panel;
+        impl Host for Panel {
+            fn frontmost_pid(&mut self) -> i32 {
+                100
+            }
+            fn frontmost_bundle(&mut self) -> Option<String> {
+                Some("com.apple.textedit".into())
+            }
+            fn bundle_for_pid(&mut self, pid: i32) -> Option<String> {
+                (pid == 200).then(|| "com.raycast.macos".to_string())
+            }
+            fn secure_input(&mut self) -> bool {
+                false
+            }
+            fn replace(&mut self, _: u32, _: &str) {}
+            fn repost_key(&mut self, _: u16) {}
+            fn toggle_sound(&mut self, _: bool) {}
+            fn error_sound(&mut self) {}
+        }
+        let mut cfg = quiet_config();
+        let mut rule = vkb_config::AppRule::new("com.apple.textedit");
+        rule.enabled = Some(false);
+        cfg.apps.rules.push(rule);
+        globals::store_enabled(true);
+        let mut rt = Runtime::new(Box::new(Panel), Some(Arc::new(cfg)), None);
+        let code = mac_code('a');
+        // Hardware key (target 0): the frontmost app's rule (off) governs.
+        rt.on_event(&RawEvent::key(EventKind::KeyDown, code, 0, Some('a')));
+        assert_eq!(rt.active_app_name(), "com.apple.textedit");
+        assert!(!rt.effective_enabled());
+        // The same key aimed at the panel's process: its own (absent) rule.
+        let mut aimed = RawEvent::key(EventKind::KeyDown, code, 0, Some('a'));
+        aimed.target_pid = 200;
+        rt.on_event(&aimed);
+        assert_eq!(rt.active_app_name(), "com.raycast.macos");
+        assert!(rt.effective_enabled());
+    }
+
+    #[test]
+    fn secure_input_blocking_follows_the_last_key() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        *rig.secure.lock() = true;
+        press(&mut rig.rt, 'a');
+        assert!(globals::secure_input_blocking());
+        *rig.secure.lock() = false;
+        press(&mut rig.rt, 'a');
+        assert!(!globals::secure_input_blocking());
+    }
+
+    /// S-11: same as Windows (`vkb-windows` state.rs). In an app whose rule says
+    /// off, the toggle computes `!effective_enabled()` = on, and that only moves
+    /// the global flag; the rule keeps winning there. Pinned for parity.
+    #[test]
+    fn toggle_in_a_rule_off_app_matches_windows() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut cfg = quiet_config();
+        let mut rule = vkb_config::AppRule::new("com.apple.textedit");
+        rule.enabled = Some(false);
+        cfg.apps.rules.push(rule);
+        let mut rig = rig(Some(cfg));
+        press(&mut rig.rt, 'a');
+        assert!(!rig.rt.effective_enabled());
+        let next = !rig.rt.effective_enabled();
+        rig.rt.set_enabled(next);
+        assert!(!rig.rt.effective_enabled(), "the rule still wins in that app");
     }
 
     #[test]

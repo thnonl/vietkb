@@ -30,9 +30,28 @@ pub(crate) fn tidy_running(mut apps: Vec<(String, String)>) -> Vec<(String, Stri
     apps
 }
 
+/// Whether a running app belongs in the exclusion picker. Regular (0) and
+/// Accessory (1: menu-bar apps, Spotlight-like panels, Raycast, Alfred) qualify
+/// when they have a bundle id and a name; Prohibited (2) background daemons
+/// and VietKB itself do not.
+pub(crate) fn wants_running_app(policy: isize, bundle: &str, name: &str, is_self: bool) -> bool {
+    !is_self && matches!(policy, 0 | 1) && !bundle.is_empty() && !name.trim().is_empty()
+}
+
 #[cfg(test)]
 mod tidy_tests {
-    use super::tidy_running;
+    use super::{tidy_running, wants_running_app};
+
+    #[test]
+    fn picker_takes_regular_and_named_accessory_apps_only() {
+        assert!(wants_running_app(0, "com.apple.textedit", "TextEdit", false));
+        assert!(wants_running_app(1, "com.raycast.macos", "Raycast", false));
+        assert!(!wants_running_app(2, "com.apple.daemon", "Daemon", false));
+        assert!(!wants_running_app(1, "com.vendor.agent", "  ", false));
+        assert!(!wants_running_app(1, "", "Nameless", false));
+        assert!(!wants_running_app(0, "vn.vietkb.app", "VietKB", true));
+        assert!(!wants_running_app(-1, "x.y", "Y", false));
+    }
 
     #[test]
     fn dedups_sorts_and_drops_empty_bundles() {
@@ -55,6 +74,7 @@ mod tidy_tests {
 /// True when the current OS can host a real backend.
 pub const IMPLEMENTED: bool = cfg!(target_os = "macos");
 
+pub use globals::secure_input_blocking;
 pub use state::{is_injected, MARKER};
 
 #[cfg(target_os = "macos")]
@@ -126,6 +146,17 @@ mod imp {
         *globals::DATA_DIR.lock() = Some(dir);
     }
 
+    /// `CGPreflightListenEventAccess()`: Input Monitoring granted (no prompt).
+    pub fn has_input_monitoring_permission() -> bool {
+        sys::has_input_monitoring_permission()
+    }
+
+    /// `CGRequestListenEventAccess()`: shows the system prompt; returns the
+    /// current state, the user answers asynchronously.
+    pub fn request_input_monitoring_permission() -> bool {
+        sys::request_input_monitoring_permission()
+    }
+
     /// `AXIsProcessTrusted()`.
     pub fn has_accessibility_permission() -> bool {
         sys::has_accessibility_permission()
@@ -150,7 +181,7 @@ mod imp {
         })
     }
 
-    /// Regular (Dock) apps currently running: `process_name` is the lowercased
+    /// Regular (Dock) and Accessory (menu-bar / panel) apps currently running: `process_name` is the lowercased
     /// bundle id (the key per-app rules use), `window_title` the localized name.
     /// De-duplicated by bundle id and sorted by it.
     pub fn running_apps() -> Vec<AppInfo> {
@@ -256,6 +287,7 @@ mod imp {
         fn read_only_probes_do_not_panic() {
             // Read-only OS queries: no prompt, no tap, no events posted.
             let _ = has_accessibility_permission();
+            let _ = has_input_monitoring_permission();
             let _ = secure_input_enabled();
             let _ = active_app_bundle();
         }

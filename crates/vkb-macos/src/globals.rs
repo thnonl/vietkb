@@ -84,6 +84,44 @@ pub fn config_version() -> u64 {
     CONFIG_VERSION.load(Ordering::Relaxed)
 }
 
+/// Milliseconds since [`epoch`] at which the tap last passed a key through
+/// because secure event input was on; `0` = the last key was not blocked.
+static SECURE_BLOCKED_AT_MS: AtomicU64 = AtomicU64::new(0);
+/// How long a block report stays current without a newer key (the user stopped
+/// typing or left the app): afterwards the UI hint goes away by itself.
+const SECURE_BLOCK_TTL_MS: u64 = 15_000;
+
+fn epoch() -> std::time::Instant {
+    static EPOCH: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    *EPOCH.get_or_init(std::time::Instant::now)
+}
+
+fn now_ms() -> u64 {
+    // +1 so a block in the very first millisecond is not the "none" value 0.
+    epoch().elapsed().as_millis() as u64 + 1
+}
+
+/// The tap saw a key-down while secure event input was on (`true`) or off.
+pub fn note_secure_input(blocked: bool) {
+    let value = if blocked { now_ms() } else { 0 };
+    // Avoid a store per keystroke when nothing changes.
+    if blocked || SECURE_BLOCKED_AT_MS.load(Ordering::Relaxed) != 0 {
+        SECURE_BLOCKED_AT_MS.store(value, Ordering::Relaxed);
+    }
+}
+
+/// Pure rule behind [`secure_input_blocking`].
+fn block_is_current(blocked_at_ms: u64, now_ms: u64) -> bool {
+    blocked_at_ms != 0 && now_ms.saturating_sub(blocked_at_ms) <= SECURE_BLOCK_TTL_MS
+}
+
+/// `true` while secure event input is making the tap pass typed keys through
+/// unconverted: the latest key-down was blocked, within the last 15 s. Covers
+/// the legitimate password-field case too; the UI decides how to word it.
+pub fn secure_input_blocking() -> bool {
+    block_is_current(SECURE_BLOCKED_AT_MS.load(Ordering::Relaxed), now_ms())
+}
+
 /// Tests that touch the process-wide state below must hold this lock.
 #[cfg(test)]
 pub static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -110,6 +148,19 @@ mod tests {
         set_enabled_callback(move |on| sink.lock().push(on));
         fire_enabled(false);
         assert_eq!(*seen.lock(), vec![false]);
+    }
+
+    #[test]
+    fn a_block_report_expires_and_a_normal_key_clears_it() {
+        assert!(!block_is_current(0, 5_000));
+        assert!(block_is_current(1_000, 1_000 + SECURE_BLOCK_TTL_MS));
+        assert!(!block_is_current(1_000, 1_001 + SECURE_BLOCK_TTL_MS));
+
+        let _guard = TEST_LOCK.lock();
+        note_secure_input(true);
+        assert!(secure_input_blocking());
+        note_secure_input(false);
+        assert!(!secure_input_blocking());
     }
 
     #[test]

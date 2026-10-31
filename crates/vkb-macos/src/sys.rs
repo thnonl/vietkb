@@ -51,6 +51,7 @@ const TAP_DISABLED_BY_USER_INPUT: u32 = 0xFFFF_FFFF;
 // CGEventField
 const FIELD_AUTOREPEAT: u32 = 8;
 const FIELD_KEYCODE: u32 = 9;
+const FIELD_TARGET_PID: u32 = 40;
 const FIELD_SOURCE_USER_DATA: u32 = 42;
 
 // CGEventTapLocation / Place / Options / source state
@@ -99,6 +100,9 @@ extern "C" {
     fn CGEventCreateKeyboardEvent(source: CGEventSourceRef, keycode: u16, down: bool)
         -> CGEventRef;
     fn CGEventSourceCreate(state: i32) -> CGEventSourceRef;
+    // macOS 10.15+: Input Monitoring (kTCCServiceListenEvent).
+    fn CGPreflightListenEventAccess() -> bool;
+    fn CGRequestListenEventAccess() -> bool;
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
@@ -168,6 +172,17 @@ pub fn request_accessibility_permission() -> bool {
     }
 }
 
+/// `CGPreflightListenEventAccess()`: Input Monitoring granted? Never prompts.
+pub fn has_input_monitoring_permission() -> bool {
+    unsafe { CGPreflightListenEventAccess() }
+}
+
+/// `CGRequestListenEventAccess()`: shows the Input Monitoring system prompt the
+/// first time and returns the current state (the user answers asynchronously).
+pub fn request_input_monitoring_permission() -> bool {
+    unsafe { CGRequestListenEventAccess() }
+}
+
 /// `true` while any process holds secure event input (password fields).
 pub fn secure_input_enabled() -> bool {
     unsafe { IsSecureEventInputEnabled() }
@@ -198,38 +213,48 @@ pub fn frontmost_pid() -> i32 {
     .unwrap_or(0)
 }
 
-/// Lowercased bundle identifier of the frontmost application.
-pub fn active_app_bundle() -> Option<String> {
-    with_frontmost(|app| unsafe {
-        let bundle: *mut AnyObject = msg_send![app, bundleIdentifier];
-        if bundle.is_null() {
-            return None;
-        }
-        let utf8: *const c_char = msg_send![bundle, UTF8String];
-        if utf8.is_null() {
-            return None;
-        }
-        Some(CStr::from_ptr(utf8).to_string_lossy().to_ascii_lowercase())
-    })
-    .flatten()
+unsafe fn utf8(string: *mut AnyObject) -> Option<String> {
+    if string.is_null() {
+        return None;
+    }
+    let ptr: *const c_char = msg_send![string, UTF8String];
+    if ptr.is_null() {
+        return None;
+    }
+    Some(CStr::from_ptr(ptr).to_string_lossy().into_owned())
 }
 
-/// Lowercased bundle id and localized name of every regular (Dock) app that is
-/// running. Same call style as the frontmost lookup: NSWorkspace read-only
+unsafe fn bundle_of(app: *mut AnyObject) -> Option<String> {
+    let bundle: *mut AnyObject = msg_send![app, bundleIdentifier];
+    utf8(bundle).map(|id| id.to_ascii_lowercase())
+}
+
+/// Lowercased bundle identifier of the frontmost application.
+pub fn active_app_bundle() -> Option<String> {
+    with_frontmost(|app| unsafe { bundle_of(app) }).flatten()
+}
+
+/// Lowercased bundle identifier of the running process `pid`.
+pub fn bundle_for_pid(pid: i32) -> Option<String> {
+    autoreleasepool(|_| unsafe {
+        let app: *mut AnyObject = msg_send![
+            class!(NSRunningApplication),
+            runningApplicationWithProcessIdentifier: pid
+        ];
+        if app.is_null() {
+            return None;
+        }
+        bundle_of(app)
+    })
+}
+
+/// Lowercased bundle id and localized name of every Regular (Dock) and Accessory
+/// (menu-bar, panel) app that is running; Prohibited background daemons and this
+/// process are skipped (`crate::wants_running_app`). Same call style as the frontmost lookup: NSWorkspace read-only
 /// properties inside an autorelease pool, safe off the main thread. Unsorted,
 /// possibly duplicated; `crate::tidy_running` finishes the job.
 pub fn running_apps() -> Vec<(String, String)> {
-    unsafe fn utf8(string: *mut AnyObject) -> Option<String> {
-        if string.is_null() {
-            return None;
-        }
-        let ptr: *const c_char = msg_send![string, UTF8String];
-        if ptr.is_null() {
-            return None;
-        }
-        Some(CStr::from_ptr(ptr).to_string_lossy().into_owned())
-    }
-
+    let own_pid = std::process::id() as i32;
     autoreleasepool(|_| unsafe {
         let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
         if workspace.is_null() {
@@ -246,17 +271,16 @@ pub fn running_apps() -> Vec<(String, String)> {
             if app.is_null() {
                 continue;
             }
-            // NSApplicationActivationPolicyRegular == 0 (Dock apps; skips agents
-            // and background helpers).
+            // NSApplicationActivationPolicy: Regular 0, Accessory 1, Prohibited 2.
             let policy: isize = msg_send![app, activationPolicy];
-            if policy != 0 {
-                continue;
-            }
+            let pid: i32 = msg_send![app, processIdentifier];
             let Some(bundle) = utf8(msg_send![app, bundleIdentifier]) else {
                 continue;
             };
             let name = utf8(msg_send![app, localizedName]).unwrap_or_default();
-            out.push((bundle.to_ascii_lowercase(), name));
+            if crate::wants_running_app(policy, &bundle, &name, pid == own_pid) {
+                out.push((bundle.to_ascii_lowercase(), name));
+            }
         }
         out
     })
@@ -402,6 +426,9 @@ impl Host for MacHost {
     fn frontmost_bundle(&mut self) -> Option<String> {
         active_app_bundle()
     }
+    fn bundle_for_pid(&mut self, pid: i32) -> Option<String> {
+        bundle_for_pid(pid)
+    }
     fn secure_input(&mut self) -> bool {
         secure_input_enabled()
     }
@@ -450,9 +477,11 @@ fn read_event(event_type: u32, event: CGEventRef) -> Option<RawEvent> {
                 autorepeat: false,
                 typed: None,
                 user_data,
+                target_pid: 0,
             });
         }
         let keycode = CGEventGetIntegerValueField(event, FIELD_KEYCODE) as u16;
+        let target_pid = CGEventGetIntegerValueField(event, FIELD_TARGET_PID) as i32;
         let flags = CGEventGetFlags(event);
         let autorepeat = kind == EventKind::KeyDown
             && CGEventGetIntegerValueField(event, FIELD_AUTOREPEAT) != 0;
@@ -476,6 +505,7 @@ fn read_event(event_type: u32, event: CGEventRef) -> Option<RawEvent> {
             autorepeat,
             typed,
             user_data,
+            target_pid,
         })
     }
 }
