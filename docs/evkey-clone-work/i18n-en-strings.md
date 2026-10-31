@@ -13,7 +13,6 @@ Buttons and words reused across windows.
 | `common.save` | Lưu | Save |
 | `common.delete` | Xoá | Delete |
 | `common.edit` | Sửa | Edit |
-| `common.add` | Thêm | Add |
 | `common.loading` | Đang tải… | Loading… |
 | `common.undo` | Hoàn tác | Undo |
 | `common.openConfig` | Mở thư mục cấu hình | Open config folder |
@@ -476,4 +475,4 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS. |
 
-Total: 348 keys.
+Total: 347 keys.

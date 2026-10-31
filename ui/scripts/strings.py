@@ -18,7 +18,6 @@ group("Shared controls", "Buttons and words reused across windows.", [
  ("common.save", "Lưu", "Save"),
  ("common.delete", "Xoá", "Delete"),
  ("common.edit", "Sửa", "Edit"),
- ("common.add", "Thêm", "Add"),
  ("common.loading", "Đang tải…", "Loading…"),
  ("common.undo", "Hoàn tác", "Undo"),
  ("common.openConfig", "Mở thư mục cấu hình", "Open config folder"),

@@ -6,7 +6,6 @@ export const vi: Record<string, string> = {
   "common.save": "Lưu",
   "common.delete": "Xoá",
   "common.edit": "Sửa",
-  "common.add": "Thêm",
   "common.loading": "Đang tải…",
   "common.undo": "Hoàn tác",
   "common.openConfig": "Mở thư mục cấu hình",

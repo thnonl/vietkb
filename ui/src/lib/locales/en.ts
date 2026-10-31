@@ -6,7 +6,6 @@ export const en: Record<string, string> = {
   "common.save": "Save",
   "common.delete": "Delete",
   "common.edit": "Edit",
-  "common.add": "Add",
   "common.loading": "Loading…",
   "common.undo": "Undo",
   "common.openConfig": "Open config folder",

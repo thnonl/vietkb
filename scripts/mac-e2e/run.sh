@@ -183,7 +183,11 @@ EOF
   glog "LAUNCH $(date +%H:%M:%S) pid=$VKPID path=$BIN HOME=$HOMEDIR"
   sleep 7
   if ! kill -0 $VKPID 2>/dev/null; then glog "VietKB exited early: $(tail -3 "$OUT/vietkb-$name.log")"; VKPID=""; return 1; fi
-  [[ -e "$REAL_SUPPORT/VietKB" ]] && glog "WARNING VietKB wrote into the real Application Support dir"
+  # warn only on an actual change of the owner's files (manifest vs manifest-before.txt), not on mere existence (D-MAC-49)
+  if [[ -f $OUT/manifest-before.txt ]]; then
+    manifest > "$OUT/manifest-now.txt"
+    cmp -s "$OUT/manifest-before.txt" "$OUT/manifest-now.txt" || glog "WARNING VietKB wrote into the real Application Support dir (owner manifest changed: see manifest-before.txt / manifest-now.txt)"
+  fi
   ls "$CFGDIR" | while read l; do glog "VIETKB config dir has: $l"; done
   local oa=(); [[ -n $ONLY ]] && oa=(--only $ONLY)
   [[ $name != telex ]] && export SKIP_IDLE_GATE=1   # later phases follow our own synthetic input; the watcher guards them

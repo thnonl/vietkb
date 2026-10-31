@@ -4,7 +4,7 @@
 Pure file reads under the repo: no network, no browser, no process is launched, no input is sent, so it needs
 no idle gate and touches nothing of the owner's. Run: python3 -I scripts/mac-e2e/site-check.py [--out DIR]
 
-Checks `site/index.html` (vi), `site/en/index.html` (en), `site/404.html`, README.md, release-notes-mac-draft.md and
+Checks `site/index.html` (vi), `site/en/index.html` (en), `site/404.html`, README.md, the Mac section of release-notes-0.2.7.md and
 `.github/workflows/pages.yml`. Each check appends one row to $E2E_OUT/results.jsonl (same schema as the
 Swift harness; target = "site") and prints it. Exit code is always 0; the verdict is in the rows.
 """
@@ -269,7 +269,7 @@ def check_positive():
     wants = {
         "vi": {"title/meta mention macOS": r"macOS", "Mở cùng macOS or equivalent": r"Mở cùng (?:máy|macOS)", "⌃⇧ default": r"⌃⇧", "Control + Shift": r"Control \+ Shift",
                "Mac screenshot": r"mac-settings-dark\.png", "menu screenshot": r"mac-menu-dark\.png"},
-        "en": {"title/meta mention macOS": r"macOS", "Open at login": r"Open at login", "⌃⇧ default": r"⌃⇧", "Control \\+ Shift": r"Control \+ Shift",
+        "en": {"title/meta mention macOS": r"macOS", "Start with macOS": r"Start with macOS", "⌃⇧ default": r"⌃⇧", "Control \\+ Shift": r"Control \+ Shift",
                "Mac screenshot": r"mac-settings-dark\.png", "menu screenshot": r"mac-menu-dark\.png"},
     }
     for lang, p in PAGES.items():
@@ -320,7 +320,11 @@ def check_readme():
     if not re.search(r"cargo|npm", rm.split("macOS", 1)[-1]): bad.append("README has no Mac build steps")
     record("SITE-12", "README: macOS install (dmg, Gatekeeper, Accessibility), Mac autostart wording, vkb-macos row, Mac build", "MAC-DOC-01,MAC-DOC-05,MAC-DOC-23", verdict(bad), "; ".join(bad))
     bad = []
-    rn = rd("docs/evkey-clone-work/release-notes-mac-draft.md")
+    rn_all = rd("docs/evkey-clone-work/release-notes-0.2.7.md")
+    # Mac section only: from its heading to the next "## " heading (or end of file)
+    m = re.search(r"^## Cài trên macOS\n(.*?)(?=^## |\Z)", rn_all, re.S | re.M)
+    rn = m.group(1) if m else ""
+    if not m: bad.append("release-notes-0.2.7.md has no '## Cài trên macOS' section")
     if re.search(r"không có biểu tượng trên Dock", rn): bad.append("release notes still say there is no Dock icon")
     if not re.search(r"biểu tượng trên Dock|Dock", rn): bad.append("release notes do not describe the Dock icon")
     if re.search(r"đặt được trong\s*`?Phím tắt", rn): bad.append("release notes claim F-keys are settable in Phím tắt…")
