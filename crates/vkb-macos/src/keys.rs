@@ -362,12 +362,16 @@ pub fn reconcile_ascii(vk: u16, typed: char, shift: bool, caps: bool) -> char {
     if typed != plain && typed != shifted {
         return typed;
     }
-    // Caps Lock only changes letters.
-    let upper = if plain.is_ascii_alphabetic() { shift ^ caps } else { shift };
-    if upper {
-        shifted
-    } else {
+    if plain.is_ascii_alphabetic() {
+        return if shift ^ caps { shifted } else { plain };
+    }
+    // Digits and punctuation: only the stale-shift direction. A string equal to
+    // the key's plain US character is never promoted to the shifted one, because
+    // on layouts such as AZERTY the Shift+digit-row string *is* that character.
+    if typed == shifted && !shift {
         plain
+    } else {
+        typed
     }
 }
 
@@ -628,7 +632,16 @@ mod tests {
         // Digits: a stale shifted string with clean flags is the digit again.
         assert_eq!(reconcile_ascii(0x36, '^', false, false), '6');
         assert_eq!(reconcile_ascii(0x35, '%', false, true), '5', "Caps Lock leaves digits alone");
-        assert_eq!(reconcile_ascii(0x36, '6', true, false), '^');
+        // Never promote a plain string to the shifted one: AZERTY Shift+`&` key gives `1`.
+        assert_eq!(reconcile_ascii(0x31, '1', true, false), '1');
+        assert_eq!(reconcile_ascii(0x36, '6', true, false), '6');
+        assert_eq!(reconcile_ascii(0x32, '2', true, false), '2');
+        assert_eq!(reconcile_ascii(0x31, '1', false, false), '1');
+        assert_eq!(reconcile_ascii(0x31, '!', true, false), '!', "US Shift+1 untouched");
+        // AZERTY: unshifted digit-row strings are symbols and stay as typed.
+        assert_eq!(reconcile_ascii(0x31, '&', false, false), '&');
+        assert_eq!(reconcile_ascii(0x32, 'é', false, false), 'é');
+        assert_eq!(reconcile_ascii(0x33, '"', false, false), '"');
         // Anything that is not one of the key's two US characters is the layout's own.
         assert_eq!(reconcile_ascii(0x36, '§', false, false), '§');
         assert_eq!(reconcile_ascii(0x41, 'ă', false, false), 'ă');

@@ -33,20 +33,50 @@ export const hiddenHeight = (): number => {
 };
 
 let running = false;
+let pending = false;
 
-/** Grow the window until the sheet's content fits. macOS only; call once the page has rendered. */
+/** Resolve once the viewport height differs from `before` (resize event), or after `ms`. */
+const viewportChanged = (before: number, ms = 600): Promise<void> =>
+  new Promise((resolve) => {
+    if (window.innerHeight !== before) return resolve();
+    const done = () => {
+      window.removeEventListener("resize", onResize);
+      clearTimeout(timer);
+      resolve();
+    };
+    const onResize = () => {
+      if (window.innerHeight !== before) done();
+    };
+    const timer = setTimeout(done, ms);
+    window.addEventListener("resize", onResize);
+  });
+
+/**
+ * Grow the window until the sheet's content fits. macOS only; call once the page
+ * has rendered. A call made while a fit is running is not dropped: one more
+ * pass is queued and runs when the current one ends.
+ */
 export const fitWindowToContent = async (): Promise<void> => {
-  if (!isNative() || document.documentElement.dataset.platform !== "macos" || running) return;
+  if (!isNative() || document.documentElement.dataset.platform !== "macos") return;
+  if (running) {
+    pending = true;
+    return;
+  }
   running = true;
   try {
-    // Two passes: fonts and late rows can change the height after the first measure.
-    for (let pass = 0; pass < 2; pass++) {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-      const hidden = hiddenHeight();
-      if (hidden === 0) break;
-      await resizeBy(hidden);
-      await new Promise((resolve) => setTimeout(resolve, 80));
-    }
+    do {
+      pending = false;
+      // Two passes: fonts and late rows can change the height after the first measure.
+      for (let pass = 0; pass < 2; pass++) {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+        const hidden = hiddenHeight();
+        if (hidden === 0) break;
+        const before = window.innerHeight;
+        await resizeBy(hidden);
+        // Measure again only once the webview has actually been resized.
+        await viewportChanged(before);
+      }
+    } while (pending);
   } catch {
     // A window that cannot be resized keeps its size.
   } finally {
