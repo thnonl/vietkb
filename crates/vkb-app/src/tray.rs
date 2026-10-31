@@ -233,6 +233,18 @@ fn badged_template(base: &'static [u8]) -> tauri::Result<tauri::image::Image<'st
 /// The tooltip last handed to the shell.
 static LAST_TOOLTIP: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::new(None);
 
+/// The language of the string the shell holds for the icon.
+static LAST_TOOLTIP_LANG: parking_lot::Mutex<Option<Lang>> = parking_lot::Mutex::new(None);
+
+/// D-WIN-10: the shell keeps the text the icon was *registered* with and shows
+/// it next to a later `NIM_MODIFY` text (UIA name `VI EN` after the language was
+/// switched to English). Only a delete + add leaves a single string, so a change
+/// of tooltip language re-registers the icon instead of modifying it.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn needs_reregistration(registered: Option<Lang>, now: Lang) -> bool {
+    registered.is_some_and(|lang| lang != now)
+}
+
 fn tooltip(lang: Lang, status: &StatusView) -> String {
     let base = base_tooltip(lang, status.enabled);
     match update::available_version() {
@@ -331,9 +343,11 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let status = commands::status_now();
     let menu = build_menu(app, &status)?;
 
+    let lang = i18n::current();
+    let text = tooltip(lang, &status);
     let builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon_for(app, &status)?)
-        .tooltip(tooltip(i18n::current(), &status))
+        .tooltip(text.clone())
         .menu(&menu)
         .on_menu_event(|app, event| handle_event(app, event.id.as_ref()));
 
@@ -367,6 +381,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let builder = builder.icon_as_template(true);
 
     builder.build(app)?;
+    // The registered string is the one the refresh must not write again.
+    *LAST_TOOLTIP_LANG.lock() = Some(lang);
+    *LAST_TOOLTIP.lock() = Some(text);
 
     Ok(())
 }
@@ -424,6 +441,12 @@ pub fn refresh(app: &AppHandle, status: &StatusView) {
 }
 
 fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
+    // Windows only: the macOS status item has no such stale string.
+    #[cfg(windows)]
+    if needs_reregistration(*LAST_TOOLTIP_LANG.lock(), i18n::current()) {
+        drop(app.remove_tray_by_id(TRAY_ID));
+        return install(app);
+    }
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return Ok(());
     };
@@ -440,6 +463,7 @@ fn try_refresh(app: &AppHandle, status: &StatusView) -> tauri::Result<()> {
     if last.as_deref() != Some(text.as_str()) {
         tray.set_tooltip(Some(text.clone()))?;
         *last = Some(text);
+        *LAST_TOOLTIP_LANG.lock() = Some(i18n::current());
     }
     Ok(())
 }
@@ -564,6 +588,15 @@ mod tests {
             assert_eq!(en.matches("VietKB").count(), 1);
             assert!(!vi.contains(&en) && !en.contains(&vi));
         }
+    }
+
+    /// D-WIN-10: only a change of language re-registers the icon.
+    #[test]
+    fn icon_is_reregistered_only_when_the_tooltip_language_changes() {
+        assert!(!needs_reregistration(None, Lang::En));
+        assert!(!needs_reregistration(Some(Lang::Vi), Lang::Vi));
+        assert!(needs_reregistration(Some(Lang::Vi), Lang::En));
+        assert!(needs_reregistration(Some(Lang::En), Lang::Vi));
     }
 
     /// S-19: the tooltip is the approved copy in both languages.
