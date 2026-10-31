@@ -83,13 +83,42 @@ fn disable_for_modal(main: &tauri::WebviewWindow) {
     let _ = main;
 }
 
+/// Open modals, oldest first, with a flag set once the window has been asked to
+/// close. A closing modal must not win the focus back from main (it would be
+/// re-focused on its way out and swallow the close).
+#[cfg(target_os = "macos")]
+static MODALS: parking_lot::Mutex<Vec<(String, bool)>> = parking_lot::Mutex::new(Vec::new());
+
+#[cfg(target_os = "macos")]
+fn modal_opened(label: &str) {
+    let mut modals = MODALS.lock();
+    modals.retain(|(l, _)| l != label);
+    modals.push((label.to_string(), false));
+}
+
+#[cfg(target_os = "macos")]
+fn modal_closing(label: &str) {
+    if let Some(entry) = MODALS.lock().iter_mut().find(|(l, _)| l == label) {
+        entry.1 = true;
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn modal_gone(label: &str) {
+    MODALS.lock().retain(|(l, _)| l != label);
+}
+
 /// macOS modality: the main window never keeps focus while a modal is open.
+/// The most recently opened modal that is not closing gets it.
 #[cfg(target_os = "macos")]
 fn refocus_modal(app: &tauri::AppHandle) {
-    let modal = AUX_LABELS
+    let target = MODALS
+        .lock()
         .iter()
-        .find_map(|label| app.get_webview_window(label));
-    if let Some(modal) = modal {
+        .rev()
+        .find(|(_, closing)| !closing)
+        .map(|(label, _)| label.clone());
+    if let Some(modal) = target.and_then(|label| app.get_webview_window(&label)) {
         let _ = modal.set_focus();
     }
 }
@@ -107,13 +136,17 @@ fn enter_foreground(app: &tauri::AppHandle) {
 #[cfg(not(target_os = "macos"))]
 fn enter_foreground(_app: &tauri::AppHandle) {}
 
-/// Back to a menu-bar-only app once no window is left.
+/// Back to a menu-bar-only app once no window is left. The window being
+/// destroyed is told apart by identity (its NSWindow), not by label: a new
+/// `main` built under the same label before the old one's `Destroyed` arrives
+/// still counts.
 #[cfg(target_os = "macos")]
-fn leave_foreground_if_idle(app: &tauri::AppHandle, closing: &str) {
-    let any = app
-        .webview_windows()
-        .keys()
-        .any(|label| label.as_str() != closing);
+fn leave_foreground_if_idle(app: &tauri::AppHandle, destroyed: &tauri::Window) {
+    let gone = destroyed.ns_window().ok();
+    let any = app.webview_windows().values().any(|w| match (w.ns_window().ok(), gone) {
+        (Some(a), Some(b)) => a != b,
+        _ => w.label() != destroyed.label(),
+    });
     if !any {
         if let Err(error) = app.set_activation_policy(tauri::ActivationPolicy::Accessory) {
             tracing::warn!(%error, "could not hide the Dock icon");
@@ -121,7 +154,7 @@ fn leave_foreground_if_idle(app: &tauri::AppHandle, closing: &str) {
     }
 }
 #[cfg(not(target_os = "macos"))]
-fn leave_foreground_if_idle(_app: &tauri::AppHandle, _closing: &str) {}
+fn leave_foreground_if_idle(_app: &tauri::AppHandle, _destroyed: &tauri::Window) {}
 
 /// Bring the settings window forward from anywhere (tray, hotkey, second
 /// launch), building it if it is not there yet.
@@ -173,7 +206,12 @@ fn open_settings(app: &tauri::AppHandle) {
         return;
     }
 
-    if let Err(error) = build_settings_window(app) {
+    let built = build_settings_window(app);
+    if built.is_ok() {
+        // A stale `Destroyed` of the previous window may have dropped the
+        // policy between the call above and the build: assert it again.
+        enter_foreground(app);
+    } else if let Err(error) = built {
         tracing::warn!(%error, "could not create the settings window");
         // A window whose destruction is still in flight refuses the label. It
         // is the same window the user asked for, so surface it instead of
@@ -233,6 +271,8 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         if let Some(main) = &main {
             disable_for_modal(main);
         }
+        #[cfg(target_os = "macos")]
+        modal_opened(label);
         return Ok(());
     }
 
@@ -281,6 +321,9 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     if let Some(main) = &main {
         disable_for_modal(main);
     }
+    #[cfg(target_os = "macos")]
+    modal_opened(label);
+    enter_foreground(app);
     window.set_focus().map_err(|error| error.to_string())?;
     Ok(())
 }
@@ -605,6 +648,8 @@ fn main() {
         // modal hands the main window its input back.
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { .. } => {
+                #[cfg(target_os = "macos")]
+                modal_closing(window.label());
                 if window.label() == MAIN_LABEL {
                     close_aux(window.app_handle());
                 }
@@ -615,6 +660,8 @@ fn main() {
                 crate::windows_backend::flush_perf();
             }
             WindowEvent::Destroyed => {
+                #[cfg(target_os = "macos")]
+                modal_gone(window.label());
                 match window.label() {
                     MAIN_LABEL => close_aux(window.app_handle()),
                     #[cfg(not(target_os = "macos"))]
@@ -625,7 +672,7 @@ fn main() {
                     }
                     _ => {}
                 }
-                leave_foreground_if_idle(window.app_handle(), window.label());
+                leave_foreground_if_idle(window.app_handle(), window);
             }
             #[cfg(target_os = "macos")]
             WindowEvent::Focused(true) if window.label() == MAIN_LABEL => {
