@@ -153,6 +153,27 @@ pub fn settle_remaining_ms(elapsed_ms: u64) -> u64 {
     SETTLE_MS.saturating_sub(elapsed_ms)
 }
 
+/// `CloseClipboard` itself advances `GetClipboardSequenceNumber` (3 in a
+/// replica), so a number read while the clipboard is still open never matches
+/// the notification that follows our own write (D-WIN-16). Our write's number is
+/// therefore read AFTER closing, under the shared lock. This is how many steps
+/// past the in-open value still count as the close's own bump; more means
+/// somebody else wrote in between.
+pub const MAX_CLOSE_BUMP: u32 = 8;
+
+/// The sequence number to record for our write: `after_close` when it is within
+/// [`MAX_CLOSE_BUMP`] of the value read while open (wrapping), else `None`
+/// (a foreign write got in: not ours, record nothing).
+pub fn seq_after_close(in_open: u32, after_close: u32) -> Option<u32> {
+    let bump = after_close.wrapping_sub(in_open);
+    (after_close != 0 && bump <= MAX_CLOSE_BUMP).then_some(after_close)
+}
+
+/// Pause before the worker opens the clipboard to re-snapshot after a foreign
+/// change, so it never collides with the target's own `OpenClipboard` for a
+/// paste in flight (D-WIN-17) and bursts of changes collapse into one capture.
+pub const REFRESH_DELAY_MS: u32 = 100;
+
 /// Most retired buffers the hook may leave queued for the worker to free.
 pub const GARBAGE_CAP: usize = 4;
 
@@ -339,6 +360,21 @@ mod tests {
         assert_eq!(settle_remaining_ms(SETTLE_MS - 1), 1);
         assert_eq!(settle_remaining_ms(SETTLE_MS), 0);
         assert_eq!(settle_remaining_ms(u64::MAX), 0);
+    }
+
+    #[test]
+    fn close_bump_is_part_of_our_write() {
+        // Replica: 100 while open, +3 from CloseClipboard.
+        assert_eq!(seq_after_close(100, 103), Some(103));
+        assert_eq!(seq_after_close(100, 100), Some(100));
+        assert_eq!(seq_after_close(100, 100 + MAX_CLOSE_BUMP), Some(100 + MAX_CLOSE_BUMP));
+        // Too far: a foreign write got in between.
+        assert_eq!(seq_after_close(100, 100 + MAX_CLOSE_BUMP + 1), None);
+        // Going backwards, or 0 (unavailable), is never ours.
+        assert_eq!(seq_after_close(100, 99), None);
+        assert_eq!(seq_after_close(100, 0), None);
+        // u32 wrap.
+        assert_eq!(seq_after_close(u32::MAX - 1, 1), Some(1));
     }
 
     #[test]

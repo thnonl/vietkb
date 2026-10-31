@@ -42,7 +42,7 @@ use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use vkb_platform::clipboard_plan::{
     classify_format, decide_paste, flag_blocks_snapshot, format_count_ok, notification_is_ours,
-    push_bounded, GARBAGE_CAP,
+    push_bounded, seq_after_close, GARBAGE_CAP, REFRESH_DELAY_MS,
     restore_action, restore_due, settle_remaining_ms, snapshot_verdict, within_budget, FormatClass,
     PasteDecision, RestoreAction, Verdict, PRIVACY_FORMATS, REGISTERED_FIRST, SETTLE_MS,
 };
@@ -82,6 +82,7 @@ const WM_APP_GC: u32 = 0x8000 + 0x24;
 const WM_APP_MODE: u32 = 0x8000 + 0x22;
 const WM_APP_FLUSH: u32 = 0x8000 + 0x23;
 const TIMER_SETTLE: usize = 1;
+const TIMER_REFRESH: usize = 2;
 
 #[derive(Debug, PartialEq, Eq)]
 struct FormatData {
@@ -315,11 +316,14 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
         };
         if let Some(data) = data {
             let complete = restore_locked(&data);
-            // Still under the guard: this is the sequence number of the data we
-            // just put back. Keep it as the snapshot, so the next expansion can
-            // paste again (a re-capture would refuse: our flags are on it).
-            let seq = unsafe { GetClipboardSequenceNumber() };
-            if complete && seq != 0 {
+            // Sequence number of the data we just put back, read AFTER closing
+            // (CloseClipboard advances it) and still under the shared lock. Keep
+            // it as the snapshot, so the next expansion can paste again (a
+            // re-capture would refuse: our flags are on it).
+            let in_open = unsafe { GetClipboardSequenceNumber() };
+            drop(guard);
+            let seq = seq_after_close(in_open, unsafe { GetClipboardSequenceNumber() });
+            if let (true, Some(seq)) = (complete, seq) {
                 shared.restored_seq = Some(seq);
                 if let Some(old) = shared.snapshot.replace(Snap { seq, data }) {
                     retire(&mut shared, old.data);
@@ -330,7 +334,22 @@ fn try_paste(deletes: u32, text: &str, mode: SendMode, chord: Modifiers, held: H
         }
         return false;
     };
+    // CloseClipboard advances the sequence number: record OUR write's number
+    // after it (D-WIN-16), still under the shared lock so the listener cannot
+    // look before it is stored.
     drop(guard);
+    let Some(seq) = seq_after_close(seq, unsafe { GetClipboardSequenceNumber() }) else {
+        // Somebody else wrote in between: the clipboard is theirs now. Forget
+        // the old copy and type.
+        let old = match decision {
+            PasteDecision::ContinueSession => shared.session.take().map(|s| s.data),
+            _ => shared.snapshot.take().map(|s| s.data),
+        };
+        if let Some(old) = old {
+            retire(&mut shared, old);
+        }
+        return false;
+    };
     match decision {
         PasteDecision::StartSession => {
             if let Some(old) = shared.session.take() {
@@ -454,6 +473,13 @@ unsafe extern "system" fn worker_proc(
             unsafe { SetTimer(hwnd, TIMER_SETTLE, SETTLE_MS as u32, None) };
             LRESULT(0)
         }
+        WM_TIMER if wparam.0 == TIMER_REFRESH => {
+            let _ = unsafe { KillTimer(hwnd, TIMER_REFRESH) };
+            if ENABLED.load(Ordering::SeqCst) {
+                let _ = catch_unwind(|| refresh_snapshot(hwnd));
+            }
+            LRESULT(0)
+        }
         WM_TIMER if wparam.0 == TIMER_SETTLE => {
             let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
             let _ = catch_unwind(|| restore_if_due(hwnd));
@@ -469,6 +495,7 @@ unsafe extern "system" fn worker_proc(
         }
         WM_APP_FLUSH => {
             let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
+            let _ = unsafe { KillTimer(hwnd, TIMER_REFRESH) };
             let _ = catch_unwind(|| {
                 restore_now();
                 clear_snapshot();
@@ -504,6 +531,7 @@ fn apply_mode(hwnd: HWND) {
         refresh_snapshot(hwnd);
     } else {
         let _ = unsafe { KillTimer(hwnd, TIMER_SETTLE) };
+        let _ = unsafe { KillTimer(hwnd, TIMER_REFRESH) };
         let _ = unsafe { RemoveClipboardFormatListener(hwnd) };
         restore_now();
         clear_snapshot();
@@ -533,13 +561,25 @@ fn on_update(hwnd: HWND) {
         }
         shared.snapshot = None; // stale until the new one is ready
     }
-    refresh_snapshot(hwnd);
+    // Never open the clipboard right away: a target may be about to open it for
+    // a paste (D-WIN-17), and a burst of changes needs one capture.
+    unsafe { SetTimer(hwnd, TIMER_REFRESH, REFRESH_DELAY_MS, None) };
 }
 
 fn refresh_snapshot(hwnd: HWND) {
-    let snap = ClipboardGuard::open(Some(hwnd), 5, 20).and_then(|guard| {
-        let seq = unsafe { GetClipboardSequenceNumber() };
+    // Never open the clipboard while a paste session is in flight: the target
+    // may be opening it for its Ctrl+V right now (D-WIN-17).
+    if SHARED.lock().session.is_some() {
+        return;
+    }
+    let opened = ClipboardGuard::open(Some(hwnd), 5, 20).and_then(|guard| {
+        let in_open = unsafe { GetClipboardSequenceNumber() };
         let data = capture(&guard)?;
+        Some((in_open, data))
+    });
+    // The guard is closed here; the number that matters is the one after it.
+    let snap = opened.and_then(|(in_open, data)| {
+        let seq = seq_after_close(in_open, unsafe { GetClipboardSequenceNumber() })?;
         Some(Snap { seq, data })
     });
     let mut shared = SHARED.lock();
@@ -606,13 +646,15 @@ fn restore_session(done: Session, owner: Option<HWND>) {
                 return;
             }
             let complete = restore_locked(&done.data);
-            let seq = unsafe { GetClipboardSequenceNumber() };
+            let in_open = unsafe { GetClipboardSequenceNumber() };
             drop(guard);
+            // CloseClipboard advances the sequence number: adopt the value after it.
+            let seq = seq_after_close(in_open, unsafe { GetClipboardSequenceNumber() });
             if !complete {
                 tracing::warn!("clipboard restore incomplete");
                 return;
             }
-            if seq != 0 && ENABLED.load(Ordering::SeqCst) {
+            if let (Some(seq), true) = (seq, ENABLED.load(Ordering::SeqCst)) {
                 let mut shared = SHARED.lock();
                 shared.restored_seq = Some(seq);
                 shared.snapshot = Some(Snap { seq, data: done.data });
