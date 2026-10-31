@@ -1,23 +1,36 @@
 //! Charter P1: `process_key` must not allocate on the `Noop` path.
 //!
-//! A counting allocator wraps the system one. The test harness runs tests in
-//! parallel threads inside this binary, so a single measurement can pick up a
-//! stray allocation from the harness itself; the check therefore takes the
-//! *minimum* over several attempts. A path that really allocates allocates on
-//! every attempt, so the minimum still catches it.
+//! A counting allocator wraps the system one. The counter is per thread, so
+//! tests running in parallel threads of this binary cannot count each other's
+//! allocations (D-TEST-01). The check still takes the *minimum* over several
+//! attempts as a belt-and-braces guard; a path that really allocates allocates
+//! on every attempt, so the minimum still catches it.
 
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::cell::Cell;
 
 use vkb_core::{Engine, EngineOptions, InputMethod, KeyInput, VietnameseEngine};
 
 struct Counting;
 
-static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    // `const` init and no destructor: first access never allocates or registers
+    // a TLS destructor, so touching it from inside the allocator is safe.
+    static ALLOCATIONS: Cell<usize> = const { Cell::new(0) };
+}
+
+fn bump() {
+    // `try_with`: tolerate access during thread teardown.
+    let _ = ALLOCATIONS.try_with(|count| count.set(count.get() + 1));
+}
+
+fn count() -> usize {
+    ALLOCATIONS.with(Cell::get)
+}
 
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+        bump();
         System.alloc(layout)
     }
 
@@ -26,12 +39,12 @@ unsafe impl GlobalAlloc for Counting {
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+        bump();
         System.realloc(ptr, layout, new_size)
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+        bump();
         System.alloc_zeroed(layout)
     }
 }
@@ -40,9 +53,9 @@ unsafe impl GlobalAlloc for Counting {
 static GLOBAL: Counting = Counting;
 
 fn allocations<F: FnMut()>(mut body: F) -> usize {
-    let before = ALLOCATIONS.load(Ordering::Relaxed);
+    let before = count();
     body();
-    ALLOCATIONS.load(Ordering::Relaxed) - before
+    count() - before
 }
 
 fn minimum_over<F: FnMut()>(attempts: usize, mut body: F) -> usize {
@@ -111,9 +124,9 @@ fn vni_strip_that_changes_nothing_does_not_allocate() {
         engine.process_key(KeyInput::char('6'));
         // `0` after a mark but with no tone to remove renders the same word
         // (a bare `a0` is a literal digit now, D-TN-03).
-        let before = ALLOCATIONS.load(Ordering::Relaxed);
+        let before = count();
         let action = engine.process_key(KeyInput::char('0'));
-        let used = ALLOCATIONS.load(Ordering::Relaxed) - before;
+        let used = count() - before;
         assert!(matches!(action, vkb_core::EngineAction::Swallow));
         lowest = lowest.min(used);
     }
