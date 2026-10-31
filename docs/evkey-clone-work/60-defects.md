@@ -404,4 +404,4 @@ Owner rulings, 2026-10-30:
 
 | id | severity | area | repro | expected | actual | status |
 |---|---|---|---|---|---|---|
-| D-TEST-01 | P3 (test harness) | `vkb-core/tests/no_alloc.rs` counts allocations with one global counter, so tests running in parallel threads count each other's allocations | `cargo test -p vkb-core --test no_alloc` ×5 on macOS (default parallel) | 5/5 pass | 3/5 pass; failures in `plain_append_and_boundary_do_not_allocate` or `ignored_keys_do_not_allocate`. `--test-threads=1`: 5/5 pass | OPEN — fix with a per-thread counter or a serial guard; not platform-specific |
+| D-TEST-01 | P3 (test harness) | `vkb-core/tests/no_alloc.rs` counts allocations with one global counter, so tests running in parallel threads count each other's allocations | `cargo test -p vkb-core --test no_alloc` ×5 on macOS (default parallel) | 5/5 pass | 3/5 pass; failures in `plain_append_and_boundary_do_not_allocate` or `ignored_keys_do_not_allocate`. `--test-threads=1`: 5/5 pass | FIXED in `21e40ba` — per-thread counter (const `thread_local` Cell); 10/10 pass in default parallel mode |
