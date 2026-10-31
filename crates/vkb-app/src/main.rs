@@ -7,6 +7,7 @@ mod running_apps;
 mod macos_shell;
 mod tray;
 mod update;
+mod window_bg;
 #[cfg(any(windows, target_os = "macos"))]
 mod autostart;
 #[cfg(target_os = "macos")]
@@ -354,6 +355,7 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         // ring the page draws on top is the edge itself (ui/src/styles/v4.css).
         .shadow(true)
         .transparent(false)
+        .background_color(window_bg::initial(app))
         .visible(false);
     #[cfg(target_os = "macos")]
     {
@@ -378,6 +380,8 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         let _ = owner;
     }
     let window = builder.build().map_err(|error| error.to_string())?;
+    // Still hidden: settle the exact colour for the OS theme before it shows.
+    window_bg::apply(&window);
 
     window.show().map_err(|error| error.to_string())?;
     match owner.as_ref() {
@@ -475,6 +479,7 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
     // for DWM to paint the frame shadow at all.
     .shadow(true)
     .transparent(false)
+    .background_color(window_bg::initial(app))
     // Hidden at build time; placed and shown below in one go.
     .visible(false);
     // macOS: overlay title bar, the page draws the caption row (TitleBar.svelte).
@@ -483,6 +488,8 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true);
     let window = builder.build()?;
+    // Still hidden: settle the exact colour for the OS theme before it shows.
+    window_bg::apply(&window);
 
     // Show first: a window that has never been shown has not had its DWM frame
     // applied yet, so `outer_size()` lies (measured 918x710 for a 720x560

@@ -31,7 +31,6 @@ static AUTOSTART_STATE: AtomicBool = AtomicBool::new(false);
 /// Language / theme (as enum discriminants) last applied to the windows; `u8::MAX`
 /// until the first change is processed.
 static APPLIED_LANGUAGE: AtomicU8 = AtomicU8::new(u8::MAX);
-#[cfg(target_os = "macos")]
 static APPLIED_THEME: AtomicU8 = AtomicU8::new(u8::MAX);
 
 fn shared() -> &'static vkb_platform::SharedConfig {
@@ -321,10 +320,7 @@ fn after_change() {
     sync_autostart(autostart);
     // Window titles and the native appearance only matter when they changed.
     let language_changed = APPLIED_LANGUAGE.swap(language, Ordering::Relaxed) != language;
-    #[cfg(target_os = "macos")]
     let theme_changed = APPLIED_THEME.swap(theme, Ordering::Relaxed) != theme;
-    #[cfg(not(target_os = "macos"))]
-    let _ = theme;
 
     // Hand the new config to the hook: one `Arc` swap plus a wake-up, never a
     // reinstall, and the enabled flag rides along inside the config.
@@ -342,6 +338,10 @@ fn after_change() {
         #[cfg(target_os = "macos")]
         if theme_changed {
             crate::macos_shell::apply_theme(app, &config_cell().read().system.theme);
+        }
+        // Both platforms: the native background behind the page follows too.
+        if theme_changed {
+            crate::window_bg::apply_all(app);
         }
         crate::tray::refresh(app, &status);
         if let Err(error) = app.emit("vkb:status", status) {
