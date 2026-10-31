@@ -71,12 +71,13 @@ impl EngineSink for Injector {
 impl Injector {
     fn type_text(&self, text: &str, deletes: u32, held: HeldKeys) {
         if self.clipboard {
-            if deletes > 0 {
-                let inputs = input::build_segment(deletes, "", self.mode);
-                input::send(&inputs);
-            }
-            if !text.is_empty() {
-                crate::clipboard::paste_async(text.to_string());
+            if text.is_empty() {
+                if deletes > 0 {
+                    let inputs = input::build_segment(deletes, "", self.mode);
+                    input::send(&inputs);
+                }
+            } else {
+                crate::clipboard::submit(deletes, text.to_string(), self.mode, held);
             }
             return;
         }

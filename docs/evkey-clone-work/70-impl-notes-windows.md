@@ -197,3 +197,17 @@ Preconditions: interactive session, no other IME currently composing, Notepad op
 3. **Additive API** (no frozen signature changed) that `vkb-app` may want to call:
    `vkb_windows::install()`, `set_config(SharedConfig)`, `is_hook_ready()`,
    `WindowsBackend`, `Injector`, `active_app()`.
+
+---
+
+## 9. Clipboard send mode (D-WIN-12..15)
+
+Opt-in only (`typing.use_clipboard`). Pure rules live in `vkb_platform::clipboard_plan` (tested on every host); `crates/vkb-windows/src/clipboard.rs` is the Win32 side.
+
+- **Threading.** The hook/injector only calls `clipboard::submit`, which enqueues a job. One `vkb-clipboard` worker owns every clipboard call (retrying `OpenClipboard`, delayed-render owners). Jobs run in order, so consecutive expansions share one snapshot. Residual risk: a physical key typed in the few ms before the worker sends the batch can overtake it; the default Unicode path does not have this and remains the recommendation.
+- **Snapshot.** Pass 1 lists ids and names only; `snapshot_verdict` decides before any data is read. HGLOBAL formats (text, DIB/DIBV5, HDROP, locale, PNG/HTML/any registered name) are copied byte for byte (32 MiB per format, 64 MiB total). CF_BITMAP/CF_PALETTE/CF_DSP* are never dereferenced; they are rebuilt by Windows from the DIB, so a bitmap without a DIB, metafiles, private/GDI ranges, unnamed registered ids, `DataObject`, a hung clipboard owner, an unreadable or oversized format all make the snapshot "lossy". Lossy => the text is typed with Unicode `SendInput`, the clipboard is untouched.
+- **Paste.** Only after `SetClipboardData` succeeded. One `SendInput`: Backspaces, held Shift up, LCtrl down, V down, V up, LCtrl up, Shift down again. Scan codes 0x1D / 0x2F, injected tag kept.
+- **Restore.** No signal exists for "the target consumed the paste", so: wait until the queue has been idle 400 ms (`SETTLE_MS`; each new job restarts it), then restore only if `GetClipboardSequenceNumber` equals the value taken right after our write (checked with the clipboard open). If anyone else wrote meanwhile the snapshot is dropped, never restored over their data; a later job re-snapshots the new content.
+- **Privacy.** Our temporary text and the restored copy get `CanIncludeInClipboardHistory`, `CanUploadToCloudClipboard` (DWORD 0) and `ExcludeClipboardContentFromMonitorProcessing`, so Win+V and cloud sync skip them. Flag formats found in the user's data are not copied (ours replace them).
+- **Panics.** Every job runs under `catch_unwind`, the clipboard is closed by an RAII guard, every API result is checked. The release profile is `panic = "abort"`, so in release the guarantee is "no unchecked call", not unwinding.
+- **Limits / not verified.** `OpenClipboard(NULL)` is used (no owner window); the docs warn SetClipboardData may then fail for delayed data, we only set immediate data and check the result. Not run on a live Windows desktop here; the `#[ignore]`d round-trip test in `clipboard.rs` and a manual bitmap/PNG/Win+V check are still to do.

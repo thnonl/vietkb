@@ -851,12 +851,15 @@ impl HookRuntime {
     /// Batched delivery: deletes and text go out in one `SendInput` call.
     fn deliver_with(&mut self, text: &str, deletes: u32, chord: Modifiers) -> SendResult {
         if self.use_clipboard {
-            if deletes > 0 {
-                let inputs = input::build_segment(deletes, "", self.send_mode);
-                input::send(&inputs);
-            }
-            if !text.is_empty() {
-                crate::clipboard::paste_async(text.to_string());
+            // Empty text with deletes is a pure delete: nothing to paste.
+            if text.is_empty() {
+                if deletes > 0 {
+                    let inputs = input::build_segment(deletes, "", self.send_mode);
+                    input::send(&inputs);
+                }
+            } else {
+                // Worker thread: the hook never waits on the clipboard.
+                crate::clipboard::submit(deletes, text.to_string(), self.send_mode, self.held());
             }
             return SendResult::default();
         }

@@ -504,15 +504,33 @@ pub fn send(inputs: &[INPUT]) -> u32 {
     send_detailed(inputs).sent
 }
 
-/// `Ctrl+V` with scancodes. Only the opt-in clipboard fallback uses this.
+/// `Ctrl+V` as a proper chord (left Ctrl down, V down, V up, left Ctrl up), tagged.
+/// Only the opt-in clipboard fallback uses this.
 pub fn ctrl_v_sequence() -> Vec<INPUT> {
     let mut out = Vec::with_capacity(4);
-    let ctrl_scan = keys::scan_for_vk(keys::VK_CONTROL);
-    let v_scan = keys::scan_for_vk(0x56);
-    push_key(&mut out, keys::VK_CONTROL, ctrl_scan, false);
-    push_key(&mut out, 0x56, v_scan, false);
-    push_key(&mut out, 0x56, v_scan, true);
-    push_key(&mut out, keys::VK_CONTROL, ctrl_scan, true);
+    for key in vkb_platform::clipboard_plan::paste_chord() {
+        push_key(&mut out, key.vk, key.scan, key.up);
+    }
+    out
+}
+
+/// The clipboard paste batch: `deletes` Backspaces, then the `Ctrl+V` chord, in
+/// one `SendInput` call so no physical key can land between them (D-WIN-14).
+pub fn build_paste(deletes: u32, mode: SendMode, held: Held) -> Vec<INPUT> {
+    let mut out = build_segment_held(deletes, "", mode, Held { shift: 0, caps: held.caps });
+    // A Shift the user still holds would turn the chord into Ctrl+Shift+V
+    // (plain-text paste, or nothing): lift it for the chord, press it back after.
+    for (bit, vk) in [
+        (keys::SHIFT_L, keys::VK_LSHIFT),
+        (keys::SHIFT_R, keys::VK_RSHIFT),
+        (keys::SHIFT_ANY, keys::VK_SHIFT),
+    ] {
+        if held.shift & bit != 0 {
+            push_key(&mut out, vk, keys::scan_for_vk(vk), true);
+        }
+    }
+    out.extend(ctrl_v_sequence());
+    push_shift_down(&mut out, held.shift);
     out
 }
 
@@ -1267,12 +1285,39 @@ mod tests {
         assert_eq!(
             keys,
             vec![
-                (keys::VK_CONTROL, false),
+                (keys::VK_LCONTROL, false),
                 (0x56, false),
                 (0x56, true),
-                (keys::VK_CONTROL, true)
+                (keys::VK_LCONTROL, true)
             ]
         );
+    }
+
+    #[test]
+    fn paste_batch_is_backspaces_then_chord_in_one_call() {
+        let inputs = build_paste(2, SendMode::Unicode, Held { shift: keys::SHIFT_L, caps: false });
+        let seq: Vec<(u16, bool)> = inputs
+            .iter()
+            .map(|i| (field(i).0, is_up(i)))
+            .collect();
+        assert_eq!(
+            seq,
+            vec![
+                (keys::VK_BACK, false),
+                (keys::VK_BACK, true),
+                (keys::VK_BACK, false),
+                (keys::VK_BACK, true),
+                (keys::VK_LSHIFT, true),
+                (keys::VK_LCONTROL, false),
+                (0x56, false),
+                (0x56, true),
+                (keys::VK_LCONTROL, true),
+                (keys::VK_LSHIFT, false),
+            ]
+        );
+        for input in &inputs {
+            assert_eq!(field(input).3, injected_tag());
+        }
     }
 
     /// D-WIN-09: the delete block is its own call, the Shift-wrapped text the next.
