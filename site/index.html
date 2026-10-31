@@ -3,8 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VietKB — Bộ gõ tiếng Việt cho Windows</title>
-<meta name="description" content="VietKB là bộ gõ tiếng Việt cho Windows: Telex, VNI, gõ tắt và quy tắc theo ứng dụng. Unicode NFC/NFD, nhẹ 14 MB.">
+<title>VietKB — Bộ gõ tiếng Việt cho Windows và macOS</title>
+<meta name="description" content="VietKB là bộ gõ tiếng Việt cho Windows và macOS: Telex, VNI, gõ tắt và loại trừ ứng dụng. Chữ ra Unicode, miễn phí, mã nguồn mở, không ghi lại nội dung gõ.">
+<link rel="canonical" href="https://thnonl.github.io/vietkb/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="VietKB">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:title" content="VietKB: bộ gõ tiếng Việt cho Windows và macOS">
+<meta property="og:description" content="Telex hoặc VNI, gõ tắt, loại trừ ứng dụng. Nằm gọn trong khay hệ thống hoặc trên thanh menu. Miễn phí, mã nguồn mở.">
+<meta property="og:url" content="https://thnonl.github.io/vietkb/">
+<meta property="og:image" content="https://thnonl.github.io/vietkb/assets/hero-poster.jpg">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="720">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ECECF1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#101017" media="(prefers-color-scheme: dark)">
@@ -23,8 +34,9 @@
 
     <nav class="nav" aria-label="Điều hướng chính">
       <a href="#tinh-nang">Tính năng</a>
-      <a href="#giao-dien">Giao diện</a>
+      <a href="#phim-tat">Phím tắt</a>
       <a href="#cai-dat">Cài đặt</a>
+      <a href="#hoi-dap">Hỏi đáp</a>
       <a href="#phat-hanh">Bản phát hành</a>
     </nav>
 
@@ -37,13 +49,15 @@
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow">Bộ gõ tiếng Việt · Windows</p>
+        <p class="eyebrow">Bộ gõ tiếng Việt · Windows · macOS</p>
         <h1 id="hero-title">Bàn phím của bạn,<br><span class="h1-accent">tiếng Việt</span></h1>
-        <p class="pitch">Gõ tiếng Việt bằng Telex hoặc VNI. VietKB chạy gọn trong khay hệ thống, dùng bảng mã Unicode NFC hoặc NFD.</p>
+        <p class="pitch">Gõ tiếng Việt bằng Telex hoặc VNI, trên Windows và Mac. VietKB nằm gọn trong khay hệ thống hoặc trên thanh menu. Chữ ra Unicode, dán vào đâu cũng đúng.</p>
 
+        <!-- Không có JS: nút chính là Windows, dòng dưới là link macOS; cả hai đều bấm được.
+             Có JS: máy Mac thấy nút chính là macOS, link phụ là Windows (xem script cuối trang). -->
         <div class="actions">
-          <a class="btn btn-primary" href="https://github.com/thnonl/vietkb/releases/latest">
-            Tải cho Windows
+          <a class="btn btn-primary" id="dl-primary" href="https://github.com/thnonl/vietkb/releases/latest">
+            <span class="dl-label">Tải cho Windows</span>
             <span class="btn-meta" data-release="installer">3,1 MB</span>
           </a>
           <a class="btn btn-ghost" href="https://github.com/thnonl/vietkb">
@@ -54,10 +68,17 @@
           </a>
         </div>
 
+        <p class="alt-dl" id="dl-alt">
+          <span class="dl-alt-lead">Dùng máy Mac?</span>
+          <a href="https://github.com/thnonl/vietkb/releases/latest"><span class="dl-label">Tải cho macOS</span></a>
+          <span class="dl-alt-meta" data-release="dmg" hidden></span>
+        </p>
+
         <p class="fineprint">
-          <span>Bản mới nhất: <span data-release="latest">v0.1.1 · 3,1 MB</span></span>
-          <span class="tag">Chưa ký số</span>
+          <span data-release="latest">Bản mới nhất trên GitHub</span>
           <span class="tag">Windows 10/11 · x64</span>
+          <span class="tag">macOS 11+ · Apple silicon và Intel</span>
+          <span class="tag">Chưa ký số</span>
         </p>
 
         <ul class="hero-specs">
@@ -65,6 +86,7 @@
           <li><b>14 MB</b><span>khi nằm trong khay</span></li>
           <li><b>0,3 s</b><span>từ mở máy tới gõ</span></li>
         </ul>
+        <p class="specs-note">Số đo trên Windows.</p>
 
         <div class="kofi">
           <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'N4X728S6TT');kofiwidget2.draw();</script>
@@ -76,7 +98,7 @@
           <div class="screen">
             <video class="hero-video" autoplay muted loop playsinline preload="metadata"
                    poster="assets/hero-poster.jpg" width="1280" height="720"
-                   aria-label="Clip 16 giây: VietKB gõ tieengs thành tiếng, bốn tính năng chính, tốc độ 0,8 micro giây mỗi phím, 14 MB khi chạy trong khay, giao diện 13 điều khiển.">
+                   aria-label="Clip 16 giây quay trên Windows: VietKB gõ tieengs thành tiếng, bốn tính năng chính, tốc độ 0,8 micro giây mỗi phím, 14 MB khi chạy trong khay, giao diện 13 điều khiển.">
               <source src="assets/hero-motion.mp4" type="video/mp4">
             </video>
           </div>
@@ -91,7 +113,7 @@
           </div>
         </div>
         <figcaption class="board-caption">
-          Cùng một bàn phím: gõ <code>tieengs</code>, ra <code>tiếng</code>. Clip 16 giây ở trên tóm tắt tính năng, tốc độ và giao diện.
+          Cùng một bàn phím: gõ <code>tieengs</code>, ra <code>tiếng</code>. Clip 16 giây ở trên, quay trên Windows, tóm tắt tính năng, tốc độ và giao diện.
         </figcaption>
       </figure>
     </div>
@@ -102,13 +124,13 @@
       <div class="story-panel">
         <h2 id="story-title">Vì sao có VietKB</h2>
         <div class="story-body">
-          <p>VietKB tập trung vào việc gõ tiếng Việt trên Windows: Telex, VNI và Unicode.</p>
+          <p>VietKB làm một việc: gõ tiếng Việt bằng Telex hoặc VNI, chữ ra Unicode. Cùng một bộ gõ cho Windows và macOS.</p>
           <p>Không thu phí, không quảng cáo, không ghi lại nội dung gõ. Mã nguồn mở.</p>
           <p class="story-facts">
-            <span>14 MB trong khay</span>
-            <span>bộ cài khoảng 3 MB</span>
-            <span>mở cửa sổ khoảng 0,3 giây</span>
-            <span>Unicode NFC và NFD</span>
+            <span>Windows 10/11 và macOS 11+</span>
+            <span>14 MB trong khay (Windows)</span>
+            <span>bộ cài Windows khoảng 3 MB</span>
+            <span>một tệp .dmg cho mọi máy Mac</span>
           </p>
         </div>
       </div>
@@ -121,7 +143,7 @@
         <span class="num" aria-hidden="true">01</span>
         <div>
           <h2 id="tinh-nang-title">Tính năng</h2>
-          <p class="lead">Từ kiểu gõ, gõ tắt đến quy tắc riêng cho từng ứng dụng.</p>
+          <p class="lead">Từ kiểu gõ, gõ tắt đến quy tắc riêng cho từng ứng dụng. Giống nhau trên Windows và Mac, trừ chỗ có ghi rõ.</p>
         </div>
       </div>
 
@@ -129,7 +151,7 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">01</span>
           <h3>Telex và VNI</h3>
-          <p>Chọn Telex hoặc VNI. Kết quả dùng Unicode NFC hoặc NFD; không hỗ trợ bảng mã khác.</p>
+          <p>Chọn Telex hoặc VNI. Chữ ra Unicode, dán vào đâu cũng đúng. Bản Windows chọn được thêm Unicode NFD.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">02</span>
@@ -144,17 +166,17 @@
         <li class="card">
           <span class="key-id" aria-hidden="true">04</span>
           <h3>Phím tắt tự đặt</h3>
-          <p>Chín hành động có phím tắt, gồm F1, F2 và Ctrl+Shift. Có thể đổi tổ hợp phím trong cài đặt.</p>
+          <p>Bật/tắt tiếng Việt bằng Ctrl+Shift trên Windows, <span class="mac-keys">⌃⇧</span> trên Mac. Đổi được trong cài đặt. <a href="#phim-tat">Xem phím tắt mặc định</a>.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">05</span>
           <h3>Gọn nhẹ</h3>
-          <p>14 MB khi chạy trong khay; bộ cài <span data-release="installer">3,1 MB</span>. Viết bằng Rust và Tauri 2.</p>
+          <p>Trên Windows: 14 MB khi chạy trong khay, bộ cài <span data-release="installer">3,1 MB</span>. Trên Mac: một tệp <code>.dmg</code> cho cả Apple silicon lẫn Intel. Viết bằng Rust và Tauri 2.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">06</span>
-          <h3>Khay hệ thống</h3>
-          <p>Nhấp trái biểu tượng V/E để bật hoặc tắt. Có thể khởi động cùng Windows, chạy ẩn và kiểm tra cập nhật trong ứng dụng.</p>
+          <h3>Khay hệ thống, thanh menu</h3>
+          <p>Windows: nhấp trái biểu tượng V/E trong khay để bật hoặc tắt. Mac: bấm V/E trên thanh menu để mở menu. Mở cùng máy, chạy ẩn và kiểm tra cập nhật ngay trong ứng dụng.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">07</span>
@@ -168,8 +190,8 @@
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">09</span>
-          <h3>Bàn phím ảo</h3>
-          <p>Hỗ trợ gõ tiếng Việt trên bàn phím ảo Windows (VK_PACKET).</p>
+          <h3>Ô mật khẩu để nguyên</h3>
+          <p>Trong ô mật khẩu, phím gõ ra đúng như bấm, không thêm dấu. Bản Windows còn gõ được tiếng Việt trên bàn phím ảo.</p>
         </li>
         <li class="card">
           <span class="key-id" aria-hidden="true">10</span>
@@ -180,13 +202,77 @@
     </div>
   </section>
 
-  <section class="section" id="giao-dien" aria-labelledby="giao-dien-title">
+  <section class="section" id="phim-tat" aria-labelledby="phim-tat-title">
     <div class="wrap">
       <div class="section-head">
         <span class="num" aria-hidden="true">02</span>
         <div>
+          <h2 id="phim-tat-title">Phím tắt mặc định</h2>
+          <p class="lead">Trên Mac, F1, F2, F8, F9, F11 đã là phím độ sáng, âm lượng và Hiện màn hình nền, nên để trống. Muốn dùng vẫn đặt được trong <em>Phím tắt…</em></p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="hotkeys">
+          <caption class="visually-hidden">Phím tắt mặc định trên Windows và macOS</caption>
+          <thead>
+            <tr><th scope="col">Việc</th><th scope="col">Windows</th><th scope="col">macOS</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Chuyển bật / tắt tiếng Việt</th>
+              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd></td>
+              <td><kbd>⌃⇧</kbd><span class="key-name">Control + Shift</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Khôi phục từ gõ sai</th>
+              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
+              <td><kbd>⌃⇧Z</kbd><span class="key-name">Control + Shift + Z</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Mở cài đặt</th>
+              <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td>
+              <td><kbd>⌃⌥S</kbd><span class="key-name">Control + Option + S</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Bật tiếng Việt</th>
+              <td><kbd>F1</kbd></td>
+              <td class="unset">Chưa đặt</td>
+            </tr>
+            <tr>
+              <th scope="row">Tắt tiếng Việt</th>
+              <td><kbd>F2</kbd></td>
+              <td class="unset">Chưa đặt</td>
+            </tr>
+            <tr>
+              <th scope="row">Bảng gõ tắt</th>
+              <td><kbd>F8</kbd></td>
+              <td class="unset">Chưa đặt</td>
+            </tr>
+            <tr>
+              <th scope="row">Bật / tắt gõ tắt</th>
+              <td><kbd>F9</kbd></td>
+              <td class="unset">Chưa đặt</td>
+            </tr>
+            <tr>
+              <th scope="row">Bật / tắt loại trừ ứng dụng</th>
+              <td><kbd>F11</kbd></td>
+              <td class="unset">Chưa đặt</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note"><kbd>⌘⇧Z</kbd> trên Mac vẫn là Làm lại, VietKB không đụng tới.</p>
+    </div>
+  </section>
+
+  <section class="section" id="giao-dien" aria-labelledby="giao-dien-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">03</span>
+        <div>
           <h2 id="giao-dien-title">Giao diện</h2>
-          <p class="lead">Một bảng 480 × 460 và ba cửa sổ phụ: Phím tắt, Bảng gõ tắt, Nâng cao. Chọn giao diện Sáng hoặc Tối.</p>
+          <p class="lead">Một cửa sổ cài đặt và ba cửa sổ phụ: Phím tắt, Bảng gõ tắt, Nâng cao. Trên Windows chọn Sáng hoặc Tối; trên Mac, cửa sổ theo giao diện của hệ thống.</p>
         </div>
       </div>
 
@@ -194,10 +280,10 @@
         <figure>
           <div class="shot-frame">
             <img src="assets/main-light.png" width="494" height="468"
-                 alt="Cửa sổ cài đặt VietKB ở chế độ sáng: 13 điều khiển, gồm Bật tiếng Việt, Kiểu gõ Telex, Chạy ẩn và Thoát hẳn.">
+                 alt="Cửa sổ cài đặt VietKB trên Windows, chế độ sáng: 13 điều khiển, gồm Bật tiếng Việt, Kiểu gõ Telex, Chạy ẩn và Thoát hẳn.">
           </div>
           <figcaption>
-            <strong>Chế độ sáng</strong>
+            <strong>Windows, chế độ sáng</strong>
             13 điều khiển trên một cửa sổ, gồm Chạy ẩn và Thoát hẳn.
           </figcaption>
         </figure>
@@ -205,11 +291,33 @@
         <figure>
           <div class="shot-frame">
             <img src="assets/main-dark.png" width="494" height="468"
-                 alt="Cửa sổ cài đặt VietKB ở chế độ tối: cùng 13 điều khiển, gồm Bật tiếng Việt, Kiểu gõ Telex, Chạy ẩn và Thoát hẳn.">
+                 alt="Cửa sổ cài đặt VietKB trên Windows, chế độ tối: cùng 13 điều khiển, gồm Bật tiếng Việt, Kiểu gõ Telex, Chạy ẩn và Thoát hẳn.">
           </div>
           <figcaption>
-            <strong>Chế độ tối</strong>
-            Cùng một bảng điều khiển, chọn giữa giao diện Sáng và Tối.
+            <strong>Windows, chế độ tối</strong>
+            Cùng một cửa sổ, chọn giữa giao diện Sáng và Tối.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="shot-frame">
+            <img src="assets/mac-settings-dark.png" width="480" height="453" loading="lazy"
+                 alt="Cửa sổ Cài đặt VietKB trên macOS, giao diện tối, thanh tiêu đề của macOS: Bật tiếng Việt với phím tắt Control Shift, Kiểu gõ Telex, Đặt dấu kiểu mới, Kiểm tra chính tả, Cho phép gõ tắt, Loại trừ ứng dụng, Mở cùng macOS và Chạy ẩn.">
+          </div>
+          <figcaption>
+            <strong>macOS, cửa sổ cài đặt</strong>
+            Thanh tiêu đề của macOS, có mục Mở cùng macOS.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="shot-frame shot-frame-menu">
+            <img src="assets/mac-menu-dark.png" width="179" height="198" loading="lazy"
+                 alt="Menu của VietKB trên thanh menu macOS: Bật/tắt tiếng Việt (đang chọn), Kiểu gõ, Mở cài đặt, Phím tắt, Giới thiệu, Thoát VietKB.">
+          </div>
+          <figcaption>
+            <strong>macOS, menu trên thanh menu</strong>
+            Bấm biểu tượng V/E để bật tắt, đổi kiểu gõ hoặc mở cài đặt.
           </figcaption>
         </figure>
       </div>
@@ -219,27 +327,28 @@
   <section class="section" id="cai-dat" aria-labelledby="cai-dat-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">03</span>
+        <span class="num" aria-hidden="true">04</span>
         <div>
           <h2 id="cai-dat-title">Cài đặt</h2>
-          <p class="lead">Ba bước, không cần cài thêm gì.</p>
+          <p class="lead">Ba bước trên mỗi máy, không cần cài thêm gì.</p>
         </div>
       </div>
 
+      <h3 class="platform-title" id="cai-windows">Trên Windows</h3>
       <ol class="steps">
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
-          <h3>Tải bộ cài</h3>
+          <h4>Tải bộ cài</h4>
           <p>Nhấn <a href="https://github.com/thnonl/vietkb/releases/latest">Tải cho Windows</a> để lấy tệp <code>.exe</code> mới nhất từ trang phát hành.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
-          <h3>Chạy và mở</h3>
+          <h4>Chạy và mở</h4>
           <p>Mở tệp vừa tải, làm theo hướng dẫn cài đặt. Xong thì VietKB nằm trong khay hệ thống, sẵn sàng gõ.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">3</span>
-          <h3>Gõ thử</h3>
+          <h4>Gõ thử</h4>
           <p>Mở bất kỳ ô nhập nào và gõ. Nhấp trái vào biểu tượng trong khay để tắt hoặc bật lại bộ gõ.</p>
         </li>
       </ol>
@@ -254,32 +363,124 @@
           Bản chưa ký số nên SmartScreen có thể cảnh báo. Chọn <em>Thông tin thêm</em>, rồi <em>Vẫn chạy</em>. Mã nguồn có trên GitHub.
         </p>
       </div>
+
+      <h3 class="platform-title" id="cai-mac">Trên macOS</h3>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num" aria-hidden="true">1</span>
+          <h4>Tải và kéo vào Applications</h4>
+          <p>Nhấn <a href="https://github.com/thnonl/vietkb/releases/latest">Tải cho macOS</a>, lấy tệp <code>VietKB_…_universal.dmg</code>. Mở tệp, kéo <em>VietKB</em> vào thư mục <em>Applications</em>.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">2</span>
+          <h4>Mở lần đầu</h4>
+          <p>Trong <em>Applications</em>, bấm chuột phải vào <em>VietKB</em>, chọn <em>Mở</em>, rồi <em>Mở</em> lần nữa. Chỉ cần làm một lần. macOS vẫn chặn thì xem lưu ý bên dưới.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">3</span>
+          <h4>Cấp quyền Trợ năng</h4>
+          <p>Cửa sổ cài đặt hiện thanh vàng <em>Cần quyền Trợ năng</em>. Bấm <em>Cấp quyền…</em>, rồi trong <em>Quyền riêng tư &amp; Bảo mật</em> &gt; <em>Trợ năng</em>, bật công tắc cạnh <em>VietKB</em>. Biểu tượng V hiện trên thanh menu là gõ được.</p>
+        </li>
+      </ol>
+
+      <div class="note">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/>
+          <path d="M12 9.5v4M12 16.8h.01"/>
+        </svg>
+        <div class="note-body">
+          <p>
+            <strong>macOS báo không mở được VietKB</strong>
+            Bản Mac chưa được Apple công chứng. Nếu chuột phải › <em>Mở</em> không có tác dụng, vào <em>Cài đặt hệ thống</em> &gt; <em>Quyền riêng tư &amp; Bảo mật</em>, kéo xuống và bấm <em>Vẫn mở</em>. Hoặc chạy lệnh này trong Terminal:
+          </p>
+          <pre class="cmd"><code>xattr -dr com.apple.quarantine /Applications/VietKB.app</code></pre>
+        </div>
+      </div>
+
+      <div class="note note-info">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 11v5M12 7.8h.01"/>
+        </svg>
+        <p>
+          <strong>Tắt bộ gõ khác trước khi dùng</strong>
+          Hai bộ gõ cùng chạy sẽ gõ ra chữ lỗi. Thoát EVKey, OpenKey hoặc Unikey. Trên Mac, chọn nguồn nhập <em>ABC</em> thay cho bộ gõ tiếng Việt có sẵn của macOS.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="hoi-dap" aria-labelledby="hoi-dap-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num" aria-hidden="true">05</span>
+        <div>
+          <h2 id="hoi-dap-title">Hỏi đáp</h2>
+          <p class="lead">Những câu hay gặp, nhất là khi mới cài trên Mac.</p>
+        </div>
+      </div>
+
+      <div class="faq">
+        <details>
+          <summary>macOS báo “không thể mở VietKB”. Phải làm sao?</summary>
+          <p>Bản Mac chưa được Apple công chứng nên macOS chặn lần mở đầu. Bấm chuột phải vào VietKB trong <em>Applications</em>, chọn <em>Mở</em>. Nếu vẫn bị chặn, vào <em>Cài đặt hệ thống</em> &gt; <em>Quyền riêng tư &amp; Bảo mật</em> và bấm <em>Vẫn mở</em>. Chỉ cần làm một lần cho mỗi bản cài.</p>
+        </details>
+        <details>
+          <summary>Vì sao VietKB cần quyền Trợ năng?</summary>
+          <p>Để nhận phím bạn gõ và thay bằng chữ có dấu. Thiếu quyền này, macOS không cho bộ gõ nào làm việc đó. VietKB không ghi lại nội dung gõ và không gửi gì đi.</p>
+        </details>
+        <details>
+          <summary>Đã bật Trợ năng mà vẫn báo thiếu quyền?</summary>
+          <p>Thường gặp sau khi cài bản mới đè lên bản cũ. Tắt rồi bật lại công tắc cạnh VietKB trong <em>Trợ năng</em>. Chưa được thì xoá dòng VietKB bằng nút <em>−</em> rồi mở lại VietKB.</p>
+        </details>
+        <details>
+          <summary>Vì sao gõ trong ô mật khẩu không ra dấu?</summary>
+          <p>Cố ý như vậy. Ô mật khẩu và các ô nhập an toàn nhận đúng phím bạn bấm, để mật khẩu không bị đổi thành chữ có dấu.</p>
+        </details>
+        <details>
+          <summary>Bản Mac có tự cập nhật không?</summary>
+          <p>Chưa. VietKB báo khi có bản mới và mở trang tải về. Tải tệp <code>.dmg</code> mới, kéo đè vào <em>Applications</em>. Tự cập nhật cần bản được Apple công chứng, nên tạm thời chưa có. Bản Windows tự cập nhật ngay trong ứng dụng.</p>
+        </details>
+        <details>
+          <summary>Dùng chung với bộ gõ tiếng Việt có sẵn của macOS được không?</summary>
+          <p>Không nên bật cùng lúc. Khi dùng VietKB, chọn nguồn nhập <em>ABC</em> trên thanh menu. Muốn quay lại bộ gõ của macOS thì thoát VietKB trước.</p>
+        </details>
+        <details>
+          <summary>Trên Mac, F1 và F2 không bật tắt tiếng Việt?</summary>
+          <p>Trên Mac các phím F là độ sáng và âm lượng, nên VietKB để trống. Dùng <kbd>⌃⇧</kbd> (Control + Shift), hoặc tự đặt phím trong <em>Phím tắt…</em></p>
+        </details>
+        <details>
+          <summary>Sao biểu tượng VietKB lúc có lúc không trên Dock?</summary>
+          <p>VietKB hiện trên Dock khi đang mở cửa sổ. Đóng cửa sổ thì VietKB vẫn chạy, chỉ còn biểu tượng V/E trên thanh menu.</p>
+        </details>
+      </div>
     </div>
   </section>
 
   <section class="section" id="phat-hanh" aria-labelledby="phat-hanh-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">04</span>
+        <span class="num" aria-hidden="true">06</span>
         <div>
           <h2 id="phat-hanh-title">Bản phát hành</h2>
-          <p class="lead">Tải bản mới nhất và xem ghi chú phát hành từ GitHub.</p>
+          <p class="lead">Tải bản mới nhất và xem ghi chú phát hành từ GitHub. Mỗi bản có cả bộ cài Windows lẫn tệp cho Mac.</p>
         </div>
       </div>
 
       <div class="release-grid">
         <div>
           <dl class="facts">
-            <div><dt>Bản mới nhất</dt><dd data-release="version">v0.1.1</dd></div>
-            <div><dt>Bộ cài</dt><dd data-release="installer">3,1 MB</dd></div>
-            <div><dt>Khi chạy</dt><dd>14 MB</dd></div>
-            <div><dt>Nền tảng</dt><dd>Windows</dd></div>
+            <div><dt>Bản mới nhất</dt><dd data-release="version">trên GitHub</dd></div>
+            <div><dt>Bộ cài Windows</dt><dd data-release="installer">3,1 MB</dd></div>
+            <div><dt>Tệp cho Mac</dt><dd data-release="dmg-fact">.dmg</dd></div>
+            <div><dt>Khi chạy (Windows)</dt><dd>14 MB</dd></div>
+            <div><dt>Nền tảng</dt><dd>Windows 10/11, macOS 11+</dd></div>
             <div><dt>Ký số</dt><dd>Chưa có</dd></div>
           </dl>
 
           <ul class="todo">
-            <li><strong>macOS</strong> Chưa có bản cho macOS. Hiện chỉ có bản Windows.</li>
-            <li><strong>Ký số</strong> Bộ cài chưa được ký, nên SmartScreen vẫn cảnh báo cho đến khi có chứng chỉ.</li>
+            <li><strong>macOS</strong> Bản đầu tiên cho Mac. Chưa được Apple công chứng và chưa tự cập nhật.</li>
+            <li><strong>Ký số</strong> Bộ cài Windows chưa được ký, nên SmartScreen vẫn cảnh báo cho đến khi có chứng chỉ.</li>
           </ul>
         </div>
 
@@ -309,7 +510,7 @@
         <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
         <span class="brand-name">VietKB</span>
       </a>
-      <p class="footer-note">Bộ gõ tiếng Việt cho Windows. Telex, VNI, Unicode NFC/NFD.</p>
+      <p class="footer-note">Bộ gõ tiếng Việt cho Windows và macOS. Telex, VNI, Unicode.</p>
     </div>
 
     <div class="footer-links">
@@ -324,8 +525,46 @@
 </footer>
 
 <script>
-/* Một lần gọi API GitHub, dùng chung cho dòng bản phát hành ở hero và phần ghi chú.
-   Trang đã có sẵn chuỗi tĩnh giống hệt, nên mạng lỗi thì giữ nguyên, không nhấp nháy. */
+/* Nút tải theo hệ điều hành. Trang tĩnh đã có nút Windows và link macOS;
+   máy Mac thì đổi chỗ hai nền tảng. Không nhận ra hệ điều hành thì giữ nguyên. */
+(function () {
+  function detectOS() {
+    var d = navigator.userAgentData;
+    if (d && d.platform) {
+      if (/mac/i.test(d.platform)) return 'mac';
+      if (/win/i.test(d.platform)) return 'win';
+      return '';
+    }
+    var ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod|Android/i.test(ua)) return '';
+    /* iPadOS báo "Macintosh" nhưng có màn hình cảm ứng. */
+    if (/Macintosh|Mac OS X/.test(ua)) return navigator.maxTouchPoints > 1 ? '' : 'mac';
+    if (/Windows/.test(ua)) return 'win';
+    return '';
+  }
+
+  if (detectOS() !== 'mac') return;
+
+  var primary = document.getElementById('dl-primary');
+  var alt = document.getElementById('dl-alt');
+  if (!primary || !alt) return;
+
+  primary.querySelector('.dl-label').textContent = 'Tải cho macOS';
+  var pMeta = primary.querySelector('.btn-meta');
+  pMeta.setAttribute('data-release', 'dmg');
+  pMeta.textContent = '';
+  pMeta.hidden = true;
+
+  alt.querySelector('.dl-alt-lead').textContent = 'Dùng Windows?';
+  alt.querySelector('.dl-label').textContent = 'Tải cho Windows';
+  var aMeta = alt.querySelector('.dl-alt-meta');
+  aMeta.setAttribute('data-release', 'installer');
+  aMeta.textContent = '3,1 MB';
+  aMeta.hidden = false;
+})();
+
+/* Một lần gọi API GitHub, dùng chung cho dòng bản phát hành ở hero, cỡ tệp tải về và phần ghi chú.
+   Trang đã có sẵn chuỗi tĩnh không ghi số phiên bản, nên mạng lỗi thì giữ nguyên, không nhấp nháy. */
 (function () {
   var box = document.getElementById('changelog');
   var API = 'https://api.github.com/repos/thnonl/vietkb/releases/latest';
@@ -366,17 +605,26 @@
 
   function setAll(name, value) {
     var nodes = document.querySelectorAll('[data-release="' + name + '"]');
-    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = value;
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = value;
+      nodes[i].hidden = false;
+    }
+  }
+
+  function asset(rel, re) {
+    return (rel.assets || []).filter(function (a) { return re.test(a.name); })[0];
   }
 
   function apply(rel) {
-    var exe = (rel.assets || []).filter(function (a) { return /\.exe$/i.test(a.name); })[0];
-    var size = exe && exe.size ? sizeLabel(exe.size) : '';
+    var exe = asset(rel, /\.exe$/i);
+    var dmg = asset(rel, /\.dmg$/i);
 
     setAll('version', rel.tag_name);
-    if (size) {
-      setAll('installer', size);
-      setAll('latest', rel.tag_name + ' · ' + size);
+    setAll('latest', 'Bản mới nhất: ' + rel.tag_name);
+    if (exe && exe.size) setAll('installer', sizeLabel(exe.size));
+    if (dmg && dmg.size) {
+      setAll('dmg', sizeLabel(dmg.size));
+      setAll('dmg-fact', sizeLabel(dmg.size));
     }
 
     if (!box) return;
@@ -418,7 +666,7 @@
         apply(rel);
       })
       .catch(function () {
-        /* Giữ nguyên chuỗi tĩnh: hero "v0.1.1 · 3,1 MB" và "Chưa có bản phát hành nào". */
+        /* Giữ nguyên chuỗi tĩnh: "Bản mới nhất trên GitHub" và link tới trang phát hành. */
       });
   } catch (e) {
     /* Trình duyệt quá cũ: giữ nguyên chuỗi tĩnh. */

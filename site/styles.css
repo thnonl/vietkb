@@ -264,6 +264,29 @@ a { color: var(--accent); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
 
+/* Link tải cho nền tảng còn lại, ngay dưới nút chính. */
+.alt-dl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 14px 0 0;
+  font-size: .92rem;
+  color: var(--muted);
+}
+.alt-dl a { font-weight: 650; }
+.dl-alt-meta { font-family: var(--mono); font-size: 11.5px; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .fineprint {
   display: flex;
   flex-wrap: wrap;
@@ -314,6 +337,8 @@ a { color: var(--accent); }
 }
 
 .hero-specs span { display: block; font-size: 11.5px; line-height: 1.35; color: var(--muted); }
+
+.specs-note { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); }
 
 /* ---------- the board ---------- */
 
@@ -555,6 +580,62 @@ a { color: var(--accent); }
 
 .card h3 { margin: 0 0 6px; font-size: 1.02rem; }
 .card p { margin: 0; font-size: .92rem; line-height: 1.58; color: var(--muted); }
+.mac-keys { font-family: var(--mono); white-space: nowrap; }
+
+/* ---------- hotkeys table ---------- */
+
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 1px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  box-shadow: 0 2px 0 var(--key-edge);
+  font-family: var(--mono);
+  font-size: .85em;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.hotkeys { width: 100%; border-collapse: collapse; font-size: .92rem; }
+
+.hotkeys th, .hotkeys td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.hotkeys tbody tr:last-child > * { border-bottom: 0; }
+
+.hotkeys thead th {
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: .75rem;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hotkeys tbody th { font-weight: 600; }
+.hotkeys td { white-space: nowrap; color: var(--muted); }
+.hotkeys .key-name { display: block; margin-top: 3px; font-size: .78rem; }
+.hotkeys .unset { font-size: .85rem; }
+
+.table-note { margin: 12px 0 0; font-size: .88rem; color: var(--muted); }
 
 /* ---------- gallery ---------- */
 
@@ -575,6 +656,10 @@ a { color: var(--accent); }
 }
 
 .shot-frame img { width: 100%; border-radius: 11px; }
+
+/* Menu trên thanh menu macOS: ảnh nhỏ, đặt giữa khung, không phóng to. */
+.shot-frame-menu { display: grid; place-items: center; min-height: 240px; }
+.shot-frame-menu img { width: auto; max-width: 179px; }
 
 .gallery figcaption { margin-top: 12px; font-size: .9rem; line-height: 1.55; color: var(--muted); }
 .gallery figcaption strong { display: block; margin-bottom: 2px; color: var(--ink); font-size: .95rem; }
@@ -618,7 +703,10 @@ a { color: var(--accent); }
   color: var(--accent);
 }
 
-.step h3 { margin: 0 0 6px; font-size: 1rem; }
+.step h3, .step h4 { margin: 0 0 6px; font-size: 1rem; }
+
+.platform-title { margin: 0 0 14px; font-size: 1.15rem; }
+.note + .platform-title, .steps + .platform-title { margin-top: clamp(28px, 4vw, 40px); }
 .step p { margin: 0; font-size: .92rem; line-height: 1.58; color: var(--muted); }
 
 .note {
@@ -635,6 +723,56 @@ a { color: var(--accent); }
 .note svg { flex: 0 0 auto; margin-top: 3px; color: color-mix(in srgb, var(--orange) 80%, var(--ink)); }
 .note p { margin: 0; font-size: .92rem; line-height: 1.6; color: var(--muted); }
 .note strong { display: block; margin-bottom: 2px; color: var(--ink); }
+.note-body { min-width: 0; }
+
+.note-info {
+  border-color: color-mix(in srgb, var(--blue) 30%, var(--line));
+  background: color-mix(in srgb, var(--blue) 9%, var(--surface));
+}
+.note-info svg { color: color-mix(in srgb, var(--blue) 80%, var(--ink)); }
+
+.cmd {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: #0B0A11;
+  color: #E9E7F5;
+  font-size: .85rem;
+}
+.cmd code { padding: 0; background: none; color: inherit; }
+
+/* ---------- FAQ ---------- */
+
+.faq { display: grid; gap: 10px; }
+
+.faq details {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--shadow-soft);
+}
+
+.faq summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: "+";
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+.faq details[open] summary::after { content: "−"; }
+.faq summary:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 2px; border-radius: var(--radius); }
+
+.faq details p { margin: 0; padding: 0 18px 16px; font-size: .92rem; line-height: 1.6; color: var(--muted); }
 
 /* ---------- release ---------- */
 
@@ -813,11 +951,13 @@ a { color: var(--accent); }
   .telex-demo { min-height: 46px; padding: 6px 6px 6px 12px; }
   .telex-demo button { flex-basis: 40px; width: 40px; height: 40px; }
   .keys { gap: 4px; margin-top: 10px; }
-  .hero-specs, .hero .kofi { display: none; }
+  .hero-specs, .specs-note, .hero .kofi { display: none; }
   .section-head { gap: 12px; }
   .num { width: 40px; height: 40px; border-radius: 10px; font-size: 12px; }
   .story-panel { border-radius: 18px; }
   .facts > div { padding: 10px 14px; }
+  .hotkeys th, .hotkeys td { padding: 10px 12px; }
+  .hotkeys td { white-space: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
