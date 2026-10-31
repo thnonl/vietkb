@@ -10,6 +10,7 @@ pub use vkb_core::{EngineAction, KeyInput, Modifiers};
 // Pure helpers shared by every backend. Additive: the frozen items above are
 // unchanged (contract §4).
 pub mod hotkeys;
+pub mod inject_strategy;
 pub mod plan;
 pub mod rules;
 

@@ -84,6 +84,11 @@ so the app never receives the trigger *as text*, which is the requirement's inte
    from the same index. The alternate `Injector` sink stays one call (it may run off the hook
    thread, where a physical key could land between two calls). Measure: `qa1` x20 after a VNI switch, `ba6t5/ta8t1`, `VIEETJ`
    all-caps.
+   **Measurement build (D-WIN-09):** a `dev-channel` build reads `VKB_INJECT_STRATEGY`
+   (`split`, `single`, `split-delay-N`, `per-char`, `scancode-shift`, `unicode-after-split`,
+   `capslock-free`; `crates/vkb-windows/src/input_dev.rs`) and routes a hook-path `Replace`
+   through it; unset = the path above, untouched; release builds never read it. Protocol:
+   `qa/win-dwin09-protocol.md`.
 6. `Noop` never reaches the injector: `plan::decide` returns pass-through and no array is
    built, so the pass-through path allocates nothing.
 

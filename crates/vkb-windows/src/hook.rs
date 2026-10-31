@@ -342,6 +342,10 @@ pub(crate) fn process_event(runtime: &mut HookRuntime, message: u32, info: &KBDL
     if crate::perf::enabled() {
         crate::perf::begin();
     }
+    // D-WIN-09 dev seam: a physical key waits (bounded) for a delayed injection.
+    // Compiled to nothing unless `dev-channel`.
+    #[cfg(feature = "dev-channel")]
+    crate::input_dev::wait_pending(info.dwExtraInfo);
     // A panic must never cross the FFI boundary (or kill the hook thread).
     std::panic::catch_unwind(AssertUnwindSafe(|| runtime.on_event(message, info).swallow))
         .unwrap_or(false)

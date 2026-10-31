@@ -185,7 +185,7 @@ pub fn build_restore(
 }
 
 /// Press the Shift keys in `mask` ([`keys::SHIFT_L`] and friends).
-fn push_shift_down(out: &mut Vec<INPUT>, mask: u8) {
+pub(crate) fn push_shift_down(out: &mut Vec<INPUT>, mask: u8) {
     if mask & keys::SHIFT_L != 0 {
         push_key(out, keys::VK_LSHIFT, keys::scan_for_vk(keys::VK_LSHIFT), false);
     }
@@ -218,7 +218,7 @@ fn push_segment(out: &mut Vec<INPUT>, deletes: u32, text: &str, mode: SendMode, 
 ///
 /// Both sides of each modifier: a generic `VK_SHIFT` key-up does not clear
 /// `RSHIFT`, and the user may have used either.
-fn push_chord_release(out: &mut Vec<INPUT>, chord: Modifiers) {
+pub(crate) fn push_chord_release(out: &mut Vec<INPUT>, chord: Modifiers) {
     if chord.shift {
         push_key(out, keys::VK_LSHIFT, keys::scan_for_vk(keys::VK_LSHIFT), true);
         push_key(out, keys::VK_RSHIFT, keys::scan_for_vk(keys::VK_RSHIFT), true);
@@ -237,7 +237,7 @@ fn push_chord_release(out: &mut Vec<INPUT>, chord: Modifiers) {
     }
 }
 
-fn push_backspace(out: &mut Vec<INPUT>, mode: SendMode) {
+pub(crate) fn push_backspace(out: &mut Vec<INPUT>, mode: SendMode) {
     let scan = match mode {
         SendMode::Unicode => 0,
         SendMode::Standard => keys::scan_for_vk(keys::VK_BACK),
@@ -246,7 +246,7 @@ fn push_backspace(out: &mut Vec<INPUT>, mode: SendMode) {
     push_key(out, keys::VK_BACK, scan, true);
 }
 
-fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode, scancode_ascii: bool, held: Held) {
+pub(crate) fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode, scancode_ascii: bool, held: Held) {
     let mut chars = text.chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
@@ -264,7 +264,7 @@ fn push_text(out: &mut Vec<INPUT>, text: &str, mode: SendMode, scancode_ascii: b
     }
 }
 
-fn push_newline(out: &mut Vec<INPUT>) {
+pub(crate) fn push_newline(out: &mut Vec<INPUT>) {
     let scan = keys::scan_for_vk(keys::VK_RETURN);
     push_key(out, keys::VK_RETURN, scan, false);
     push_key(out, keys::VK_RETURN, scan, true);
@@ -316,7 +316,7 @@ fn push_ascii_key(out: &mut Vec<INPUT>, vk: u16, want_shift: bool, held: Held) {
 }
 
 /// One character as `KEYEVENTF_UNICODE` (layout independent, surrogate-safe).
-fn push_unicode_char(out: &mut Vec<INPUT>, ch: char) {
+pub(crate) fn push_unicode_char(out: &mut Vec<INPUT>, ch: char) {
     let mut buf = [0u16; 2];
     for unit in ch.encode_utf16(&mut buf).iter().copied() {
         push_unicode(out, unit, false);
@@ -324,7 +324,7 @@ fn push_unicode_char(out: &mut Vec<INPUT>, ch: char) {
     }
 }
 
-fn push_key(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
+pub(crate) fn push_key(out: &mut Vec<INPUT>, vk: u16, scan: u16, up: bool) {
     push_key_tagged(out, vk, scan, up, injected_tag());
 }
 

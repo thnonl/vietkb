@@ -17,7 +17,7 @@ path = "src/main.rs"
 custom-protocol = ["tauri/custom-protocol"]
 # Side-by-side test channel: config dir `VietKB Dev`, own `Run` value, own
 # bundle identity (see `tauri.dev.conf.json`). Never enabled for production.
-dev-channel = ["vkb-config/dev-channel"]
+dev-channel = ["vkb-config/dev-channel", "vkb-windows/dev-channel"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -11,6 +11,10 @@ default = []
 # every shipped build; see `src/e2e.rs`.
 e2e-harness = ["windows/Win32_System_Diagnostics_ToolHelp"]
 
+# D-WIN-09 measurement build: reads VKB_INJECT_STRATEGY (src/input_dev.rs). Off in
+# every release build; vkb-app's `dev-channel` forwards to it.
+dev-channel = []
+
 [[example]]
 name = "zero_focus_e2e"
 required-features = ["e2e-harness"]

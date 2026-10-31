@@ -30,6 +30,8 @@ pub mod hook;
 pub mod hotkeys;
 pub mod ime;
 pub mod input;
+/// D-WIN-09 injection-strategy measurement seam (`VKB_INJECT_STRATEGY`, dev-channel only).
+pub mod input_dev;
 pub mod keys;
 mod paths;
 /// Opt-in P2 latency probe (`VKB_PERF=1`); see `docs/evkey-clone-work/81-p2-procedure.md`.

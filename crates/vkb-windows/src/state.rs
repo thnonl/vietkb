@@ -816,6 +816,15 @@ impl HookRuntime {
                 input::build_restore(deletes, text, mode, chord, held)
             }
         };
+        // D-WIN-09 measurement seam: `None` (release builds, or no
+        // `VKB_INJECT_STRATEGY`) leaves the path below byte-identical.
+        if let Some(strategy) = crate::input_dev::active(self.send_mode, deletes) {
+            let result = crate::input_dev::deliver(strategy, deletes, text, chord, held);
+            if result.total > 0 && result.sent < result.total {
+                self.on_short_send();
+            }
+            return result;
+        }
         let inputs = build(deletes, text, self.send_mode);
         let mut result = input::send_split(&inputs, deletes, self.send_mode);
         if result.total > 0 && result.sent < result.total {
