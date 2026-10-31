@@ -348,6 +348,21 @@ impl HookRuntime {
         // swallowed.
         if globals::hotkey_capture() {
             self.hotkeys.discard_latches();
+            // The auto-repeat of a trigger swallowed before capture began stays
+            // swallowed (its key-up is swallowed too, so the page never sees an
+            // unmatched key-down). A fresh key-down drops the stale bit instead,
+            // and then reaches the page together with its own key-up.
+            if down && !is_modifier && self.trigger_is_swallowed(vk) {
+                let held = self
+                    .trigger_last
+                    .is_some_and(|(key, at)| key == vk && at.elapsed() < TRIGGER_REPEAT_WINDOW);
+                if repeat && held {
+                    self.trigger_last = Some((vk, Instant::now()));
+                    trace.stage("capture-trigger-repeat");
+                    return Decision::SWALLOW;
+                }
+                self.set_trigger_swallowed(vk, false);
+            }
             if !down && !is_modifier && self.take_trigger_swallowed(vk) {
                 trace.stage("capture-trigger-up");
                 return Decision::SWALLOW;

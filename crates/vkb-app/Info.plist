@@ -6,10 +6,5 @@
 	     also sets ActivationPolicy::Accessory at runtime. -->
 	<key>LSUIElement</key>
 	<true/>
-	<!-- Launch Services (Finder, Spotlight, `open`) activates the running copy of
-	     this bundle id instead of starting another; `open -n` and a direct exec
-	     still reach the single-instance plugin and the lock in singleton.rs. -->
-	<key>LSMultipleInstancesProhibited</key>
-	<true/>
 </dict>
 </plist>

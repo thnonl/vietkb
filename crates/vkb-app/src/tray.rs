@@ -172,29 +172,41 @@ fn badged(base: &'static [u8], px: u32) -> tauri::Result<tauri::image::Image<'st
 }
 
 // macOS update badge. The menu bar tints a template image itself, so the badge
-// has to live in the alpha channel: a solid disc in the bottom-right corner with
-// the download arrow cut out of it and a clear ring cut around it, so the disc
-// stays separate from the keycap (filled `V` or outlined `E`) in both menu-bar
-// appearances. The Windows badge is an accent-coloured disc; a coloured menu-bar
-// icon would have to be a non-template image, and then VietKB would have to pick
-// white or black glyph pixels itself. The menu bar's tint follows the wallpaper
-// under it as well as the light/dark setting (Sonoma and later), which no app
-// can read reliably, so a wrong guess would leave a black glyph on a dark bar.
-/// Badge disc radius in pixels of the 32 px template (18 pt @2x menu bar).
+// has to live in the alpha channel: a small solid dot in the bottom-right corner
+// with a thin clear ring around it, so it stays apart from the keycap (filled
+// `V` or outlined `E`) in both menu-bar appearances. The Windows badge is an
+// accent-coloured disc with an arrow; a coloured menu-bar icon would have to be
+// a non-template image, and then VietKB would have to pick white or black glyph
+// pixels itself. The menu bar's tint follows the wallpaper under it as well as
+// the light/dark setting (Sonoma and later), which no app can read reliably, so
+// a wrong guess would leave a black glyph on a dark bar. The dot is kept small
+// (an arrow does not survive 5 px) so the letter stays recognisable.
+/// Badge dot radius in pixels of the 32 px template (18 pt @2x menu bar).
 #[cfg(any(test, target_os = "macos"))]
-const MAC_BADGE_RADIUS: f32 = 8.0;
-/// Width of the clear ring around the disc.
+const MAC_BADGE_RADIUS: f32 = 5.5;
+/// Width of the clear ring around the dot.
 #[cfg(any(test, target_os = "macos"))]
-const MAC_BADGE_RING: f32 = 1.6;
+const MAC_BADGE_RING: f32 = 1.1;
+
+/// Centre x, centre y, dot radius and ring width for a bitmap of this size.
+#[cfg(any(test, target_os = "macos"))]
+fn mac_badge_geometry(width: u32, height: u32) -> (f32, f32, f32, f32) {
+    let scale = width as f32 / 32.0;
+    let radius = MAC_BADGE_RADIUS * scale;
+    let ring = MAC_BADGE_RING * scale;
+    (
+        width as f32 - radius - 0.5 * scale,
+        height as f32 - radius - 0.5 * scale,
+        radius,
+        ring,
+    )
+}
 
 /// Draw the badge into straight-alpha RGBA pixels of a black-on-transparent
 /// template (RGB is left alone: only alpha carries the shape).
 #[cfg(any(test, target_os = "macos"))]
 fn badge_template_pixels(pixels: &mut [u8], width: u32, height: u32) {
-    let radius = MAC_BADGE_RADIUS * width as f32 / 32.0;
-    let ring = MAC_BADGE_RING * width as f32 / 32.0;
-    let cx = width as f32 - radius - 0.5;
-    let cy = height as f32 - radius - 0.5;
+    let (cx, cy, radius, ring) = mac_badge_geometry(width, height);
 
     for y in 0..height {
         for x in 0..width {
@@ -204,20 +216,9 @@ fn badge_template_pixels(pixels: &mut [u8], width: u32, height: u32) {
             let index = ((y * width + x) * 4) as usize;
             let alpha = pixels[index + 3] as f32 / 255.0;
 
-            // Clear ring (and the disc area), then lay the disc on top.
-            let clear = coverage(distance, radius + ring);
-            let mut out = alpha * (1.0 - clear);
-            let disc = coverage(distance, radius);
-            out = out + disc * (1.0 - out);
-
-            // Download arrow, cut out of the disc.
-            let ax = dx.abs();
-            let stem = ax <= 1.0 && dy >= -radius * 0.5 && dy <= radius * 0.12;
-            let head =
-                dy > radius * 0.12 && dy <= radius * 0.55 && ax <= (radius * 0.55 - dy) * 1.15 + 0.5;
-            if disc > 0.0 && (stem || head) {
-                out *= 1.0 - disc;
-            }
+            // Clear ring (and the dot area), then lay the dot on top.
+            let cleared = alpha * (1.0 - coverage(distance, radius + ring));
+            let out = cleared + coverage(distance, radius) * (1.0 - cleared);
             pixels[index + 3] = (out.clamp(0.0, 1.0) * 255.0).round() as u8;
         }
     }
@@ -437,13 +438,12 @@ fn handle_event(app: &AppHandle, id: &str) {
 mod tests {
     use super::*;
 
-    /// The macOS badge must stay a template (RGB untouched, shape in alpha),
-    /// add a solid disc in the bottom-right corner with the arrow cut out, and
-    /// leave the keycap's top-left corner exactly as it was.
+    /// The macOS badge stays a template (RGB untouched, shape in alpha), adds a
+    /// solid dot in the bottom-right corner with a clear ring, and leaves the
+    /// keycap alone everywhere outside the dot and ring.
     #[test]
     fn mac_badge_is_alpha_only_and_keeps_the_keycap() {
         let size = 32u32;
-        // A fully opaque black square stands in for the keycap.
         let mut pixels = vec![0u8; (size * size * 4) as usize];
         for px in pixels.chunks_exact_mut(4) {
             px[3] = 255;
@@ -452,19 +452,65 @@ mod tests {
         badge_template_pixels(&mut pixels, size, size);
 
         let alpha = |p: &[u8], x: u32, y: u32| p[((y * size + x) * 4 + 3) as usize];
-        // RGB never changes.
         assert!(pixels.chunks_exact(4).all(|px| px[..3] == [0, 0, 0]));
-        // Far corner untouched.
         assert_eq!(alpha(&pixels, 2, 2), alpha(&original, 2, 2));
-        // Ring just outside the disc is cleared out of the keycap.
-        let radius = MAC_BADGE_RADIUS;
-        let cx = size as f32 - radius - 0.5;
-        let ring_x = (cx - radius - MAC_BADGE_RING * 0.5) as u32;
-        let cy = (size as f32 - radius - 0.5) as u32;
-        assert_eq!(alpha(&pixels, ring_x, cy), 0);
-        // Disc is solid away from the arrow, and the arrow stem is cut out.
-        assert_eq!(alpha(&pixels, (cx + radius - 2.0) as u32, cy), 255);
-        assert_eq!(alpha(&pixels, cx as u32, cy - 2), 0);
+        let (cx, cy, radius, _) = mac_badge_geometry(size, size);
+        // Dot centre solid; a pixel in the ring is mostly clear.
+        assert_eq!(alpha(&pixels, cx as u32, cy as u32), 255);
+        assert!(alpha(&pixels, (cx - radius - 0.6) as u32, cy as u32) < 128);
+    }
+
+    /// The badge must not eat the letter: on the real V and E images at both
+    /// sizes, every pixel farther than dot + ring + 1 px from the badge centre
+    /// is unchanged and most of the glyph's opaque pixels survive.
+    /// `VKB_DUMP_BADGE=1 cargo test -p vkb-app mac_badge -- --nocapture` prints
+    /// the four badged images as text.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn mac_badge_leaves_the_glyph_recognisable() {
+        for (name, bytes) in [
+            ("on-32", MAC_ON),
+            ("off-32", MAC_OFF),
+            ("on-16", include_bytes!("../icons/tray-mac-on-16.png").as_slice()),
+            ("off-16", include_bytes!("../icons/tray-mac-off-16.png").as_slice()),
+        ] {
+            let image = tauri::image::Image::from_bytes(bytes).unwrap();
+            let (w, h) = (image.width(), image.height());
+            let before = image.rgba().to_vec();
+            let mut after = before.clone();
+            badge_template_pixels(&mut after, w, h);
+            let (cx, cy, radius, ring) = mac_badge_geometry(w, h);
+            let mut opaque_before = 0u32;
+            let mut opaque_after = 0u32;
+            for y in 0..h {
+                for x in 0..w {
+                    let i = ((y * w + x) * 4 + 3) as usize;
+                    let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+                    if d > radius + ring + 1.0 {
+                        assert_eq!(before[i], after[i], "{name}: pixel {x},{y} changed");
+                    }
+                    opaque_before += u32::from(before[i] > 128);
+                    opaque_after += u32::from(after[i] > 128);
+                }
+            }
+            assert!(
+                opaque_after * 10 >= opaque_before * 8,
+                "{name}: badge removed too much of the glyph ({opaque_before} -> {opaque_after})"
+            );
+            if std::env::var_os("VKB_DUMP_BADGE").is_some() {
+                eprintln!("--- {name} ---");
+                for y in 0..h {
+                    let row: String = (0..w)
+                        .map(|x| match after[((y * w + x) * 4 + 3) as usize] {
+                            0..=40 => '.',
+                            41..=170 => '+',
+                            _ => '#',
+                        })
+                        .collect();
+                    eprintln!("{row}");
+                }
+            }
+        }
     }
 
     /// The tray's third affordance names the exact version, so the string is

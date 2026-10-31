@@ -331,6 +331,20 @@ impl Runtime {
         // key-up of a trigger swallowed before capture began is still swallowed.
         if self.host.hotkey_capture() {
             self.hotkeys.discard_latches();
+            // The auto-repeat of a trigger swallowed before capture began stays
+            // swallowed (its key-up is swallowed too, so the page never sees an
+            // unmatched key-down). A fresh key-down drops the stale bit instead,
+            // and then reaches the page together with its own key-up.
+            if down && !is_modifier && self.trigger_is_swallowed(vk) {
+                let held = self
+                    .trigger_last
+                    .is_some_and(|(key, at)| key == vk && at.elapsed() < TRIGGER_REPEAT_WINDOW);
+                if repeat && held {
+                    self.trigger_last = Some((vk, Instant::now()));
+                    return Decision::SWALLOW;
+                }
+                self.set_trigger_swallowed(vk, false);
+            }
             if !down && !is_modifier && self.take_trigger_swallowed(vk) {
                 return Decision::SWALLOW;
             }
@@ -1176,6 +1190,29 @@ mod tests {
         // Capture over: the chord works again.
         *rig.capture.lock() = false;
         assert_eq!(rig.rt.on_event(&down), Decision::SWALLOW);
+    }
+
+    #[test]
+    fn a_repeat_of_a_trigger_swallowed_before_capture_stays_swallowed() {
+        let _guard = globals::TEST_LOCK.lock();
+        globals::set_command_callback(|_| {});
+        let mut rig = rig(Some(quiet_config()));
+        let fl = flags::CONTROL | flags::ALTERNATE | flags::DEV_LCTRL | flags::DEV_LALT;
+        let s = mac_code('s');
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_CONTROL, flags::CONTROL | flags::DEV_LCTRL, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_OPTION, fl, None));
+        let down = RawEvent::key(EventKind::KeyDown, s, fl, Some('s'));
+        assert_eq!(rig.rt.on_event(&down), Decision::SWALLOW);
+        // Capture starts while the key is still held: its repeats and key-up
+        // stay swallowed, so the page never sees an unmatched key-down.
+        *rig.capture.lock() = true;
+        let mut repeat = down.clone();
+        repeat.autorepeat = true;
+        assert_eq!(rig.rt.on_event(&repeat), Decision::SWALLOW);
+        let up = RawEvent::key(EventKind::KeyUp, s, fl, Some('s'));
+        assert_eq!(rig.rt.on_event(&up), Decision::SWALLOW);
+        // A fresh press afterwards reaches the page.
+        assert_eq!(rig.rt.on_event(&down), Decision::PASS);
     }
 
     #[test]
