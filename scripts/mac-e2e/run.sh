@@ -158,7 +158,8 @@ run_phase() {  # name method targets [extra harness args]
   local name=$1 method=$2 targets=$3; shift 3
   glog "PHASE $name method=$method"
   local HOMEDIR=$TMPD/home-$name
-  local CFGDIR="$HOMEDIR/Library/Application Support/VietKB"
+  local CFGNAME=VietKB; [[ $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist" 2>/dev/null) == *.dev ]] && CFGNAME="VietKB Dev"   # dev-channel bundle keeps its config under "VietKB Dev"
+  local CFGDIR="$HOMEDIR/Library/Application Support/$CFGNAME"
   mkdir -p "$CFGDIR"
   local EXTRA=""
   [[ $name == perapp ]] && EXTRA=$'\n[apps]\nremember_per_app = false\n[[apps.rules]]\nprocess = "com.apple.stickies"\nenabled = false\n'

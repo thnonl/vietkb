@@ -112,3 +112,4 @@ Owner, verbatim: "Hãy nhớ rằng app này là singleton. Và khi có update c
   area/top-right row of the settings window shows the same update badge/button as Windows, and the
   menu has the update item. Supersedes the M5/Dev-B choice "no update badge on mac".
 - macOS menu-bar badge is monochrome in the template alpha (menu-bar tint follows the wallpaper); see 70-impl-notes-macos.md.
+- Owner, 2026-10-31, on 2-state vs adding a "system" state: "Làm theo Windows, khi mở lần đầu thì theo hệ thống, khi user toggle thì lưu user setting." → keep the 2-state toggle as implemented (no third state); the way back to following the system is "Đặt lại tất cả".
