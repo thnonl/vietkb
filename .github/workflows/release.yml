@@ -222,3 +222,16 @@ jobs:
           files: dist/*.dmg
           tag_name: ${{ github.ref_name }}
           make_latest: false
+
+  # Pages bakes the latest asset URLs into the static download links (pages.yml).
+  # A release made with GITHUB_TOKEN triggers no other workflow, so dispatch it here.
+  pages:
+    needs: [meta, release, release-macos]
+    if: always() && needs.meta.outputs.tag_ok == 'true' && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo ${{ github.repository }} --ref main

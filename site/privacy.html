@@ -2,12 +2,8 @@
 <!--
   VietKB privacy policy, Vietnamese and English on one page.
 
-  Written for its final place, site/privacy.html (links use site-relative paths:
-  styles.css, assets/logo-v.png, index.html, en/). It sits under docs/store/ for
-  now ON PURPOSE: pushing anything under site/ to main publishes GitHub Pages and
-  that has not been approved yet. When the owner agrees, move it with
-  `git mv docs/store/privacy.html site/privacy.html`; the Partner Center privacy
-  policy URL is then https://thnonl.github.io/vietkb/privacy.html.
+  Partner Center privacy policy URL: https://thnonl.github.io/vietkb/privacy.html.
+  Links use site-relative paths (styles.css, assets/logo-v.png, index.html).
 
   Facts checked against the code (0.2.7): crates/vkb-app/src/update.rs is the only
   network code (one GET to api.github.com/repos/thnonl/vietkb/releases/latest,
@@ -54,7 +50,7 @@
       <a href="#en" hreflang="en" lang="en" aria-label="English">EN</a>
     </nav>
 
-    <a class="btn btn-primary btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Tải về</a>
+    <a class="btn btn-primary btn-small" href="index.html#cai-dat">Tải về</a>
   </div>
 </header>
 
@@ -70,7 +66,7 @@
 
       <h2>Nội dung bạn gõ</h2>
       <ul>
-        <li>Phím bạn bấm chỉ được xử lý trong bộ nhớ của máy, vừa đủ để đổi thành chữ tiếng Việt. Xong là bỏ.</li>
+        <li>Phím bạn bấm chỉ được xử lý trong bộ nhớ của máy, vừa đủ để đổi thành chữ tiếng Việt. VietKB không giữ lại các phím này sau đó.</li>
         <li>VietKB không lưu nội dung bạn gõ vào ổ đĩa, không ghi nhật ký phím và không gửi nó đi đâu cả.</li>
         <li>Ở chế độ chèn bằng clipboard (mặc định tắt), VietKB tạm đặt chữ lên clipboard để dán vào ứng dụng, rồi khôi phục lại nội dung clipboard trước đó. Chữ này cũng không được lưu hay gửi đi.</li>
         <li>Để áp dụng quy tắc riêng cho từng ứng dụng, VietKB đọc tên tiến trình của ứng dụng đang được chọn. Tên này chỉ dùng trên máy và không được gửi đi.</li>
@@ -88,13 +84,13 @@
 
       <h2>Kết nối mạng</h2>
       <ul>
-        <li><strong>Bản cài từ Microsoft Store:</strong> bản thân VietKB không kết nối mạng. Microsoft Store lo việc cập nhật.</li>
+        <li><strong>Bản cài từ Microsoft Store:</strong> bản thân VietKB không kết nối mạng. Việc tải và cập nhật do Microsoft Store đảm nhận, theo chính sách quyền riêng tư của Microsoft.</li>
         <li><strong>Bản tải trực tiếp (Windows, macOS):</strong> chỉ khi tùy chọn "Tự kiểm tra cập nhật" đang bật (mặc định là bật) hoặc khi bạn bấm nút kiểm tra trong cửa sổ Giới thiệu, VietKB gửi một yêu cầu tới GitHub (api.github.com) để hỏi bản phát hành mới nhất. GitHub, như mọi máy chủ web, thấy địa chỉ IP của bạn, và yêu cầu có tên cùng số phiên bản VietKB. VietKB không gửi gì khác. Bạn có thể tắt việc này trong Cài đặt nâng cao. Chỉ khi bạn bấm cập nhật, VietKB mới tải bộ cài từ GitHub.</li>
         <li>Các liên kết GitHub và Ko-fi trong cửa sổ Giới thiệu chỉ mở trình duyệt của bạn khi bạn bấm vào. VietKB không tự kết nối tới đó.</li>
       </ul>
 
       <h2>Chia sẻ dữ liệu</h2>
-      <p>VietKB không có dữ liệu của bạn để chia sẻ, bán hay chuyển cho bên thứ ba. Chính sách này không thay đổi điều đó.</p>
+      <p>VietKB không thu thập dữ liệu cá nhân, nên không có gì để chia sẻ, bán hay chuyển cho bên thứ ba.</p>
 
       <h2>Liên hệ</h2>
       <p>Có câu hỏi về quyền riêng tư hoặc thấy điều gì chưa đúng với chính sách này, hãy mở một mục mới tại <a href="https://github.com/thnonl/vietkb/issues/new">github.com/thnonl/vietkb/issues</a>. Mã nguồn mở, bạn có thể tự kiểm chứng ngay tại <a href="https://github.com/thnonl/vietkb">github.com/thnonl/vietkb</a>.</p>
@@ -128,13 +124,13 @@
 
       <h2>Network access</h2>
       <ul>
-        <li><strong>Microsoft Store version:</strong> VietKB itself makes no network connections. The Microsoft Store handles updates.</li>
+        <li><strong>Microsoft Store version:</strong> VietKB itself makes no network connections. Downloads and updates are handled by the Microsoft Store, under Microsoft's own privacy statement.</li>
         <li><strong>Direct download (Windows, macOS):</strong> only while "Check for updates automatically" is on (the default), or when you press the check button in the About window, VietKB sends one request to GitHub (api.github.com) asking for the latest release. GitHub, like any web server, sees your IP address, and the request carries the name and version number of VietKB. Nothing else is sent. You can turn this off in Advanced settings. VietKB downloads the installer from GitHub only when you choose to update.</li>
         <li>The GitHub and Ko-fi links in the About window open your browser only when you click them. VietKB itself does not connect to those sites.</li>
       </ul>
 
       <h2>Sharing</h2>
-      <p>VietKB holds no data about you to share, sell or hand to third parties, and this policy does not change that.</p>
+      <p>VietKB does not collect personal data, so there is nothing to share, sell or pass to third parties.</p>
 
       <h2>Contact</h2>
       <p>If you have a privacy question, or something here does not match what the app does, open an issue at <a href="https://github.com/thnonl/vietkb/issues/new">github.com/thnonl/vietkb/issues</a>. The source is open, so you can check these claims yourself at <a href="https://github.com/thnonl/vietkb">github.com/thnonl/vietkb</a>.</p>

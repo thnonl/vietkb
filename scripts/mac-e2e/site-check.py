@@ -187,9 +187,8 @@ def check_parity():
 def check_downloads():
     bad = []
     for lang, p in PAGES.items():
-        links = [(a, line) for t, a, line in p.tags if t == "a" and "releases" in a.get("href", "")]
-        # the anchor text is not in `tags`; read it from the raw HTML around each releases link
-        txts = re.findall(r'<a [^>]*href="https://github\.com/thnonl/vietkb/releases/latest"[^>]*>(.*?)</a>', p.raw, re.S)
+        # the anchor text is not in `tags`; read it from the raw HTML around each direct download link
+        txts = re.findall(r'<a [^>]*href="https://github\.com/thnonl/vietkb/releases/download/v[^"/]+/VietKB_[^"]+_(?:x64-setup\.exe|universal\.dmg)"[^>]*>(.*?)</a>', p.raw, re.S)
         flat = [re.sub(r"\s+", " ", strip_tags(t)).strip() for t in txts]
         want_win = r"(Tải cho Windows)" if lang == "vi" else r"(Download for Windows)"
         want_mac = r"(Tải cho macOS)" if lang == "vi" else r"(Download for macOS)"
@@ -201,7 +200,11 @@ def check_downloads():
         js = "\n".join(p.scripts)
         if not re.search(r"\\\.dmg\$", js) or not re.search(r"\\\.exe\$", js): bad.append(f"{p.rel}: apply() does not read both .dmg and .exe assets")
         if "userAgentData" not in js and "navigator.userAgent" not in js: bad.append(f"{p.rel}: no OS detection")
-    record("SITE-05", "both Windows and macOS download links are present and visible without JS; script reads .exe and .dmg", "MAC-DOC-02,MAC-LNG-25", verdict(bad), "; ".join(bad))
+        if "browser_download_url" not in js: bad.append(f"{p.rel}: apply() does not point the download links at the latest assets")
+        for os_, ext in (("win", "_x64-setup.exe"), ("mac", "_universal.dmg")):
+            for t, a, line in p.tags:
+                if t == "a" and a.get("data-dl") == os_ and not a.get("href", "").endswith(ext): bad.append(f"{p.rel}:{line} data-dl={os_} href is not a {ext} asset")
+    record("SITE-05", "both Windows and macOS direct download links are present and visible without JS; script points them at the latest .exe and .dmg", "MAC-DOC-02,MAC-LNG-25", verdict(bad), "; ".join(bad))
 
 # ---------------------------------------------------------------- stale static version (MAC-DOC-03 / MAC-LNG-30)
 def check_fallback():

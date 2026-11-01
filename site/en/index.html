@@ -50,7 +50,7 @@
       <a href="index.html" hreflang="en" lang="en" aria-label="English" aria-current="page">EN</a>
     </nav>
 
-    <a class="btn btn-primary btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Download</a>
+    <a class="btn btn-primary btn-small" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download</a>
   </div>
 </header>
 
@@ -66,7 +66,7 @@
         <!-- Without JS: Windows is the main button and macOS a link below; both work.
              With JS: Mac visitors get macOS as the main button (see the script at the end). -->
         <div class="actions">
-          <a class="btn btn-primary" id="dl-primary" href="https://github.com/thnonl/vietkb/releases/latest">
+          <a class="btn btn-primary" id="dl-primary" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">
             <span class="dl-label">Download for Windows</span>
             <span class="btn-meta" data-release="installer">3.1 MB</span>
           </a>
@@ -80,7 +80,7 @@
 
         <p class="alt-dl" id="dl-alt">
           <span class="dl-alt-lead">On a Mac?</span>
-          <a href="https://github.com/thnonl/vietkb/releases/latest"><span class="dl-label">Download for macOS</span></a>
+          <a data-dl="mac" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_universal.dmg"><span class="dl-label">Download for macOS</span></a>
           <span class="dl-alt-meta" data-release="dmg" hidden></span>
         </p>
 
@@ -351,7 +351,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Download the installer</h4>
-          <p>Click <a href="https://github.com/thnonl/vietkb/releases/latest">Download for Windows</a> and get the latest <code>.exe</code> from the release page.</p>
+          <p>Click <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download for Windows</a>. The latest <code>.exe</code> downloads right away.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -381,7 +381,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Drag to Applications</h4>
-          <p>Click <a href="https://github.com/thnonl/vietkb/releases/latest">Download for macOS</a> and get <code>VietKB_…_universal.dmg</code>. Open it and drag <em>VietKB</em> into <em>Applications</em>.</p>
+          <p>Click <a data-dl="mac" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_universal.dmg">Download for macOS</a>. <code>VietKB_…_universal.dmg</code> downloads right away. Open it and drag <em>VietKB</em> into <em>Applications</em>.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -533,6 +533,7 @@
       <a href="https://github.com/thnonl/vietkb">Source code</a>
       <a href="https://github.com/thnonl/vietkb/issues">Report a bug</a>
       <a href="https://github.com/thnonl/vietkb/releases">Releases</a>
+      <a href="../privacy.html#en">Privacy</a>
     </div>
     <div class="kofi kofi-footer">
       <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'N4X728S6TT');kofiwidget2.draw();</script>
@@ -564,6 +565,20 @@
   var primary = document.getElementById('dl-primary');
   var alt = document.getElementById('dl-alt');
   if (!primary || !alt) return;
+  /* Swap the files too: the main and header buttons get the .dmg, the alt link gets the .exe. */
+  var altLink = alt.querySelector('a[data-dl]');
+  var header = document.getElementById('dl-header');
+  var winHref = primary.getAttribute('href');
+  var macHref = altLink.getAttribute('href');
+  primary.setAttribute('data-dl', 'mac');
+  primary.setAttribute('href', macHref);
+  altLink.setAttribute('data-dl', 'win');
+  altLink.setAttribute('href', winHref);
+  if (header) {
+    header.setAttribute('data-dl', 'mac');
+    header.setAttribute('href', macHref);
+  }
+
 
   primary.querySelector('.dl-label').textContent = 'Download for macOS';
   var pMeta = primary.querySelector('.btn-meta');
@@ -627,6 +642,12 @@
     }
   }
 
+  function setHref(os, a) {
+    if (!a || !a.browser_download_url) return;
+    var nodes = document.querySelectorAll('a[data-dl="' + os + '"]');
+    for (var i = 0; i < nodes.length; i++) nodes[i].setAttribute('href', a.browser_download_url);
+  }
+
   function asset(rel, re) {
     return (rel.assets || []).filter(function (a) { return re.test(a.name); })[0];
   }
@@ -637,6 +658,9 @@
 
     setAll('version', rel.tag_name);
     setAll('latest', 'Latest: ' + rel.tag_name);
+    /* Download links point straight at the latest release's files, not the release page. */
+    setHref('win', exe);
+    setHref('mac', dmg);
     if (exe && exe.size) setAll('installer', sizeLabel(exe.size));
     if (dmg && dmg.size) {
       setAll('dmg', sizeLabel(dmg.size));

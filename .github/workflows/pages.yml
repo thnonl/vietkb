@@ -1,7 +1,10 @@
 name: pages
 
 # Publishes the landing page in `site/` to GitHub Pages. The page is static, so
-# the job only uploads the folder and lets Pages serve it.
+# the job only uploads the folder and lets Pages serve it. Before upload it points
+# the static download links at the latest release's assets, so the buttons
+# download the file directly even when the page's GitHub API call fails.
+# release.yml dispatches this workflow after each release.
 
 on:
   push:
@@ -26,6 +29,23 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Point download links at the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          exe=$(gh api repos/${{ github.repository }}/releases/latest --jq '[.assets[] | select(.name | endswith("_x64-setup.exe"))][0].browser_download_url')
+          dmg=$(gh api repos/${{ github.repository }}/releases/latest --jq '[.assets[] | select(.name | endswith("_universal.dmg"))][0].browser_download_url')
+          echo "exe: $exe"
+          echo "dmg: $dmg"
+          for f in site/index.html site/en/index.html; do
+            if [ -n "$exe" ] && [ "$exe" != null ]; then
+              sed -i -E "s#https://github\.com/[^\"]+/releases/download/[^\"]+_x64-setup\.exe#$exe#g" "$f"
+            fi
+            if [ -n "$dmg" ] && [ "$dmg" != null ]; then
+              sed -i -E "s#https://github\.com/[^\"]+/releases/download/[^\"]+_universal\.dmg#$dmg#g" "$f"
+            fi
+          done
+          grep -h -o 'releases/download/[^"]*' site/index.html site/en/index.html | sort | uniq -c
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

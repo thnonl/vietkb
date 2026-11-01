@@ -50,7 +50,7 @@
       <a href="en/" hreflang="en" lang="en" aria-label="English">EN</a>
     </nav>
 
-    <a class="btn btn-primary btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Tải về</a>
+    <a class="btn btn-primary btn-small" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải về</a>
   </div>
 </header>
 
@@ -66,7 +66,7 @@
         <!-- Không có JS: nút chính là Windows, dòng dưới là link macOS; cả hai đều bấm được.
              Có JS: máy Mac thấy nút chính là macOS, link phụ là Windows (xem script cuối trang). -->
         <div class="actions">
-          <a class="btn btn-primary" id="dl-primary" href="https://github.com/thnonl/vietkb/releases/latest">
+          <a class="btn btn-primary" id="dl-primary" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">
             <span class="dl-label">Tải cho Windows</span>
             <span class="btn-meta" data-release="installer">3,1 MB</span>
           </a>
@@ -80,7 +80,7 @@
 
         <p class="alt-dl" id="dl-alt">
           <span class="dl-alt-lead">Dùng máy Mac?</span>
-          <a href="https://github.com/thnonl/vietkb/releases/latest"><span class="dl-label">Tải cho macOS</span></a>
+          <a data-dl="mac" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_universal.dmg"><span class="dl-label">Tải cho macOS</span></a>
           <span class="dl-alt-meta" data-release="dmg" hidden></span>
         </p>
 
@@ -351,7 +351,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Tải bộ cài</h4>
-          <p>Nhấn <a href="https://github.com/thnonl/vietkb/releases/latest">Tải cho Windows</a> để lấy tệp <code>.exe</code> mới nhất từ trang phát hành.</p>
+          <p>Nhấn <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải cho Windows</a>. Tệp <code>.exe</code> mới nhất tự tải về ngay, không cần mở trang phát hành.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -381,7 +381,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Tải và kéo vào Applications</h4>
-          <p>Nhấn <a href="https://github.com/thnonl/vietkb/releases/latest">Tải cho macOS</a>, lấy tệp <code>VietKB_…_universal.dmg</code>. Mở tệp, kéo <em>VietKB</em> vào thư mục <em>Applications</em>.</p>
+          <p>Nhấn <a data-dl="mac" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_universal.dmg">Tải cho macOS</a>. Tệp <code>VietKB_…_universal.dmg</code> tự tải về ngay. Mở tệp, kéo <em>VietKB</em> vào thư mục <em>Applications</em>.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -533,6 +533,7 @@
       <a href="https://github.com/thnonl/vietkb">Mã nguồn</a>
       <a href="https://github.com/thnonl/vietkb/issues">Báo lỗi</a>
       <a href="https://github.com/thnonl/vietkb/releases">Bản phát hành</a>
+      <a href="privacy.html">Quyền riêng tư</a>
     </div>
     <div class="kofi kofi-footer">
       <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'N4X728S6TT');kofiwidget2.draw();</script>
@@ -564,6 +565,20 @@
   var primary = document.getElementById('dl-primary');
   var alt = document.getElementById('dl-alt');
   if (!primary || !alt) return;
+  /* Đổi luôn tệp tải: nút chính và nút trên đầu trang lấy .dmg, link phụ lấy .exe. */
+  var altLink = alt.querySelector('a[data-dl]');
+  var header = document.getElementById('dl-header');
+  var winHref = primary.getAttribute('href');
+  var macHref = altLink.getAttribute('href');
+  primary.setAttribute('data-dl', 'mac');
+  primary.setAttribute('href', macHref);
+  altLink.setAttribute('data-dl', 'win');
+  altLink.setAttribute('href', winHref);
+  if (header) {
+    header.setAttribute('data-dl', 'mac');
+    header.setAttribute('href', macHref);
+  }
+
 
   primary.querySelector('.dl-label').textContent = 'Tải cho macOS';
   var pMeta = primary.querySelector('.btn-meta');
@@ -627,6 +642,12 @@
     }
   }
 
+  function setHref(os, a) {
+    if (!a || !a.browser_download_url) return;
+    var nodes = document.querySelectorAll('a[data-dl="' + os + '"]');
+    for (var i = 0; i < nodes.length; i++) nodes[i].setAttribute('href', a.browser_download_url);
+  }
+
   function asset(rel, re) {
     return (rel.assets || []).filter(function (a) { return re.test(a.name); })[0];
   }
@@ -637,6 +658,9 @@
 
     setAll('version', rel.tag_name);
     setAll('latest', 'Bản mới nhất: ' + rel.tag_name);
+    /* Link tải trỏ thẳng vào tệp của bản mới nhất, không qua trang phát hành. */
+    setHref('win', exe);
+    setHref('mac', dmg);
     if (exe && exe.size) setAll('installer', sizeLabel(exe.size));
     if (dmg && dmg.size) {
       setAll('dmg', sizeLabel(dmg.size));
