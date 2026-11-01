@@ -159,3 +159,5 @@ Owner example 2 (same day): "Ví dụ như chữ \"tuổi teen\" thì teen đún
 **D10 priority (owner, 2026-11-01):** "Dù hỗ trợ tự chuyển thành tiếng Anh nhưng vẫn ưu tiên gõ ra tiếng Việt, vì thế nếu có case nào nghi ngờ hoặc chưa đủ score thì luôn output tiếng Việt." → Vietnamese is the default output; English/code only on clear evidence. Any doubtful or below-threshold case outputs Vietnamese, including the one-word-back rewrite.
 
 **D10 rule (owner, 2026-11-01):** "Làm gì có từ tiếng việt nào mà bắt đầu từ kí tự F bao giờ mà Fix bị sai được, chữ W, Z ở đầu cũng vậy." → a word starting with f, w, z or j (when those are consonants, the default) is never Vietnamese: it is output exactly as typed from the first key (Fix, Facebook, Wifi, Zalo, Zoom, JSON). With `jfwz_as_consonant` off, a leading w is ư and the rule does not apply to it.
+
+**Correction (owner, same day):** "Tôi nhầm, W vẫn nên xem xét tiếng Việt chứ không hoàn toàn là tiếng Anh" → only f, z, j at a word start are never Vietnamese. A leading w goes through the normal rules (Telex `w` = ư: ưa, ước, ừ); doubt → Vietnamese.
