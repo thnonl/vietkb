@@ -63,8 +63,7 @@
 (() => {
   const root = document.documentElement;
   const live = document.querySelector('.type-live');
-  const keysOut = document.querySelector('.h1-keys code');
-  if (!live || !keysOut) return;
+  if (!live) return;
   const params = new URLSearchParams(location.search);
   if (matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('t') || params.get('reduce') === '1') {
     root.classList.remove('type-pending');
@@ -89,12 +88,10 @@
       live.append(text.slice(0, at), flash, text.slice(at + 1));
     }
     live.append(caret);
-    keysOut.textContent = KEYS.slice(0, i + 1);
   };
   root.classList.remove('type-pending');
   root.classList.add('type-run');
   live.append(caret);
-  keysOut.textContent = '';
   let i = 0;
   const step = () => {
     draw(i);
