@@ -118,7 +118,7 @@
           label={t("adv.sound")}
           onchange={(next) => setSystem({ notificationSound: next })} />{t("adv.sound")}
       </div>
-      {#if !app.store}
+      {#if app.showUpdateUi}
       <div class="v4ck">
         <Checkbox
           checked={settings?.system.checkUpdates ?? true}

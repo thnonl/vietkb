@@ -653,7 +653,19 @@ fn main() {
     #[cfg(target_os = "macos")]
     singleton::guard();
 
-    let builder = tauri::Builder::default();
+    // Second launch. Windows: same rule as a first one, so `Chạy ẩn` keeps a
+    // re-launch in the tray instead of flashing a window. macOS (S-06): the
+    // user just opened the app from Finder/Spotlight, and a menu-bar app
+    // with nothing on screen looks like it did nothing, so always show it.
+    let builder = tauri::Builder::default().plugin(tauri_plugin_single_instance::init(
+        |app, _args, _cwd| {
+            if cfg!(target_os = "macos")
+                || !commands::config_cell().read().system.start_minimized
+            {
+                show_settings(app);
+            }
+        },
+    ));
     // The `--autostart` argument identifies a Windows launch in the `Run`
     // value. It no longer decides what appears on screen: `Chạy ẩn` does
     // that for every launch path alike. Not registered in the Store build:
@@ -666,17 +678,6 @@ fn main() {
             .build(),
     );
     let app = builder
-        // Second launch. Windows: same rule as a first one, so `Chạy ẩn` keeps a
-        // re-launch in the tray instead of flashing a window. macOS (S-06): the
-        // user just opened the app from Finder/Spotlight, and a menu-bar app
-        // with nothing on screen looks like it did nothing, so always show it.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if cfg!(target_os = "macos")
-                || !commands::config_cell().read().system.start_minimized
-            {
-                show_settings(app);
-            }
-        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         // No updater plugin: the GitHub Releases check lives in `update.rs`

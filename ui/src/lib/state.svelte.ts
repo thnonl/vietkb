@@ -200,8 +200,15 @@ class Store {
     return this.info?.store ?? false;
   }
 
+  /** Update UI (badge, About check, Advanced switch) shows only once the app info
+   *  has arrived and says this is not the Store build: until then `store` is
+   *  unknown, so nothing may flash. */
+  get showUpdateUi(): boolean {
+    return this.info !== null && !this.info.store;
+  }
+
   get updateAvailable(): boolean {
-    if (this.store) return false;
+    if (!this.showUpdateUi) return false;
     return this.update?.state === "available" && this.update.update !== null;
   }
 

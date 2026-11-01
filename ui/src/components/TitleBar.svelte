@@ -42,7 +42,7 @@
   // keep naming the current state, which is what a hover is asking about.
   const nextTheme = $derived(ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length]);
 
-  const showUpdate = $derived(showMark && !app.store && app.updateAvailable);
+  const showUpdate = $derived(showMark && app.showUpdateUi && app.updateAvailable);
 
   const cycleTheme = () => {
     app.patch({ system: { theme: nextTheme } });

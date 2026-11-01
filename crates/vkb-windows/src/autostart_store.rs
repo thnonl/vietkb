@@ -14,7 +14,7 @@
 //! keyboard hook thread is never involved.
 
 use anyhow::{anyhow, bail, Context, Result};
-use vkb_config::store::{StartupState, PACKAGE_FAMILY_NAME, STARTUP_TASK_ID};
+use vkb_config::store::{StartupState, STARTUP_TASK_ID};
 use windows::core::HSTRING;
 use windows::ApplicationModel::{Package, StartupTask};
 use windows::Win32::System::WinRT::{RoInitialize, RO_INIT_MULTITHREADED};
@@ -82,16 +82,11 @@ pub fn is_autostart_enabled() -> bool {
     }
 }
 
-/// This package's family name from Windows; the constant when the exe is not
-/// running with package identity.
-pub fn package_family_name() -> String {
-    on_mta(|| {
-        Ok(Package::Current()?
-            .Id()?
-            .FamilyName()?
-            .to_string_lossy())
-    })
-    .ok()
-    .filter(|name| !name.is_empty())
-    .unwrap_or_else(|| PACKAGE_FAMILY_NAME.to_string())
+/// This package's family name as Windows reports it, `None` when the exe runs
+/// without package identity (the caller decides whether to fall back to
+/// `PACKAGE_FAMILY_NAME`).
+pub fn package_family_name() -> Option<String> {
+    on_mta(|| Ok(Package::Current()?.Id()?.FamilyName()?.to_string_lossy()))
+        .ok()
+        .filter(|name| !name.is_empty())
 }

@@ -113,9 +113,10 @@ pub fn is_autostart_enabled() -> bool {
     autostart::is_autostart_enabled()
 }
 
-/// Store build only: the package family name Windows reports for this process.
+/// Store build only: the package family name Windows reports for this process,
+/// `None` when it is not running as a package.
 #[cfg(feature = "store")]
-pub fn package_family_name() -> String {
+pub fn package_family_name() -> Option<String> {
     autostart::package_family_name()
 }
 

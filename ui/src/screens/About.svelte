@@ -107,7 +107,7 @@
 
       <div class="about-div"></div>
 
-      {#if !app.store}
+      {#if app.showUpdateUi}
       <section class="about-update" class:story-open={showStory}>
         <p class="about-status" data-tone={tone} role="status">{statusText}</p>
 

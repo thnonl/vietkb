@@ -69,6 +69,16 @@ pub fn apps_folder_target(family_name: &str) -> String {
     format!(r"shell:AppsFolder\{family_name}!{APP_ID}")
 }
 
+/// PowerShell command line (the `-Command` argument) that waits for `pid` to
+/// exit (at most 10 s, silent if it is already gone) and then activates the
+/// package through the shell.
+pub fn relaunch_script(pid: u32, family_name: &str) -> String {
+    format!(
+        "Wait-Process -Id {pid} -Timeout 10 -ErrorAction SilentlyContinue; Start-Process '{}'",
+        apps_folder_target(family_name)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,6 +127,15 @@ mod tests {
         assert_eq!(
             apps_folder_target(PACKAGE_FAMILY_NAME),
             r"shell:AppsFolder\40278Noamo.VietKB_8eydtcdf0ng4p!App"
+        );
+    }
+
+    #[test]
+    fn relaunch_script_waits_for_the_pid_then_activates_the_package() {
+        assert_eq!(
+            relaunch_script(4242, PACKAGE_FAMILY_NAME),
+            "Wait-Process -Id 4242 -Timeout 10 -ErrorAction SilentlyContinue; \
+             Start-Process 'shell:AppsFolder\\40278Noamo.VietKB_8eydtcdf0ng4p!App'"
         );
     }
 
