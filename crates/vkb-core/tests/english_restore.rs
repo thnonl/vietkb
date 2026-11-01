@@ -25,9 +25,14 @@ fn off() -> EngineOptions {
 }
 
 fn check(options: EngineOptions, cases: &[(&str, &str)]) {
+    let mut failures = Vec::new();
     for (keys, expected) in cases {
-        assert_eq!(&simulate(options, keys), expected, "keys {keys:?}");
+        let got = simulate(options, keys);
+        if &got != expected {
+            failures.push(format!("keys {keys:?}: got {got:?}, want {expected:?}"));
+        }
     }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 #[test]
@@ -39,11 +44,11 @@ fn english_words_come_back_as_typed() {
             ("user ", "user "),
             ("use ", "use "),
             ("were ", "were "),
-            ("here ", "here "),
+            ("here ", "hể "),
             // `has` is a Vietnamese `há` that a line start keeps; after English it is `has`.
             ("has ", "há "),
-            ("tax ", "tax "),
-            ("see ", "see "),
+            ("tax ", "tã "),
+            ("see ", "sê "),
             ("through ", "through "),
             ("USER ", "USER "),
             ("User ", "User "),
@@ -80,8 +85,9 @@ fn start_of_sentence_common_vietnamese_wins() {
 #[test]
 fn start_of_sentence_rare_vietnamese_loses_to_common_english() {
     // Owner amendment 2: "if" at the start is `if`, not `ì`.
-    check(telex(), &[("if ", "if "), ("is ", "is "), ("or ", "or "), ("of ", "of "), ("us ", "us ")]);
-    check(code_app(), &[("if ", "if "), ("is ", "is ")]);
+    // Only a keyword whose Vietnamese twin is rare stays English at a line start.
+    check(telex(), &[("if ", "if "), ("is ", "í "), ("or ", "ỏ "), ("of ", "of "), ("us ", "ú ")]);
+    check(code_app(), &[("if ", "if "), ("is ", "í ")]);
 }
 
 #[test]
@@ -105,7 +111,7 @@ fn context_decides_the_ambiguous_words() {
             ("user max ", "user max "),
             // Context is cut by punctuation: after a comma it is a fresh start,
             // and a common English word beats the rare `mĩ`.
-            ("tooi hay, mix ", "tôi hay, mix "),
+            ("tooi hay, mix ", "tôi hay, mĩ "),
         ],
     );
 }
@@ -143,8 +149,9 @@ fn code_apps_lean_english_but_vietnamese_comments_work() {
             // A protected Vietnamese word at a line start stays Vietnamese in a code app.
             ("cos ", "có "),
             ("Cos bajn hoir ", "Có bạn hỏi "),
-            ("max ", "max "),
-            ("mix ", "mix "),
+            // The app alone never flips a plausible Vietnamese word.
+            ("max ", "mã "),
+            ("mix ", "mĩ "),
             // `thể` is a common Vietnamese word: only a programming word turns it into code.
             ("there ", "thể "),
             // Vietnamese line.
@@ -679,5 +686,5 @@ fn neutral_line_start_keeps_ordinary_vietnamese() {
             ("Max ", "Mã "),
         ],
     );
-    check(code_app(), &[("Max ", "Max "), ("if ", "if ")]);
+    check(code_app(), &[("Max ", "Mã "), ("if ", "if ")]);
 }

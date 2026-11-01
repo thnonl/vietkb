@@ -6,13 +6,11 @@ generated once by `scripts/gen_wordlists.py` and embedded in the binary.
 
 | file | what | derived from | licence |
 |---|---|---|---|
-| `english.txt` | English words (levels 1-7) that Telex composes into something else, about 6,100 words | SCOWL 2020.12.07 `english-words.10 … .60` + `scripts/wordlists/tech-words.txt` + `loanwords.txt` | SCOWL licence (below); the two small lists are written for VietKB (MIT) |
+| `english.txt` | English words (levels 1-7) that Telex composes into something else, about 3,100 words | SCOWL 2020.12.07 `english-words.10 … .60` + `scripts/wordlists/tech-words.txt` + `loanwords.txt` | SCOWL licence (below); the two small lists are written for VietKB (MIT) |
 | `vi.txt` | Vietnamese syllables and how often they occur (about 4,000 syllables seen at least once, impossible rimes removed) | syllable counts over Tatoeba Vietnamese sentences and the Common Voice Vietnamese sentence list | counts only, see below |
-| `pairs.bin` | hashed pairs `previous syllable, syllable` with a count, for the ambiguous syllables only (about 4,500 pairs) | the same two corpora | counts only, see below |
 | `consts.rs` | the generated prefix table of Vietnamese rimes, totals | `vi.txt` corpus rimes, curated by `rimes-extra.txt` / `rimes-drop.txt` | counts only |
 
-No sentence, and no word sequence longer than a hashed syllable pair, is
-stored. The bigram table is a set of 32-bit hashes with counts.
+No sentence and no word sequence is stored: only how often each syllable occurs.
 
 The full notices (SCOWL copyright verbatim, Tatoeba credit and licence, Common Voice) are in
 [`THIRD_PARTY_NOTICES.md`](../../../THIRD_PARTY_NOTICES.md) at the repository root; that file is bundled with the app.

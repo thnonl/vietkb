@@ -12,7 +12,7 @@ downloaded at run time.
 
 ## 1. SCOWL (Spell Checker Oriented Word Lists)
 
-English word list `english.txt` is derived from SCOWL, release 2020.12.07, by
+The English word list `english.txt` is derived from SCOWL, release 2020.12.07, by
 Kevin Atkinson, <http://wordlist.aspell.net/>. Files used:
 `final/english-words.10`, `.20`, `.35`, `.40`, `.50`, `.55`, `.60`. The complete
 copyright notice of that release follows, verbatim.
@@ -270,7 +270,7 @@ and Australian word list.  It is under the following copyright:
 
 ## 2. Tatoeba (Vietnamese sentences)
 
-The Vietnamese syllable and syllable-pair counts in `vi.txt` and `pairs.bin` were
+The Vietnamese syllable counts in `vi.txt` were
 computed over the Vietnamese sentences of the Tatoeba project
 (`vie_sentences_detailed.tsv`, downloaded on 2026-11-01).
 

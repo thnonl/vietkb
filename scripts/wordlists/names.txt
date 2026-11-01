@@ -1,7 +1,6 @@
 # Names and brands that Telex turns into Vietnamese words (Mary -> Mảy, Asus -> Áu).
 # Typed with a capital they are English unless they start a line and the
 # Vietnamese reading is common. Written for VietKB (MIT).
-asus
 barry
 bess
 berry
@@ -12,18 +11,11 @@ hiss
 jerry
 jess
 jessica
-jesus
-jira
 larry
 lassie
-los
-mary
-paris
 puff
-queen
 ross
 russell
-sofa
 terry
 tess
 xoxo

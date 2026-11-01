@@ -20,6 +20,9 @@ use crate::macros::MacroTable;
 use crate::method::{self, Composed};
 use crate::tone as place;
 use crate::lexicon::{self, Left};
+
+/// A Vietnamese syllable seen at least this often is never corrected one word back.
+const VERY_COMMON: u32 = 500;
 use crate::{spell, AppKind, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine, MAX_WORD};
 
 /// Windows virtual-key codes the engine reacts to even without a character.
@@ -73,16 +76,14 @@ impl PrevWord {
     const NONE: PrevWord = PrevWord { kind: PrevKind::None, count: 0, hash: 0 };
 }
 
-/// A close call at the space after a word, kept for exactly one more word: the
-/// word may be rewritten once if the right context settles it (amendment 4).
+/// A Vietnamese word kept over an English one at the space after it, kept for
+/// exactly one more word: it may be rewritten once if the next word is clearly
+/// English (amendment 4).
 struct Back {
-    /// What the word shows on screen now.
+    /// The Vietnamese word on screen.
     shown: TextBuf,
-    /// The other reading.
+    /// The English reading (the typed keys).
     alternate: TextBuf,
-    score: f32,
-    /// `shown` is the Vietnamese reading.
-    vietnamese_shown: bool,
 }
 
 /// What the break that just ended a word left behind, for the one-word-back check.
@@ -1057,11 +1058,12 @@ impl Engine {
         if lexicon::english_word(&word[..self.raw.len()]).is_none() {
             return false;
         }
-        // A prefix that is itself a plausible Vietnamese syllable (`baa` on the
-        // way to `bậtf`) keeps composing; the break decides.
-        let mut key = [0u8; 48];
-        let len = self.composed_key(&mut key);
-        !self.plausibly_vietnamese(len.map(|len| &key[..len]))
+        // A prefix that could still become a Vietnamese syllable (`baa` on the
+        // way to `bậtf`, `moot` on the way to `mootj`) keeps composing; the
+        // break decides.
+        let letters = &self.composed.letters;
+        let jfwz = self.options.jfwz_as_consonant;
+        !(spell::is_valid_syllable(letters, jfwz) && spell::is_feasible_prefix(letters, jfwz))
     }
 
     /// The doubled tone key of an English word was swallowed (`pass` shows
@@ -1142,14 +1144,6 @@ impl Engine {
                 return true;
             }
         }
-        if raw.len() == 2 && raw[0].is_ascii_alphabetic() && raw[1].is_ascii_digit() {
-            let letter = raw[0];
-            // `ý` (y1) is a common word; the other tones of `y` are not.
-            if letter == 'y' {
-                return raw[1] != '1';
-            }
-            return letter.is_ascii_uppercase() || !matches!(letter, 'a' | 'e' | 'i' | 'o' | 'u');
-        }
         false
     }
 
@@ -1224,16 +1218,22 @@ impl Engine {
             PrevKind::Code => Left::Code,
             PrevKind::None | PrevKind::Other => Left::Start,
         };
-        let capital = self.raw.first().is_some_and(char::is_ascii_uppercase);
-        let score = lexicon::english_score(
+        let plausible = self.plausibly_vietnamese(Some(&key[..len]));
+        let wins = lexicon::english_wins(
             &key[..len],
             &word[..self.raw.len()],
             english,
             left,
             self.options.app_kind == AppKind::Code,
-            capital,
+            plausible,
         );
-        (score > 0.0, Some(score))
+        // A Vietnamese word kept over an English one that is not among the most
+        // common Vietnamese words may still be corrected once (amendment 4).
+        let candidate = !wins
+            && plausible
+            && matches!(left, Left::Start)
+            && lexicon::vi_count(&key[..len]) < VERY_COMMON;
+        (wins, candidate.then_some(1.0))
     }
 
     /// Record what the word that just ended means for the next word
@@ -1241,8 +1241,8 @@ impl Engine {
     /// the call was close (amendment 4). `restored`: the typed keys are now on
     /// screen; otherwise the composed word is.
     fn note_boundary(&mut self, ch: char, score: Option<f32>, restored: bool, old_len: usize) {
-        let band = ch == ' ' && !self.raw.is_empty() && score.is_some_and(|s| s > -7.5 && s < 3.0);
-        if !self.want_scratch && !band {
+        let candidate = ch == ' ' && !restored && !self.raw.is_empty() && score.is_some();
+        if !self.want_scratch && !candidate {
             return;
         }
         let mut raw_text = TextBuf::new();
@@ -1259,13 +1259,8 @@ impl Engine {
                 right,
             });
         }
-        if band {
-            self.back = Some(Back {
-                shown: if restored { raw_text.clone() } else { composed_text.clone() },
-                alternate: if restored { composed_text } else { raw_text },
-                score: score.unwrap_or(0.0),
-                vietnamese_shown: !restored,
-            });
+        if candidate {
+            self.back = Some(Back { shown: composed_text, alternate: raw_text });
         }
     }
 
@@ -1279,13 +1274,10 @@ impl Engine {
         if ch.is_control() {
             return action;
         }
-        let rewrite = if back.vietnamese_shown {
-            // `Max speed`, `Six pack`: English on the right.
-            scratch.right.kind == PrevKind::English && back.score + 6.0 > 0.0
-        } else {
-            // `now xanh`, `Nor thần`: a common Vietnamese word on the right.
-            scratch.right.kind == PrevKind::Vietnamese && scratch.right.count >= 8 && back.score - 2.5 < 0.0
-        };
+        // `Max speed`, `Six pack`: the next word is English that cannot be
+        // Vietnamese. An unusual Vietnamese word on the right (`mĩ miều`) is not
+        // evidence; neither is anything else.
+        let rewrite = scratch.right.kind == PrevKind::English;
         if !rewrite {
             return action;
         }
@@ -1304,7 +1296,7 @@ impl Engine {
             shown: new_region,
             alternate: old_region,
             mid_word: false,
-            showing_raw: !back.vietnamese_shown,
+            showing_raw: false,
         });
         EngineAction::Replace { delete_units, insert }
     }
@@ -1321,7 +1313,8 @@ impl Engine {
         if self.raw.as_slice() == ['I'] && !restored {
             return PrevWord { kind: PrevKind::Function, count: 0, hash: 0 };
         }
-        if ascii && !restored && lexicon::is_function_word(&word[..self.raw.len()]) {
+        // Only when the word stays as typed: `how` shown as `hơ` is Vietnamese.
+        if ascii && !restored && !self.raw_differs() && lexicon::is_function_word(&word[..self.raw.len()]) {
             return PrevWord { kind: PrevKind::Function, count: 0, hash: 0 };
         }
         let english = restored || (ascii && (self.composed.literal || self.literal_from != usize::MAX));

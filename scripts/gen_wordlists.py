@@ -14,9 +14,6 @@ Output (written to --out):
                the engine ever has to restore).
   vi.txt       `key count`, sorted by key. Vietnamese syllables seen >= MIN_COUNT
                times; key is the ASCII syllable key described in lexicon.rs.
-  pairs.bin    sorted u32 LE FNV-1a hashes of "prev next" followed by one count
-               byte each, for every `next` that can be the Vietnamese reading of
-               an English word.
   consts.rs    generated Rust constants.
 
 Needs `cargo` (builds the vkb-core example `compose_words`).
@@ -240,8 +237,18 @@ def main():
     # Spell check off: the structural check no longer keeps `order`, `teacher`
     # raw, so the common English words (size 20 or less, brands, code words) are
     # listed for the word break and the mid-word switch as well.
+    # Only forms that cannot be a Vietnamese syllable matter: a plausible one
+    # stays Vietnamese (`mootj` -> `một`), list or no list.
+    def garbled(forms):
+        for form in forms:
+            k = key_of(form)
+            if k and valid_key(k, foreign=True):
+                return False
+        return True
+
     for raw in nospell:
-        if raw not in cand and raw not in escape_deny and (english[raw] <= "2" or raw in names or raw in idents or raw in loans):
+        if raw not in cand and raw not in escape_deny and garbled(nospell[raw]) and (
+                english[raw] <= "1" or raw in names or raw in idents or raw in loans):
             cand[raw] = {"!nospell"}
     ambiguous = {k for keys in cand.values() for k in keys if k in vi}
 
@@ -260,14 +267,6 @@ def main():
     with open(os.path.join(args.out, "vi.txt"), "w") as f:
         for k in sorted(vi):
             f.write(f"{k} {vi[k]}\n")
-    pairs = {}
-    for (p, v), c in bigrams.items():
-        if v in ambiguous and p in vi:
-            pairs[fnv1a32(p + " " + v)] = min(c, 255)
-    with open(os.path.join(args.out, "pairs.bin"), "wb") as f:
-        hs = sorted(pairs)
-        f.write(b"".join(h.to_bytes(4, "little") for h in hs))
-        f.write(bytes(pairs[h] for h in hs))
     with open(os.path.join(args.out, "rimes.txt"), "w") as f:
         for r in sorted(keep):
             f.write(r + "\n")
@@ -288,10 +287,8 @@ def main():
         for i in range(0, len(ordered), 12):
             f.write("    " + ", ".join(str(c) for c in ordered[i:i + 12]) + ",\n")
         f.write("];\n")
-        f.write(f"pub const VI_TOTAL: u32 = {total};\n")
-        f.write(f"pub const PAIR_COUNT: usize = {len(pairs)};\n")
     print(f"english candidates {len(cand)} of {len(english)}; vi syllables {len(vi)} "
-          f"(tokens {total}); ambiguous vi {len(ambiguous)}; pairs {len(pairs)}", file=sys.stderr)
+          f"(tokens {total}); ambiguous vi {len(ambiguous)}", file=sys.stderr)
     if os.environ.get("DUMP_AMBIGUOUS"):
         for raw in sorted(cand):
             for k in sorted(cand[raw]):

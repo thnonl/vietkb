@@ -16,11 +16,10 @@ use crate::letters::{Letter, Mark, Tone};
 mod consts {
     include!("../data/consts.rs");
 }
-use consts::{PAIR_COUNT, RIME_PREFIXES, VI_TOTAL};
+use consts::RIME_PREFIXES;
 
 static ENGLISH: &str = include_str!("../data/english.txt");
 static VI: &str = include_str!("../data/vi.txt");
-static PAIRS: &[u8] = include_bytes!("../data/pairs.bin");
 
 /// FNV-1a 32-bit, the hash `pairs.bin` is keyed by.
 pub const FNV_BASIS: u32 = 0x811C_9DC5;
@@ -98,28 +97,10 @@ pub fn vi_count(key: &[u8]) -> u32 {
         .fold(0u32, |acc, &d| acc * 10 + u32::from(d.wrapping_sub(b'0')))
 }
 
-fn pair_count(hash: u32) -> u32 {
-    debug_assert_eq!(PAIRS.len(), PAIR_COUNT * 5);
-    let read = |i: usize| u32::from_le_bytes([PAIRS[i * 4], PAIRS[i * 4 + 1], PAIRS[i * 4 + 2], PAIRS[i * 4 + 3]]);
-    let (mut lo, mut hi) = (0usize, PAIR_COUNT);
-    while lo < hi {
-        let mid = lo + (hi - lo) / 2;
-        match read(mid).cmp(&hash) {
-            std::cmp::Ordering::Equal => return u32::from(PAIRS[PAIR_COUNT * 4 + mid]),
-            std::cmp::Ordering::Less => lo = mid + 1,
-            std::cmp::Ordering::Greater => hi = mid,
-        }
-    }
-    0
-}
-
 /// English words that mark the previous word as English even when they are also
 /// plausible Vietnamese toneless syllables. Sorted.
 static FUNCTION_WORDS: &[&str] = &[
-    "and", "any", "are", "but", "each", "for", "from", "have", "her", "his", "how", "its", "many",
-    "my", "our", "she", "some", "such", "that", "the", "their", "them", "then", "there", "these",
-    "they", "this", "those", "was", "were", "what", "when", "where", "which", "who", "will", "with",
-    "would", "you", "your",
+    "and", "any", "are", "at", "be", "but", "by", "each", "for", "from", "have", "her", "his", "how", "in", "is", "it", "its", "many", "my", "not", "of", "on", "or", "our", "she", "some", "such", "that", "the", "their", "them", "then", "there", "these", "they", "this", "those", "up", "was", "were", "what", "when", "where", "which", "who", "will", "with", "would", "you", "your",
 ];
 
 pub fn is_function_word(word: &[u8]) -> bool {
@@ -220,17 +201,11 @@ pub enum Left {
     Vietnamese { count: u32, hash: u32 },
 }
 
-/// log10 of an English word's relative frequency by SCOWL level.
-const ENGLISH_LOG_FREQ: [f32; 7] = [-2.8, -3.4, -4.0, -4.3, -4.6, -4.8, -5.0];
 /// A Vietnamese syllable at least this common is "protected": it flips to
 /// English only on positive English evidence (English or code on the left, a
 /// code app at the start of a line, a known English collocation), never because
 /// a word pair is missing from the table.
 const PROTECTED_COUNT: u32 = 100;
-/// A Vietnamese syllable seen at least this often is a word a line start keeps
-/// (`Cháo`, `Lén`); rarer ones lose to a common English word (`if`, `of`).
-const KNOWN_COUNT: u32 = 4;
-
 const fn colloc(previous: &str, english: &str) -> u32 {
     let mut hash = fnv_const(FNV_BASIS, previous.as_bytes());
     hash = fnv_const(hash, b" ");
@@ -293,148 +268,50 @@ pub fn is_acronym(token: &[u8]) -> bool {
         || LOWER_ACRONYMS.iter().any(|a| a.as_bytes() == token)
 }
 
-/// How far a call is from the line: the score of a "hard" Vietnamese reading
-/// (a protected word at a line start) stays near zero so the one-word-back
-/// correction can see it; a flip that must never happen is `NEVER`.
-const HARD: f32 = 4.0;
-const NEVER: f32 = 9.0;
-
-/// Score of the English word against the Vietnamese reading, in decades
-/// (log10): positive = English. `vi_key` is the composed Vietnamese syllable's
-/// key, `typed` the lowercase typed keys, `capital` whether the first typed key
-/// was a capital.
-pub fn english_score(vi_key: &[u8], typed: &[u8], word: EnglishWord, left: Left, code_app: bool, capital: bool) -> f32 {
+/// Should the typed English word replace the composed text?
+///
+/// The rule is conservative. **A plausible Vietnamese syllable wins** (in the
+/// corpus list or only well-formed), in every app. It flips only on positive
+/// evidence: an English function word or English word on the left, a code
+/// context, a known collocation, or the keyword `if` at a line start. When the
+/// composed text cannot be Vietnamese (`ủe`, `wể`, `pas`) the list decides.
+/// The app profile alone never flips anything; a code editor only lets a code
+/// identifier (`res`, `os`) stand after a code word, bracket or operator.
+///
+/// `vi_key` is the composed Vietnamese syllable's key, `typed` the lowercase
+/// typed keys, `plausible` whether the composed text could be Vietnamese.
+pub fn english_wins(vi_key: &[u8], typed: &[u8], word: EnglishWord, left: Left, code_app: bool, plausible: bool) -> bool {
     let count = vi_count(vi_key);
-    let present = count > 0;
     let protected = count >= PROTECTED_COUNT;
-    let unigram = (count as f32).max(0.3) / VI_TOTAL as f32;
-    let mut score = ENGLISH_LOG_FREQ[usize::from(word.level.clamp(1, 7)) - 1] - unigram.log10();
-    // A rarer English form (plural, rare word) against a real Vietnamese word
-    // only wins on strong evidence.
-    let weak = word.level > 2 && !word.loan && !word.name && present;
-    // Code identifiers (`res`, `os`, `buf`) in a code editor after a code word,
-    // a bracket, a comma or an operator are code.
-    if word.ident && code_app && matches!(left, Left::English | Left::Code | Left::Clause | Left::Function) {
-        return NEVER;
+    // A rarer English form (plural, rare word) against a real Vietnamese word.
+    let weak = word.level > 2 && !word.loan && !word.name && count > 0;
+    if word.ident && code_app && matches!(left, Left::English | Left::Code | Left::Function) {
+        return true;
     }
-    // A name typed with a capital in the middle of a sentence (`Mary`, `Asus`,
-    // `Jesus`) is the name; at a line start only a rare Vietnamese reading loses.
-    if word.name && capital {
-        return match left {
-            Left::Start if protected => score - 1.0 - HARD,
-            _ => 6.0,
-        };
+    if let Left::Vietnamese { hash, .. } = left {
+        let phrase = fnv_extend(hash, typed);
+        if VI_COLLOCATIONS.contains(&phrase) {
+            return false;
+        }
+        if COLLOCATIONS.contains(&phrase) {
+            return true;
+        }
+    }
+    if !plausible {
+        return true;
     }
     match left {
-        Left::English => {
-            // A common Vietnamese word after an English word stays Vietnamese
-            // (`test có xanh`, `hook sẽ chạy`): mixed text is full of them.
-            if protected || weak {
-                score -= NEVER;
-            }
-            score += 3.0;
-            if code_app {
-                score += 3.5;
-            }
-        }
-        Left::Function => {
-            // After `the`, `my`, `with`: an English noun, even a plural or a
-            // word that collides with a common Vietnamese one (`the car`).
-            if protected && (word.level > 2 || word.loan) {
-                score -= NEVER;
-            }
-            if weak {
-                score -= 1.0;
-            }
-            score += 3.0;
-            if code_app {
-                score += 3.5;
-            }
-        }
-        Left::Code => {
-            // `x = cos`, `foo(max`: a code context. A common Vietnamese word
-            // flips only for a programming word in a code editor.
-            if protected && !(code_app && word.tech) {
-                score -= NEVER;
-            }
-            score += 3.0;
-            if weak {
-                score -= 2.0;
-            }
-            if code_app {
-                score += 3.5;
-            }
-        }
-        Left::Clause => {
-            if protected {
-                score -= NEVER;
-            }
-            score -= 1.0;
-            if code_app {
-                score += 1.0;
-            }
-            if weak {
-                score -= 3.0;
-            }
-        }
-        Left::Start => {
-            // A common Vietnamese word starting a sentence or a line stays
-            // Vietnamese (`có`, `tên`, `nó`), in a code editor too.
-            // Outside a code editor a line start flips only when the Vietnamese
-            // reading is absent from the corpus list and the English word is
-            // common (`if`, `is`, `or`); `Chaos`, `Lens`, `Hair`, `Seen`,
-            // `Chars` are ordinary Vietnamese.
-            if protected || (!code_app && (count >= KNOWN_COUNT || word.level > 2) && !word.name) {
-                score -= HARD;
-            }
-            // `tar -xf` at the start of a line in a code editor.
-            if word.ident && code_app && !protected {
-                return NEVER;
-            }
-            score -= 1.0;
-            if code_app {
-                score += 3.5;
-            }
-            if weak {
-                score -= 3.0;
-            }
-        }
-        Left::Vietnamese { count: prev_count, hash } => {
-            let phrase = fnv_extend(hash, typed);
-            if VI_COLLOCATIONS.contains(&phrase) {
-                score -= NEVER;
-            } else if COLLOCATIONS.contains(&phrase) {
-                score += 3.5;
-            } else {
-                // A missing pair is neutral. A common Vietnamese word after a
-                // Vietnamese word is Vietnamese (`Mình teen`, `đang lens`).
-                if protected {
-                    score -= NEVER;
-                }
-                let pair = pair_count(fnv_extend(hash, vi_key));
-                if pair > 0 {
-                    let smoothed = (pair as f32 + 10.0 * unigram) / (prev_count as f32 + 10.0);
-                    score -= (smoothed / unigram).log10().max(0.0);
-                }
-                score -= 2.8;
-                if word.loan {
-                    score += 1.5;
-                }
-                if code_app {
-                    score += 0.8;
-                }
-                if weak {
-                    score -= 3.0;
-                }
-            }
-        }
+        // `the car`, `my tips`, `with cups`: an English noun, even a plural or a
+        // word that collides with a common Vietnamese one.
+        Left::Function => !(protected && (word.level > 2 || word.loan)),
+        // `I like mix`, but `test có xanh` and `hook sẽ chạy` stay Vietnamese.
+        Left::English => !protected && !weak,
+        // `x = max`, `foo(cos`: a code context.
+        Left::Code => !protected || (code_app && word.tech),
+        // A keyword whose Vietnamese twin is rare (`ì`).
+        Left::Start => typed == b"if",
+        Left::Clause | Left::Vietnamese { .. } => false,
     }
-    score
-}
-
-/// `true` when the English word is the better reading of the typed keys.
-pub fn english_beats_vietnamese(vi_key: &[u8], typed: &[u8], word: EnglishWord, left: Left, code_app: bool) -> bool {
-    english_score(vi_key, typed, word, left, code_app, false) > 0.0
 }
 
 #[cfg(test)]
@@ -446,7 +323,7 @@ mod tests {
         assert_eq!(english_word(b"user").map(|w| (w.level, w.loan)), Some((1, false)));
         assert_eq!(english_word(b"teen").map(|w| (w.level, w.loan)), Some((3, true)));
         assert!(english_word(b"res").unwrap().ident);
-        assert!(english_word(b"mary").unwrap().name);
+        assert!(english_word(b"harry").unwrap().name);
         assert!(english_word(b"cos").unwrap().tech);
         assert_eq!(english_word(b"zzzz"), None);
         assert!(vi_count(b"co1") > 1000);
@@ -454,7 +331,6 @@ mod tests {
         for window in ENGLISH.lines().collect::<Vec<_>>().windows(2) {
             assert!(window[0][..window[0].len() - 1] < window[1][..window[1].len() - 1]);
         }
-        assert_eq!(PAIRS.len(), PAIR_COUNT * 5);
     }
 
     #[test]
