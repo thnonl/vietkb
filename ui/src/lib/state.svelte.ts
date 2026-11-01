@@ -59,6 +59,9 @@ const demoInfo: AppInfoView = {
   arch: "x86_64",
   configPath: "%APPDATA%\\VietKB\\config.toml",
   hookReady: false,
+  // Design preview only: `?store=1` shows the Store build (no update UI).
+  store:
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("store") === "1",
 };
 
 /** Preview mode (plain vite, no Tauri): a stub so About and the badge render. */
@@ -192,7 +195,13 @@ class Store {
   }
 
   /** True once a check has found a newer release. Drives the badge and tray. */
+  /** Microsoft Store build: Store delivers updates, so the page has no update UI. */
+  get store(): boolean {
+    return this.info?.store ?? false;
+  }
+
   get updateAvailable(): boolean {
+    if (this.store) return false;
     return this.update?.state === "available" && this.update.update !== null;
   }
 
@@ -212,7 +221,7 @@ class Store {
         this.settings = demoSettings;
         this.status = demoStatus;
         this.info = demoInfo;
-        this.update = demoUpdate;
+        this.update = demoInfo.store ? null : demoUpdate;
         this.applyTheme(demoSettings.system.theme);
         return;
       }
@@ -257,14 +266,17 @@ class Store {
       // a manual check and the tray all write it. Every window follows the
       // event, so the title-bar badge and the tray item appear without a
       // restart.
-      this.update = await api.updateStatus().catch(() => null);
-      await listen<UpdateStatus>("vkb:update", (event) => {
-        this.update = event.payload;
-      })
-        .then((unlisten) => {
-          this.updateUnlisten = unlisten;
+      // The Store build has no updater: no command to ask, no event to follow.
+      if (!info.store) {
+        this.update = await api.updateStatus().catch(() => null);
+        await listen<UpdateStatus>("vkb:update", (event) => {
+          this.update = event.payload;
         })
-        .catch(() => {});
+          .then((unlisten) => {
+            this.updateUnlisten = unlisten;
+          })
+          .catch(() => {});
+      }
     } catch (error) {
       this.settings = demoSettings;
       this.status = demoStatus;

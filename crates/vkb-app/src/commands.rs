@@ -201,6 +201,8 @@ pub struct AppInfoView {
     pub arch: String,
     pub config_path: String,
     pub hook_ready: bool,
+    /// Microsoft Store (MSIX) build: no self-updater, no update UI.
+    pub store: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +395,9 @@ fn sync_autostart(enabled: bool) {
     // Dev channel: write the `VietKB Dev` value ourselves, HKCU only, quoted
     // exe plus the flag. The plugin would use an unquoted command line and may
     // pick HKLM, so the two channels must not share that writer.
-    #[cfg(any(target_os = "macos", all(windows, feature = "dev-channel")))]
+    // Store build: the manifest's StartupTask (`vkb-windows`), never the `Run`
+    // key, which MSIX virtualizes.
+    #[cfg(any(target_os = "macos", all(windows, any(feature = "dev-channel", feature = "store"))))]
     {
         match crate::autostart::set(enabled) {
             Ok(()) => {
@@ -404,7 +408,7 @@ fn sync_autostart(enabled: bool) {
         }
     }
 
-    #[cfg(not(any(target_os = "macos", all(windows, feature = "dev-channel"))))]
+    #[cfg(not(any(target_os = "macos", all(windows, any(feature = "dev-channel", feature = "store")))))]
     {
         use tauri_plugin_autostart::ManagerExt;
 
@@ -1327,6 +1331,10 @@ pub fn open_privacy_pane(app: tauri::AppHandle, pane: String) -> Result<(), Stri
 pub fn open_config_folder() -> Result<(), String> {
     let dir = vkb_config::paths::config_dir();
     std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    // Store build: Explorer runs outside the package container and cannot see
+    // the virtualized `%APPDATA%`; open where the files really are.
+    #[cfg(all(windows, feature = "store"))]
+    let dir = store_config_dir(&dir);
 
     #[cfg(windows)]
     {
@@ -1354,8 +1362,57 @@ pub fn open_config_folder() -> Result<(), String> {
     }
 }
 
+/// The on-disk folder behind the virtualized `%APPDATA%\VietKB`, or `dir`
+/// itself when it cannot be derived or does not exist (not really packaged).
+#[cfg(all(windows, feature = "store"))]
+fn store_config_dir(dir: &std::path::Path) -> std::path::PathBuf {
+    let Some(app_dir) = dir.file_name().and_then(|name| name.to_str()) else {
+        return dir.to_path_buf();
+    };
+    let Some(local) = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from) else {
+        return dir.to_path_buf();
+    };
+    let real = vkb_config::store::virtualized_config_dir(
+        &local,
+        &vkb_windows::package_family_name(),
+        app_dir,
+    );
+    if real.is_dir() {
+        real
+    } else {
+        tracing::warn!(path = %real.display(), "virtualized config folder not found; opening the logical one");
+        dir.to_path_buf()
+    }
+}
+
+/// Store build: start a new instance through the shell's AppsFolder activation
+/// (so it gets package identity), a second after this process has left. The
+/// delay is what keeps the single-instance check from handing the launch to
+/// the instance that is still shutting down. `false` when nothing was started.
+#[cfg(all(windows, feature = "store"))]
+fn relaunch_through_shell() -> bool {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let target = vkb_config::store::apps_folder_target(&vkb_windows::package_family_name());
+    std::process::Command::new("cmd.exe")
+        .raw_arg(format!("/C ping -n 2 127.0.0.1 >nul & explorer.exe \"{target}\""))
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .is_ok()
+}
+
 #[tauri::command]
 pub fn restart_app(app: tauri::AppHandle) {
+    // `AppHandle::restart` re-launches `current_exe()` by path and only logs a
+    // spawn failure, so a fallback after it is unreachable. In a package that
+    // path would start the exe without package identity (no virtualized
+    // config, no StartupTask), so the Store build goes through the shell first
+    // and keeps `restart` as the fallback.
+    #[cfg(all(windows, feature = "store"))]
+    if relaunch_through_shell() {
+        crate::quit(&app);
+        return;
+    }
     app.restart();
 }
 
@@ -1499,6 +1556,7 @@ pub fn app_info() -> AppInfoView {    AppInfoView {
         arch: std::env::consts::ARCH.to_string(),
         config_path: vkb_config::paths::config_file().display().to_string(),
         hook_ready: hook_ready_now(),
+        store: cfg!(feature = "store"),
     }
 }
 

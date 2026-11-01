@@ -9,6 +9,7 @@
 pub mod hotkey;
 pub mod paths;
 pub mod schema;
+pub mod store;
 
 pub use hotkey::{Hotkey, HotkeyError, HotkeyKey, Modifiers};
 pub use schema::*;

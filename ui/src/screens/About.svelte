@@ -107,6 +107,7 @@
 
       <div class="about-div"></div>
 
+      {#if !app.store}
       <section class="about-update" class:story-open={showStory}>
         <p class="about-status" data-tone={tone} role="status">{statusText}</p>
 
@@ -158,6 +159,7 @@
       </section>
 
       <div class="about-div"></div>
+      {/if}
 
       <footer class="about-foot">
         <div class="about-links">

@@ -118,12 +118,14 @@
           label={t("adv.sound")}
           onchange={(next) => setSystem({ notificationSound: next })} />{t("adv.sound")}
       </div>
+      {#if !app.store}
       <div class="v4ck">
         <Checkbox
           checked={settings?.system.checkUpdates ?? true}
           label={t("adv.checkUpdates")}
           onchange={(next) => setSystem({ checkUpdates: next })} />{t("adv.checkUpdates")}
       </div>
+      {/if}
     </div>
     <footer class="v4foot">
       <button type="button" class="v4lk" onclick={resetAll}>

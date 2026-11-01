@@ -1,0 +1,165 @@
+<!doctype html>
+<!--
+  VietKB privacy policy, Vietnamese and English on one page.
+
+  Written for its final place, site/privacy.html (links use site-relative paths:
+  styles.css, assets/logo-v.png, index.html, en/). It sits under docs/store/ for
+  now ON PURPOSE: pushing anything under site/ to main publishes GitHub Pages and
+  that has not been approved yet. When the owner agrees, move it with
+  `git mv docs/store/privacy.html site/privacy.html`; the Partner Center privacy
+  policy URL is then https://thnonl.github.io/vietkb/privacy.html.
+
+  Facts checked against the code (0.2.7): crates/vkb-app/src/update.rs is the only
+  network code (one GET to api.github.com/repos/thnonl/vietkb/releases/latest,
+  and the installer download when the user clicks update); the Store build
+  (cargo feature `store`) does not compile it.
+-->
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chính sách quyền riêng tư · Privacy policy — VietKB</title>
+<meta name="description" content="VietKB không ghi lại, không lưu và không gửi đi nội dung bạn gõ. Không theo dõi, không tài khoản. VietKB does not record, store or send what you type. No tracking, no accounts.">
+<link rel="canonical" href="https://thnonl.github.io/vietkb/privacy.html">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ECECF1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101017" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="assets/logo-v.png" type="image/png">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .legal { max-width: 74ch; padding-block: clamp(32px, 5vw, 64px); }
+  .legal h1 { margin: 0 0 8px; font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.1; }
+  .legal h2 { margin: 36px 0 10px; font-size: 1.25rem; }
+  .legal p, .legal li { line-height: 1.65; }
+  .legal ul { padding-left: 1.2em; }
+  .legal li + li { margin-top: 6px; }
+  .legal .meta { color: var(--muted); font-size: .9rem; }
+  .legal .jump { margin: 0 0 28px; font-size: .95rem; }
+  .legal section + section { margin-top: clamp(40px, 6vw, 72px); padding-top: clamp(28px, 4vw, 44px); border-top: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); }
+</style>
+</head>
+<body>
+<a class="skip" href="#vi">Bỏ qua điều hướng · Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+      <span class="brand-name">VietKB</span>
+    </a>
+
+    <nav class="lang" aria-label="Ngôn ngữ · Language">
+      <a href="#vi" hreflang="vi" lang="vi" aria-label="Tiếng Việt">VI</a>
+      <span aria-hidden="true">|</span>
+      <a href="#en" hreflang="en" lang="en" aria-label="English">EN</a>
+    </nav>
+
+    <a class="btn btn-primary btn-small" href="https://github.com/thnonl/vietkb/releases/latest">Tải về</a>
+  </div>
+</header>
+
+<main id="main">
+  <div class="wrap legal">
+
+    <section id="vi" lang="vi" aria-labelledby="vi-title">
+      <h1 id="vi-title">Chính sách quyền riêng tư</h1>
+      <p class="meta">Cập nhật lần cuối: 01/11/2026 · Áp dụng cho VietKB 0.2.7 trở lên.</p>
+      <p class="jump"><a href="#en" hreflang="en" lang="en">Read this in English</a></p>
+
+      <p>VietKB là bộ gõ tiếng Việt. Muốn gõ được, nó phải nhìn thấy các phím bạn bấm, nên chúng tôi nói rõ nó làm gì và không làm gì với chúng.</p>
+
+      <h2>Nội dung bạn gõ</h2>
+      <ul>
+        <li>Phím bạn bấm chỉ được xử lý trong bộ nhớ của máy, vừa đủ để đổi thành chữ tiếng Việt. Xong là bỏ.</li>
+        <li>VietKB không lưu nội dung bạn gõ vào ổ đĩa, không ghi nhật ký phím và không gửi nó đi đâu cả.</li>
+        <li>Ở chế độ chèn bằng clipboard (mặc định tắt), VietKB tạm đặt chữ lên clipboard để dán vào ứng dụng, rồi khôi phục lại nội dung clipboard trước đó. Chữ này cũng không được lưu hay gửi đi.</li>
+        <li>Để áp dụng quy tắc riêng cho từng ứng dụng, VietKB đọc tên tiến trình của ứng dụng đang được chọn. Tên này chỉ dùng trên máy và không được gửi đi.</li>
+      </ul>
+
+      <h2>Không theo dõi, không tài khoản</h2>
+      <ul>
+        <li>VietKB không có telemetry, không có thống kê sử dụng, không có quảng cáo và không có mã theo dõi.</li>
+        <li>Không cần tạo tài khoản hay đăng nhập. VietKB không hỏi họ tên, email hay bất kỳ thông tin cá nhân nào.</li>
+      </ul>
+
+      <h2>Dữ liệu lưu trên máy</h2>
+      <p>VietKB chỉ lưu cài đặt của bạn trong một tệp cấu hình ngay trên máy: kiểu gõ, bảng mã, phím tắt, bảng gõ tắt, danh sách ứng dụng có quy tắc riêng và các lựa chọn giao diện. Tệp này không rời khỏi máy. Gỡ VietKB hoặc xóa thư mục cấu hình là xóa hết. Nút "Mở thư mục cấu hình" trong phần cài đặt mở đúng nơi tệp này nằm.</p>
+      <p>VietKB có một chế độ chẩn đoán dành cho lập trình viên, chỉ bật khi người dùng tự đặt biến môi trường. Khi bật, nó ghi một tệp nhật ký, có thể gồm cả các phím bạn bấm, vào thư mục cấu hình trên máy đó. Mặc định luôn tắt và nhật ký không bao giờ được gửi đi.</p>
+
+      <h2>Kết nối mạng</h2>
+      <ul>
+        <li><strong>Bản cài từ Microsoft Store:</strong> VietKB không kết nối mạng. Microsoft Store lo việc cập nhật.</li>
+        <li><strong>Bản tải trực tiếp (Windows, macOS):</strong> chỉ khi tùy chọn "Tự kiểm tra cập nhật" đang bật (mặc định là bật) hoặc khi bạn bấm nút kiểm tra trong cửa sổ Giới thiệu, VietKB gửi một yêu cầu tới GitHub (api.github.com) để hỏi bản phát hành mới nhất. GitHub, như mọi máy chủ web, thấy địa chỉ IP của bạn, và yêu cầu có tên cùng số phiên bản VietKB. VietKB không gửi gì khác. Bạn có thể tắt việc này trong Cài đặt nâng cao. Chỉ khi bạn bấm cập nhật, VietKB mới tải bộ cài từ GitHub.</li>
+        <li>Các liên kết GitHub và Ko-fi trong cửa sổ Giới thiệu chỉ mở trình duyệt của bạn khi bạn bấm vào. VietKB không tự kết nối tới đó.</li>
+      </ul>
+
+      <h2>Chia sẻ dữ liệu</h2>
+      <p>VietKB không có dữ liệu của bạn để chia sẻ, bán hay chuyển cho bên thứ ba. Chính sách này không thay đổi điều đó.</p>
+
+      <h2>Liên hệ</h2>
+      <p>Có câu hỏi về quyền riêng tư hoặc thấy điều gì chưa đúng với chính sách này, hãy mở một mục mới tại <a href="https://github.com/thnonl/vietkb/issues/new">github.com/thnonl/vietkb/issues</a>. Mã nguồn mở, bạn có thể tự kiểm chứng ngay tại <a href="https://github.com/thnonl/vietkb">github.com/thnonl/vietkb</a>.</p>
+      <p>Nếu chính sách này thay đổi, ngày cập nhật ở đầu trang sẽ đổi theo.</p>
+    </section>
+
+    <section id="en" lang="en" aria-labelledby="en-title">
+      <h1 id="en-title">Privacy policy</h1>
+      <p class="meta">Last updated: 1 November 2026 · Applies to VietKB 0.2.7 and later.</p>
+      <p class="jump"><a href="#vi" hreflang="vi" lang="vi">Đọc bằng tiếng Việt</a></p>
+
+      <p>VietKB is a Vietnamese keyboard. To type for you it has to see the keys you press, so this page says plainly what it does and does not do with them.</p>
+
+      <h2>What you type</h2>
+      <ul>
+        <li>Your keystrokes are processed in your computer's memory only, just long enough to turn them into Vietnamese text. Then they are gone.</li>
+        <li>VietKB does not save what you type to disk, does not keep a key log, and does not send it anywhere.</li>
+        <li>In clipboard insertion mode (off by default), VietKB briefly puts the text on the clipboard to paste it into the app, then restores what was on the clipboard before. That text is not stored or sent either.</li>
+        <li>To apply per-app rules, VietKB reads the process name of the app in focus. It is used on your computer only and is never sent.</li>
+      </ul>
+
+      <h2>No tracking, no accounts</h2>
+      <ul>
+        <li>No telemetry, no usage statistics, no advertising, no tracking code.</li>
+        <li>No account or sign-in. VietKB never asks for your name, email or any personal information.</li>
+      </ul>
+
+      <h2>What is stored on your device</h2>
+      <p>VietKB keeps only your settings, in a configuration file on your computer: typing method, charset, hotkeys, text shortcuts, the list of apps with their own rules, and interface choices. The file never leaves your device. Uninstalling VietKB or deleting the configuration folder removes it. The "Open config folder" button in Settings opens the folder where it lives.</p>
+      <p>There is a developer diagnostic mode that is switched on only if you set an environment variable yourself. When on, it writes a log file, which can include the keys you press, to the configuration folder on that computer. It is always off by default and the log is never uploaded.</p>
+
+      <h2>Network access</h2>
+      <ul>
+        <li><strong>Microsoft Store version:</strong> VietKB makes no network connections. The Microsoft Store handles updates.</li>
+        <li><strong>Direct download (Windows, macOS):</strong> only while "Check for updates automatically" is on (the default), or when you press the check button in the About window, VietKB sends one request to GitHub (api.github.com) asking for the latest release. GitHub, like any web server, sees your IP address, and the request carries the name and version number of VietKB. Nothing else is sent. You can turn this off in Advanced settings. VietKB downloads the installer from GitHub only when you choose to update.</li>
+        <li>The GitHub and Ko-fi links in the About window open your browser only when you click them. VietKB itself does not connect to those sites.</li>
+      </ul>
+
+      <h2>Sharing</h2>
+      <p>VietKB holds no data about you to share, sell or hand to third parties, and this policy does not change that.</p>
+
+      <h2>Contact</h2>
+      <p>If you have a privacy question, or something here does not match what the app does, open an issue at <a href="https://github.com/thnonl/vietkb/issues/new">github.com/thnonl/vietkb/issues</a>. The source is open, so you can check these claims yourself at <a href="https://github.com/thnonl/vietkb">github.com/thnonl/vietkb</a>.</p>
+      <p>If this policy changes, the date at the top changes with it.</p>
+    </section>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <a class="brand" href="index.html">
+        <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+        <span class="brand-name">VietKB</span>
+      </a>
+      <p class="footer-note">Bộ gõ tiếng Việt cho Windows và macOS. · Vietnamese keyboard for Windows and macOS.</p>
+    </div>
+
+    <div class="footer-links">
+      <a href="index.html">Trang chủ · Home</a>
+      <a href="https://github.com/thnonl/vietkb">Mã nguồn · Source</a>
+      <a href="https://github.com/thnonl/vietkb/issues">Báo lỗi · Issues</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

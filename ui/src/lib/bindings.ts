@@ -103,6 +103,8 @@ export interface AppInfoView {
   arch: string;
   configPath: string;
   hookReady: boolean;
+  /** Microsoft Store (MSIX) build: the page shows no update UI. */
+  store: boolean;
 }
 
 export type Theme = "light" | "dark";

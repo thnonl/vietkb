@@ -18,6 +18,10 @@ custom-protocol = ["tauri/custom-protocol"]
 # Side-by-side test channel: config dir `VietKB Dev`, own `Run` value, own
 # bundle identity (see `tauri.dev.conf.json`). Never enabled for production.
 dev-channel = ["vkb-config/dev-channel", "vkb-windows/dev-channel"]
+# Microsoft Store (MSIX) build (scripts/build-store.ps1): autostart through the
+# manifest's StartupTask, no self-updater and no network code, shell-based
+# restart. Windows only; cannot be combined with `dev-channel`.
+store = ["vkb-windows/store"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

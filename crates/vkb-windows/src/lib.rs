@@ -17,6 +17,12 @@ use vkb_config::HotkeySet;
 use vkb_platform::{BackendCommand, Hotkey, SharedConfig};
 
 mod backend;
+// Store (MSIX) build: StartupTask instead of the `Run` key. Same module name,
+// same two functions, so nothing above this file changes.
+#[cfg(not(feature = "store"))]
+pub mod autostart;
+#[cfg(feature = "store")]
+#[path = "autostart_store.rs"]
 pub mod autostart;
 pub mod clipboard;
 /// Opt-in keystroke trace (`VKB_DEBUG_KEYS=1`) → `<data dir>\keys.log`.
@@ -105,6 +111,12 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
 
 pub fn is_autostart_enabled() -> bool {
     autostart::is_autostart_enabled()
+}
+
+/// Store build only: the package family name Windows reports for this process.
+#[cfg(feature = "store")]
+pub fn package_family_name() -> String {
+    autostart::package_family_name()
 }
 
 /// Foreground process name, lowercased. Used for per-app rules.
