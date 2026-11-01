@@ -201,6 +201,8 @@ pub struct AppInfoView {
     pub arch: String,
     pub config_path: String,
     pub hook_ready: bool,
+    /// Microsoft Store (MSIX) build: no self-updater, no update UI.
+    pub store: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +381,21 @@ fn rules_fingerprint(cfg: &AppConfig) -> u64 {
     hasher.finish()
 }
 
+/// Store: one StartupTask write at a time, in the order they were asked for.
+#[cfg(all(windows, feature = "store"))]
+static STORE_AUTOSTART: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+
+#[cfg(any(target_os = "macos", all(windows, any(feature = "dev-channel", feature = "store"))))]
+fn write_autostart(enabled: bool) {
+    match crate::autostart::set(enabled) {
+        Ok(()) => {
+            AUTOSTART_SYNCED.store(true, Ordering::Relaxed);
+            AUTOSTART_STATE.store(enabled, Ordering::Relaxed);
+        }
+        Err(error) => tracing::warn!(%error, enabled, "autostart update failed"),
+    }
+}
+
 fn sync_autostart(enabled: bool) {
     if AUTOSTART_SYNCED.load(Ordering::Relaxed) && AUTOSTART_STATE.load(Ordering::Relaxed) == enabled
     {
@@ -393,18 +410,24 @@ fn sync_autostart(enabled: bool) {
     // Dev channel: write the `VietKB Dev` value ourselves, HKCU only, quoted
     // exe plus the flag. The plugin would use an unquoted command line and may
     // pick HKLM, so the two channels must not share that writer.
-    #[cfg(any(target_os = "macos", all(windows, feature = "dev-channel")))]
+    // Store build: the manifest's StartupTask (`vkb-windows`), never the `Run`
+    // key, which MSIX virtualizes.
+    #[cfg(any(target_os = "macos", all(windows, any(feature = "dev-channel", feature = "store"))))]
     {
-        match crate::autostart::set(enabled) {
-            Ok(()) => {
-                AUTOSTART_SYNCED.store(true, Ordering::Relaxed);
-                AUTOSTART_STATE.store(enabled, Ordering::Relaxed);
-            }
-            Err(error) => tracing::warn!(%error, enabled, "autostart update failed"),
+        // Store: the StartupTask call blocks (and may show a consent prompt), and
+        // this runs from config writes on command threads, so keep it off them.
+        #[cfg(all(windows, feature = "store"))]
+        {
+            tauri::async_runtime::spawn_blocking(move || {
+                let _serial = STORE_AUTOSTART.lock();
+                write_autostart(enabled);
+            });
         }
+        #[cfg(not(all(windows, feature = "store")))]
+        write_autostart(enabled);
     }
 
-    #[cfg(not(any(target_os = "macos", all(windows, feature = "dev-channel"))))]
+    #[cfg(not(any(target_os = "macos", all(windows, any(feature = "dev-channel", feature = "store")))))]
     {
         use tauri_plugin_autostart::ManagerExt;
 
@@ -465,8 +488,23 @@ pub fn adopt_autostart_registry(fallback: bool) {
 
 /// Registry truth for the main window's switch. Reading it on load is what
 /// makes the toggle show Windows' state instead of echoing the config file.
+#[cfg(not(all(windows, feature = "store")))]
 #[tauri::command]
 pub fn autostart_state() -> bool {
+    autostart_state_blocking()
+}
+
+/// Store: the StartupTask read is a blocking WinRT call, so the command is async
+/// and does it on the blocking pool, never on the main thread.
+#[cfg(all(windows, feature = "store"))]
+#[tauri::command]
+pub async fn autostart_state() -> bool {
+    tauri::async_runtime::spawn_blocking(autostart_state_blocking)
+        .await
+        .unwrap_or_else(|_| config_cell().read().system.start_with_windows)
+}
+
+fn autostart_state_blocking() -> bool {
     autostart_registry_state().unwrap_or_else(|| config_cell().read().system.start_with_windows)
 }
 
@@ -474,8 +512,25 @@ pub fn autostart_state() -> bool {
 /// `VietKB Dev`), read it back and persist what the registry actually holds.
 /// Returns that value so the switch lands on the truth even when the write
 /// fails.
+#[cfg(not(all(windows, feature = "store")))]
 #[tauri::command]
 pub fn set_autostart(enabled: bool) -> Result<bool, String> {
+    set_autostart_blocking(enabled)
+}
+
+/// Store: async for the same reason as `autostart_state`.
+#[cfg(all(windows, feature = "store"))]
+#[tauri::command]
+pub async fn set_autostart(enabled: bool) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _serial = STORE_AUTOSTART.lock();
+        set_autostart_blocking(enabled)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn set_autostart_blocking(enabled: bool) -> Result<bool, String> {
     #[cfg(any(windows, target_os = "macos"))]
     crate::autostart::set(enabled)?;
 
@@ -1327,6 +1382,10 @@ pub fn open_privacy_pane(app: tauri::AppHandle, pane: String) -> Result<(), Stri
 pub fn open_config_folder() -> Result<(), String> {
     let dir = vkb_config::paths::config_dir();
     std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    // Store build: Explorer runs outside the package container and cannot see
+    // the virtualized `%APPDATA%`; open where the files really are.
+    #[cfg(all(windows, feature = "store"))]
+    let dir = store_config_dir(&dir);
 
     #[cfg(windows)]
     {
@@ -1354,8 +1413,59 @@ pub fn open_config_folder() -> Result<(), String> {
     }
 }
 
+/// The on-disk folder behind the virtualized `%APPDATA%\VietKB`, or `dir`
+/// itself when it cannot be derived or does not exist (not really packaged).
+#[cfg(all(windows, feature = "store"))]
+fn store_config_dir(dir: &std::path::Path) -> std::path::PathBuf {
+    let Some(app_dir) = dir.file_name().and_then(|name| name.to_str()) else {
+        return dir.to_path_buf();
+    };
+    let Some(local) = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from) else {
+        return dir.to_path_buf();
+    };
+    let family = vkb_windows::package_family_name()
+        .unwrap_or_else(|| vkb_config::store::PACKAGE_FAMILY_NAME.to_string());
+    let real = vkb_config::store::virtualized_config_dir(&local, &family, app_dir);
+    if real.is_dir() {
+        real
+    } else {
+        tracing::warn!(path = %real.display(), "virtualized config folder not found; opening the logical one");
+        dir.to_path_buf()
+    }
+}
+
+/// Store build: start a new instance through the shell's AppsFolder activation
+/// (so it gets package identity), after this process has exited. A hidden
+/// PowerShell waits on our PID (10 s cap) and then activates the package, so the
+/// single-instance check never hands the launch to an instance still shutting
+/// down, however slow the quit is. `false` when nothing was started.
+#[cfg(all(windows, feature = "store"))]
+fn relaunch_through_shell(family_name: &str) -> bool {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command"])
+        .arg(vkb_config::store::relaunch_script(std::process::id(), family_name))
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .is_ok()
+}
+
 #[tauri::command]
 pub fn restart_app(app: tauri::AppHandle) {
+    // `AppHandle::restart` re-launches `current_exe()` by path and only logs a
+    // spawn failure, so a fallback after it is unreachable. In a package that
+    // path would start the exe without package identity (no virtualized
+    // config, no StartupTask), so a packaged Store build goes through the shell
+    // first. Unpackaged (Windows reports no package) or if the launcher cannot
+    // start, `restart` is the fallback.
+    #[cfg(all(windows, feature = "store"))]
+    if let Some(family) = vkb_windows::package_family_name() {
+        if relaunch_through_shell(&family) {
+            crate::quit(&app);
+            return;
+        }
+    }
     app.restart();
 }
 
@@ -1499,6 +1609,7 @@ pub fn app_info() -> AppInfoView {    AppInfoView {
         arch: std::env::consts::ARCH.to_string(),
         config_path: vkb_config::paths::config_file().display().to_string(),
         hook_ready: hook_ready_now(),
+        store: cfg!(feature = "store"),
     }
 }
 

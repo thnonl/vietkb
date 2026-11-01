@@ -15,6 +15,11 @@ e2e-harness = ["windows/Win32_System_Diagnostics_ToolHelp"]
 # every release build; vkb-app's `dev-channel` forwards to it.
 dev-channel = []
 
+# Microsoft Store (MSIX) build: autostart through the manifest's StartupTask
+# (WinRT) instead of the `Run` key, which MSIX virtualizes. vkb-app's `store`
+# forwards to it.
+store = ["windows/ApplicationModel", "windows/Foundation", "windows/Win32_System_WinRT"]
+
 [[example]]
 name = "zero_focus_e2e"
 required-features = ["e2e-harness"]

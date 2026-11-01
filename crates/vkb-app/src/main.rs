@@ -6,6 +6,12 @@ mod running_apps;
 #[cfg(target_os = "macos")]
 mod macos_shell;
 mod tray;
+// Store (MSIX) build: no self-updater. The stub keeps only the link opener the
+// About window uses; it has no network code at all.
+#[cfg(not(feature = "store"))]
+mod update;
+#[cfg(feature = "store")]
+#[path = "update_store.rs"]
 mod update;
 mod window_bg;
 #[cfg(any(windows, target_os = "macos"))]
@@ -618,6 +624,9 @@ fn release_working_set() {
     }
 }
 
+#[cfg(all(feature = "store", feature = "dev-channel"))]
+compile_error!("the `store` and `dev-channel` features cannot be combined");
+
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -644,26 +653,31 @@ fn main() {
     #[cfg(target_os = "macos")]
     singleton::guard();
 
-    let app = tauri::Builder::default()
-        // Second launch. Windows: same rule as a first one, so `Chạy ẩn` keeps a
-        // re-launch in the tray instead of flashing a window. macOS (S-06): the
-        // user just opened the app from Finder/Spotlight, and a menu-bar app
-        // with nothing on screen looks like it did nothing, so always show it.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+    // Second launch. Windows: same rule as a first one, so `Chạy ẩn` keeps a
+    // re-launch in the tray instead of flashing a window. macOS (S-06): the
+    // user just opened the app from Finder/Spotlight, and a menu-bar app
+    // with nothing on screen looks like it did nothing, so always show it.
+    let builder = tauri::Builder::default().plugin(tauri_plugin_single_instance::init(
+        |app, _args, _cwd| {
             if cfg!(target_os = "macos")
                 || !commands::config_cell().read().system.start_minimized
             {
                 show_settings(app);
             }
-        }))
-        // The `--autostart` argument identifies a Windows launch in the `Run`
-        // value. It no longer decides what appears on screen: `Chạy ẩn` does
-        // that for every launch path alike.
-        .plugin(
-            tauri_plugin_autostart::Builder::new()
-                .arg("--autostart")
-                .build(),
-        )
+        },
+    ));
+    // The `--autostart` argument identifies a Windows launch in the `Run`
+    // value. It no longer decides what appears on screen: `Chạy ẩn` does
+    // that for every launch path alike. Not registered in the Store build:
+    // autostart there is the manifest's StartupTask (`autostart.rs`), and the
+    // plugin would write the virtualized `Run` key.
+    #[cfg(not(feature = "store"))]
+    let builder = builder.plugin(
+        tauri_plugin_autostart::Builder::new()
+            .arg("--autostart")
+            .build(),
+    );
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         // No updater plugin: the GitHub Releases check lives in `update.rs`
@@ -691,6 +705,8 @@ fn main() {
             // Five seconds after launch, off the UI thread, honouring
             // `system.check_updates`. A failure stays silent; the About window
             // shows the reason when the owner opens it.
+            // The Store build never reaches the network: Store updates it.
+            #[cfg(not(feature = "store"))]
             update::schedule_startup_check(handle.clone());
 
             // Hook, config hand-off and both callbacks. Must run after the tray
@@ -826,9 +842,13 @@ fn main() {
             commands::input_monitoring_status,
             commands::request_input_monitoring,
             commands::open_privacy_pane,
+            #[cfg(not(feature = "store"))]
             update::check_update,
+            #[cfg(not(feature = "store"))]
             update::update_status,
+            #[cfg(not(feature = "store"))]
             update::download_update,
+            #[cfg(not(feature = "store"))]
             update::install_update,
             update::open_url,
         ])
