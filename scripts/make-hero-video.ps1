@@ -7,7 +7,7 @@ $frames = Join-Path $root 'design\hero-motion\_frames'
 $assets = Join-Path $root 'design\hero-motion\assets'
 $edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 $fps = 25
-$duration = 16
+$duration = 21
 $n = $fps * $duration
 
 New-Item -ItemType Directory -Force $assets | Out-Null
@@ -31,5 +31,5 @@ for ($i = 0; $i -lt $n; $i++) {
 $mp4 = Join-Path $root 'site\assets\hero-motion.mp4'
 & ffmpeg -y -framerate $fps -i (Join-Path $frames 'f%03d.png') -c:v libx264 -pix_fmt yuv420p `
   -crf 23 -preset slow -movflags +faststart $mp4
-& ffmpeg -y -i (Join-Path $frames 'f140.png') -update 1 -q:v 3 (Join-Path $root 'site\assets\hero-poster.jpg')
+& ffmpeg -y -i (Join-Path $frames 'f165.png') -update 1 -q:v 3 (Join-Path $root 'site\assets\hero-poster.jpg')
 Write-Host "mp4: $mp4"

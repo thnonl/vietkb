@@ -310,18 +310,6 @@ a { color: var(--accent); }
 .type-flash { animation: type-flash .8s ease-out; }
 @keyframes type-flash { from { color: var(--orange); } to { color: var(--ink); } }
 
-.h1-keys {
-  margin: 14px 0 0;
-  font-size: .9rem;
-  color: var(--muted);
-}
-
-.h1-keys code {
-  font-family: var(--mono);
-  color: var(--ink);
-  white-space: pre;
-}
-
 .pitch {
   margin: 18px 0 0;
   max-width: 46ch;
