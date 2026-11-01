@@ -666,7 +666,8 @@ fn typed_script(options: EngineOptions, script: &str) -> String {
 
 #[test]
 fn a_fully_deleted_frozen_word_is_a_fresh_word() {
-    let o = telex_spell(true);
+    // 0.2.7 editing semantics: `pass` shows `pas` there (D10 restores `pass`).
+    let o = EngineOptions { auto_restore_english: false, ..telex_spell(true) };
     assert_eq!(typed_script(o, "pass⌫⌫⌫dduwowcj"), "được");
     assert_eq!(typed_script(o, "test⌫⌫⌫⌫hif"), "hì");
     assert_eq!(typed_script(o, "class⌫⌫⌫⌫⌫dduwowcj"), "được");

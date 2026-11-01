@@ -71,6 +71,10 @@ Tệp `.dmg` ra ở `target/universal-apple-darwin/release/bundle/dmg/`. Bản b
 | `site/` | trang GitHub Pages |
 | `docs/evkey-clone-work/` | charter, spec, hợp đồng, test, báo cáo |
 
+## Giấy phép
+
+VietKB theo giấy phép MIT (`LICENSE`). Dữ liệu từ điển nhúng trong bản 0.2.8 trở đi (tính năng nhận biết tiếng Anh và code) dùng SCOWL, Tatoeba và Common Voice; thông báo bản quyền đầy đủ nằm ở [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), cũng được đóng gói cùng ứng dụng.
+
 ## Ủng hộ
 
 Nếu thấy hữu ích: **https://ko-fi.com/N4X728S6TT**

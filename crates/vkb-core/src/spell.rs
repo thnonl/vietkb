@@ -20,7 +20,7 @@
 //! Known gap (see `70-impl-notes-engine.md`): no dictionary, so no `hỏi`/`ngã`
 //! word-sense check, which EVKey has.
 
-use crate::letters::{Letter, Mark};
+use crate::letters::{Letter, Mark, Tone};
 
 /// Vietnamese onsets, longest first.
 const ONSETS: &[&str] = &[
@@ -132,6 +132,29 @@ pub fn is_feasible_prefix(letters: &[Letter], allow_jfwz: bool) -> bool {
         }
     }
     crate::lexicon::rime_prefix_ok(word.as_bytes())
+}
+
+/// `true` when the composed word could be a real Vietnamese syllable, rare or
+/// not: well-formed, a real rime, a Vietnamese onset (not `f j w z`), and a stop
+/// coda (`c ch p t`) carrying sắc or nặng. Used by the D10 code rules to leave
+/// words like `ngỗng`, `gỏi`, `Phương` alone while `fô` (`foo`) and `ùt`
+/// (`utf`) count as code.
+pub fn is_plausible_syllable(letters: &[Letter], tone: Tone, allow_jfwz: bool) -> bool {
+    if letters.is_empty()
+        || !is_valid_syllable(letters, allow_jfwz)
+        || !is_feasible_prefix(letters, allow_jfwz)
+        || !letters.iter().any(|letter| letter.is_vowel())
+    {
+        return false;
+    }
+    if matches!(letters[0].base(), 'f' | 'j' | 'w' | 'z') {
+        return false;
+    }
+    let base = |i: usize| letters[i].base();
+    let n = letters.len();
+    let stop = (n >= 2 && base(n - 1) == 'h' && base(n - 2) == 'c')
+        || (n >= 2 && matches!(base(n - 1), 'c' | 'p' | 't') && letters[n - 2].is_vowel());
+    !stop || matches!(tone, Tone::Acute | Tone::Dot)
 }
 
 /// `true` when `letters` is a legal onset (C1) — the "only onset letters typed"

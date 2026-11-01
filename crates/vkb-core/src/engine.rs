@@ -61,10 +61,24 @@ enum PrevKind {
     Vietnamese,
     /// A word we know nothing about (names, numbers, rare syllables).
     Other,
+    /// Right after a comma, semicolon or colon.
+    Clause,
 }
 
 impl PrevWord {
     const NONE: PrevWord = PrevWord { kind: PrevKind::None, count: 0, hash: 0 };
+}
+
+/// The last automatic correction, kept until the next key so the restore hotkey
+/// can take it back (and put it again): the text now on screen and its other
+/// reading, both with the break key that ended the word, if any.
+struct Correction {
+    shown: TextBuf,
+    alternate: TextBuf,
+    /// Made mid-word (no break key yet): toggling also moves the engine state.
+    mid_word: bool,
+    /// `shown` is the typed keys (`alternate` is the Vietnamese word).
+    showing_raw: bool,
 }
 
 /// A word followed by `.`, `-` or `:` that may turn out to be code (`foo.bar`,
@@ -119,6 +133,12 @@ pub struct Engine {
     prev_word: PrevWord,
     /// D10 code shapes waiting for the next key.
     pending_code: Option<PendingCode>,
+    /// D10 undo: the last automatic correction.
+    correction: Option<Correction>,
+    /// The user took the correction of the word being typed back: leave it alone.
+    auto_suppressed: bool,
+    /// The word started right after `/`, `~` or `\\`: a path.
+    after_path_sep: bool,
 }
 
 impl Engine {
@@ -140,7 +160,38 @@ impl Engine {
             macro_only: false,
             prev_word: PrevWord::NONE,
             pending_code: None,
+            correction: None,
+            auto_suppressed: false,
+            after_path_sep: false,
         }
+    }
+
+    /// Capacities of every growable buffer the engine owns, and whether any of
+    /// them has spilled to the heap. For the leak soak test (`tests/tech_mixed_leak.rs`):
+    /// after any amount of typing the numbers must equal what they were after
+    /// the first pass.
+    #[doc(hidden)]
+    pub fn buffer_footprint(&self) -> ([usize; 8], bool) {
+        let reopen = self.reopen.as_ref();
+        let correction = self.correction.as_ref();
+        let pending = self.pending_code.as_ref();
+        let caps = [
+            self.raw.capacity(),
+            self.text.capacity(),
+            self.composed.letters.capacity(),
+            reopen.map_or(0, |r| r.raw.capacity() + r.text.capacity()),
+            correction.map_or(0, |c| c.shown.capacity() + c.alternate.capacity()),
+            pending.map_or(0, |p| p.raw.capacity() + p.chain.capacity()),
+            self.macros.len(),
+            std::mem::size_of::<Self>(),
+        ];
+        let spilled = self.raw.spilled()
+            || self.text.spilled()
+            || self.composed.letters.spilled()
+            || reopen.is_some_and(|r| r.raw.spilled() || r.text.spilled())
+            || correction.is_some_and(|c| c.shown.spilled() || c.alternate.spilled())
+            || pending.is_some_and(|p| p.raw.spilled() || p.chain.spilled());
+        (caps, spilled)
     }
 
     pub fn options(&self) -> EngineOptions {
@@ -228,6 +279,9 @@ impl Engine {
     /// `Phục hồi từ gõ sai`: put the raw keystrokes back on screen and keep the
     /// rest of the word literal.
     pub fn restore_word(&mut self) -> EngineAction {
+        if let Some(correction) = self.correction.take() {
+            return self.toggle_correction(correction);
+        }
         if self.raw.is_empty() || self.composed.literal || self.literal_from == 0 {
             return EngineAction::Noop;
         }
@@ -247,7 +301,34 @@ impl Engine {
         action
     }
 
+    /// Take an automatic correction back (or put it again).
+    fn toggle_correction(&mut self, correction: Correction) -> EngineAction {
+        let action = EngineAction::Replace {
+            delete_units: correction.shown.len() as u32,
+            insert: correction.alternate.iter().collect(),
+        };
+        if correction.mid_word {
+            if correction.showing_raw {
+                // Back to the Vietnamese reading; auto-restore stays out of this word.
+                self.literal_from = usize::MAX;
+                self.auto_suppressed = true;
+            } else {
+                self.literal_from = 0;
+            }
+            method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
+            self.text = correction.alternate.clone();
+        }
+        self.correction = Some(Correction {
+            shown: correction.alternate,
+            alternate: correction.shown,
+            mid_word: correction.mid_word,
+            showing_raw: !correction.showing_raw,
+        });
+        action
+    }
+
     fn reset_word(&mut self) {
+        self.auto_suppressed = false;
         self.raw.clear();
         self.composed.clear();
         self.text.clear();
@@ -328,7 +409,13 @@ impl Engine {
             && self.literal_from == usize::MAX
             && self.raw.last().is_some_and(|last| last.is_ascii_lowercase())
         {
-            self.literal_from = 0;
+            if self.inner_capital_splits() {
+                // `VieetjNam`, `iPhone`: the part before is a Vietnamese word of
+                // its own; the capital starts the next one.
+                self.reset_word();
+            } else {
+                self.literal_from = 0;
+            }
         }
         self.raw.push(ch);
         // §A7 step 4: the first key after a deletion that left a stale tone
@@ -342,9 +429,33 @@ impl Engine {
             self.edit_len,
             &mut self.composed,
         );
+        let mut mid_word_restore = false;
+        if self.escaped_english() {
+            // `pass`, `error`: the doubled tone key was swallowed as an undo and
+            // the keys are an English word: put them back now.
+            mid_word_restore = true;
+            self.literal_from = 0;
+            method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
+        }
         let mut next = TextBuf::new();
         self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut next);
         let action = self.diff(&next, Some(ch));
+        if mid_word_restore {
+            // The Vietnamese reading is what the engine showed before this fix.
+            let mut vietnamese = TextBuf::new();
+            let saved = self.literal_from;
+            self.literal_from = usize::MAX;
+            method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
+            self.render_into(&self.composed.letters, self.composed.tone, self.composed.tone_slot, &mut vietnamese);
+            self.literal_from = saved;
+            method::compose(&self.raw, &self.options, self.literal_from, &mut self.composed);
+            self.correction = Some(Correction {
+                shown: next.clone(),
+                alternate: vietnamese,
+                mid_word: true,
+                showing_raw: true,
+            });
+        }
         self.text = next;
         if committed {
             EngineAction::Replace {
@@ -597,8 +708,13 @@ impl Engine {
         // D10 left context: only a plain space keeps the previous word alive.
         let prev = self.prev_word;
         if ch != ' ' {
-            self.prev_word = PrevWord::NONE;
+            self.prev_word = if matches!(ch, ',' | ';' | ':') {
+                PrevWord { kind: PrevKind::Clause, count: 0, hash: 0 }
+            } else {
+                PrevWord::NONE
+            };
         }
+        let path = std::mem::replace(&mut self.after_path_sep, matches!(ch, '/' | '~' | '\\'));
         // Raw zone (spec §A9 + amendment 2026-10-30): the opener only arms; the
         // next key decides. The decision is taken at the end of this key, on the
         // *final* left text, because the macro and A10 restore branches below
@@ -646,7 +762,7 @@ impl Engine {
             }
         }
 
-        let auto = self.auto_restore(ch, prev);
+        let auto = self.auto_restore(ch, prev, path);
         if auto || (self.options.restore_wrong_word && self.should_restore()) {
             let mut insert = TextBuf::new();
             for &raw_ch in &self.raw {
@@ -654,6 +770,17 @@ impl Engine {
             }
             let raw_units = insert.len();
             push_encoded(ch, self.options.charset, &mut insert);
+            if auto && !ch.is_control() {
+                // Keep the other reading for the restore hotkey.
+                let mut vietnamese: TextBuf = self.text.clone();
+                push_encoded(ch, self.options.charset, &mut vietnamese);
+                self.correction = Some(Correction {
+                    shown: insert.clone(),
+                    alternate: vietnamese,
+                    mid_word: false,
+                    showing_raw: true,
+                });
+            }
             if self.options.auto_restore_english {
                 self.pending_code = self.new_pending(ch, raw_units, false);
                 if ch == ' ' {
@@ -789,6 +916,60 @@ impl Engine {
         }
     }
 
+    /// An inner capital after a part that is a whole Vietnamese word
+    /// (`Việt|Nam`, `i|Phone`) starts a new word; anything else (`getValue`,
+    /// `useEffect`) freezes the word as typed.
+    fn inner_capital_splits(&self) -> bool {
+        if self.composed.literal || self.composed.escaped || self.raw.len() > 8 {
+            return false;
+        }
+        let mut word = [0u8; MAX_WORD];
+        for (slot, &typed) in word.iter_mut().zip(self.raw.iter()) {
+            *slot = typed.to_ascii_lowercase() as u8;
+        }
+        if lexicon::english_word(&word[..self.raw.len()]).is_some() {
+            return false;
+        }
+        let mut key = [0u8; 48];
+        let key_len = self.composed_key(&mut key);
+        self.plausibly_vietnamese(key_len.map(|len| &key[..len]))
+    }
+
+    /// The doubled tone key of an English word was swallowed (`pass` shows
+    /// `pas`) and the keys spell an English word the Telex undo idiom does not
+    /// need (`ass` is left alone, see `scripts/wordlists/escape-allow.txt`).
+    fn escaped_english(&self) -> bool {
+        if !self.options.auto_restore_english
+            || self.auto_suppressed
+            || !self.composed.escaped
+            || self.edit_len != usize::MAX
+            || self.literal_from != usize::MAX
+            || self.raw.len() < 3
+        {
+            return false;
+        }
+        let mut word = [0u8; MAX_WORD];
+        for (slot, &typed) in word.iter_mut().zip(self.raw.iter()) {
+            if !typed.is_ascii_alphabetic() {
+                return false;
+            }
+            *slot = typed.to_ascii_lowercase() as u8;
+        }
+        if lexicon::english_word(&word[..self.raw.len()]).is_none() {
+            return false;
+        }
+        let mut key = [0u8; 48];
+        self.composed_key(&mut key).map_or(true, |len| lexicon::vi_count(&key[..len]) == 0)
+    }
+
+    /// The composed word is a common Vietnamese word or could be a real
+    /// syllable (`ngỗng`, `gỏi`): code rules must leave it alone. Gated on the
+    /// spelling, not only on the corpus count, so rare words keep their marks.
+    fn plausibly_vietnamese(&self, key: Option<&[u8]>) -> bool {
+        key.is_some_and(|key| lexicon::vi_count(key) > 0)
+            || spell::is_plausible_syllable(&self.composed.letters, self.composed.tone, self.options.jfwz_as_consonant)
+    }
+
     /// The composed word on screen is not the typed keys.
     fn raw_differs(&self) -> bool {
         let letters = &self.composed.letters;
@@ -810,8 +991,9 @@ impl Engine {
     /// Code shapes first (`_` and `@` right after a composed word, and a digit
     /// after a word that is not a common Vietnamese syllable), then the English
     /// word list scored against the Vietnamese reading (`lexicon.rs`).
-    fn auto_restore(&self, ch: char, prev: PrevWord) -> bool {
+    fn auto_restore(&self, ch: char, prev: PrevWord, path: bool) -> bool {
         if !self.options.auto_restore_english
+            || self.auto_suppressed
             || self.raw.is_empty()
             || self.composed.literal
             || self.literal_from != usize::MAX
@@ -821,7 +1003,12 @@ impl Engine {
         }
         let mut key = [0u8; 48];
         let key_len = self.composed_key(&mut key);
-        let common_vietnamese = key_len.is_some_and(|len| lexicon::vi_count(&key[..len]) > 0);
+        let common_vietnamese = self.plausibly_vietnamese(key_len.map(|len| &key[..len]));
+        if path {
+            // `cd /usr/bin`: a word right after `/`, `~` or `\\` is a path
+            // unless it is a common Vietnamese word (`bật/tắt`).
+            return !key_len.is_some_and(|len| lexicon::vi_count(&key[..len]) >= 20);
+        }
         if ch.is_ascii_digit() {
             // `utf8`, `h264`: letters then a digit with no space (Telex only: in
             // VNI a digit is a tone key and never reaches a boundary here).
@@ -849,9 +1036,10 @@ impl Engine {
         let left = match prev.kind {
             PrevKind::English => Left::English,
             PrevKind::Vietnamese => Left::Vietnamese { count: prev.count, hash: prev.hash },
+            PrevKind::Clause => Left::Clause,
             PrevKind::None | PrevKind::Other => Left::Start,
         };
-        lexicon::english_beats_vietnamese(&key[..len], english, left, self.options.app_kind == AppKind::Code)
+        lexicon::english_beats_vietnamese(&key[..len], &word[..self.raw.len()], english, left, self.options.app_kind == AppKind::Code)
     }
 
     /// What the word that is ending means for the next word's context.
@@ -889,7 +1077,8 @@ impl Engine {
         }
         let gate_ok = ch != '.' || {
             let mut key = [0u8; 48];
-            self.composed_key(&mut key).map_or(true, |len| lexicon::vi_count(&key[..len]) == 0)
+            let len = self.composed_key(&mut key);
+            !self.plausibly_vietnamese(len.map(|len| &key[..len]))
         };
         let mut chain = SmallVec::new();
         chain.push(ch);
@@ -956,6 +1145,8 @@ impl VietnameseEngine for Engine {
         self.digit_prefix = false;
         self.prev_word = PrevWord::NONE;
         self.pending_code = None;
+        self.correction = None;
+        self.after_path_sep = false;
     }
 
     fn set_options(&mut self, options: EngineOptions) {
@@ -967,6 +1158,7 @@ impl VietnameseEngine for Engine {
         // (or changing anything else) must not freeze the next word (spec §A9 §7).
         self.raw_pending = false;
         self.pending_code = None;
+        self.correction = None;
         if self.options.app_kind != options.app_kind || !options.auto_restore_english {
             // A focus change: the words typed in the other app mean nothing here.
             self.prev_word = PrevWord::NONE;
@@ -1001,6 +1193,11 @@ impl VietnameseEngine for Engine {
         // key is (Backspace, a letter, a navigation key), the memory is spent.
         let reopening = self.reopen.take();
         let pending = self.pending_code.take();
+        // Any typed or editing key ends the chance to take a correction back;
+        // modifier and navigation presses (no character) do not.
+        if key.ch.is_some() || matches!(key.vk, VK_BACK | VK_RETURN | VK_TAB | VK_ESCAPE) {
+            self.correction = None;
+        }
         match key.vk {
             VK_BACK => return self.backspace(reopening),
             VK_RETURN => return self.boundary_key('\r'),
@@ -1060,6 +1257,9 @@ impl VietnameseEngine for Engine {
     }
 
     fn can_restore(&self) -> bool {
+        if self.correction.is_some() {
+            return true;
+        }
         // `D-BS-LIT-01`: only when the restore would change the screen, so a
         // bare `d` lets Ctrl+Shift+Z through to the application.
         if self.raw.is_empty() || self.composed.literal || self.literal_from == 0 {
@@ -1077,6 +1277,8 @@ impl VietnameseEngine for Engine {
         self.reopen = None;
         self.prev_word = PrevWord::NONE;
         self.pending_code = None;
+        self.correction = None;
+        self.after_path_sep = false;
     }
 }
 /// EVKey character class 1: keys that end the word but leave it re-openable

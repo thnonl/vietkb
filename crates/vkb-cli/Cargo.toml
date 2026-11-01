@@ -14,3 +14,6 @@ vkb-core = { path = "../vkb-core" }
 vkb-config = { path = "../vkb-config" }
 clap = { version = "4", features = ["derive"] }
 anyhow.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

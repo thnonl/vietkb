@@ -39,6 +39,8 @@ pub struct EnglishWord {
     pub level: u8,
     /// Vietnamese text borrows it as-is (`teen`, `mix`).
     pub loan: bool,
+    /// A programming word (`cos`, `max`, `return`).
+    pub tech: bool,
 }
 
 /// Binary search over sorted lines. `key_len(line)` is the length of the part
@@ -72,10 +74,10 @@ fn vi_key_len(line: &[u8]) -> usize {
 pub fn english_word(word: &[u8]) -> Option<EnglishWord> {
     let line = find_line(ENGLISH, word, english_key_len)?;
     let tag = *line.last()?;
-    Some(if tag.is_ascii_digit() {
-        EnglishWord { level: tag - b'0', loan: false }
-    } else {
-        EnglishWord { level: tag - b'a' + 1, loan: true }
+    Some(match tag {
+        b'1'..=b'7' => EnglishWord { level: tag - b'0', loan: false, tech: false },
+        b'a'..=b'g' => EnglishWord { level: tag - b'a' + 1, loan: true, tech: false },
+        _ => EnglishWord { level: tag.wrapping_sub(b'A') + 1, loan: false, tech: true },
     })
 }
 
@@ -195,8 +197,10 @@ pub fn rime_prefix_ok(plain: &[u8]) -> bool {
 /// What stands left of the word being decided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Left {
-    /// Start of a line or sentence (or after anything that is not a plain space).
+    /// Start of a line or sentence (after `. ! ?`, Enter, a caret move or a focus change).
     Start,
+    /// After a comma, semicolon or colon: no left word to use, but not a sentence start.
+    Clause,
     /// The previous word was English or code.
     English,
     /// The previous word was this Vietnamese syllable: its corpus count and the
@@ -206,18 +210,49 @@ pub enum Left {
 
 /// log10 of an English word's relative frequency by SCOWL level.
 const ENGLISH_LOG_FREQ: [f32; 7] = [-2.8, -3.4, -4.0, -4.3, -4.6, -4.8, -5.0];
-/// A Vietnamese syllable at least this common is "protected" in a Vietnamese
-/// context unless the English word is a loanword.
+/// A Vietnamese syllable at least this common is "protected": it flips to
+/// English only on positive English evidence (English or code on the left, a
+/// code app at the start of a line, a known English collocation), never because
+/// a word pair is missing from the table.
 const PROTECTED_COUNT: u32 = 100;
+
+const fn colloc(previous: &str, english: &str) -> u32 {
+    let mut hash = fnv_const(FNV_BASIS, previous.as_bytes());
+    hash = fnv_const(hash, b" ");
+    fnv_const(hash, english.as_bytes())
+}
+
+const fn fnv_const(mut hash: u32, bytes: &[u8]) -> u32 {
+    let mut i = 0;
+    while i < bytes.len() {
+        hash = (hash ^ bytes[i] as u32).wrapping_mul(0x0100_0193);
+        i += 1;
+    }
+    hash
+}
+
+/// Vietnamese word + English word pairs that are real Vietnamese usage of an
+/// English word: `previous syllable key + " " + english word`. Small on purpose;
+/// these beat the protection of a common Vietnamese reading (`tên`).
+static COLLOCATIONS: [u32; 6] = [
+    colloc("hay", "mix"),
+    colloc("tuo^i3", "teen"),
+    colloc("nhom1", "teen"),
+    colloc("kie^u3", "teen"),
+    colloc("cach1", "teen"),
+    colloc("thich1", "mix"),
+];
 
 /// `true` when the English word is the better reading of the typed keys.
 ///
 /// One score in decades (log10): the English word's frequency against the
 /// Vietnamese candidate's, plus a left-context term, plus the app. Positive =
-/// English. `vi_key` is the composed Vietnamese syllable's key.
-pub fn english_beats_vietnamese(vi_key: &[u8], word: EnglishWord, left: Left, code_app: bool) -> bool {
+/// English. `vi_key` is the composed Vietnamese syllable's key, `typed` the
+/// lowercase typed keys.
+pub fn english_beats_vietnamese(vi_key: &[u8], typed: &[u8], word: EnglishWord, left: Left, code_app: bool) -> bool {
     let count = vi_count(vi_key);
     let present = count > 0;
+    let protected = count >= PROTECTED_COUNT;
     let unigram = (count as f32).max(0.3) / VI_TOTAL as f32;
     let mut score = ENGLISH_LOG_FREQ[usize::from(word.level.clamp(1, 7)) - 1] - unigram.log10();
     // A rarer English form (plural, rare word) against a real Vietnamese word
@@ -225,12 +260,40 @@ pub fn english_beats_vietnamese(vi_key: &[u8], word: EnglishWord, left: Left, co
     let weak = word.level > 2 && !word.loan && present;
     match left {
         Left::English => {
+            // A common Vietnamese word after an English word stays Vietnamese
+            // (`test có xanh`, `hook sẽ chạy`): mixed text is full of them.
+            if protected {
+                return false;
+            }
+            // A rare English form against a real Vietnamese word (`moo` / `mô`
+            // after `test`) is not worth a flip.
+            if weak {
+                return false;
+            }
             score += 3.0;
             if code_app {
                 score += 3.5;
             }
         }
+        Left::Clause => {
+            if protected {
+                return false;
+            }
+            score -= 1.0;
+            if code_app {
+                score += 1.0;
+            }
+            if weak {
+                score -= 3.0;
+            }
+        }
         Left::Start => {
+            // A common Vietnamese word starting a sentence stays Vietnamese
+            // (`có`, `tên`, `nó`); only a code editor and a programming word
+            // (`cos`, `max`) turn it into code.
+            if protected && !(code_app && word.tech) {
+                return false;
+            }
             score -= 1.0;
             if code_app {
                 score += 3.5;
@@ -240,19 +303,30 @@ pub fn english_beats_vietnamese(vi_key: &[u8], word: EnglishWord, left: Left, co
             }
         }
         Left::Vietnamese { count: prev_count, hash } => {
-            let pair = pair_count(fnv_extend(hash, vi_key));
-            let smoothed = (pair as f32 + 10.0 * unigram) / (prev_count as f32 + 10.0);
-            score -= (smoothed / unigram).log10() + 1.6;
-            if word.loan {
-                score += 1.5;
-            } else if count >= PROTECTED_COUNT {
+            let known = COLLOCATIONS.contains(&fnv_extend(hash, typed));
+            if known {
+                score += 3.5;
+            } else {
+                // A missing pair is neutral. A common Vietnamese word after a
+                // Vietnamese word is Vietnamese (`Mình teen`, `đang lens`).
+                if protected {
+                    return false;
+                }
+                let pair = pair_count(fnv_extend(hash, vi_key));
+                if pair > 0 {
+                    let smoothed = (pair as f32 + 10.0 * unigram) / (prev_count as f32 + 10.0);
+                    score -= (smoothed / unigram).log10().max(0.0);
+                }
                 score -= 2.5;
-            }
-            if code_app {
-                score += 0.8;
-            }
-            if weak {
-                score -= 3.0;
+                if word.loan {
+                    score += 1.5;
+                }
+                if code_app {
+                    score += 0.8;
+                }
+                if weak {
+                    score -= 3.0;
+                }
             }
         }
     }
@@ -265,8 +339,9 @@ mod tests {
 
     #[test]
     fn tables_are_sorted_and_findable() {
-        assert_eq!(english_word(b"user"), Some(EnglishWord { level: 1, loan: false }));
-        assert_eq!(english_word(b"teen"), Some(EnglishWord { level: 3, loan: true }));
+        assert_eq!(english_word(b"user"), Some(EnglishWord { level: 1, loan: false, tech: false }));
+        assert_eq!(english_word(b"teen"), Some(EnglishWord { level: 3, loan: true, tech: false }));
+        assert!(english_word(b"cos").unwrap().tech);
         assert_eq!(english_word(b"zzzz"), None);
         assert!(vi_count(b"co1") > 1000);
         assert_eq!(vi_count(b"zzzz"), 0);

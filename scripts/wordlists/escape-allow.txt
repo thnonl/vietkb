@@ -1,0 +1,15 @@
+# English words with a doubled tone key (ss ff rr xx jj) that SCOWL puts at size 35
+# but that are common enough to restore (`pass` -> not `pas`). Everything at size
+# 20 or less is restored without being listed. Words not listed here and not
+# in size 20 (`lass`) are left to the Telex undo idiom: `lass` types `las`.
+pass
+mass
+kiss
+guess
+dress
+press
+stress
+cross
+mess
+chess
+fuss

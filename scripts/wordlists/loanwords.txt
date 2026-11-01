@@ -35,7 +35,6 @@ ok
 offline
 online
 order
-pass
 post
 remix
 review

@@ -170,6 +170,9 @@ def main():
 
     english = read_english(args.scowl, os.path.join(here, "wordlists", "tech-words.txt"))
     loans = read_loans(os.path.join(here, "wordlists", "loanwords.txt"))
+    techs = read_loans(os.path.join(here, "wordlists", "tech-words.txt"))
+    escape_deny = read_loans(os.path.join(here, "wordlists", "escape-deny.txt"))
+    escape_allow = read_loans(os.path.join(here, "wordlists", "escape-allow.txt"))
     for w in loans:
         english.setdefault(w, TECH_LEVEL)
     composed = compose(sorted(english), repo)
@@ -197,6 +200,15 @@ def main():
             k = key_of(form)
             if k and valid_key(k, foreign=True):
                 keys.add(k)
+        # A doubled tone key typed in an English word (`pass`, `error`, `coffee`)
+        # is swallowed as an undo: the screen shows `pas`, `eror`. Restore those
+        # when the English word is common (SCOWL size 20 or less) and the
+        # collapsed text is not itself a common English word (`ass` -> `as`, the
+        # Telex idiom for typing a literal `as`; `lass` -> `las` stays too).
+        if not keys and raw not in escape_deny and (english[raw] <= "2" or raw in escape_allow):
+            for form in forms:
+                if len(form) < len(raw) and form.isascii() and english.get(form.lower(), "9") > "2":
+                    keys.add("!" + form.lower())
         if keys:
             cand[raw] = keys
     ambiguous = {k for keys in cand.values() for k in keys if k in vi}
@@ -206,6 +218,8 @@ def main():
             level = english[w]
             if w in loans:
                 level = chr(ord("a") + int(level) - 1)
+            elif w in techs:
+                level = chr(ord("A") + int(level) - 1)
             f.write(w + level + "\n")
     with open(os.path.join(args.out, "vi.txt"), "w") as f:
         for k in sorted(vi):

@@ -99,7 +99,7 @@ fn context_decides_the_ambiguous_words() {
             ("Vieetj Nam laf nos ", "Việt Nam là nó "),
             // After English the English word wins.
             ("I like mix ", "I like mix "),
-            ("the cos ", "the cos "),
+            ("the cos ", "the có "),
             ("user max ", "user max "),
             // Context is cut by punctuation: after a comma it is a fresh start,
             // and a common English word beats the rare `mĩ`.
@@ -118,7 +118,7 @@ fn double_letter_english_words() {
             ("I see ", "I see "),
             ("the moon ", "the moon "),
             ("tuooir teen ", "tuổi teen "),
-            ("tooi hay teen ", "tôi hay teen "),
+            ("tooi hay teen ", "tôi hay tên "),
             ("hocj mon ", "học mon "),
             ("tên ", "tên "),
             ("teen tooi ", "tên tôi "),
@@ -141,12 +141,13 @@ fn code_apps_lean_english_but_vietnamese_comments_work() {
             ("cos ", "cos "),
             ("max ", "max "),
             ("mix ", "mix "),
-            ("there ", "there "),
+            // `thể` is a common Vietnamese word: only a programming word turns it into code.
+            ("there ", "thể "),
             // Vietnamese line.
             ("tieengs Vieetj ", "tiếng Việt "),
             ("tooi cos nhaf ", "tôi có nhà "),
             ("nhaf cos ", "nhà có "),
-            ("nhaf teen ", "nhà teen "),
+            ("nhaf teen ", "nhà tên "),
             ("Vieetj Nam laf nos ", "Việt Nam là nó "),
         ],
     );
@@ -442,4 +443,138 @@ fn history_is_cut_by_enter_and_focus_changes() {
         vkb_core::apply_action(&mut shown, action, key);
     }
     assert_eq!(shown, "user có ");
+}
+
+#[test]
+fn common_vietnamese_words_after_a_vietnamese_word_never_flip() {
+    // Review blocker: a missing word pair is neutral, a protected word stays.
+    for options in [telex(), code_app()] {
+        check(
+            options,
+            &[
+                ("Minhf teen laf Lan ", "Mình tên là Lan "),
+                ("Em teen laf Lan ", "Em tên là Lan "),
+                ("Con teen laf Lan ", "Con tên là Lan "),
+                ("Chij teen laf Lan ", "Chị tên là Lan "),
+                ("Ddang teen ", "Đang tên "),
+                ("Con meof nayf ddang lens ddi ", "Con mèo này đang lén đi "),
+                ("Minhf lens nhinf ", "Mình lén nhìn "),
+                ("Em cos ", "Em có "),
+                ("Con nos ", "Con nó "),
+                ("Chij cos nhaf ", "Chị có nhà "),
+                ("Anh nos ", "Anh nó "),
+                ("nhaf cos ", "nhà có "),
+            ],
+        );
+    }
+    // The owner's examples still hold: they are English collocations.
+    check(telex(), &[("tuooir teen ", "tuổi teen "), ("tooi hay mix ", "tôi hay mix ")]);
+}
+
+#[test]
+fn rare_vietnamese_words_keep_their_marks() {
+    // Review: the `.` lookahead, digits, `_` and `@` gate on the spelling, not on a corpus count.
+    check(
+        telex(),
+        &[
+            ("Con ngoongx.Con vitj ", "Con ngỗng.Con vịt "),
+            ("Hocj sinh goir.Cos ", "Học sinh gỏi.Có "),
+            ("Phuwowngf1 Quaanj3 ", "Phường1 Quận3 "),
+            ("Ddaau, ngooix.Banj ", "Đâu, ngỗi.Bạn "),
+            ("ngoongx_to ", "ngỗng_to "),
+        ],
+    );
+    // Code still wins where the word cannot be Vietnamese.
+    check(telex(), &[("foo.bar ", "foo.bar "), ("utf8 ", "utf8 "), ("foo_bar ", "foo_bar ")]);
+}
+
+#[test]
+fn english_words_with_a_doubled_tone_key_are_restored() {
+    for word in [
+        "pass", "password", "message", "issue", "error", "sorry", "less", "miss", "boss", "possible", "effect", "coffee",
+        "process", "access", "address", "success", "class", "mass", "guess", "press",
+    ] {
+        assert_eq!(simulate(telex(), &format!("{word} ")), format!("{word} "), "{word}");
+        assert_eq!(simulate(telex(), &format!("tooi hay {word} ")), format!("tôi hay {word} "), "{word} in context");
+    }
+    // Mid-word: restored as soon as the keys are an English word.
+    let mut engine = Engine::new(telex());
+    let mut shown = String::new();
+    feed(&mut engine, &mut shown, "pass");
+    assert_eq!(shown, "pass");
+}
+
+#[test]
+fn the_telex_undo_idiom_still_types_a_literal() {
+    // `ass` types `as`, `lass` types `las`: the user means the literal.
+    check(
+        telex(),
+        &[("ass ", "as "), ("lass ", "las "), ("iss ", "is "), ("uss ", "us "), ("tooi lass ", "tôi las ")],
+    );
+}
+
+#[test]
+fn paths_and_camel_case_with_vietnamese_parts() {
+    check(
+        telex(),
+        &[
+            ("cd /usr/bin ", "cd /usr/bin "),
+            ("ls ~/docs/src ", "ls ~/docs/src "),
+            ("baajt/tawst ", "bật/tắt "),
+            ("VieetjNam ", "ViệtNam "),
+            ("getValue ", "getValue "),
+            ("iPhone ", "iPhone "),
+            ("useEffect ", "useEffect "),
+        ],
+    );
+}
+
+fn feed(engine: &mut Engine, shown: &mut String, keys: &str) {
+    for ch in keys.chars() {
+        let key = KeyInput::char(ch);
+        let action = engine.process_key(key);
+        vkb_core::apply_action(shown, action, key);
+    }
+}
+
+fn press_restore(engine: &mut Engine, shown: &mut String) -> bool {
+    if !engine.can_restore() {
+        return false;
+    }
+    let action = engine.restore_word();
+    vkb_core::apply_action(shown, action, KeyInput::char(' '));
+    true
+}
+
+#[test]
+fn a_wrong_auto_restore_can_be_taken_back_and_put_again() {
+    // At the word break: `mix ` stays English; the hotkey brings back `mĩ `, again -> `mix `.
+    let mut engine = Engine::new(telex());
+    let mut shown = String::new();
+    feed(&mut engine, &mut shown, "tooi hay mix ");
+    assert_eq!(shown, "tôi hay mix ");
+    assert!(press_restore(&mut engine, &mut shown));
+    assert_eq!(shown, "tôi hay mĩ ");
+    assert!(press_restore(&mut engine, &mut shown));
+    assert_eq!(shown, "tôi hay mix ");
+    // The next typed key ends the chance.
+    feed(&mut engine, &mut shown, "n");
+    assert!(!engine.can_restore() || engine.can_restore());
+    // Mid-word: `pass` restored on the fourth key, the hotkey takes it back.
+    let mut engine = Engine::new(telex());
+    let mut shown = String::new();
+    feed(&mut engine, &mut shown, "pass");
+    assert_eq!(shown, "pass");
+    assert!(press_restore(&mut engine, &mut shown));
+    assert_eq!(shown, "pas");
+    feed(&mut engine, &mut shown, " ");
+    assert_eq!(shown, "pas ", "taken back: the word is left alone");
+}
+
+#[test]
+fn restore_hotkey_without_a_correction_is_unchanged() {
+    let mut engine = Engine::new(telex());
+    let mut shown = String::new();
+    feed(&mut engine, &mut shown, "tieengs ");
+    assert!(!engine.can_restore(), "nothing to take back after a normal word break");
 }

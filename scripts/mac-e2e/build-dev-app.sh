@@ -23,6 +23,8 @@ VER=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' $REPO/crates/vkb-app/tauri.co
 rm -rf "$APPDIR"; mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources"
 cp $BIN "$APPDIR/Contents/MacOS/vietkb"
 cp $REPO/crates/vkb-app/icons/icon.icns "$APPDIR/Contents/Resources/icon.icns"
+# Same resource `bundle.resources` puts in a real bundle (licence notices of the embedded data).
+cp $REPO/THIRD_PARTY_NOTICES.md "$APPDIR/Contents/Resources/THIRD_PARTY_NOTICES.md"
 cat > "$APPDIR/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
