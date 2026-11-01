@@ -145,3 +145,5 @@ Owner example 2 (same day): "Ví dụ như chữ \"tuổi teen\" thì teen đún
 - word frequencies (how common the Vietnamese word is vs the English word), including position: at a sentence start a rare Vietnamese word (`ì`) loses to a common English word (`if`). This replaces "with no usable context, Vietnamese wins".
 - neighbouring words already typed (Vietnamese pair likelihood, English/code before it).
 - the app in front: code editors, IDEs and terminals (VS Code, Cursor, Xcode, JetBrains, Sublime, Vim, Terminal, iTerm, Windows Terminal, PowerShell, cmd, Notepad++ …) lean strongly to English/code; chat/document apps stay neutral.
+
+**D10 amendment 3 (owner, 2026-11-01):** "Nếu có thể chuyển được ngay sang tiếng Anh khi đang gõ ví nhận biết chắc chắn như từ order, why, twitter,... chẳng hạn thì chuyển luôn, không cần phải chờ cách hoặc dấu chấm câu." → when, mid-word, the letters typed so far can no longer be any Vietnamese word and are certainly English (`ord…`, `wh…`, `tw…`), put the raw keys back immediately and stop composing for the rest of that word; do not wait for the space or punctuation. Uncertain words still wait for the word break.
