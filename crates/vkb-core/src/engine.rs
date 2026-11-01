@@ -172,6 +172,10 @@ pub struct Engine {
     after_path_sep: bool,
     /// The current space-delimited token started as a path (`/usr`, `~/`, `C:\\`, `./`).
     path_token: bool,
+    /// Separators seen in the current path token (a lone `/x` is not yet a path).
+    path_segments: u8,
+    /// The path token began at the start of a space-delimited token.
+    path_from_start: bool,
     /// The word is the part after an inner-capital split: capitals never act as keys here.
     split_token: bool,
     /// A close call at the last space, valid until the next word ends.
@@ -204,6 +208,8 @@ impl Engine {
             auto_suppressed: false,
             after_path_sep: false,
             path_token: false,
+            path_segments: 0,
+            path_from_start: false,
             split_token: false,
             back: None,
             scratch: None,
@@ -440,6 +446,17 @@ impl Engine {
             }
         }
         self.last_emitted = Some(ch);
+        // Owner rule: no Vietnamese word starts with f, j or z: such a word is
+        // English or code and is typed exactly as the keys, from the first key on,
+        // in every app. `w` is not in the rule (Telex `w` is ư): it follows the
+        // normal rules, where doubt means Vietnamese.
+        if self.options.auto_restore_english
+            && self.raw.is_empty()
+            && self.literal_from == usize::MAX
+            && matches!(ch.to_ascii_lowercase(), 'f' | 'j' | 'z')
+        {
+            self.literal_from = 0;
+        }
         let committed = if self.raw.len() >= MAX_WORD {
             // Commit the capped word, then start the new word with this key.
             self.reset_word();
@@ -463,15 +480,13 @@ impl Engine {
             if self.split_token {
                 // Already after a split: capitals are letters here, never keys.
                 self.literal_from = 0;
+            } else if self.capital_is_a_key(ch) && self.prefix_could_be_vietnamese() {
+                // `NguyeenX`, `dD`: Shift+X is the tone key, a doubled `D` is `đ`, as in 0.2.7.
             } else if self.inner_capital_splits() {
-                if self.capital_is_a_key(ch) {
-                    // `NguyeenX`: Shift+X is the tone key, as in 0.2.7.
-                } else {
-                    // `VieetjNam`: the part before is a Vietnamese word of its
-                    // own; the capital starts the next one.
-                    self.reset_word();
-                    self.split_token = true;
-                }
+                // `VieetjNam`: the part before is a Vietnamese word of its own;
+                // the capital starts the next one.
+                self.reset_word();
+                self.split_token = true;
             } else {
                 // `getValue`, `iOS`, `macOS`, `eBay`: the word stays as typed.
                 self.literal_from = 0;
@@ -793,14 +808,33 @@ impl Engine {
         let starts_token = self.raw.is_empty()
             && matches!(self.last_emitted, None | Some(' ') | Some('\t') | Some('\r') | Some('\n'));
         match ch {
-            ' ' | '\t' | '\r' | '\n' => self.path_token = false,
+            ' ' | '\t' | '\r' | '\n' => {
+                self.path_token = false;
+                self.path_segments = 0;
+                self.path_from_start = false;
+            }
             '/' | '\\' | '~' => {
                 // `://` of a URL and `C:\\` of a drive also start a path.
                 if self.path_token || starts_token || (ch != '~' && self.last_emitted == Some(':')) {
-                    self.path_token = true;
+                    if !self.path_token {
+                        self.path_from_start = starts_token;
+                        self.path_segments = 0;
+                    }
+                    if ch == '/' && self.last_emitted == Some('/') && self.path_from_start && self.path_segments == 1 {
+                        // `//` at the start of a token is a comment marker, not a path.
+                        self.path_token = false;
+                        self.path_segments = 0;
+                        self.path_from_start = false;
+                    } else {
+                        self.path_token = true;
+                        self.path_segments = self.path_segments.saturating_add(1);
+                    }
                 }
             }
-            '.' if starts_token => self.path_token = true,
+            '.' if starts_token => {
+                self.path_token = true;
+                self.path_from_start = true;
+            }
             _ => {}
         }
         self.after_path_sep = self.path_token && matches!(ch, '/' | '\\' | '~');
@@ -851,7 +885,7 @@ impl Engine {
             }
         }
 
-        let (auto, score) = self.auto_decide(ch, prev, path);
+        let (auto, score) = self.auto_decide(ch, prev, path, self.path_segments);
         if auto || (self.options.restore_wrong_word && self.should_restore()) {
             let mut insert = TextBuf::new();
             for &raw_ch in &self.raw {
@@ -1027,6 +1061,23 @@ impl Engine {
         self.plausibly_vietnamese(key_len.map(|len| &key[..len]))
     }
 
+    /// The word so far is a valid Vietnamese syllable prefix and not an English
+    /// word (`d`, `Nguyên`; not `use`).
+    fn prefix_could_be_vietnamese(&self) -> bool {
+        if self.composed.literal || self.composed.escaped || self.raw.len() > 8 {
+            return false;
+        }
+        let mut word = [0u8; MAX_WORD];
+        for (slot, &typed) in word.iter_mut().zip(self.raw.iter()) {
+            *slot = typed.to_ascii_lowercase() as u8;
+        }
+        if lexicon::english_word(&word[..self.raw.len()]).is_some() {
+            return false;
+        }
+        let jfwz = self.options.jfwz_as_consonant;
+        spell::is_valid_syllable(&self.composed.letters, jfwz) && spell::is_feasible_prefix(&self.composed.letters, jfwz)
+    }
+
     /// The capital would act as a Telex key on the word so far (tone, `w`, or a
     /// doubling of the last letter), so the word is left to compose as in 0.2.7.
     fn capital_is_a_key(&self, ch: char) -> bool {
@@ -1094,7 +1145,8 @@ impl Engine {
             }
             *slot = typed.to_ascii_lowercase() as u8;
         }
-        if lexicon::english_word(&word[..self.raw.len()]).is_none() {
+        // A code identifier (`arr`, `err`) keeps the Telex undo (`arr` = `ar`).
+        if !lexicon::english_word(&word[..self.raw.len()]).is_some_and(|w| !w.ident) {
             return false;
         }
         let mut key = [0u8; 48];
@@ -1170,7 +1222,7 @@ impl Engine {
     /// Code shapes first (`_` and `@` right after a composed word, and a digit
     /// after a word that is not a common Vietnamese syllable), then the English
     /// word list scored against the Vietnamese reading (`lexicon.rs`).
-    fn auto_decide(&self, ch: char, prev: PrevWord, path: bool) -> (bool, Option<f32>) {
+    fn auto_decide(&self, ch: char, prev: PrevWord, path: bool, segments: u8) -> (bool, Option<f32>) {
         if !self.options.auto_restore_english
             || self.auto_suppressed
             || self.raw.is_empty()
@@ -1199,8 +1251,12 @@ impl Engine {
         if path {
             // `cd /usr/bin`: a word right after `/`, `~` or `\` is a path
             // unless it is a common Vietnamese word (`bật/tắt`).
+            // A lone separator before a plausible Vietnamese word is not a path
+            // (`/Ừ`, `~Nguyễn`); two segments (`/usr/bin`) or an impossible word are.
             let common = key_len.is_some_and(|len| lexicon::vi_count(&key[..len]) >= 20);
-            return (!(common && common_vietnamese), None);
+            if !common_vietnamese || segments >= 2 {
+                return (!(common && common_vietnamese), None);
+            }
         }
         if ch.is_ascii_digit() {
             // `utf8`, `h264`: letters then a digit with no space (Telex only: in
@@ -1242,6 +1298,7 @@ impl Engine {
             left,
             self.options.app_kind == AppKind::Code,
             plausible,
+            self.raw.first().is_some_and(char::is_ascii_uppercase),
         );
         // A Vietnamese word kept over an English one that is not among the most
         // common Vietnamese words may still be corrected once (amendment 4).
@@ -1455,6 +1512,8 @@ impl VietnameseEngine for Engine {
         self.back = None;
         self.after_path_sep = false;
         self.path_token = false;
+        self.path_segments = 0;
+        self.path_from_start = false;
     }
 
     fn set_options(&mut self, options: EngineOptions) {
@@ -1600,6 +1659,8 @@ impl VietnameseEngine for Engine {
         self.back = None;
         self.after_path_sep = false;
         self.path_token = false;
+        self.path_segments = 0;
+        self.path_from_start = false;
     }
 }
 /// EVKey character class 1: keys that end the word but leave it re-openable

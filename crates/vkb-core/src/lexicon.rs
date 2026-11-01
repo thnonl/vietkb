@@ -206,6 +206,9 @@ pub enum Left {
 /// code app at the start of a line, a known English collocation), never because
 /// a word pair is missing from the table.
 pub const PROTECTED_COUNT: u32 = 100;
+/// A Vietnamese syllable seen this often has a common reading: an English function
+/// word on the left does not take it away.
+const KNOWN_COUNT: u32 = 4;
 const fn colloc(previous: &str, english: &str) -> u32 {
     let mut hash = fnv_const(FNV_BASIS, previous.as_bytes());
     hash = fnv_const(hash, b" ");
@@ -302,13 +305,22 @@ pub fn is_acronym(token: &[u8]) -> bool {
 ///
 /// `vi_key` is the composed Vietnamese syllable's key, `typed` the lowercase
 /// typed keys, `plausible` whether the composed text could be Vietnamese.
-pub fn english_wins(vi_key: &[u8], typed: &[u8], word: EnglishWord, left: Left, code_app: bool, plausible: bool) -> bool {
+pub fn english_wins(
+    vi_key: &[u8],
+    typed: &[u8],
+    word: EnglishWord,
+    left: Left,
+    code_app: bool,
+    plausible: bool,
+    capital: bool,
+) -> bool {
     let count = vi_count(vi_key);
     let protected = count >= PROTECTED_COUNT;
     // A rarer English form (plural, rare word) against a real Vietnamese word.
     let weak = word.level > 2 && !word.loan && !word.name && count > 0;
-    if word.ident && code_app && matches!(left, Left::English | Left::Code | Left::Function) {
-        return true;
+    // Short identifiers (`res`, `os`, `arr`) only in a code editor after code.
+    if word.ident {
+        return code_app && matches!(left, Left::English | Left::Code | Left::Function);
     }
     if let Left::Vietnamese { hash, .. } = left {
         let phrase = fnv_extend(hash, typed);
@@ -325,13 +337,15 @@ pub fn english_wins(vi_key: &[u8], typed: &[u8], word: EnglishWord, left: Left, 
     match left {
         // `the car`, `my tips`, `with cups`: an English noun, even a plural or a
         // word that collides with a common Vietnamese one.
-        Left::Function => !(protected && (word.level > 2 || word.loan)),
+        // Not when the word has a common Vietnamese reading (`you má`, `check in có`).
+        Left::Function => count < KNOWN_COUNT,
         // `I like mix`: an English word on the left and a word Vietnamese text
         // borrows, a programming word or a function word (`format is now`). Everything else stays Vietnamese
         // (`test có xanh`, `hook sẽ chạy`, `code mô phỏng`).
         Left::English => (word.loan || word.tech || is_function_word(typed)) && !protected && !weak,
         // `x = max`, `foo(cos`: a code context.
-        Left::Code => !protected || (code_app && word.tech),
+        // A capital after an operator is a sentence (`x = Có`), not code.
+        Left::Code => !protected || (code_app && word.tech && !capital),
         // A keyword whose Vietnamese twin is rare (`ì`).
         Left::Start => typed == b"if",
         Left::Clause | Left::Vietnamese { .. } => false,

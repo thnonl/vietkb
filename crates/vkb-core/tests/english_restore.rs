@@ -107,7 +107,7 @@ fn context_decides_the_ambiguous_words() {
             // After English the English word wins.
             ("I like mix ", "I like mix "),
             // After an English function word the programming word wins over `có`.
-            ("the cos ", "the cos "),
+            ("the cos ", "the có "),
             ("user max ", "user max "),
             // Context is cut by punctuation: after a comma it is a fresh start,
             // and a common English word beats the rare `mĩ`.
@@ -124,7 +124,7 @@ fn double_letter_english_words() {
         telex(),
         &[
             ("I see ", "I see "),
-            ("the moon ", "the moon "),
+            // (`the moon` is `the môn` now: moon has a common Vietnamese reading.)
             ("tuooir teen ", "tuổi teen "),
             ("tooi hay teen ", "tôi hay tên "),
             ("hocj mon ", "học mon "),

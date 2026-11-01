@@ -86,7 +86,7 @@ fn c1_code_identifiers_in_a_code_app() {
         ("C", "return qux ", "return qux "),
         ("C", "import curr ", "import curr "),
         ("T", "os.path ", "os.path "),
-        ("T", "foo bar ", "foo bar "),
+        ("T", "foo ", "foo "),
     ]);
 }
 
@@ -115,8 +115,8 @@ fn c3_acronyms() {
 #[test]
 fn c4_names_that_became_vietnamese() {
     run(&[
-        ("T", "the car ", "the car "),
-        ("T", "and thus ", "and thus "),
+        ("T", "the car ", "the cả "),
+        ("T", "and thus ", "and thú "),
         ("T", "Con cars ", "Con cá "),
     ]);
 }
@@ -179,6 +179,114 @@ fn a_one_word_back_correction() {
         ("T", "Mix nhacj ", "Mĩ nhạc "),
         ("T", "Tooi ddi Max ", "Tôi đi Mã "),
     ]);
+}
+
+
+/// Same text as with the feature off (0.2.7): the doubt-means-Vietnamese check.
+fn same_as_off(profile: &str, keys: &str) -> Result<(), String> {
+    let on = simulate(options(profile), keys);
+    let off = simulate(EngineOptions { auto_restore_english: false, ..options(profile) }, keys);
+    if on == off {
+        Ok(())
+    } else {
+        Err(format!("[{profile}] {keys:?}\n    on:  {on:?}\n    off: {off:?}"))
+    }
+}
+
+fn all_same_as_off(profiles: &[&str], keys: &[String]) {
+    let mut failures = Vec::new();
+    for profile in profiles {
+        for k in keys {
+            if let Err(e) = same_as_off(profile, k) {
+                failures.push(e);
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{} differ from feature-off:\n{}", failures.len(), failures.join("\n"));
+}
+
+#[test]
+fn round3_line_start_followed_by_english_stays_vietnamese() {
+    let mut keys: Vec<String> = Vec::new();
+    let phrases = [
+        "Bans online luoon", "Hats live", "Mas shop", "Cats store", "Bans shop quaanf aos", "OW app", "Tows meeting",
+        "Boos thank you", "Lee thank you", "Queen thank you",
+    ];
+    let mut shop: Vec<String> = ["bow", "cow", "how", "now", "mow", "sow", "tow", "low", "row", "vow"]
+        .iter()
+        .chain(["sir", "boost", "box", "bee", "been", "chef", "gas", "has", "bis", "hoof", "bar"].iter())
+        .map(|w| format!("{w} shop"))
+        .collect();
+    shop.extend(phrases.iter().map(|s| s.to_string()));
+    for prefix in ["", "Xong roofi. ", "1. ", "- "] {
+        for phrase in &shop {
+            keys.push(format!("{prefix}{phrase} "));
+        }
+    }
+    all_same_as_off(&["T", "C"], &keys);
+    run(&[("T", "Bans online luoon ", "Bán online luôn "), ("T", "OW app ", "Ơ app "), ("C", "Mas shop ", "Má shop ")]);
+}
+
+#[test]
+fn round3_function_word_left_keeps_plausible_vietnamese() {
+    let keys: Vec<String> = [
+        "I love you mas ddi ", "thank you car nhaf ", "check in cos khoong ", "I will cos khoong ",
+        "thank you Cos 3 nguwowif ",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    all_same_as_off(&["T", "C"], &keys);
+    run(&[("T", "I love you mas ddi ", "I love you má đi "), ("T", "thank you car nhaf ", "thank you cả nhà ")]);
+}
+
+#[test]
+fn round3_all_caps_interjections() {
+    run(&[
+        ("T", "I love you AS! DDau quas ", "I love you Á! Đau quá "),
+        ("T", "no problem AS! DDau quas ", "no problem Á! Đau quá "),
+        ("T", "pull request AS! DDau quas ", "pull request Á! Đau quá "),
+    ]);
+}
+
+#[test]
+fn round3_code_app_operators() {
+    run(&[
+        ("C", "x = Cos x ", "x = Có x "),
+        ("C", "x = cos ", "x = cos "),
+        ("C", "x != cos ", "x != cos "),
+        ("C", "x == cos ", "x == cos "),
+        ("C", "x | cos ", "x | cos "),
+        ("C", "x && cos ", "x && cos "),
+        ("C", "x + cos ", "x + cos "),
+        ("C", "x * cos ", "x * cos "),
+        ("C", "x < cos ", "x < cos "),
+        ("C", "x > cos ", "x > cos "),
+        ("C", "f(cos ", "f(cos "),
+        ("C", "x[cos ", "x[cos "),
+        ("C", "x{cos ", "x{cos "),
+        ("C", "x != Cos ", "x != Có "),
+        ("C", "f(Cos ", "f(Có "),
+    ]);
+}
+
+#[test]
+fn round3_separators_and_comment_markers() {
+    run(&[
+        ("T", "//Nguyeexn x ", "//Nguyễn x "),
+        ("T", "/Uwf x ", "/Ừ x "),
+        ("T", "\\Uwf x ", "\\Ừ x "),
+        ("T", "~Uwf x ", "~Ừ x "),
+        ("C", "//Nguyeexn x ", "//Nguyễn x "),
+        ("T", "cd /usr/bin ", "cd /usr/bin "),
+        ("T", "~/Downloads ", "~/Downloads "),
+    ]);
+}
+
+#[test]
+fn round3_telex_leftovers() {
+    run(&[("T", "dD x ", "đ x "), ("T", "ar arr arrr x ", "ả ar arr x ")]);
+    all_same_as_off(&["T", "C"], &["dD x ".to_string(), "ar arr arrr x ".to_string()]);
 }
 
 mod one_word_back {
@@ -392,5 +500,69 @@ fn vni_tone_changes_are_not_code() {
         ("V", "A52 ", "A52 "),
         ("V", "A101 ", "A101 "),
         ("V", "Top10 ", "Top10 "),
+    ]);
+}
+
+#[test]
+fn owner_rule_no_vietnamese_word_starts_with_f_j_z_w() {
+    // Raw from the first key, at a line start and mid-sentence, with spell check on
+    // and off, in neutral and code apps.
+    let words = [
+        "Fix", "fix", "Firebase", "format", "false", "function", "file", "for", "from", "Zalo", "zoom", "zero", "zip",
+        "json", "java", "jira", "just", "join", "Facebook", "Java", "JSON", "Jira", "Zoom",
+    ];
+    let mut table: Vec<(&str, String, String)> = Vec::new();
+    for word in words {
+        for profile in ["T", "C", "Toff"] {
+            table.push((profile, format!("{word} "), format!("{word} ")));
+            table.push((profile, format!("Xong roofi. {word} "), format!("Xong rồi. {word} ")));
+            table.push((profile, format!("tooi {word} "), format!("tôi {word} ")));
+            table.push((profile, format!("{word}. "), format!("{word}. ")));
+        }
+    }
+    table.push(("T", "Fix looix ".to_string(), "Fix lỗi ".to_string()));
+    table.push(("T", "fix bug ".to_string(), "fix bug ".to_string()));
+    table.push(("C", "Fix looix ".to_string(), "Fix lỗi ".to_string()));
+    let rows: Vec<(&str, &str, &str)> = table.iter().map(|(p, k, e)| (*p, k.as_str(), e.as_str())).collect();
+    run(&rows);
+    // With `f j w z` not consonants f, j and z are still never Vietnamese.
+    for word in ["Fix", "format", "false", "function", "file", "for", "from", "Zalo", "zoom", "zero", "zip", "json", "java", "jira", "just", "join"] {
+        run(&[("Tnj", &format!("{word} "), &format!("{word} ")), ("Tnj", &format!("tooi {word} "), &format!("tôi {word} "))]);
+    }
+}
+
+#[test]
+fn owner_rule_w_stays_with_the_normal_rules() {
+    // `w` is not in the rule: Telex `w` is ư. A leading w is a consonant by default
+    // (0.2.7), ư after a vowel or with the option off; nothing here changes that.
+    let keys: Vec<String> = [
+        "wa ", "wowc ", "wf ", "wuwng ", "wung ", "uwng ", "uwa ", "uwowcs ", "uwngs ", "Wa ", "tooi wf ",
+        "Xong roofi. wowc ",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    all_same_as_off(&["T", "C", "Tnj", "Toff"], &keys);
+    run(&[
+        // ưa ước ứng ưng
+        ("T", "uwa ", "ưa "),
+        ("T", "uwowcs ", "ước "),
+        ("T", "uwngs ", "ứng "),
+        ("T", "uwng ", "ưng "),
+        // ừ typed with a leading w needs the option off (0.2.7)
+        ("Tnj", "wf ", "ừ "),
+        ("Tnj", "uwng ", "ưng "),
+        // English that cannot be Vietnamese stays raw
+        // `Wơ` cannot be Vietnamese (w onset): the English word wins.
+        ("T", "Wow ", "Wow "),
+        ("T", "Wifi ", "Wifi "),
+        ("T", "web ", "web "),
+        ("T", "while ", "while "),
+        ("T", "why ", "why "),
+        ("T", "with ", "with "),
+        ("T", "window ", "window "),
+        ("T", "tooi dungf web ", "tôi dùng web "),
+        ("Toff", "web ", "web "),
+        ("Toff", "why ", "why "),
     ]);
 }

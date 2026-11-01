@@ -310,6 +310,17 @@ composed text differs from the typed keys is a candidate.
    to raw when the complete typed word is listed and its composed form is not a plausible Vietnamese
    syllable. The structural "infeasible prefix" trigger stays spell-check only.
 
+9. *Round 5.* A word whose first letter is `f`, `j` or `z` is never Vietnamese (owner): it is typed
+   exactly as the keys from the first key on, in every app, with spell check on or off, capitals too
+   (`Fix`, `Zalo`, `JSON`). `w` is not in the rule (Telex `w` is ư): by default a leading `w` is a
+   consonant, as in 0.2.7 (`uwa` → `ưa`, `uwowcs` → `ước`; `wf` → `ừ` with the option off), and an English
+   word that cannot be Vietnamese (`why`, `web`, `while`, `window`, `Wifi`) goes raw through the normal
+   rules. A function word on the left (`you`, `in`, `will`) lets an English word win only if the
+   Vietnamese reading is rare (seen < 4 times); `you má`, `check in có`, `thank you cả` stay Vietnamese.
+   A capital after an operator is a sentence (`x = Có`). A path needs two separators (`/usr/bin`) or a word
+   that cannot be Vietnamese; `//Nguyễn`, `/Ừ`, `~Ừ` compose, and a leading `//` is a comment marker.
+   `dD` is `đ` and `ar arr arrr` keeps the Telex undo (code identifiers never use the doubled-key restore).
+
 **VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone keys.
 `tie61ng`, `to6i`, `co1` are unaffected.
 
