@@ -126,3 +126,14 @@ longer a declared loss). The remaining losses are L2–L5 in `20-spec.md` §9.
 "no valid transform, so type what was typed" path, which must never depend on the spell
 checker. `E-RW-005` / `E-RW-007` therefore stay as they are.
 
+
+## D10 — Auto-restore English and code words (owner, 2026-11-01, for 0.2.8)
+
+Owner: "Tôi muốn app thêm feature tự nhận biết tiếng Anh hoặc code để khi cách ra là sẽ chuyển lại thành tiếng Anh hoặc code. Làm ngay ở phiên bản tiếp theo là 0.2.8." Answers to the design questions:
+
+- **Ambiguous words keep Vietnamese.** At a word break, the raw keystrokes are put back only when they spell an English word AND the composed text is not a common Vietnamese word. So `user`→`user`, `there` stays `thể`, `cos` stays `có`, `mix` stays `mĩ` (⌃⇧Z / Ctrl+Shift+Z still restores by hand).
+- **Code is recognised by shape** (`user_id`, `getValue`, `foo.bar`, `item2`, `a->b`) and always keeps the typed keys.
+- **Setting:** new option in Advanced, "Tự nhận biết tiếng Anh và code", default ON for new installs and for upgrades from 0.2.7.
+- Owner: the feature must be showcased on GitHub Pages and in the hero video.
+
+Probe on 0.2.7 (Telex, spell check on): already raw — set test case window google install string class import export; wrong today — user→ủe, use→úe, were→wể, here→hể, there→thể, user_id→ủe_id.
