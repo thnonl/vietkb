@@ -20,7 +20,7 @@
 //! Known gap (see `70-impl-notes-engine.md`): no dictionary, so no `hỏi`/`ngã`
 //! word-sense check, which EVKey has.
 
-use crate::letters::{Letter, Mark};
+use crate::letters::{Letter, Mark, Tone};
 
 /// Vietnamese onsets, longest first.
 const ONSETS: &[&str] = &[
@@ -86,6 +86,89 @@ pub fn is_valid_syllable(letters: &[Letter], allow_jfwz: bool) -> bool {
         }
     }
     parse_nucleus_and_coda(word)
+}
+
+/// `true` when `letters` can still become a real Vietnamese syllable: the
+/// onset is legal and the rest is a prefix of a rime Vietnamese has
+/// (`lexicon::rime_prefix_ok`). Stricter than [`is_valid_syllable`], which only
+/// checks the nucleus and coda shapes (`tưit`, `sừit` pass it, they are English
+/// `twit`, `swift`). Marks and tones are ignored, so a half-typed word
+/// (`uo` on its way to `ươ`) is judged by its plain letters.
+pub fn is_feasible_prefix(letters: &[Letter], allow_jfwz: bool) -> bool {
+    if letters.is_empty() {
+        return true;
+    }
+    let mut buf = [0u8; 32];
+    let mut len = 0usize;
+    for letter in letters {
+        if !letter.ch.is_ascii_alphabetic() || len == buf.len() {
+            return false;
+        }
+        buf[len] = letter.base() as u8;
+        len += 1;
+    }
+    let word = as_str(&buf[..len]);
+    let rest_ok = |onset: &str, rest: &str| {
+        onset_takes_nucleus(onset, rest) && (rest.is_empty() || crate::lexicon::rime_prefix_ok(rest.as_bytes()))
+    };
+    // Still inside the onset.
+    if ONSETS.iter().any(|onset| onset.starts_with(word)) {
+        return true;
+    }
+    for onset in ONSETS {
+        if let Some(rest) = word.strip_prefix(onset) {
+            if rest_ok(onset, rest) {
+                return true;
+            }
+            // `qu` + `yt` is the rime `uyt` (`quýt`, `quỵt`).
+            if *onset == "qu" && !rest.is_empty() && {
+                let mut joined = [0u8; 8];
+                let len = (rest.len() + 1).min(joined.len());
+                joined[0] = b'u';
+                joined[1..len].copy_from_slice(&rest.as_bytes()[..len - 1]);
+                crate::lexicon::rime_prefix_ok(&joined[..len])
+            } {
+                return true;
+            }
+        }
+    }
+    if allow_jfwz {
+        for onset in JFWZ {
+            if let Some(rest) = word.strip_prefix(onset) {
+                if rest.is_empty() || crate::lexicon::rime_prefix_ok(rest.as_bytes()) {
+                    return true;
+                }
+            }
+        }
+    }
+    crate::lexicon::rime_prefix_ok(word.as_bytes())
+}
+
+/// `true` when the composed word could be a real Vietnamese syllable, rare or
+/// not: well-formed, a real rime, a Vietnamese onset (not `f j w z`), and a stop
+/// coda (`c ch p t`) carrying sắc or nặng. Used by the D10 code rules to leave
+/// words like `ngỗng`, `gỏi`, `Phương` alone while `fô` (`foo`) and `ùt`
+/// (`utf`) count as code.
+pub fn is_plausible_syllable(letters: &[Letter], tone: Tone, allow_jfwz: bool) -> bool {
+    if letters.is_empty()
+        || !is_valid_syllable(letters, allow_jfwz)
+        || !is_feasible_prefix(letters, allow_jfwz)
+        || !letters.iter().any(|letter| letter.is_vowel())
+    {
+        return false;
+    }
+    if matches!(letters[0].base(), 'f' | 'j' | 'w' | 'z') {
+        return false;
+    }
+    // `ue…` (`ủe` of `user`) is a rime only after an onset (`huế`, `tuệ`).
+    if letters.len() >= 2 && letters[0].base() == 'u' && letters[1].base() == 'e' {
+        return false;
+    }
+    let base = |i: usize| letters[i].base();
+    let n = letters.len();
+    let stop = (n >= 2 && base(n - 1) == 'h' && base(n - 2) == 'c')
+        || (n >= 2 && matches!(base(n - 1), 'c' | 'p' | 't') && letters[n - 2].is_vowel());
+    !stop || matches!(tone, Tone::Acute | Tone::Dot)
 }
 
 /// `true` when `letters` is a legal onset (C1) — the "only onset letters typed"

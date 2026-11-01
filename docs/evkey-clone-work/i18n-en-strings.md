@@ -256,6 +256,7 @@ Checkbox grid of less common options, in three sections.
 | `adv.autoCapitalize` | Viết hoa đầu câu | Auto-capitalize sentences |
 | `adv.jfwz` | Cho phép f j w z làm phụ âm | Allow f j w z as consonants |
 | `adv.restoreWrong` | Tự động khôi phục từ gõ sai | Restore misspelled words |
+| `adv.autoEnglish` | Tự nhận biết tiếng Anh và code | Recognize English and code |
 | `adv.macroWhenOff` | Vẫn dùng gõ tắt khi đã tắt tiếng Việt | Expand even when Vietnamese is off |
 | `adv.macroCase` | Viết hoa theo từ tắt | Match capitalization |
 | `adv.clipboard` | Gửi chữ qua Clipboard | Send text via the clipboard |
@@ -475,4 +476,4 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS. |
 
-Total: 347 keys.
+Total: 348 keys.

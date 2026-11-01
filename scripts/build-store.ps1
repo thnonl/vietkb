@@ -79,6 +79,8 @@ if (-not (Test-Path $exe)) { throw "built exe not found: $exe" }
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
 Copy-Item $exe $stage
+# Licence notices of the embedded data (same file the NSIS/macOS bundles carry as a resource).
+Copy-Item (Join-Path $root 'THIRD_PARTY_NOTICES.md') $stage
 Copy-Item (Join-Path $packaging 'Assets') (Join-Path $stage 'Assets') -Recurse
 $manifest = $manifestTemplate.Replace('__VERSION__', $version)
 # UTF-8 without BOM, as makeappx expects.

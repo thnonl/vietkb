@@ -217,6 +217,7 @@ group("Advanced window", "Checkbox grid of less common options, in three section
  ("adv.autoCapitalize", "Viết hoa đầu câu", "Auto-capitalize sentences"),
  ("adv.jfwz", "Cho phép f j w z làm phụ âm", "Allow f j w z as consonants"),
  ("adv.restoreWrong", "Tự động khôi phục từ gõ sai", "Restore misspelled words"),
+ ("adv.autoEnglish", "Tự nhận biết tiếng Anh và code", "Recognize English and code"),
  ("adv.macroWhenOff", "Vẫn dùng gõ tắt khi đã tắt tiếng Việt", "Expand even when Vietnamese is off"),
  ("adv.macroCase", "Viết hoa theo từ tắt", "Match capitalization"),
  ("adv.clipboard", "Gửi chữ qua Clipboard", "Send text via the clipboard"),

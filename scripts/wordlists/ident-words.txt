@@ -1,0 +1,33 @@
+# Short identifiers that code is full of (res, os, sys, ...). They stay raw in code
+# context in a code app and before `.` or `(`. Written for VietKB (MIT).
+arr
+args
+argv
+buf
+cfg
+cur
+curr
+ctx
+dst
+err
+foo
+bar
+baz
+qux
+idx
+len
+msg
+nil
+obj
+os
+ptr
+req
+res
+src
+str
+sys
+tar
+tmp
+var
+val
+vec

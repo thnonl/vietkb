@@ -105,6 +105,10 @@ pub struct TypingConfig {
     pub raw_zone: bool,
     /// `Viết hoa theo từ tắt` — macro output follows the trigger's capitalisation.
     pub macro_case_follow: bool,
+    /// `Tự nhận biết tiếng Anh và code` (D10, 0.2.8) — at a word break, English words and
+    /// code-shaped tokens go back to the typed keys. Default **true**, also for a 0.2.7 file
+    /// without the key (`#[serde(default)]` on the struct).
+    pub auto_restore_english: bool,
 }
 
 impl Default for TypingConfig {
@@ -123,6 +127,7 @@ impl Default for TypingConfig {
             auto_horn_uo: true,
             raw_zone: true,
             macro_case_follow: true,
+            auto_restore_english: true,
         }
     }
 }

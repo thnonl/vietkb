@@ -1,0 +1,5 @@
+# English words that are never restored from a swallowed doubled tone key because
+# the Telex undo (`xx` types the literal) is pinned for them or means more to a
+# Vietnamese typist than the English word: `bass` (E-TE-002), `lass`.
+bass
+lass

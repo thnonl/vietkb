@@ -1,0 +1,27 @@
+# Rimes the corpora contain only through names, English words and typos.
+ean
+eee
+ei
+eon
+ie
+ii
+iii
+io
+ing
+oeing
+oing
+ooi
+ooc
+oon
+uam
+uii
+yan
+yanh
+yeng
+ym
+yo
+you
+yu
+aoi
+aya
+ye

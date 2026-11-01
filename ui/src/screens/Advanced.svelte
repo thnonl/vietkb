@@ -78,6 +78,12 @@
       </div>
       <div class="v4ck">
         <Checkbox
+          checked={settings?.typing.autoRestoreEnglish ?? true}
+          label={t("adv.autoEnglish")}
+          onchange={(next) => setTyping({ autoRestoreEnglish: next })} />{t("adv.autoEnglish")}
+      </div>
+      <div class="v4ck">
+        <Checkbox
           checked={settings?.typing.macroWhenDisabled ?? false}
           label={t("adv.macroWhenOff")}
           onchange={(next) => setTyping({ macroWhenDisabled: next })} />{t("adv.macroWhenOff")}

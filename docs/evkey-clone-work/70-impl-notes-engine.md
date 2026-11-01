@@ -210,3 +210,168 @@ the documented behaviour won and the case is pinned by a test:
 - `spell_restore.rs`, `no_alloc.rs`, `paragraphs.rs` (golden paragraphs, per word).
 
 No I/O, no sleeps; the whole suite runs in well under a second.
+
+## §10 D10 — auto-restore English and code (0.2.8)
+
+Setting `typing.auto_restore_english` (`EngineOptions::auto_restore_english`, default **on**, also
+for a 0.2.7 config without the key). Independent of `spell_check` and `restore_wrong_word`.
+`app_kind` (`Neutral` | `Code`) is set by the platform layer on a focus change
+(`appkind::classify_process` on Windows, `classify_bundle` on macOS; one pure table).
+
+**At a word break** (space, Tab, Enter, punctuation, digit) `auto_restore` runs. Only a word whose
+composed text differs from the typed keys is a candidate.
+
+1. *English.* The typed letters (lowercase) must be in `data/english.txt` (about 3,100 words, only
+   those Telex garbles). Then `lexicon::english_wins`, a **conservative** rule (owner scope freeze,
+   round 4): **a plausible Vietnamese syllable wins**, whether it is in `vi.txt` or only well-formed
+   (`spell::is_plausible_syllable`), in every app. The app profile alone never flips anything. It flips
+   only on positive evidence:
+   - the composed text cannot be Vietnamese (`ủe`, `wể`, `pas`, `rẻpot` with spell check off): the list
+     decides (`user`, `were`, `order`, `pass`);
+   - an English function word on the left (`the cups`, `the car`, `I see`, `it is`, `my tips`), or an
+     English word on the left when the word is a loanword, a programming word or a function word and the
+     Vietnamese reading is not a common word (`I like mix`, `format is now`; `test có xanh`, `keep door`
+     stay Vietnamese);
+   - a code context on the left (after `= ( [ { < > + * % & |`), where a common Vietnamese word flips only
+     for a programming word (`x = cos`) in a code app; a code identifier (`res os buf …`) after an
+     English or code word in a code app;
+   - a known collocation (`hay mix`, `tuổi teen`, `nhóm/kiểu/cách teen`, `thích mix`; hashes in
+     `lexicon.rs`); `nước mix` is forced Vietnamese;
+   - the keyword `if` at a line start (`ì`). Nothing else changes at a line start or after a comma.
+   `Left` is stored as numbers (`PrevWord`): the previous word is English when it was restored or froze
+   as raw, a function word when it is one and stays as typed, Vietnamese when its syllable key is in
+   `vi.txt`. Only a plain space keeps the context.
+
+2. *Doubled tone key.* English words typed with `ss ff rr xx jj` (`pass`, `message`, `error`,
+   `coffee`, `possible`) are swallowed by the Telex undo (`pas`, `mesage`). `english.txt` also lists
+   those words (SCOWL size ≤ 20, plus `escape-allow.txt`); the engine restores them **mid-word**, as
+   soon as the typed keys are such a word (not after a Backspace edit), and at the word break.
+   Not restored, so the undo idiom still types a literal: `ass`→`as`, `iss`→`is`, `lass`→`las`
+   (a collapsed form that is a common English word, or on `escape-deny.txt`: `bass` is pinned by
+   E-TE-002).
+
+3. *Code shapes always keep the typed keys.* "Could this be a Vietnamese word" is decided by the
+   **spelling**, not by a corpus count (`spell::is_plausible_syllable`: well-formed, real rime, a
+   Vietnamese onset (not `f j w z`), a stop coda only with sắc or nặng) or a corpus count > 0:
+   - `_`, `@` or `(` right after a composed word: restored unless the word is plausibly Vietnamese and
+     not an English word (`is_empty`, `as_str` restore; `ngỗng_to`, `bật_` stay).
+   - a digit after a word of ≥ 3 keys that is not plausibly Vietnamese (`utf8`, `h264`; `Phường1`,
+     `Quận3` stay). Telex only: in VNI a digit is a tone key.
+   - `.`, `->`, `::` need lookahead (`PendingCode`): the word stays on screen and the next key decides;
+     a letter right after a complete separator confirms code, one correction rewrites word and
+     separator to the typed keys and the new word is literal (`foo.bar`, `std::io`, `a->b`).
+     `.` counts only after a word that is not plausibly Vietnamese (`ngỗng.Con`, `gỏi.Có` stay).
+   - a path: a token that *starts* with `/`, `~`, `./`, `C:\` or contains `://` (not a slash glued to
+     a word: `xanh/đỏ/tím/vàng`, `anh/chị` are lists). Inside it a word that is not a common (seen ≥ 20)
+     plausible Vietnamese word keeps the typed keys (`cd /usr/bin`, `~/Downloads`, `C:\Users`).
+   - an inner capital after a lowercase letter: if the part before is a whole plausible Vietnamese
+     word of ≥ 2 letters that is not an English word, and the capital is not a Telex key, the capital
+     starts a new word (`ViệtNam`); in that new token capitals are never keys. A capital that is a
+     key (`NguyeenX`: Shift+X tone) composes as in 0.2.7. Otherwise the word freezes as typed
+     (`getValue`, `useEffect`, `HttpClient`, and every one-letter prefix: `iOS`, `macOS`, `eBay`,
+     `iCloud`, `iMac`, `eKYC`).
+   - `!` is sentence punctuation (a context cut like `.`); only `!=` is code, because `=` is.
+   - the word after a code separator is literal, even with `raw_zone` off.
+
+4. *Mid-word.* `spell::is_feasible_prefix` judges plain letters: onset + a prefix of one of 103
+   attested rimes. It runs in the spell-check block of `compose_word`: the word goes raw on the first
+   key that cannot be Vietnamese (`ord` of `order`). `feasibility_never_trips_on_a_real_syllable`
+   types all 2,600 corpus syllables in Telex and VNI (tone at the end and after the nucleus) and
+   compares with the feature off. Only with `spell_check` on.
+
+5. *Undo.* An automatic correction (word break or mid-word) is kept until the next typed key. The
+   restore hotkey (`can_restore`/`restore_word`) puts the Vietnamese word back, and again the English.
+   A mid-word correction taken back leaves that word alone (`auto_suppressed`).
+
+6. *One word back (amendment 4).* Owner principle: when in doubt, Vietnamese. So there is no score here,
+   only an explicit small list of phrases (`lexicon::BACK_PAIRS`): `max speed`, `max pro`, `max plus`,
+   `max power`, `six pack`. A line or sentence start keeps `Max`/`Six` as `Mã`/`Sĩ`; if the NEXT word is
+   exactly the second word of one of these pairs (typed as English, raw), its break rewrites the first word to
+   the typed keys. Nothing else is ever rewritten (`Tên file`, `Sáng team`, `Bên server`, `Tốt API`,
+   `Bố API`, `mĩ miều` all stay). One `Replace` over the old word, the space, the next word and the break
+   key, in charset units; the restore hotkey takes it back exactly. The chance ends at Backspace, any
+   non-modifier command or navigation key, Enter, Tab, Escape, a chord, `boundary()` (focus change, app
+   switch, mouse click), a macro, `restore_word` on the first word, `set_options`. Platform note: this is
+   the first `Replace` that deletes more than the current word (word + space + word); backends must not
+   clamp `delete_units` to the word length.
+7. *Review round 3.* `quýt`: the rime check accepts `qu` + `yt` (= `uyt`); the Vietnamese list now holds
+   every syllable seen once (4,000 syllables) minus those with an impossible rime; a rare real word
+   (`tã`) beats `tax` after a Vietnamese word, `ủe`/`wể` (no real syllable) still lose; an English
+   function word on the left (`the`, `my`, `with`) lets a plural or a word that collides with a common
+   Vietnamese one win (`the cups`, `the car`); code identifiers (`res os sys buf cur arr foo qux tar …`,
+   `ident-words.txt`) stay raw in a code app after a code word, bracket, comma or operator and before
+   `.`/`(`; all-caps acronyms (`USA UX SOS IMF NASA OS …`, 2-5 letters, and
+   `usa asap sos`) stay raw; VNI digits: a word in a path/URL, a known acronym (`CO2`), a trailing run of
+   two different digits starting with a tone key (`Win10`, `A101`, `A52`) stays raw. A single vowel with a
+   tone digit (`y1` = ý, `e6` = ê, `o7` = ơ, `u3`, `y3`) always composes (`tie61ng`, `mo65`, `a11` undo unaffected).
+8. *Spell check off.* The list-based restore no longer depends on it: `english.txt` also lists the
+   common English words that Telex garbles when the structural check is off (`order`, `teacher`,
+   `report`; brands `twitter facebook google …`). At the break they are restored; mid-word they switch
+   to raw when the complete typed word is listed and its composed form is not a plausible Vietnamese
+   syllable. The structural "infeasible prefix" trigger stays spell-check only.
+
+9. *Round 5.* A word whose first letter is `f`, `j` or `z` is never Vietnamese (owner): it is typed
+   exactly as the keys from the first key on, in every app, with spell check on or off, capitals too
+   (`Fix`, `Zalo`, `JSON`). `w` is not in the rule (Telex `w` is ư): by default a leading `w` is a
+   consonant, as in 0.2.7 (`uwa` → `ưa`, `uwowcs` → `ước`; `wf` → `ừ` with the option off), and an English
+   word that cannot be Vietnamese (`why`, `web`, `while`, `window`, `Wifi`) goes raw through the normal
+   rules. A function word on the left (`you`, `in`, `will`) lets an English word win only if the
+   Vietnamese reading is rare (seen < 4 times); `you má`, `check in có`, `thank you cả` stay Vietnamese.
+   A capital after an operator is a sentence (`x = Có`). A path needs two separators (`/usr/bin`) or a word
+   that cannot be Vietnamese; `//Nguyễn`, `/Ừ`, `~Ừ` compose, and a leading `//` is a comment marker.
+   `dD` is `đ` and `ar arr arrr` keeps the Telex undo (code identifiers never use the doubled-key restore).
+
+10. *Round 6.* After a determiner that is no Vietnamese text and stayed raw or was restored (`the my your
+   our their those every each some any`, and `this these his her its` only when they themselves were
+   restored; typed alone they compose to `thí thế hí hẻ ít`, which is doubt, so Vietnamese) the next word
+   is English when its keys are a listed word, clear evidence, not doubt: `the car`, `the cars`, `the
+   moon`, `my coffee`, `your phone`, `the bus`, `the teen`. `you`, `in`, `will` are function words, not
+   determiners: `thank you cả nhà`, `check in có không`, `I love you má đi` stay Vietnamese. All-caps
+   acronyms (`USA UX OS`) count only at a line start or after English, code, a function word or a
+   determiner, never after a Vietnamese word; `GIF` and `COO` are not acronyms (`GÌ`, `CÔ`). `max power`
+   is not a one-word-back phrase (`power` is not on the list).
+
+11. *Round 7.* A code operator or bracket on the left (`( [ { < = % > | * + & ** /* -> =>`) is evidence
+   only in a code app, and only for a lowercase programming word (`x = cos`, `f(max`, an identifier); in a
+   neutral app it is none, and a capitalised or plural-shaped Vietnamese syllable (`(Mas`, `**Cams`,
+   `50% Cám ơn`) stays Vietnamese everywhere. VNI: a word that composes to a plausible syllable is not a
+   lone path segment (`/Ma1.` = `/Má.`, `~ho5c?`), a URL or deep path (`/a1/b2`) keeps the typed keys. With
+   spell check off a code identifier keeps the Telex undo too (`ar arr arrr` = `ả ar arr`).
+
+12. *Round 8.* After a determiner the next word is English only if it is a real common English word
+   (level <= 3 and the plural of a level-1 word: `cars`, `cups`; not `sangs`, `seeps`, `thees`, `thee`,
+   `cams`). On the left, one English word is no evidence (`ok`, `shop`, `Inbox`, `Zalo`, `Post`): a function
+   word flips (`is`, `or`, `how`, `now`) only after a run of two or more English words (`the new
+   dashboard is`), and `like mix` / `love mix` are the one explicit pair. A programming word (`max`, `cos`)
+   needs a code app and a code operator. Lowercase acronyms (`sos`, `asap`, `usa`) need the same run. An
+   all-caps word whose last key is a lowercase Telex key (`CAWsT`, `LAWsM`, `CHIsNH`) composes as in 0.2.7.
+
+13. *`is` / `í` (owner: \"í is rare in Vietnamese and mostly ends a sentence\").* Telex `is` / `Is` followed by a
+   space, Tab, comma, `;` or `:` is the English word in any context (`format is now`, `It is`, `Cái này is
+   ok`, `this is, however`); ended by `. ! ? …`, Enter, or a closing quote or bracket it is `í` (`đẹp quá
+   í.`, `thế í!`, `ừ í`, `(í)`). A comma is mid-sentence, so English. Other break keys (`_`, `(`) fall
+   through to the normal rules (`is_empty`). VNI is unaffected (`i1`).
+
+**VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone keys.
+`tie61ng`, `to6i`, `co1` are unaffected.
+
+**Lists.** `english.txt` (26 KB, about 3,100 words), `vi.txt` (34 KB), rime prefixes (112 `u32`). The bigram table (`pairs.bin`) is gone: the conservative rule needs no pair statistics.
+Sources and licences: `THIRD_PARTY_NOTICES.md` at the repo root (bundled with the app) and
+`crates/vkb-core/data/THIRD_PARTY.md`. Regenerate with `scripts/gen_wordlists.py`.
+
+**Cost.** Everything is `static`; lookups are binary searches at the word break only, no allocation
+(`no_alloc.rs`, and `tech_mixed_leak.rs`: the 2,833-word passage ×1,000 through one engine, no
+steady-path allocation, identical output every loop, identical buffer capacities). `vkb bench`
+(release): p99 about 1.5 µs against the 50 µs budget. Soak: `vkb bench --text-file <keystrokes>
+--loops N --report-rss` prints peak and current RSS at start, after loop 1 and at the end (flat
+from 10 to 3,000 loops).
+
+**Long passage fixture.** `crates/vkb-core/tests/data/tech_mixed_vi.src.txt` (the text, expected output),
+`tech_mixed_vi.txt` (Telex keystrokes), `tech_mixed_vi_vni.txt` (VNI), one paragraph per line, generated
+by `scripts/gen_tech_fixture.py`; run by `tests/tech_mixed.rs` in both app profiles and both methods.
+No pinned exceptions: all four profiles match the source text.
+
+**Known false positives / negatives.** Loanwords after a Vietnamese word the corpora never saw
+(`teen` after a rare word) can flip when the Vietnamese reading is rare; English words typed with a doubled tone key that are
+not in the list stay damaged; sentences typed without a space after `.` whose first word is a rare
+non-Vietnamese-looking name.

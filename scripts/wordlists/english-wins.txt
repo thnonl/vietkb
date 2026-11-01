@@ -1,0 +1,4 @@
+# Vietnamese syllable keys to drop from vi.txt even if the corpora saw them
+# often enough, so the English word wins (owner D10 examples). One key per line.
+# Key format: see lexicon.rs. Empty on purpose: user/use/were/here compose to
+# syllables the corpora never reach MIN_COUNT for.

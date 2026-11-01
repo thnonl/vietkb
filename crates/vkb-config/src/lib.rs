@@ -230,6 +230,18 @@ surprise = "kept"
     }
 
     #[test]
+    fn auto_restore_english_is_on_for_new_installs_and_0_2_7_files() {
+        assert!(TypingConfig::default().auto_restore_english);
+        // A 0.2.7 file has a `[typing]` table without the key.
+        let cfg = AppConfig::from_toml("version = 1\n[typing]\nspell_check = true\nraw_zone = false\n").unwrap();
+        assert!(cfg.typing.auto_restore_english);
+        let off = AppConfig::from_toml("version = 1\n[typing]\nauto_restore_english = false\n").unwrap();
+        assert!(!off.typing.auto_restore_english);
+        // The saved file carries the key.
+        assert!(cfg.to_toml().unwrap().contains("auto_restore_english = true"));
+    }
+
+    #[test]
     fn hotkey_can_be_explicitly_cleared() {        let cfg = AppConfig::from_toml("version = 1\n[hotkeys]\ndisable = \"\"\n").unwrap();
         assert!(cfg.hotkeys.disable.is_none(), "empty string must unbind");
 

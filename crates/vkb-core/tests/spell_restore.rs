@@ -51,6 +51,7 @@ fn restore_wrong_word_off_keeps_the_transformation() {
         spell_check: false,
         restore_wrong_word: false,
         jfwz_as_consonant: false,
+        auto_restore_english: false,
         ..EngineOptions::default()
     };
     assert_eq!(simulate(options, "of "), "ò ");
@@ -77,6 +78,7 @@ fn restore_does_not_fire_when_the_word_is_already_raw() {
 fn spell_check_off_keeps_transforming_english_words() {
     let options = EngineOptions {
         spell_check: false,
+        auto_restore_english: false,
         ..EngineOptions::default()
     };
     assert_ne!(simulate(options, "windows"), "windows");
@@ -86,6 +88,7 @@ fn spell_check_off_keeps_transforming_english_words() {
         spell_check: false,
         restore_wrong_word: true,
         jfwz_as_consonant: false,
+        auto_restore_english: false,
         ..EngineOptions::default()
     };
     assert_eq!(simulate(options, "of "), "ò ");

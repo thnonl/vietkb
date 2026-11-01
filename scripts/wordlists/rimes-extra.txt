@@ -1,0 +1,14 @@
+# Real Vietnamese rimes (mark-free, tone-free) the corpora under-count.
+uenh
+uech
+uet
+oao
+oam
+uang
+oeo
+oet
+oen
+uyp
+uyu
+yt
+ych
