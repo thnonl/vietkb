@@ -99,6 +99,7 @@ const demoSettings: SettingsView = {
     macroWhenDisabled: false,
     autoHornUo: true,
     macroCaseFollow: true,
+    autoRestoreEnglish: true,
   },
   hotkeys: {
     enable: "F1",

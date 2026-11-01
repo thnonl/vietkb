@@ -194,6 +194,7 @@ export const vi: Record<string, string> = {
   "adv.autoCapitalize": "Viết hoa đầu câu",
   "adv.jfwz": "Cho phép f j w z làm phụ âm",
   "adv.restoreWrong": "Tự động khôi phục từ gõ sai",
+  "adv.autoEnglish": "Tự nhận biết tiếng Anh và code",
   "adv.macroWhenOff": "Vẫn dùng gõ tắt khi đã tắt tiếng Việt",
   "adv.macroCase": "Viết hoa theo từ tắt",
   "adv.clipboard": "Gửi chữ qua Clipboard",

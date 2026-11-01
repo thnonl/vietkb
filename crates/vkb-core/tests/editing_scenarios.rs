@@ -41,6 +41,8 @@ impl Cfg {
             method: if self.vni { InputMethod::Vni } else { InputMethod::Telex },
             spell_check: self.spell,
             restore_wrong_word: self.restore,
+            // The sweep models 0.2.7 editing; D10 has its own tests (english_restore.rs).
+            auto_restore_english: false,
             ..EngineOptions::default()
         }
     }

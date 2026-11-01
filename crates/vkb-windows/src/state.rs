@@ -1024,6 +1024,9 @@ impl HookRuntime {
             self.resolved = Some(effective);
             self.apply_engine_options();
             self.reset_engine();
+        } else {
+            // Same settings in a different app: only the D10 app profile can differ.
+            self.apply_engine_options();
         }
     }
 
@@ -1051,6 +1054,9 @@ impl HookRuntime {
             free_tone: typing.as_ref().map_or(true, |t| t.free_tone),
             auto_horn_uo: typing.as_ref().map_or(true, |t| t.auto_horn_uo),
             raw_zone: typing.as_ref().map_or(true, |t| t.raw_zone),
+            auto_restore_english: typing.as_ref().map_or(true, |t| t.auto_restore_english),
+            // Matched here, on a focus change, never per key.
+            app_kind: vkb_core::appkind::classify_process(&self.app_name),
         };
         if options != self.options {
             self.options = options;

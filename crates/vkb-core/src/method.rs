@@ -158,6 +158,8 @@ pub(crate) fn compose_word(
                 };
             let invalid =
                 !crate::spell::is_valid_syllable(&out.letters, options.jfwz_as_consonant)
+                    || (options.auto_restore_english
+                        && !crate::spell::is_feasible_prefix(&out.letters, options.jfwz_as_consonant))
                     || (matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
                         && crate::spell::english_stop_cluster(&raw[..=i], &out.letters));
             if invalid && !keeps_the_marks {

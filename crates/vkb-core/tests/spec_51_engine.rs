@@ -193,6 +193,9 @@ fn spec_options(method: &str, category: &str, id: &str) -> EngineOptions {
         free_tone: true,
         auto_horn_uo: true,
         raw_zone: true,
+        // The spec cases are the 0.2.7 contract: D10 is off here.
+        auto_restore_english: false,
+        app_kind: vkb_core::AppKind::Neutral,
     };
     match category {
         "spell-check" | "english-passthrough" => options.spell_check = true,

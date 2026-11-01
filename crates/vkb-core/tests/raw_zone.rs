@@ -52,6 +52,7 @@ fn ellipsis_and_digit_dot_do_not_arm_the_raw_zone() {
 fn raw_zone_can_be_disabled() {
     let options = EngineOptions {
         raw_zone: false,
+        auto_restore_english: false,
         ..EngineOptions::default()
     };
     assert_eq!(simulate(options, "github.cof"), "github.cò");

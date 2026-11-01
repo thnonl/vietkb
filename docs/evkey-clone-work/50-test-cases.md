@@ -921,3 +921,29 @@ any such row that surfaces later is `N/A — surface cut`. `Nâng cao` keeps its
 | UI-47 | sound — toggle ON | baseline, `system.notification_sound=true`, speakers audible, volume > 0. The Windows scheme may be `.None` ("No Sounds") — irrelevant, both WAVs are embedded (`include_bytes!`) | (1) hotkey `Ctrl+Shift` to enable; (2) main `Bật tiếng Việt` switch off→on; (3) tray `Bật/tắt tiếng Việt` off→on; capture system output for each | every OFF→ON plays the `go_moc` **on** WAV exactly once (22 050 Hz / 16-bit / mono, `assets/sounds/go_moc/on.wav`; the pair is 8 468 B) — the same sample on all three routes, no double play, hook keeps typing, no crash | not run (new 2026-10-30) — WASAPI loopback capture per route, compare duration + waveform to the asset; silence on a `.None` scheme is a FAIL | `qa/evidence/UI-47.txt` |
 | UI-48 | sound — toggle OFF | same as UI-47, enabled | (1) hotkey `Ctrl+Shift` to disable; (2) main switch on→off; (3) tray `Bật/tắt tiếng Việt` on→off; capture each | every ON→OFF plays the `go_moc` **off** WAV once on all three routes, audibly a different sample from the ON cue (ON != OFF); switch, tooltip and config flip as before | not run (new 2026-10-30) — loopback capture, ON vs OFF compared by duration + waveform; identical ON/OFF is FAIL (the D-SND-03 shape) | `qa/evidence/UI-48.txt` |
 | UI-49 | sound — `Injection::Beep` | baseline, enabled; a keystroke path that reaches `Reject` (e.g. OQ-7 word overflow, or any key the engine rejects) | trigger the reject path twice; then toggle twice in the same session | `Reject` plays the **error/off cue** (`play_error()`, `SystemHand` alias), never the toggle pair; the toggle pair is unaffected; no config key or UI exists for this cue (Beep is deliberately asymmetric) | not run (new 2026-10-30) — loopback capture; on a `.None` scheme the alias is silent, accepted: no extra error asset ships | `qa/evidence/UI-49.txt` |
+
+## D10 — `Tự nhận biết tiếng Anh và code` (0.2.8)
+
+Automated in `crates/vkb-core/tests/english_restore.rs` (+ `no_alloc.rs`); Telex, spell check on, option on, neutral app unless noted. A trailing space ends the word.
+
+| id | area | keys | expected |
+|---|---|---|---|
+| D10-01 | English restored | `user ` `use ` `were ` `here ` `has ` `tax ` `see ` `through ` | typed keys (0.2.7: `ủe úe wể hể há tã sê`) |
+| D10-02 | start of sentence, common Vietnamese | `cos ` `nos ` `there ` `teen ` `max ` `sex ` | `có nó thể tên mã sẽ` |
+| D10-03 | start of sentence, rare Vietnamese loses | `if ` `is ` `or ` `of ` `us ` (also code app) | `if is or of us` |
+| D10-04 | owner example 1 | `tooi hay mix nhacj chung vowis tieengs oonf ` | `tôi hay mix nhạc chung với tiếng ồn` |
+| D10-05 | owner example 2 | `tuooir teen ` · `teen tooi laf Nam ` | `tuổi teen` · `tên tôi là Nam` |
+| D10-06 | Vietnamese context keeps Vietnamese | `tooi cos ` `nhaf cos ` `ddawjt teen cho con ` `Vieetj Nam laf nos ` | `tôi có` `nhà có` `đặt tên cho con` `Việt Nam là nó` |
+| D10-07 | English context | `I like mix ` `the cos ` `user max ` | typed keys |
+| D10-08 | context cut | `tooi hay, mix ` · Enter then `cos ` · focus change then `cos ` | `tôi hay, mix` · `có` · `có` |
+| D10-09 | code app | `user cos max mix there ` · `tieengs Vieetj ` · `tooi cos nhaf ` · `nhaf cos ` | English · `tiếng Việt` · `tôi có nhà` · `nhà có` |
+| D10-10 | code shapes | `user_id as_str is_empty getValue HttpClient useEffect iPhone foo.bar foo.bar.baz std::io a->b item2 utf8 user@mail.com ` | exactly as typed |
+| D10-11 | Vietnamese punctuation untouched | `cos. ` `Vieetj. ` `cos, Vieetj? ` `kinh-doanh ` `baajt/tawst ` `tieengs: ` `3.5 ` `cos.Vieetj ` | `có. Việt. có, Việt? kinh-doanh bật/tắt tiếng: 3.5 có.Việt` |
+| D10-12 | VNI | `tie61ng Vie65t ` `to6i ha4y ` `co1 ` `user use here ` `user_id getValue foo.bar item2 utf8 a->b ` | `tiếng Việt` `tôi hãy` `có`; English and code as typed |
+| D10-13 | option off | `user ` `were ` `here ` `mix ` `user_id ` `tooi hay mix ` | `ủe wể hể mĩ ủe_id tôi hay mĩ` (exactly 0.2.7) |
+| D10-14 | spell check off / restore_wrong_word on | `user ` `were ` `cos ` `tooi hay mix ` | `user were có tôi hay mix` |
+| D10-15 | mid-word switch | `order` key by key · `why twitter what where with world swift strong script schema through export query ` (also `jfwz_as_consonant` off) | `o ỏ ord orde order`; every word raw |
+| D10-16 | mid-word never on Vietnamese | `nghi khuy uow truowngf dd Vieetj tieengs muoons nguowif quaanf giuwax tieesng hoafn ` | `nghi khuy ươ trường đ Việt tiếng muốn người quần giữa tiếng hoàn` |
+| D10-17 | feasibility, exhaustive | all 2,600 corpus syllables, Telex + VNI, tone at the end and after the nucleus | identical with the feature on and off |
+| D10-18 | no allocation | word break after `nhaf cos`, `nhaf tieengs`, `nhaf nos` | `Noop`, 0 allocations |
+| D10-19 | settings | Advanced shows `Tự nhận biết tiếng Anh và code` / `Recognize English and code`, next to the restore option; default on; a 0.2.7 `config.toml` without the key loads as on; `Đặt lại tất cả` sets it on | manual (UI) |

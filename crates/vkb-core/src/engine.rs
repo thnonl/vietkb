@@ -19,7 +19,8 @@ use crate::letters::{compose as compose_letter, Letter, Tone};
 use crate::macros::MacroTable;
 use crate::method::{self, Composed};
 use crate::tone as place;
-use crate::{spell, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine, MAX_WORD};
+use crate::lexicon::{self, Left};
+use crate::{spell, AppKind, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine, MAX_WORD};
 
 /// Windows virtual-key codes the engine reacts to even without a character.
 pub const VK_BACK: u16 = 0x08;
@@ -39,6 +40,45 @@ struct CommittedWord {
     composed: Composed,
     text: TextBuf,
     literal_from: usize,
+}
+
+/// The word before the one being decided (D10 left context), kept as numbers:
+/// no text, no allocation.
+#[derive(Clone, Copy)]
+struct PrevWord {
+    kind: PrevKind,
+    /// Corpus count of the Vietnamese syllable (`PrevKind::Vietnamese`).
+    count: u32,
+    /// FNV state after `key + " "`, so the pair hash is one `fnv_extend` away.
+    hash: u32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PrevKind {
+    /// Start of line or sentence, or the context was cut.
+    None,
+    English,
+    Vietnamese,
+    /// A word we know nothing about (names, numbers, rare syllables).
+    Other,
+}
+
+impl PrevWord {
+    const NONE: PrevWord = PrevWord { kind: PrevKind::None, count: 0, hash: 0 };
+}
+
+/// A word followed by `.`, `-` or `:` that may turn out to be code (`foo.bar`,
+/// `a->b`, `std::io`): decided by the next key (a letter confirms).
+#[derive(Clone)]
+struct PendingCode {
+    raw: SmallVec<[char; MAX_WORD]>,
+    /// Charset units the word occupies on screen.
+    units: usize,
+    /// The word on screen is composed and must go back to `raw` on confirm.
+    differs: bool,
+    chain: SmallVec<[char; 2]>,
+    /// `.` only counts after a word that is not a common Vietnamese syllable.
+    gate_ok: bool,
 }
 
 /// Default engine.
@@ -75,6 +115,10 @@ pub struct Engine {
     reopen: Option<CommittedWord>,
     /// Vietnamese is off, but gõ tắt must still expand (`macro_when_disabled`).
     macro_only: bool,
+    /// D10 left context: the word the last plain space ended.
+    prev_word: PrevWord,
+    /// D10 code shapes waiting for the next key.
+    pending_code: Option<PendingCode>,
 }
 
 impl Engine {
@@ -94,6 +138,8 @@ impl Engine {
             digit_prefix: false,
             reopen: None,
             macro_only: false,
+            prev_word: PrevWord::NONE,
+            pending_code: None,
         }
     }
 
@@ -135,6 +181,8 @@ impl Engine {
         // The armed raw zone never survives a mode switch (spec §A9 §7): the
         // next word is composed by the new mode, not frozen by the old opener.
         self.raw_pending = false;
+        self.pending_code = None;
+        self.prev_word = PrevWord::NONE;
     }
 
     fn macro_only_key(&mut self, key: KeyInput) -> EngineAction {
@@ -273,6 +321,15 @@ impl Engine {
             ch
         };
         self.caps_pending = false;
+        // D10 code shape: a capital inside a word (`getValue`, `HttpClient`,
+        // `iPhone`) is not Vietnamese typing; the whole word stops composing.
+        if self.options.auto_restore_english
+            && ch.is_ascii_uppercase()
+            && self.literal_from == usize::MAX
+            && self.raw.last().is_some_and(|last| last.is_ascii_lowercase())
+        {
+            self.literal_from = 0;
+        }
         self.raw.push(ch);
         // §A7 step 4: the first key after a deletion that left a stale tone
         // display re-runs A4 instead of being read as a repeated tone trigger.
@@ -326,6 +383,8 @@ impl Engine {
         self.digit_prefix = false;
         self.tone_stale = false;
         if self.raw.is_empty() {
+            // The text left of the caret changed under us: the context is gone.
+            self.prev_word = PrevWord::NONE;
             if let Some(word) = reopening {
                 // The app deletes the boundary itself; the word comes back so
                 // the next keystroke composes onto it (`Tha` + space + BS + `s`
@@ -535,6 +594,11 @@ impl Engine {
         if self.options.auto_capitalize && matches!(ch, '.' | '!' | '?' | '\r' | '\n') {
             self.caps_pending = true;
         }
+        // D10 left context: only a plain space keeps the previous word alive.
+        let prev = self.prev_word;
+        if ch != ' ' {
+            self.prev_word = PrevWord::NONE;
+        }
         // Raw zone (spec §A9 + amendment 2026-10-30): the opener only arms; the
         // next key decides. The decision is taken at the end of this key, on the
         // *final* left text, because the macro and A10 restore branches below
@@ -573,6 +637,7 @@ impl Engine {
                     false,
                     chain_ready && expansion.is_empty(),
                 );
+                self.prev_word = PrevWord::NONE;
                 self.reset_word();
                 return EngineAction::Replace {
                     delete_units: old_len as u32,
@@ -581,12 +646,20 @@ impl Engine {
             }
         }
 
-        if self.options.restore_wrong_word && self.should_restore() {
+        let auto = self.auto_restore(ch, prev);
+        if auto || (self.options.restore_wrong_word && self.should_restore()) {
             let mut insert = TextBuf::new();
             for &raw_ch in &self.raw {
                 push_encoded(raw_ch, self.options.charset, &mut insert);
             }
+            let raw_units = insert.len();
             push_encoded(ch, self.options.charset, &mut insert);
+            if self.options.auto_restore_english {
+                self.pending_code = self.new_pending(ch, raw_units, false);
+                if ch == ' ' {
+                    self.prev_word = self.summarize_word(true);
+                }
+            }
             // A10 put the raw keystrokes back: that is the final left text, and a
             // restored word is by definition not a valid syllable.
             self.raw_pending = self.arm_raw_zone(
@@ -597,11 +670,23 @@ impl Engine {
                 false,
                 chain_ready && self.raw.is_empty(),
             );
+            // Code shapes keep the word that follows literal even with the raw
+            // zone switched off.
+            if auto && matches!(ch, '_' | '@') {
+                self.raw_pending = true;
+            }
             self.reset_word();
             return EngineAction::Replace {
                 delete_units: old_len as u32,
                 insert: insert.iter().collect(),
             };
+        }
+
+        if self.options.auto_restore_english {
+            self.pending_code = self.new_pending(ch, old_len, self.raw_differs());
+            if ch == ' ' {
+                self.prev_word = self.summarize_word(false);
+            }
         }
 
         // Nothing rewrote the word, so the final left text is `self.text` as it
@@ -704,6 +789,151 @@ impl Engine {
         }
     }
 
+    /// The composed word on screen is not the typed keys.
+    fn raw_differs(&self) -> bool {
+        let letters = &self.composed.letters;
+        self.composed.tone != Tone::None
+            || letters.len() != self.raw.len()
+            || letters
+                .iter()
+                .zip(self.raw.iter())
+                .any(|(letter, &typed)| letter.mark != crate::letters::Mark::None || letter.ch != typed)
+    }
+
+    /// Syllable key of the composed word, for the lexicon lookups.
+    fn composed_key(&self, out: &mut [u8; 48]) -> Option<usize> {
+        lexicon::syllable_key(&self.composed.letters, self.composed.tone, out)
+    }
+
+    /// D10: at a word break, should the typed keys replace the composed word?
+    ///
+    /// Code shapes first (`_` and `@` right after a composed word, and a digit
+    /// after a word that is not a common Vietnamese syllable), then the English
+    /// word list scored against the Vietnamese reading (`lexicon.rs`).
+    fn auto_restore(&self, ch: char, prev: PrevWord) -> bool {
+        if !self.options.auto_restore_english
+            || self.raw.is_empty()
+            || self.composed.literal
+            || self.literal_from != usize::MAX
+            || !self.raw_differs()
+        {
+            return false;
+        }
+        let mut key = [0u8; 48];
+        let key_len = self.composed_key(&mut key);
+        let common_vietnamese = key_len.is_some_and(|len| lexicon::vi_count(&key[..len]) > 0);
+        if ch.is_ascii_digit() {
+            // `utf8`, `h264`: letters then a digit with no space (Telex only: in
+            // VNI a digit is a tone key and never reaches a boundary here).
+            return self.raw.len() >= 3 && !common_vietnamese;
+        }
+        let mut word = [0u8; MAX_WORD];
+        let mut ascii = self.raw.len() >= 2;
+        for (slot, &typed) in word.iter_mut().zip(self.raw.iter()) {
+            ascii &= typed.is_ascii_alphabetic();
+            *slot = typed.to_ascii_lowercase() as u8;
+        }
+        let english = if ascii { lexicon::english_word(&word[..self.raw.len()]) } else { None };
+        if matches!(ch, '_' | '@') {
+            // `_` and `@` never occur in Vietnamese prose: a word that is not a
+            // common Vietnamese syllable, or whose keys spell an English word
+            // (`is_empty`, `as_str`), goes back to the typed keys.
+            return !common_vietnamese || english.is_some();
+        }
+        let Some(english) = english else {
+            return false;
+        };
+        let Some(len) = key_len else {
+            return true;
+        };
+        let left = match prev.kind {
+            PrevKind::English => Left::English,
+            PrevKind::Vietnamese => Left::Vietnamese { count: prev.count, hash: prev.hash },
+            PrevKind::None | PrevKind::Other => Left::Start,
+        };
+        lexicon::english_beats_vietnamese(&key[..len], english, left, self.options.app_kind == AppKind::Code)
+    }
+
+    /// What the word that is ending means for the next word's context.
+    fn summarize_word(&self, restored: bool) -> PrevWord {
+        let mut word = [0u8; MAX_WORD];
+        let ascii = self.raw.len() >= 2
+            && self.raw.iter().zip(word.iter_mut()).all(|(&typed, slot)| {
+                *slot = typed.to_ascii_lowercase() as u8;
+                typed.is_ascii_alphabetic()
+            });
+        let english = restored
+            || (ascii
+                && (self.composed.literal
+                    || self.literal_from != usize::MAX
+                    || lexicon::is_function_word(&word[..self.raw.len()])));
+        if english {
+            return PrevWord { kind: PrevKind::English, count: 0, hash: 0 };
+        }
+        let mut key = [0u8; 48];
+        if let Some(len) = self.composed_key(&mut key) {
+            let count = lexicon::vi_count(&key[..len]);
+            if count > 0 {
+                let hash = lexicon::fnv_extend(lexicon::fnv_extend(lexicon::FNV_BASIS, &key[..len]), b" ");
+                return PrevWord { kind: PrevKind::Vietnamese, count, hash };
+            }
+        }
+        PrevWord { kind: PrevKind::Other, count: 0, hash: 0 }
+    }
+
+    /// `foo.`, `a-`, `std:` — a word followed by a code separator that the next
+    /// key may confirm. `units` is what the word occupies on screen.
+    fn new_pending(&self, ch: char, units: usize, differs: bool) -> Option<PendingCode> {
+        if !matches!(ch, '.' | '-' | ':') || self.raw.is_empty() {
+            return None;
+        }
+        let gate_ok = ch != '.' || {
+            let mut key = [0u8; 48];
+            self.composed_key(&mut key).map_or(true, |len| lexicon::vi_count(&key[..len]) == 0)
+        };
+        let mut chain = SmallVec::new();
+        chain.push(ch);
+        Some(PendingCode { raw: self.raw.clone(), units, differs, chain, gate_ok })
+    }
+
+    /// The key after a pending code separator. `Some` = handled.
+    fn chain_key(&mut self, mut pending: PendingCode, ch: char) -> Option<EngineAction> {
+        if ch.is_ascii_alphabetic() {
+            let complete = matches!(pending.chain.as_slice(), ['.'] | ['-', '>'] | [':', ':']);
+            if !(complete && pending.gate_ok) {
+                return None;
+            }
+            // Code: the word before keeps (or gets back) the typed keys and the
+            // word that starts now is literal.
+            self.caps_pending = false;
+            self.literal_from = 0;
+            let typed = self.word_key(ch);
+            if !pending.differs {
+                return Some(typed);
+            }
+            let mut insert = TextBuf::new();
+            for &raw_ch in &pending.raw {
+                push_encoded(raw_ch, self.options.charset, &mut insert);
+            }
+            for &sep in &pending.chain {
+                push_encoded(sep, self.options.charset, &mut insert);
+            }
+            insert.extend(self.text.iter().copied());
+            return Some(EngineAction::Replace {
+                delete_units: (pending.units + pending.chain.len()) as u32,
+                insert: insert.iter().collect(),
+            });
+        }
+        let extends = matches!((pending.chain.as_slice(), ch), (['-'], '>') | ([':'], ':'));
+        if !extends {
+            return None;
+        }
+        pending.chain.push(ch);
+        let action = self.boundary_key(ch);
+        self.pending_code = Some(pending);
+        Some(action)
+    }
+
     fn should_restore(&self) -> bool {
         if !self.options.spell_check || self.composed.literal || self.literal_from != usize::MAX || self.raw.len() < 2 {
             return false;
@@ -724,6 +954,8 @@ impl VietnameseEngine for Engine {
         self.last_emitted = None;
         self.raw_pending = false;
         self.digit_prefix = false;
+        self.prev_word = PrevWord::NONE;
+        self.pending_code = None;
     }
 
     fn set_options(&mut self, options: EngineOptions) {
@@ -734,6 +966,11 @@ impl VietnameseEngine for Engine {
         // Config change is a boundary for the armed flag: turning `raw_zone` off
         // (or changing anything else) must not freeze the next word (spec §A9 §7).
         self.raw_pending = false;
+        self.pending_code = None;
+        if self.options.app_kind != options.app_kind || !options.auto_restore_english {
+            // A focus change: the words typed in the other app mean nothing here.
+            self.prev_word = PrevWord::NONE;
+        }
         self.options = options;
     }
 
@@ -763,6 +1000,7 @@ impl VietnameseEngine for Engine {
         // The just-committed word is reachable from one key only: whatever this
         // key is (Backspace, a letter, a navigation key), the memory is spent.
         let reopening = self.reopen.take();
+        let pending = self.pending_code.take();
         match key.vk {
             VK_BACK => return self.backspace(reopening),
             VK_RETURN => return self.boundary_key('\r'),
@@ -785,6 +1023,11 @@ impl VietnameseEngine for Engine {
                 return EngineAction::Noop;
             }
         };
+        if let Some(pending) = pending {
+            if let Some(action) = self.chain_key(pending, ch) {
+                return action;
+            }
+        }
         match ch {
             '\u{8}' | '\u{7f}' => self.backspace(reopening),
             '\r' | '\n' => self.boundary_key('\r'),
@@ -832,6 +1075,8 @@ impl VietnameseEngine for Engine {
     fn boundary(&mut self) {
         self.reset_word();
         self.reopen = None;
+        self.prev_word = PrevWord::NONE;
+        self.pending_code = None;
     }
 }
 /// EVKey character class 1: keys that end the word but leave it re-openable

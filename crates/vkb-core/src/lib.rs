@@ -26,14 +26,17 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub mod appkind;
 pub mod charset;
 pub mod engine;
 pub mod letters;
+pub mod lexicon;
 pub mod macros;
 pub mod method;
 pub mod spell;
 pub mod tone;
 
+pub use appkind::AppKind;
 pub use engine::{Engine, VK_BACK, VK_ESCAPE, VK_RETURN, VK_SPACE, VK_TAB};
 pub use macros::MacroTable;
 
@@ -265,6 +268,13 @@ pub struct EngineOptions {
     /// code-shaped text is typed literally. Arms only when the token on the left
     /// of the opener is plain ASCII and — for `. / ?` — not a valid syllable.
     pub raw_zone: bool,
+    /// D10 (0.2.8) `Tự nhận biết tiếng Anh và code`: at a word break, English
+    /// words and code-shaped tokens are put back as the typed keys. Works with
+    /// or without `spell_check` and `restore_wrong_word`.
+    pub auto_restore_english: bool,
+    /// The app in front, from the platform layer (set on focus change, never
+    /// per key). `Code` leans the D10 score toward English and code.
+    pub app_kind: AppKind,
 }
 
 impl Default for EngineOptions {
@@ -282,6 +292,8 @@ impl Default for EngineOptions {
             free_tone: true,
             auto_horn_uo: true,
             raw_zone: true,
+            auto_restore_english: true,
+            app_kind: AppKind::Neutral,
         }
     }
 }

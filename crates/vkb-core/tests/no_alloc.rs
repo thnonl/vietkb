@@ -147,3 +147,26 @@ fn committing_does_allocate_only_on_the_action_string() {
     });
     assert_eq!(lowest, 1, "Replace must allocate the insert string once");
 }
+
+/// D10: the word-break decision (word lookups, bigram score, left context) runs
+/// on the stack. Only the break key is measured; the word keys carry text.
+#[test]
+fn english_decision_at_a_word_break_does_not_allocate() {
+    for keys in ["cos", "tieengs", "nos"] {
+        let mut engine = Engine::new(EngineOptions::default());
+        let mut lowest = usize::MAX;
+        for _ in 0..8 {
+            engine.reset();
+            // A Vietnamese left context, then the word whose decision is measured.
+            for ch in "nhaf ".chars().chain(keys.chars()) {
+                engine.process_key(KeyInput::char(ch));
+            }
+            let before = count();
+            let action = engine.process_key(KeyInput::space());
+            lowest = lowest.min(count() - before);
+            // Vietnamese wins in this context: the word stays, the key passes.
+            assert!(action.is_noop(), "{keys}: {action:?}");
+        }
+        assert_eq!(lowest, 0, "the word-break decision allocated for {keys}");
+    }
+}

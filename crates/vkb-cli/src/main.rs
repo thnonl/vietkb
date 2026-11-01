@@ -8,7 +8,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use vkb_core::{
-    apply_action, simulate, Charset, Engine, EngineOptions, InputMethod, KeyInput,
+    apply_action, simulate, AppKind, Charset, Engine, EngineOptions, InputMethod, KeyInput,
     VietnameseEngine,
 };
 
@@ -42,6 +42,15 @@ enum Command {
         /// Stop treating `j f w z` as consonants, so `w` alone becomes `ư`.
         #[arg(long)]
         no_jfwz_consonant: bool,
+        /// `Tự nhận biết tiếng Anh và code` (D10). On by default; this flag only says so.
+        #[arg(long)]
+        auto_english: bool,
+        /// Turn D10 off: exactly the 0.2.7 behaviour.
+        #[arg(long, conflicts_with = "auto_english")]
+        no_auto_english: bool,
+        /// The app in front: `neutral` or `code` (editor / terminal profile).
+        #[arg(long, default_value = "neutral")]
+        app: String,
         /// Print every EngineAction instead of the produced text.
         #[arg(long)]
         actions: bool,
@@ -58,6 +67,15 @@ enum Command {
         /// Machine-readable output.
         #[arg(long)]
         json: bool,
+        /// Turn `Tự nhận biết tiếng Anh và code` (D10) off, to compare.
+        #[arg(long)]
+        no_auto_english: bool,
+        /// The app in front: `neutral` or `code`.
+        #[arg(long, default_value = "neutral")]
+        app: String,
+        /// What to type: `vi`, `en`, `code` or `mixed`.
+        #[arg(long, default_value = "vi")]
+        text: String,
     },
 }
 
@@ -71,6 +89,9 @@ fn main() -> Result<()> {
             no_spell_check,
             no_free_tone,
             no_jfwz_consonant,
+            auto_english: _,
+            no_auto_english,
+            app,
             actions,
             text,
         } => {
@@ -80,6 +101,8 @@ fn main() -> Result<()> {
                 spell_check: !no_spell_check,
                 free_tone: !no_free_tone,
                 jfwz_as_consonant: !no_jfwz_consonant,
+                auto_restore_english: !no_auto_english,
+                app_kind: parse_app(&app)?,
                 ..options_for(&method)?
             };
             if actions {
@@ -92,7 +115,9 @@ fn main() -> Result<()> {
                 Ok(())
             }
         }
-        Command::Bench { keys, method, json } => bench(keys, &method, json),
+        Command::Bench { keys, method, json, no_auto_english, app, text } => {
+            bench(keys, &method, json, !no_auto_english, &app, &text)
+        }
     }
 }
 
@@ -103,6 +128,14 @@ fn parse_method(input: &str) -> Result<InputMethod> {
             slugs(InputMethod::ALL.iter().map(|m| m.as_str()))
         )
     })
+}
+
+fn parse_app(input: &str) -> Result<AppKind> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "neutral" => Ok(AppKind::Neutral),
+        "code" => Ok(AppKind::Code),
+        other => anyhow::bail!("unknown app {other:?}; expected neutral or code"),
+    }
 }
 
 fn parse_charset(input: &str) -> Result<Charset> {
@@ -138,13 +171,34 @@ fn print_actions(options: EngineOptions, text: &str) {
     println!("-- raw:  {}", engine.buffer().iter().collect::<String>());
 }
 
-fn bench(keys: usize, method: &str, json: bool) -> Result<()> {
+fn bench(keys: usize, method: &str, json: bool, auto_english: bool, app: &str, text: &str) -> Result<()> {
     if keys == 0 {
         anyhow::bail!("--keys must be greater than zero");
     }
-    let options = options_for(method)?;
-    let corpus = "tieengs Vieetj dduwowngf hoaf thuyeenf quas giaf nguyeenx khoong hoir sasci \
-                  nguowif tuowngr Vieetj hoafng tieengs";
+    let options = EngineOptions {
+        auto_restore_english: auto_english,
+        app_kind: parse_app(app)?,
+        ..options_for(method)?
+    };
+    let corpus = match text {
+        "vi" => {
+            "tieengs Vieetj dduwowngf hoaf thuyeenf quas giaf nguyeenx khoong hoir sasci \
+             nguowif tuowngr Vieetj hoafng tieengs"
+        }
+        "en" => {
+            "user use were here there order why twitter what where with world swift strong \
+             script schema through export query the quick brown fox jumps over"
+        }
+        "code" => {
+            "user_id getValue foo.bar std::io a->b item2 utf8 HttpClient self.fieldd \
+             let mut x = vec.len(); return Ok(x);"
+        }
+        "mixed" => {
+            "tooi hay mix nhacj chung vowis tieengs oonf user_id cos nhaf tuooir teen \
+             if x == nos then return Vieetj Nam laf nos"
+        }
+        other => anyhow::bail!("unknown text {other:?}; expected vi, en, code or mixed"),
+    };
     let chars: Vec<char> = corpus.chars().cycle().take(keys).collect();
 
     let mut engine = Engine::new(options);

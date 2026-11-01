@@ -22,6 +22,7 @@ export interface TypingView {
   macroWhenDisabled: boolean;
   autoHornUo: boolean;
   macroCaseFollow: boolean;
+  autoRestoreEnglish: boolean;
   rawZone?: boolean; // reserved, not implemented
 }
 

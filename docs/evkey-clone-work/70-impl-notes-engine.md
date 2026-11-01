@@ -210,3 +210,84 @@ the documented behaviour won and the case is pinned by a test:
 - `spell_restore.rs`, `no_alloc.rs`, `paragraphs.rs` (golden paragraphs, per word).
 
 No I/O, no sleeps; the whole suite runs in well under a second.
+
+## §10 D10 — auto-restore English and code (0.2.8)
+
+Setting `typing.auto_restore_english` (`EngineOptions::auto_restore_english`, default **on**, also
+for a 0.2.7 config without the key). It is independent of `spell_check` and `restore_wrong_word`
+(works with either off; with `restore_wrong_word` on, the older rule runs after it and never
+fights it). `app_kind` (`Neutral` | `Code`) is the second new option, set by the platform layer on a
+focus change (`vkb_core::appkind::classify_process` on Windows, `classify_bundle` on macOS).
+
+**At a word break** (any key `boundary_key` handles: space, Tab, Enter, punctuation, digit) the
+engine asks `auto_restore`. Only a word whose composed text differs from the typed keys is a
+candidate.
+
+1. *English.* The typed letters (lowercase) must be in `data/english.txt` (about 1,350 words,
+   only those Telex changes; built from SCOWL ≤ 60 + tech words + loanwords). Then one score
+   decides (`lexicon::english_beats_vietnamese`, decades of log10, positive = English):
+
+   `score = log10 f(English by level) − log10 f(Vietnamese candidate) + context + app`
+
+   | term | value |
+   |---|---|
+   | English frequency | level 1..7 → −2.8, −3.4, −4.0, −4.3, −4.6, −4.8, −5.0 |
+   | Vietnamese frequency | corpus count / 323,166; a syllable the corpora did not see (< 4) counts 0.3, so `ủe úe wể hể` always lose |
+   | left = Start (line / sentence start, after a comma, Enter, a caret move) | −1.0 |
+   | left = English or code | +3.0 |
+   | left = Vietnamese word `P` | `−(log10 s/pu + 1.6)` with `s = (c(P,V) + 10·pu)/(c(P) + 10)`; an unseen pair after a frequent `P` is the evidence; loanword (`teen`, `mix`) +1.5, otherwise a Vietnamese word seen ≥ 100 times −2.5 |
+   | code app | +3.5 at Start / after English, +0.8 after Vietnamese |
+   | weak English (level > 2, not a loanword, plural/inflected form) against a real Vietnamese word | −3.0 outside English context |
+
+   `Left` is stored as numbers (`PrevWord { kind, count, hash }`), never text: the previous word
+   is English when it was restored, froze as raw (failed the spell check), or is a function
+   word; Vietnamese when its syllable key is in `vi.txt`. Only a plain space keeps the context.
+   Backspace over the space, Enter, focus change, `boundary()`, `set_options` and macros cut it.
+
+   Outcomes: `if` at the start → `if`; `có tên nó` at the start stay Vietnamese; `hay mix` →
+   `mix`; `tuổi teen` → `teen`; `nhà có`, `tôi có` stay; `I like mix` → `mix`; code app: `cos max
+   mix there user` → English, `tôi có nhà`, `tieengs Vieetj` unchanged.
+
+2. *Code shapes always keep the typed keys.*
+   - `_` or `@` right after a composed word: restored unless the word is a common Vietnamese
+     syllable and not an English word (`is_empty`, `as_str` restore, `bật_` stays).
+   - digit after a composed word of ≥ 3 keys that is not a common syllable (`utf8`, `h264`;
+     Telex only — in VNI a digit is a tone key and never ends a word here).
+   - `.`, `->`, `::` need lookahead, because `có.` / `Việt.` at a sentence end must stay. The word is
+     left on screen and remembered (`PendingCode`); the next key decides: a **letter** right after
+     a complete `.`/`->`/`::` confirms code: one `Replace` rewrites word + separator to the typed
+     keys and the new word is literal (`foo.bar`, `std::io`, `a->b`). Any other key drops it.
+     `.` only counts when the word is not a common Vietnamese syllable (`có.Việt` stays).
+     Nothing is rewritten retroactively once a space has passed.
+   - an inner capital after a lowercase letter (`getValue`, `iPhone`) freezes the word as raw
+     (`literal_from = 0`).
+   - the word after a code separator is literal (`user_id`, even with `raw_zone` off).
+
+3. *Mid-word.* `spell::is_feasible_prefix` (new, stricter than `is_valid_syllable`) judges the
+   plain letters: onset + a **prefix of one of 103 attested rimes** (`consts.rs`, 112 prefix codes,
+   binary search). It runs inside the existing spell-check block of `compose_word`, so the word
+   goes raw on the first key that cannot be Vietnamese (`ord` of `order`, `tưit` → `twit`). Marks
+   and tones are ignored, so every intermediate typing state of a real syllable is judged by its
+   plain letters; `feasibility_never_trips_on_a_real_syllable` types all 2,600 corpus syllables in
+   Telex and VNI (tone at the end and after the nucleus) and compares with the feature off. It
+   runs only with `spell_check` on; with spell check off the word break rule still applies.
+
+**VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone
+keys and never count as code. `user_id`, `getValue`, `foo.bar`, `a->b`, `item2`, `utf8` come out as
+typed because nothing composes them (spell check). `tie61ng`, `to6i` are unaffected.
+
+**Lists.** `data/english.txt` (8 KB), `vi.txt` (22 KB), `pairs.bin` (21 KB), rime prefixes (112 `u32`).
+Sources and licences: `crates/vkb-core/data/THIRD_PARTY.md` (SCOWL permissive, Tatoeba CC BY 2.0 FR
+attribution, Common Voice CC0; counts only). Regenerate with `scripts/gen_wordlists.py`.
+
+**Cost.** Everything is `static` data; lookups are binary searches at the word break only, no
+allocation (`no_alloc.rs`). Per key the feasibility check adds one 112-entry binary search per
+prefix. `vkb bench` (release, 1M keys): see the numbers in the 0.2.8 release notes; p99 stays
+about 1-2 µs against the 50 µs budget.
+
+**Known false positives / negatives.** `teen`-like loanwords flip after an unseen Vietnamese
+word (`làm tên`, `nay tên`); English plural/inflected forms of common Vietnamese words after an
+English word; ambiguous words after Vietnamese words the corpora never saw together can flip
+(measured ≈ 0.8% of ambiguous tokens on held-out Tatoeba, ≈ 0.04% of all tokens); `foo.Bar` with a Vietnamese
+`foo` ∈ common list stays composed; sentences typed without the space after `.`.
+Words whose Telex form is not a valid syllable (`good`, `book`) never needed the list.

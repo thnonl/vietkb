@@ -194,6 +194,7 @@ export const en: Record<string, string> = {
   "adv.autoCapitalize": "Auto-capitalize sentences",
   "adv.jfwz": "Allow f j w z as consonants",
   "adv.restoreWrong": "Restore misspelled words",
+  "adv.autoEnglish": "Recognize English and code",
   "adv.macroWhenOff": "Expand even when Vietnamese is off",
   "adv.macroCase": "Match capitalization",
   "adv.clipboard": "Send text via the clipboard",

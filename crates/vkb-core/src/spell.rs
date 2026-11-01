@@ -88,6 +88,52 @@ pub fn is_valid_syllable(letters: &[Letter], allow_jfwz: bool) -> bool {
     parse_nucleus_and_coda(word)
 }
 
+/// `true` when `letters` can still become a real Vietnamese syllable: the
+/// onset is legal and the rest is a prefix of a rime Vietnamese has
+/// (`lexicon::rime_prefix_ok`). Stricter than [`is_valid_syllable`], which only
+/// checks the nucleus and coda shapes (`tưit`, `sừit` pass it, they are English
+/// `twit`, `swift`). Marks and tones are ignored, so a half-typed word
+/// (`uo` on its way to `ươ`) is judged by its plain letters.
+pub fn is_feasible_prefix(letters: &[Letter], allow_jfwz: bool) -> bool {
+    if letters.is_empty() {
+        return true;
+    }
+    let mut buf = [0u8; 32];
+    let mut len = 0usize;
+    for letter in letters {
+        if !letter.ch.is_ascii_alphabetic() || len == buf.len() {
+            return false;
+        }
+        buf[len] = letter.base() as u8;
+        len += 1;
+    }
+    let word = as_str(&buf[..len]);
+    let rest_ok = |onset: &str, rest: &str| {
+        onset_takes_nucleus(onset, rest) && (rest.is_empty() || crate::lexicon::rime_prefix_ok(rest.as_bytes()))
+    };
+    // Still inside the onset.
+    if ONSETS.iter().any(|onset| onset.starts_with(word)) {
+        return true;
+    }
+    for onset in ONSETS {
+        if let Some(rest) = word.strip_prefix(onset) {
+            if rest_ok(onset, rest) {
+                return true;
+            }
+        }
+    }
+    if allow_jfwz {
+        for onset in JFWZ {
+            if let Some(rest) = word.strip_prefix(onset) {
+                if rest.is_empty() || crate::lexicon::rime_prefix_ok(rest.as_bytes()) {
+                    return true;
+                }
+            }
+        }
+    }
+    crate::lexicon::rime_prefix_ok(word.as_bytes())
+}
+
 /// `true` when `letters` is a legal onset (C1) — the "only onset letters typed"
 /// state the Telex `w` rule needs (`tw` → `tư`, but `btw` keeps its `w`).
 pub fn is_onset(letters: &[Letter]) -> bool {

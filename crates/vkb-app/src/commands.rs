@@ -113,6 +113,7 @@ pub struct TypingView {
     pub auto_horn_uo: bool,
     pub raw_zone: bool,
     pub macro_case_follow: bool,
+    pub auto_restore_english: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -234,6 +235,7 @@ pub fn to_view(cfg: &AppConfig) -> SettingsView {
             auto_horn_uo: cfg.typing.auto_horn_uo,
             raw_zone: cfg.typing.raw_zone,
             macro_case_follow: cfg.typing.macro_case_follow,
+            auto_restore_english: cfg.typing.auto_restore_english,
             },
         hotkeys: HotkeyView {
             enable: cfg.hotkeys.enable.as_ref().map(Hotkey::as_str),
@@ -652,6 +654,7 @@ fn patch_typing(cfg: &mut AppConfig, value: &serde_json::Value) -> Result<(), St
             "autoHornUo" => cfg.typing.auto_horn_uo = flag,
             "rawZone" => cfg.typing.raw_zone = flag,
             "macroCaseFollow" => cfg.typing.macro_case_follow = flag,
+            "autoRestoreEnglish" => cfg.typing.auto_restore_english = flag,
             other => return Err(crate::i18n::tf("err.patch.unknownField", &[("field", &format!("typing.{other}"))])),
         }
     }
