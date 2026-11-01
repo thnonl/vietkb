@@ -7,7 +7,7 @@
 //! - `tech_mixed_vi_vni.txt`      the same as VNI keystrokes
 //!
 //! Each paragraph is typed and ended with Enter. `PINNED` lists the few places
-//! where the ruling is ambiguous and the engine's output is pinned instead.
+//! where the ruling is ambiguous and the engine's output is pinned instead (none now).
 
 use vkb_core::{apply_action, AppKind, Engine, EngineOptions, InputMethod, KeyInput, VietnameseEngine};
 
@@ -15,14 +15,10 @@ pub const SRC: &str = include_str!("data/tech_mixed_vi.src.txt");
 pub const TELEX: &str = include_str!("data/tech_mixed_vi.txt");
 pub const VNI: &str = include_str!("data/tech_mixed_vi_vni.txt");
 
-/// `(paragraph index, text the engine produces instead of the source, why)` for
-/// the spots where the correct output is ambiguous. Keyed by profile label.
-pub const PINNED: &[(&str, usize, &str, &str)] = &[(
-    "telex-code",
-    27,
-    "Phần hỏi đáp rất sôi nổi. Cos bạn hỏi khi nào nên viết lại toàn bộ hệ thống. Anh Hùng nói gần như không bao giờ, trừ khi chi phí duy trì vượt quá chi phí viết mới và cả nhóm hiểu rõ vì sao điều đó xảy ra.",
-    "ambiguous: in a code app a sentence that starts with `Có` is read as the programming word `cos` (D10 amendment 2: code apps lean to code)",
-)];
+/// `(profile, paragraph index, text the engine produces instead of the source, why)`
+/// for spots where the correct output is ambiguous. None at present: every
+/// profile matches the source text.
+pub const PINNED: &[(&str, usize, &str, &str)] = &[];
 
 fn options(method: InputMethod, app: AppKind) -> EngineOptions {
     EngineOptions { method, app_kind: app, ..EngineOptions::default() }

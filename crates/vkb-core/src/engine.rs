@@ -63,6 +63,8 @@ enum PrevKind {
     Other,
     /// Right after a comma, semicolon or colon.
     Clause,
+    /// Right after a code operator or bracket.
+    Code,
 }
 
 impl PrevWord {
@@ -710,6 +712,8 @@ impl Engine {
         if ch != ' ' {
             self.prev_word = if matches!(ch, ',' | ';' | ':') {
                 PrevWord { kind: PrevKind::Clause, count: 0, hash: 0 }
+            } else if matches!(ch, '=' | '(' | '[' | '{' | '<' | '>' | '+' | '*' | '%' | '&' | '|' | '!') {
+                PrevWord { kind: PrevKind::Code, count: 0, hash: 0 }
             } else {
                 PrevWord::NONE
             };
@@ -1021,8 +1025,8 @@ impl Engine {
             *slot = typed.to_ascii_lowercase() as u8;
         }
         let english = if ascii { lexicon::english_word(&word[..self.raw.len()]) } else { None };
-        if matches!(ch, '_' | '@') {
-            // `_` and `@` never occur in Vietnamese prose: a word that is not a
+        if matches!(ch, '_' | '@' | '(') {
+            // `_`, `@` and a `(` glued to a word (`cos(x)`) are code shapes: a word that is not a
             // common Vietnamese syllable, or whose keys spell an English word
             // (`is_empty`, `as_str`), goes back to the typed keys.
             return !common_vietnamese || english.is_some();
@@ -1037,6 +1041,7 @@ impl Engine {
             PrevKind::English => Left::English,
             PrevKind::Vietnamese => Left::Vietnamese { count: prev.count, hash: prev.hash },
             PrevKind::Clause => Left::Clause,
+            PrevKind::Code => Left::Code,
             PrevKind::None | PrevKind::Other => Left::Start,
         };
         lexicon::english_beats_vietnamese(&key[..len], &word[..self.raw.len()], english, left, self.options.app_kind == AppKind::Code)

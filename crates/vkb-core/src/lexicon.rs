@@ -201,6 +201,8 @@ pub enum Left {
     Start,
     /// After a comma, semicolon or colon: no left word to use, but not a sentence start.
     Clause,
+    /// Right after a code operator or bracket (`x = `, `foo(`, `a + `).
+    Code,
     /// The previous word was English or code.
     English,
     /// The previous word was this Vietnamese syllable: its corpus count and the
@@ -275,6 +277,20 @@ pub fn english_beats_vietnamese(vi_key: &[u8], typed: &[u8], word: EnglishWord, 
                 score += 3.5;
             }
         }
+        Left::Code => {
+            // `x = cos`, `foo(max`: a code context. A common Vietnamese word
+            // flips only for a programming word in a code editor.
+            if protected && !(code_app && word.tech) {
+                return false;
+            }
+            score += 3.0;
+            if weak {
+                score -= 2.0;
+            }
+            if code_app {
+                score += 3.5;
+            }
+        }
         Left::Clause => {
             if protected {
                 return false;
@@ -288,10 +304,10 @@ pub fn english_beats_vietnamese(vi_key: &[u8], typed: &[u8], word: EnglishWord, 
             }
         }
         Left::Start => {
-            // A common Vietnamese word starting a sentence stays Vietnamese
-            // (`có`, `tên`, `nó`); only a code editor and a programming word
-            // (`cos`, `max`) turn it into code.
-            if protected && !(code_app && word.tech) {
+            // A common Vietnamese word starting a sentence or a line stays
+            // Vietnamese (`có`, `tên`, `nó`), in a code editor too: a comment
+            // may start with it.
+            if protected {
                 return false;
             }
             score -= 1.0;

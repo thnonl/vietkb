@@ -138,7 +138,9 @@ fn code_apps_lean_english_but_vietnamese_comments_work() {
         code_app(),
         &[
             ("user ", "user "),
-            ("cos ", "cos "),
+            // A protected Vietnamese word at a line start stays Vietnamese in a code app.
+            ("cos ", "có "),
+            ("Cos bajn hoir ", "Có bạn hỏi "),
             ("max ", "max "),
             ("mix ", "mix "),
             // `thể` is a common Vietnamese word: only a programming word turns it into code.
@@ -577,4 +579,21 @@ fn restore_hotkey_without_a_correction_is_unchanged() {
     let mut shown = String::new();
     feed(&mut engine, &mut shown, "tieengs ");
     assert!(!engine.can_restore(), "nothing to take back after a normal word break");
+}
+
+#[test]
+fn code_shapes_keep_programming_words_in_a_code_app() {
+    // `cos` is Vietnamese `có` at a line start, but the shape makes it code.
+    check(
+        code_app(),
+        &[
+            ("cos(x) ", "cos(x) "),
+            ("Math.cos(x) ", "Math.cos(x) "),
+            ("x = cos ", "x = cos "),
+            ("y = max ", "y = max "),
+            ("foo(cos ", "foo(cos "),
+        ],
+    );
+    // The same Vietnamese words after a Vietnamese word, or alone, stay Vietnamese.
+    check(code_app(), &[("nhaf cos ", "nhà có "), ("Cos nhaf ", "Có nhà "), ("tooi cos ", "tôi có ")]);
 }

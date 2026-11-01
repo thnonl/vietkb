@@ -229,15 +229,19 @@ composed text differs from the typed keys is a candidate.
 
    | left | rule |
    |---|---|
-   | Start (line / sentence start) | −1.0; code app +3.5; a rare English form against a real Vietnamese word −3 |
+   | Start (line / sentence start) | protected words stay; otherwise −1.0, code app +3.5, a rare English form against a real Vietnamese word −3 |
+   | Code (after `= ( [ { < > + * % & \| !`) | +3.0, code app +3.5; protected words only for a programming word in a code app |
    | Clause (after `, ; :`) | −1.0; code app +1.0; weak −3 |
    | English or code | +3.0; code app +3.5 |
    | Vietnamese word | **a missing pair is neutral**; a pair seen in the corpus pulls toward Vietnamese; base −2.5; loanword +1.5; code app +0.8; a known English collocation (`hay mix`, `tuổi teen`, `nhóm/kiểu/cách teen`, `thích mix`; 6 hashes in `lexicon.rs`) +3.5 and beats protection |
 
    **Protected words** (Vietnamese syllable seen ≥ 100 times: `có tên nó thể sẽ ít cả lén …`) flip only
-   on positive English evidence: a collocation, or a code app at a *sentence* start with a
-   programming word (`cos`, `max`: tag `tech` in `english.txt`). After a Vietnamese word, after an
-   English word, after a comma, at a neutral sentence start they stay Vietnamese (`Mình teen` is not
+   on positive English evidence: a known collocation, or a code context (left is a code operator or
+   bracket: `x = cos`, `foo(max`) in a code app with a programming word (tag `tech` in
+   `english.txt`). At a sentence or line start they stay Vietnamese **in a code app too** (a comment
+   may start with `Có`); `cos(x)` and `Math.cos` stay code through the shape rules (`(` glued to a
+   word, `.` chain). After a Vietnamese word, after an English word, after a comma, at a sentence
+   start they stay Vietnamese (`Mình teen` is not
    a thing; `test có xanh`, `hook sẽ chạy`, `staging ít nhất` keep their Vietnamese). A weak English
    form (plural/inflected, level > 2, not a loanword) never beats a real Vietnamese word after
    English either (`test mô phỏng` ≠ `moo`).
@@ -258,7 +262,7 @@ composed text differs from the typed keys is a candidate.
 3. *Code shapes always keep the typed keys.* "Could this be a Vietnamese word" is decided by the
    **spelling**, not by a corpus count (`spell::is_plausible_syllable`: well-formed, real rime, a
    Vietnamese onset (not `f j w z`), a stop coda only with sắc or nặng) or a corpus count > 0:
-   - `_` or `@` right after a composed word: restored unless the word is plausibly Vietnamese and
+   - `_`, `@` or `(` right after a composed word: restored unless the word is plausibly Vietnamese and
      not an English word (`is_empty`, `as_str` restore; `ngỗng_to`, `bật_` stay).
    - a digit after a word of ≥ 3 keys that is not plausibly Vietnamese (`utf8`, `h264`; `Phường1`,
      `Quận3` stay). Telex only: in VNI a digit is a tone key.
@@ -299,10 +303,9 @@ from 10 to 3,000 loops).
 **Long passage fixture.** `crates/vkb-core/tests/data/tech_mixed_vi.src.txt` (the text, expected output),
 `tech_mixed_vi.txt` (Telex keystrokes), `tech_mixed_vi_vni.txt` (VNI), one paragraph per line, generated
 by `scripts/gen_tech_fixture.py`; run by `tests/tech_mixed.rs` in both app profiles and both methods.
-One pinned spot: in a code app a sentence that starts with `Có` is read as `cos` (paragraph 27).
+No pinned exceptions: all four profiles match the source text.
 
 **Known false positives / negatives.** Loanwords after a Vietnamese word the corpora never saw
-(`teen` after a rare word) can flip when the Vietnamese reading is rare; a Vietnamese sentence that
-starts with `Có` in a code app becomes `cos`; English words typed with a doubled tone key that are
+(`teen` after a rare word) can flip when the Vietnamese reading is rare; English words typed with a doubled tone key that are
 not in the list stay damaged; sentences typed without a space after `.` whose first word is a rare
 non-Vietnamese-looking name.
