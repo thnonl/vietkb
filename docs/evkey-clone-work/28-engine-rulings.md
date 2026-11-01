@@ -137,3 +137,15 @@ Owner: "Tôi muốn app thêm feature tự nhận biết tiếng Anh hoặc code
 - Owner: the feature must be showcased on GitHub Pages and in the hero video.
 
 Probe on 0.2.7 (Telex, spell check on): already raw — set test case window google install string class import export; wrong today — user→ủe, use→úe, were→wể, here→hể, there→thể, user_id→ủe_id.
+
+**D10 amendment (owner, 2026-11-01, same day):** "Đối với những chữ vừa có tiếng Việt vừa có tiếng Anh hãy xem xét trong ngữ cảnh đó nó nên là chữ gì. Ví dụ như \"Tôi hay mix nhạc chung với tiếng ồn\" thì mix là đúng chứ không phải mĩ." → ambiguous words are decided by context, not always Vietnamese. At the word break the engine weighs the composed Vietnamese word against the English word using the words already typed before it (e.g. `hay` + `mĩ` is an unlikely Vietnamese pair → `mix`; `nhà` + `có` → `có`; after an English word → English). With no usable context (sentence start), Vietnamese wins. Replaces the first bullet above.
+Owner example 2 (same day): "Ví dụ như chữ \"tuổi teen\" thì teen đúng hơn là tên chẳng hạn." → `tuổi` + `tên` is an unlikely pair → `teen`. Note `teen` composes through the double-letter rule (ee→ê), not a tone key.
+
+**D10 amendment 2 (owner, 2026-11-01):** "Hãy dựa vào cả ngữ cảnh, app đang dùng, ... tất cả ngữ cảnh sẽ ảnh hưởng đến sự lựa chọn output cuối cùng. Ví dụ như gõ if mà ở đầu câu thì nó vẫn là if, vì tiếng Việt ít mà có chữ ì ở đầu câu, đặng biệt là khi dùng trong các code idie app." → the choice is a score over ALL context signals, not a fixed default:
+- word frequencies (how common the Vietnamese word is vs the English word), including position: at a sentence start a rare Vietnamese word (`ì`) loses to a common English word (`if`). This replaces "with no usable context, Vietnamese wins".
+- neighbouring words already typed (Vietnamese pair likelihood, English/code before it).
+- the app in front: code editors, IDEs and terminals (VS Code, Cursor, Xcode, JetBrains, Sublime, Vim, Terminal, iTerm, Windows Terminal, PowerShell, cmd, Notepad++ …) lean strongly to English/code; chat/document apps stay neutral.
+
+**D10 amendment 3 (owner, 2026-11-01):** "Nếu có thể chuyển được ngay sang tiếng Anh khi đang gõ ví nhận biết chắc chắn như từ order, why, twitter,... chẳng hạn thì chuyển luôn, không cần phải chờ cách hoặc dấu chấm câu." → when, mid-word, the letters typed so far can no longer be any Vietnamese word and are certainly English (`ord…`, `wh…`, `tw…`), put the raw keys back immediately and stop composing for the rest of that word; do not wait for the space or punctuation. Uncertain words still wait for the word break.
+
+**D10 performance (owner, 2026-11-01):** "Function này tôi nghĩ là khá ảnh hưởng đến performance, nên hãy tối ưu nhất có thể để khi gõ không bị delay quá." → charter P1 still binds with the feature ON, in every app profile: `process_key` p99 ≤ 50 µs, zero heap allocation on the steady path, word-break and mid-word checks included. Tables are built at compile time or once at startup off the hook thread, never on a keystroke. Report before/after numbers from `vkb bench`.
