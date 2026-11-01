@@ -321,6 +321,16 @@ composed text differs from the typed keys is a candidate.
    that cannot be Vietnamese; `//Nguyễn`, `/Ừ`, `~Ừ` compose, and a leading `//` is a comment marker.
    `dD` is `đ` and `ar arr arrr` keeps the Telex undo (code identifiers never use the doubled-key restore).
 
+10. *Round 6.* After a determiner that is no Vietnamese text and stayed raw or was restored (`the my your
+   our their those every each some any`, and `this these his her its` only when they themselves were
+   restored; typed alone they compose to `thí thế hí hẻ ít`, which is doubt, so Vietnamese) the next word
+   is English when its keys are a listed word, clear evidence, not doubt: `the car`, `the cars`, `the
+   moon`, `my coffee`, `your phone`, `the bus`, `the teen`. `you`, `in`, `will` are function words, not
+   determiners: `thank you cả nhà`, `check in có không`, `I love you má đi` stay Vietnamese. All-caps
+   acronyms (`USA UX OS`) count only at a line start or after English, code, a function word or a
+   determiner, never after a Vietnamese word; `GIF` and `COO` are not acronyms (`GÌ`, `CÔ`). `max power`
+   is not a one-word-back phrase (`power` is not on the list).
+
 **VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone keys.
 `tie61ng`, `to6i`, `co1` are unaffected.
 

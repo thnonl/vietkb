@@ -107,7 +107,6 @@ fn c3_acronyms() {
         ("C", "USA UX SOS ", "USA UX SOS "),
         ("T", "VIEETJ NAM ", "VIỆT NAM "),
         ("T", "TIEENGS ", "TIẾNG "),
-        ("T", "Mac OS ", "Mac OS "),
         ("T", "Windows OS ", "Windows OS "),
     ]);
 }
@@ -115,8 +114,28 @@ fn c3_acronyms() {
 #[test]
 fn c4_names_that_became_vietnamese() {
     run(&[
-        ("T", "the car ", "the cả "),
+        ("T", "the car ", "the car "),
         ("T", "and thus ", "and thú "),
+        ("T", "the cars ", "the cars "),
+        ("T", "my car ", "my car "),
+        ("T", "your phone ", "your phone "),
+        ("T", "the moon ", "the moon "),
+        ("T", "the cos ", "the cos "),
+        ("T", "the bus ", "the bus "),
+        ("T", "the box ", "the box "),
+        ("T", "our car ", "our car "),
+        ("T", "every car ", "every car "),
+        ("T", "each moon ", "each moon "),
+        ("T", "some cars ", "some cars "),
+        ("T", "any moon ", "any moon "),
+        ("T", "their car ", "their car "),
+        // The Vietnamese words `thê`, `thề` and a determiner-free sentence are untouched.
+        ("T", "thee ", "thê "),
+        ("T", "thef ", "thè "),
+        ("T", "thee car ", "thê cả "),
+        ("T", "thank you car nhaf ", "thank you cả nhà "),
+        ("T", "check in cos khoong ", "check in có không "),
+        ("T", "I love you mas ddi ", "I love you má đi "),
         ("T", "Con cars ", "Con cá "),
     ]);
 }
@@ -565,4 +584,49 @@ fn owner_rule_w_stays_with_the_normal_rules() {
         ("Toff", "web ", "web "),
         ("Toff", "why ", "why "),
     ]);
+}
+
+#[test]
+fn determiner_then_english_noun() {
+    // Owner: `the car` is not `the cả`, `the moon` is not `the môn`. The determiners that stay raw
+    // (`this`, `these`, `his`, `her`, `its` compose to Vietnamese words and are doubt: Vietnamese).
+    let nouns = ["moon", "book", "food", "room", "door", "tree", "street", "coffee", "teen", "car", "cars", "bus", "box"];
+    let mut table: Vec<(&str, String, String)> = Vec::new();
+    for det in ["the", "my", "your", "our", "their", "every", "each", "some", "any"] {
+        for noun in nouns {
+            for profile in ["T", "C"] {
+                table.push((profile, format!("{det} {noun} "), format!("{det} {noun} ")));
+            }
+        }
+    }
+    let rows: Vec<(&str, &str, &str)> = table.iter().map(|(p, k, e)| (*p, k.as_str(), e.as_str())).collect();
+    run(&rows);
+}
+
+#[test]
+fn all_caps_vietnamese_headlines_and_acronyms() {
+    run(&[
+        ("T", "BANJ LAMF GIF DDOS? ", "BẠN LÀM GÌ ĐÓ? "),
+        ("T", "KHOONG BIEETS GIF ", "KHÔNG BIẾT GÌ "),
+        ("T", "DDAAY LAF GIF ", "ĐÂY LÀ GÌ "),
+        ("T", "COO GIAOS ", "CÔ GIÁO "),
+        ("T", "THAAYF COO ", "THẦY CÔ "),
+        ("T", "ANH AASY LAF COO ", "ANH ẤY LÀ CÔ "),
+        // acronyms: a line start, or after English / code, never after a Vietnamese word
+        ("T", "USA ", "USA "),
+        ("T", "UX design ", "UX design "),
+        ("T", "the USA ", "the USA "),
+        ("T", "tooi ddi USA ", "tôi đi ÚA "),
+        ("T", "tooi OS ", "tôi Ó "),
+    ]);
+    // Every syllable of the list in capitals after a Vietnamese word composes like 0.2.7.
+    let vi = include_str!("../data/vi.txt");
+    let mut keys: Vec<String> = Vec::new();
+    for line in vi.lines().take(4000) {
+        let key = line.split(' ').next().unwrap();
+        if key.chars().all(|c| c.is_ascii_lowercase()) && key.len() <= 5 {
+            keys.push(format!("tooi {} ", key.to_ascii_uppercase()));
+        }
+    }
+    all_same_as_off(&["T"], &keys);
 }

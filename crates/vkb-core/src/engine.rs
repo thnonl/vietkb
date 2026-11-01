@@ -66,8 +66,10 @@ enum PrevKind {
     Clause,
     /// Right after a code operator or bracket.
     Code,
-    /// The word was an English function word (`the`, `my`, `with`).
+    /// The word was an English function word (`you`, `in`, `with`).
     Function,
+    /// The word was a determiner or possessive (`the`, `my`, `your`).
+    Determiner,
 }
 
 impl PrevWord {
@@ -1239,7 +1241,13 @@ impl Engine {
             alnum &= typed.is_ascii_alphanumeric();
             *slot = typed as u8;
         }
-        if alnum && self.raw.len() <= 5 && lexicon::is_acronym(&token[..self.raw.len()]) {
+        // Only at a line start or after English or code; never after a Vietnamese
+        // word (`BANJ LAMF GIF DDOS?` is Vietnamese).
+        let acronym_ok = matches!(
+            prev.kind,
+            PrevKind::None | PrevKind::English | PrevKind::Function | PrevKind::Determiner | PrevKind::Code
+        );
+        if alnum && acronym_ok && self.raw.len() <= 5 && lexicon::is_acronym(&token[..self.raw.len()]) {
             return (true, None);
         }
         if self.options.method == InputMethod::Vni && self.raw.iter().any(|c| c.is_ascii_digit()) {
@@ -1285,6 +1293,7 @@ impl Engine {
         let left = match prev.kind {
             PrevKind::English => Left::English,
             PrevKind::Function => Left::Function,
+            PrevKind::Determiner => Left::Determiner,
             PrevKind::Vietnamese => Left::Vietnamese { count: prev.count, hash: prev.hash },
             PrevKind::Clause => Left::Clause,
             PrevKind::Code => Left::Code,
@@ -1405,6 +1414,11 @@ impl Engine {
         // The pronoun `I` opens an English clause as the function words do.
         if self.raw.as_slice() == ['I'] && !restored {
             return PrevWord { kind: PrevKind::Function, count: 0, hash: 0 };
+        }
+        // A determiner that stayed raw or was restored (`the`, `my`, `your`, `these`
+        // after English); `this` shown as `thí` is Vietnamese.
+        if ascii && (restored || !self.raw_differs()) && lexicon::is_determiner(&word[..self.raw.len()]) {
+            return PrevWord { kind: PrevKind::Determiner, count: 0, hash: 0 };
         }
         // Only when the word stays as typed: `how` shown as `hơ` is Vietnamese.
         if ascii && !restored && !self.raw_differs() && lexicon::is_function_word(&word[..self.raw.len()]) {

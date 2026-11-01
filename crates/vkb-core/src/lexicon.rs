@@ -103,6 +103,17 @@ static FUNCTION_WORDS: &[&str] = &[
     "and", "any", "are", "at", "be", "but", "by", "each", "for", "from", "have", "her", "his", "how", "in", "is", "it", "its", "many", "my", "not", "now", "of", "on", "or", "our", "she", "some", "such", "that", "the", "their", "them", "then", "there", "these", "they", "this", "those", "up", "was", "were", "what", "when", "where", "which", "who", "will", "with", "would", "you", "your",
 ];
 
+/// Determiners and possessives. Only counted when the word stayed raw or was
+/// restored (`this` composes to `thí` and is then Vietnamese).
+static DETERMINERS: &[&str] = &[
+    "any", "each", "every", "her", "his", "its", "my", "our", "some", "the", "their", "these", "this", "those",
+    "your",
+];
+
+pub fn is_determiner(word: &[u8]) -> bool {
+    DETERMINERS.iter().any(|w| w.as_bytes() == word)
+}
+
 pub fn is_function_word(word: &[u8]) -> bool {
     FUNCTION_WORDS.binary_search_by(|w| w.as_bytes().cmp(word)).is_ok()
 }
@@ -192,8 +203,11 @@ pub enum Left {
     Clause,
     /// Right after a code operator or bracket (`x = `, `foo(`, `a + `).
     Code,
-    /// The previous word was an English function word (`the`, `my`, `with`).
+    /// The previous word was an English function word (`you`, `in`, `with`).
     Function,
+    /// The previous word was a determiner or possessive that is no Vietnamese text
+    /// (`the`, `my`, `your`): the next word is English if its keys are a listed word.
+    Determiner,
     /// The previous word was English or code.
     English,
     /// The previous word was this Vietnamese syllable: its corpus count and the
@@ -252,7 +266,6 @@ static BACK_PAIRS: &[u32] = &[
     colloc("max", "speed"),
     colloc("max", "pro"),
     colloc("max", "plus"),
-    colloc("max", "power"),
     colloc("six", "pack"),
 ];
 static BACK_FIRST: &[&str] = &["max", "six"];
@@ -270,8 +283,7 @@ pub fn back_pair(first: &[u8], second: &[u8]) -> bool {
 /// vowel and the S into `ÚA`, `Ũ`, `Ó`. Matched case-sensitively (letters and
 /// digits, 2 to 5 characters).
 static ACRONYMS: &[&str] = &[
-    "AI", "API", "AR", "ASAP", "AWS", "B2B", "B2C", "CEO", "CFO", "CH4", "CMS", "CO2", "COO",
-    "CPU", "CRM", "CSS", "CTO", "DAX", "DNS", "EU", "EXO", "FAQ", "FTP", "GCP", "GIF", "GPS",
+    "AI", "API", "AR", "ASAP", "AWS", "B2B", "B2C", "CEO", "CFO", "CH4", "CMS", "CO2",     "CPU", "CRM", "CSS", "CTO", "DAX", "DNS", "EU", "EXO", "FAQ", "FTP", "GCP", "GPS",
     "GPU", "H2O", "HDD", "HDMI", "HR", "HTML", "HTTP", "HTTPS", "IDE", "IMF", "IP", "IT", "JPG",
     "JPEG", "JSON", "KPI", "LAN", "LCD", "LED", "LLM", "MP3", "MP4", "NASA", "NFT", "NO2", "O2",
     "OCR", "OKR", "OS", "OTP", "PDF", "PM", "PNG", "PR", "QA", "QR", "RAM", "REST", "ROI", "ROM",
@@ -331,6 +343,10 @@ pub fn english_wins(
             return true;
         }
     }
+    // `the car`, `my phone`: after a determiner a listed English word is English.
+    if matches!(left, Left::Determiner) {
+        return true;
+    }
     if !plausible {
         return true;
     }
@@ -348,7 +364,7 @@ pub fn english_wins(
         Left::Code => !protected || (code_app && word.tech && !capital),
         // A keyword whose Vietnamese twin is rare (`ì`).
         Left::Start => typed == b"if",
-        Left::Clause | Left::Vietnamese { .. } => false,
+        Left::Determiner | Left::Clause | Left::Vietnamese { .. } => false,
     }
 }
 
