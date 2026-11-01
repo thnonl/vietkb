@@ -185,6 +185,8 @@ pub struct Engine {
     scratch: Option<Scratch>,
     /// A one-word-back candidate is waiting: record what this break leaves.
     want_scratch: bool,
+    /// What stood left of the word whose break is being handled.
+    boundary_prev: PrevKind,
 }
 
 impl Engine {
@@ -216,6 +218,7 @@ impl Engine {
             back: None,
             scratch: None,
             want_scratch: false,
+            boundary_prev: PrevKind::None,
         }
     }
 
@@ -795,6 +798,7 @@ impl Engine {
         }
         // D10 left context: only a plain space keeps the previous word alive.
         let prev = self.prev_word;
+        self.boundary_prev = prev.kind;
         if ch != ' ' {
             self.prev_word = if matches!(ch, ',' | ';' | ':') {
                 PrevWord { kind: PrevKind::Clause, count: 0, hash: 0 }
@@ -1429,7 +1433,9 @@ impl Engine {
         }
         // A determiner that stayed raw or was restored (`the`, `my`, `your`, `these`
         // after English); `this` shown as `thí` is Vietnamese.
-        if ascii && (restored || !self.raw_differs()) && lexicon::is_determiner(&word[..self.raw.len()]) {
+        // A capitalised one after a Vietnamese word is a name (`Em My`, `Bé My`).
+        let name_like = self.raw.first().is_some_and(char::is_ascii_uppercase) && self.boundary_prev == PrevKind::Vietnamese;
+        if ascii && !name_like && (restored || !self.raw_differs()) && lexicon::is_determiner(&word[..self.raw.len()]) {
             return PrevWord { kind: PrevKind::Determiner, count: 0, hash: 0 };
         }
         // Only when the word stays as typed: `how` shown as `hơ` is Vietnamese.

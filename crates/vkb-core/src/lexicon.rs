@@ -283,7 +283,7 @@ pub fn back_pair(first: &[u8], second: &[u8]) -> bool {
 /// vowel and the S into `ÚA`, `Ũ`, `Ó`. Matched case-sensitively (letters and
 /// digits, 2 to 5 characters).
 static ACRONYMS: &[&str] = &[
-    "AI", "API", "AR", "ASAP", "AWS", "B2B", "B2C", "CEO", "CFO", "CH4", "CMS", "CO2",     "CPU", "CRM", "CSS", "CTO", "DAX", "DNS", "EU", "EXO", "FAQ", "FTP", "GCP", "GPS",
+    "AI", "API", "AR", "ASAP", "AWS", "B2B", "B2C", "CEO", "CFO", "CH4", "CMS", "CO2",     "CPU", "CRM", "CSS", "CTO", "DNS", "EU", "EXO", "FAQ", "FTP", "GCP", "GPS",
     "GPU", "H2O", "HDD", "HDMI", "HR", "HTML", "HTTP", "HTTPS", "IDE", "IMF", "IP", "IT", "JPG",
     "JPEG", "JSON", "KPI", "LAN", "LCD", "LED", "LLM", "MP3", "MP4", "NASA", "NFT", "NO2", "O2",
     "OCR", "OKR", "OS", "OTP", "PDF", "PM", "PNG", "PR", "QA", "QR", "RAM", "REST", "ROI", "ROM",

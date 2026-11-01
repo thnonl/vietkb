@@ -102,7 +102,7 @@ fn c2_names_and_doubled_letter_words() {
 #[test]
 fn c3_acronyms() {
     run(&[
-        ("T", "USA UX SOS IMF NASA ASAP EXO OS TOS SAS DAX URI AR ", "USA UX SOS IMF NASA ASAP EXO OS TOS SAS DAX URI AR "),
+        ("T", "USA UX SOS IMF NASA ASAP EXO OS TOS SAS URI AR ", "USA UX SOS IMF NASA ASAP EXO OS TOS SAS URI AR "),
         ("T", "usa asap sos ", "usa asap sos "),
         ("C", "USA UX SOS ", "USA UX SOS "),
         ("T", "VIEETJ NAM ", "VIỆT NAM "),
@@ -699,4 +699,28 @@ fn all_caps_vietnamese_headlines_and_acronyms() {
         }
     }
     all_same_as_off(&["T"], &keys);
+}
+
+#[test]
+fn a_capitalised_determiner_after_a_vietnamese_word_is_a_name() {
+    run(&[
+        ("T", "Bes My teen laf gif? ", "Bé My tên là gì? "),
+        ("T", "Em My cars ddi roofi ", "Em My cá đi rồi "),
+        ("C", "Em My cars ddi roofi ", "Em My cá đi rồi "),
+        ("T", "Con My car ", "Con My cả "),
+        // No Vietnamese word before it, or lowercase: a determiner.
+        ("T", "My car ", "My car "),
+        ("T", "Xong roofi. My car ", "Xong rồi. My car "),
+        ("T", "my car ", "my car "),
+        ("T", "the car ", "the car "),
+        ("T", "I like my car ", "I like my car "),
+        ("T", "Em thich my car ", "Em thich my car "),
+        ("T", "Our moon ", "Our moon "),
+        ("T", "Em Our moon ", "Em Our môn "),
+    ]);
+}
+
+#[test]
+fn dax_is_dã() {
+    run(&[("T", "DAX ", "DÃ "), ("T", "tooi DAX ", "tôi DÃ ")]);
 }
