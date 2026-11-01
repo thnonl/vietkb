@@ -308,6 +308,76 @@ fn round3_telex_leftovers() {
     all_same_as_off(&["T", "C"], &["dD x ".to_string(), "ar arr arrr x ".to_string()]);
 }
 
+
+#[test]
+fn round4_openers_and_operators_do_not_make_vietnamese_raw() {
+    let mut keys: Vec<String> = Vec::new();
+    let mut code_keys: Vec<String> = Vec::new();
+    for prefix in ["(", "[", "{", "<", "=", "%", ">", "|", "*", "+", "&", "**", "/*", "->", "=>"] {
+        for body in ["Mas ddi ", "Cams x ", "nays x ", "mas x ", "cos x ", "lax . ", "Cams own banj "] {
+            keys.push(format!("{prefix}{body}"));
+            keys.push(format!("{prefix} {body}"));
+            // (a lowercase `cos` after an operator is code in a code app)
+            if !body.starts_with("cos") {
+                code_keys.push(format!("{prefix}{body}"));
+                code_keys.push(format!("{prefix} {body}"));
+            }
+        }
+    }
+    for glue in ["ok>", "ok%", "ok**", "ok=", "ok*", "ok|", "ok+", "ok&", "ok<", "50%", "</div>", "**bold**", "best**"] {
+        for body in ["Mas bans hangf online ", "Cams own banj ", "Nays mas ", "Mas; "] {
+            keys.push(format!("{glue} {body}"));
+        }
+    }
+    all_same_as_off(&["T"], &keys);
+    all_same_as_off(&["C"], &code_keys);
+    run(&[
+        ("T", "(Mas ddi ", "(Má đi "),
+        ("T", "**Cams x ", "**Cám x "),
+        ("T", "(nays x ", "(náy x "),
+        ("T", "[mas x ", "[má x "),
+        ("T", "(cos x ", "(có x "),
+        ("T", "(lax . ", "(lã . "),
+        ("T", "50% Cams own banj ", "50% Cám ơn bạn "),
+        ("T", "</div> Mas bans hangf online ", "</div> Má bán hàng online "),
+        ("T", "**bold** Nays mas ", "**bold** Náy má "),
+        ("T", "best** Mas; ", "best** Má; "),
+        ("C", "(Mas ddi ", "(Má đi "),
+        ("C", "(cos x ", "(cos x "),
+        // code still wins where it should: a lowercase programming word in a code app
+        ("C", "x = cos ", "x = cos "),
+        ("T", "x = cos ", "x = có "),
+    ]);
+}
+
+#[test]
+fn round4_vni_words_after_a_separator() {
+    let mut keys: Vec<String> = Vec::new();
+    for prefix in ["/", "~", ".", "\\", "/*"] {
+        for body in ["Ma1. ", "ho5c? ", "tro7i2. ", "Ma1 ", "ho5c "] {
+            keys.push(format!("{prefix}{body}"));
+        }
+    }
+    all_same_as_off(&["V", "VC"], &keys);
+    run(&[
+        ("V", "/Ma1. ", "/Má. "),
+        ("V", "~ho5c? ", "~học? "),
+        ("V", "/tro7i2. ", "/trời. "),
+        // a URL or a deep path keeps the typed keys
+        ("V", "https://x.com/a1/b2 ", "https://x.com/a1/b2 "),
+    ]);
+}
+
+#[test]
+fn round4_spell_check_off_keeps_the_telex_undo_of_identifiers() {
+    run(&[
+        ("Toff", "ar arr arrr ", "ả ar arr "),
+        ("T", "ar arr arrr ", "ả ar arr "),
+        ("C", "ar arr arrr ", "ả ar arr "),
+    ]);
+    all_same_as_off(&["T", "Toff", "C"], &["ar arr arrr ".to_string()]);
+}
+
 mod one_word_back {
     use unicode_normalization::UnicodeNormalization;
     use vkb_core::{apply_action, Charset, Engine, EngineOptions, KeyInput, VietnameseEngine};

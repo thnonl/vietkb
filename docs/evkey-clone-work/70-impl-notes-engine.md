@@ -331,6 +331,13 @@ composed text differs from the typed keys is a candidate.
    determiner, never after a Vietnamese word; `GIF` and `COO` are not acronyms (`GÌ`, `CÔ`). `max power`
    is not a one-word-back phrase (`power` is not on the list).
 
+11. *Round 7.* A code operator or bracket on the left (`( [ { < = % > | * + & ** /* -> =>`) is evidence
+   only in a code app, and only for a lowercase programming word (`x = cos`, `f(max`, an identifier); in a
+   neutral app it is none, and a capitalised or plural-shaped Vietnamese syllable (`(Mas`, `**Cams`,
+   `50% Cám ơn`) stays Vietnamese everywhere. VNI: a word that composes to a plausible syllable is not a
+   lone path segment (`/Ma1.` = `/Má.`, `~ho5c?`), a URL or deep path (`/a1/b2`) keeps the typed keys. With
+   spell check off a code identifier keeps the Telex undo too (`ar arr arrr` = `ả ar arr`).
+
 **VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone keys.
 `tie61ng`, `to6i`, `co1` are unaffected.
 

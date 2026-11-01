@@ -1116,7 +1116,8 @@ impl Engine {
             }
             *slot = typed.to_ascii_lowercase() as u8;
         }
-        if lexicon::english_word(&word[..self.raw.len()]).is_none() {
+        // A code identifier (`arr`) keeps the Telex undo, as with spell check on.
+        if !lexicon::english_word(&word[..self.raw.len()]).is_some_and(|w| !w.ident) {
             return false;
         }
         // A prefix that could still become a Vietnamese syllable (`baa` on the
@@ -1185,8 +1186,17 @@ impl Engine {
     /// that start with a tone key (`Win10`, `A101`, `A52`), or is one letter and
     /// one digit that is not a vowel (`x1`, `y2`) or is a capital (`A1`, `O2`).
     fn vni_digits_are_code(&self) -> bool {
+        // A word that composes to a plausible syllable is never a lone path segment
+        // (`/Ma1.` = `/Má.`); a URL or a deep path (`/a1/b2`) keeps the typed keys.
         if self.path_token {
-            return true;
+            let plausible = spell::is_plausible_syllable(
+                &self.composed.letters,
+                self.composed.tone,
+                self.options.jfwz_as_consonant,
+            );
+            if self.path_segments >= 2 || !plausible {
+                return true;
+            }
         }
         let mut token = [0u8; MAX_WORD];
         let mut ascii = true;
@@ -1296,7 +1306,9 @@ impl Engine {
             PrevKind::Determiner => Left::Determiner,
             PrevKind::Vietnamese => Left::Vietnamese { count: prev.count, hash: prev.hash },
             PrevKind::Clause => Left::Clause,
-            PrevKind::Code => Left::Code,
+            // Brackets, markdown and percent signs are no evidence in a neutral app.
+            PrevKind::Code if self.options.app_kind == AppKind::Code => Left::Code,
+            PrevKind::Code => Left::Clause,
             PrevKind::None | PrevKind::Other => Left::Start,
         };
         let plausible = self.plausibly_vietnamese(Some(&key[..len]));

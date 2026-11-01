@@ -360,8 +360,10 @@ pub fn english_wins(
         // (`test có xanh`, `hook sẽ chạy`, `code mô phỏng`).
         Left::English => (word.loan || word.tech || is_function_word(typed)) && !protected && !weak,
         // `x = max`, `foo(cos`: a code context.
-        // A capital after an operator is a sentence (`x = Có`), not code.
-        Left::Code => !protected || (code_app && word.tech && !capital),
+        // After a code operator or bracket: evidence only in a code app, and only
+        // for a lowercase programming word (`x = cos`, `f(max`). A capitalised
+        // or plural-shaped Vietnamese syllable (`(Mas`, `**Cams`) is a sentence.
+        Left::Code => code_app && word.tech && !capital,
         // A keyword whose Vietnamese twin is rare (`ì`).
         Left::Start => typed == b"if",
         Left::Determiner | Left::Clause | Left::Vietnamese { .. } => false,
