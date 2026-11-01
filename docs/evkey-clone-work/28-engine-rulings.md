@@ -163,3 +163,5 @@ Owner example 2 (same day): "Ví dụ như chữ \"tuổi teen\" thì teen đún
 **Correction (owner, same day):** "Tôi nhầm, W vẫn nên xem xét tiếng Việt chứ không hoàn toàn là tiếng Anh" → only f, z, j at a word start are never Vietnamese. A leading w goes through the normal rules (Telex `w` = ư: ưa, ước, ừ); doubt → Vietnamese.
 
 **D10 (owner, 2026-11-01):** "the car ra the cả là sai, làm gì có từ tiếng Việt nào như thế." → after a strong English determiner/possessive (the, an, my, your, his, her, its, our, their, this, these, those, every, each, some, any), a listed English word stays English: that is clear evidence, not doubt. Non-determiners (you, in, will) keep the doubt → Vietnamese rule ("thank you cả nhà").
+
+**D10 (owner, 2026-11-01):** "chữ í trong tiếng Việt rất hiếm có, thường thì hay ở cuối câu thôi." → `is` followed by a space is English "is"; only at a sentence end (. ! ? … Enter, closing quote/bracket) does it compose to "í".
