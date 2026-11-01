@@ -1,0 +1,12 @@
+# The embedded D10 tables are parsed line by line at run time: they must be LF on
+# every checkout (Windows with core.autocrlf=true would add a CR to each line).
+crates/vkb-core/data/*.txt text eol=lf
+crates/vkb-core/data/*.rs text eol=lf
+crates/vkb-core/tests/data/*.txt text eol=lf
+scripts/wordlists/*.txt text eol=lf
+
+# Binary assets embedded with include_bytes!
+*.wav binary
+*.png binary
+*.ico binary
+*.icns binary
