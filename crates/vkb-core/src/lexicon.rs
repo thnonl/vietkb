@@ -55,7 +55,9 @@ fn find_line<'a>(blob: &'a str, probe: &[u8], key_len: fn(&[u8]) -> usize) -> Op
         let mid = lo + (hi - lo) / 2;
         let start = bytes[..mid].iter().rposition(|&b| b == b'\n').map_or(0, |p| p + 1);
         let end = bytes[start..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |p| start + p);
+        // Tolerate CRLF: a checkout with autocrlf must not leave a `\r` in the key or the value.
         let line = &bytes[start..end];
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
         match line[..key_len(line)].cmp(probe) {
             std::cmp::Ordering::Equal => return Some(line),
             std::cmp::Ordering::Less => lo = end + 1,
@@ -75,7 +77,11 @@ fn vi_key_len(line: &[u8]) -> usize {
 
 /// `word` is lowercase ASCII.
 pub fn english_word(word: &[u8]) -> Option<EnglishWord> {
-    let line = find_line(ENGLISH, word, english_key_len)?;
+    english_in(ENGLISH, word)
+}
+
+fn english_in(blob: &str, word: &[u8]) -> Option<EnglishWord> {
+    let line = find_line(blob, word, english_key_len)?;
     let tag = *line.last()?;
     let plain = EnglishWord { level: 1, loan: false, tech: false, ident: false, name: false };
     Some(match tag {
@@ -89,7 +95,11 @@ pub fn english_word(word: &[u8]) -> Option<EnglishWord> {
 
 /// How often the corpora saw the syllable (0 = not a common Vietnamese word).
 pub fn vi_count(key: &[u8]) -> u32 {
-    let Some(line) = find_line(VI, key, vi_key_len) else {
+    vi_count_in(VI, key)
+}
+
+fn vi_count_in(blob: &str, key: &[u8]) -> u32 {
+    let Some(line) = find_line(blob, key, vi_key_len) else {
         return 0;
     };
     line[vi_key_len(line) + 1..]
@@ -397,6 +407,31 @@ mod tests {
         for window in ENGLISH.lines().collect::<Vec<_>>().windows(2) {
             assert!(window[0][..window[0].len() - 1] < window[1][..window[1].len() - 1]);
         }
+    }
+
+    #[test]
+    fn embedded_tables_have_no_carriage_return() {
+        // A Windows checkout with core.autocrlf=true must still give LF (.gitattributes).
+        assert!(!ENGLISH.contains('\r'), "english.txt has a CR");
+        assert!(!VI.contains('\r'), "vi.txt has a CR");
+    }
+
+    #[test]
+    fn crlf_copies_of_the_tables_give_the_same_lookups() {
+        let english_crlf = ENGLISH.replace("\r\n", "\n").replace('\n', "\r\n");
+        let vi_crlf = VI.replace("\r\n", "\n").replace('\n', "\r\n");
+        for line in ENGLISH.lines() {
+            let word = &line.as_bytes()[..line.len() - 1];
+            assert!(english_in(&english_crlf, word).is_some(), "{line}");
+            assert_eq!(english_in(&english_crlf, word), english_in(ENGLISH, word), "{line}");
+        }
+        for line in VI.lines() {
+            let key = line.split(' ').next().unwrap().as_bytes();
+            assert_eq!(vi_count_in(&vi_crlf, key), vi_count_in(VI, key), "{line}");
+            assert!(vi_count_in(&vi_crlf, key) > 0, "{line}");
+        }
+        assert_eq!(english_in(&english_crlf, b"zzzz"), None);
+        assert_eq!(vi_count_in(&vi_crlf, b"zzzz"), 0);
     }
 
     #[test]

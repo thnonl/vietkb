@@ -36,6 +36,16 @@ const CODE_PROCESSES: &[&str] = &[
     "nvim-qt.exe",
     "gvim.exe",
     "windowsterminal.exe",
+    "vscodium.exe",
+    "kiro.exe",
+    "trae.exe",
+    "positron.exe",
+    "fleet.exe",
+    "tabby.exe",
+    "hyper.exe",
+    "bash.exe",
+    "wsl.exe",
+    "putty.exe",
     "wt.exe",
     "powershell.exe",
     "pwsh.exe",
@@ -105,7 +115,7 @@ mod tests {
 
     #[test]
     fn windows_processes() {
-        for name in ["Code.exe", "cursor.exe", "C:\\Program Files\\Microsoft VS Code\\Code.exe", "WindowsTerminal.exe", "pwsh.exe", "Notepad++.exe", "devenv.exe"] {
+        for name in ["VSCodium.exe", "kiro.exe", "trae.exe", "Positron.exe", "fleet.exe", "Tabby.exe", "hyper.exe", "bash.exe", "wsl.exe", "putty.exe", "Code.exe", "cursor.exe", "C:\\Program Files\\Microsoft VS Code\\Code.exe", "WindowsTerminal.exe", "pwsh.exe", "Notepad++.exe", "devenv.exe"] {
             assert_eq!(classify_process(name), AppKind::Code, "{name}");
         }
         for name in ["notepad.exe", "chrome.exe", "WINWORD.EXE", "slack.exe", ""] {
