@@ -346,6 +346,12 @@ composed text differs from the typed keys is a candidate.
    needs a code app and a code operator. Lowercase acronyms (`sos`, `asap`, `usa`) need the same run. An
    all-caps word whose last key is a lowercase Telex key (`CAWsT`, `LAWsM`, `CHIsNH`) composes as in 0.2.7.
 
+13. *`is` / `í` (owner: \"í is rare in Vietnamese and mostly ends a sentence\").* Telex `is` / `Is` followed by a
+   space, Tab, comma, `;` or `:` is the English word in any context (`format is now`, `It is`, `Cái này is
+   ok`, `this is, however`); ended by `. ! ? …`, Enter, or a closing quote or bracket it is `í` (`đẹp quá
+   í.`, `thế í!`, `ừ í`, `(í)`). A comma is mid-sentence, so English. Other break keys (`_`, `(`) fall
+   through to the normal rules (`is_empty`). VNI is unaffected (`i1`).
+
 **VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone keys.
 `tie61ng`, `to6i`, `co1` are unaffected.
 

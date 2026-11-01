@@ -749,7 +749,7 @@ fn round5_determiner_needs_a_real_english_word() {
 fn round5_content_words_on_the_left_are_no_evidence() {
     let mut keys: Vec<String> = Vec::new();
     for left in ["ok", "oke", "hi", "shop", "Inbox", "Zalo", "Post"] {
-        for word in ["max giamr gias", "mix", "is", "or", "her", "how", "now", "this", "def", "sos"] {
+        for word in ["max giamr gias", "mix", "or", "her", "how", "now", "this", "def", "sos"] {
             keys.push(format!("{left} {word} "));
         }
     }
@@ -762,8 +762,8 @@ fn round5_content_words_on_the_left_are_no_evidence() {
         ("T", "I like mix ", "I like mix "),
         ("T", "tooi hay mix nhacj ", "tôi hay mix nhạc "),
         ("T", "the config format is now ", "the config format is now "),
-        // one English word on the left is not enough: `ok is` = `ok í`
-        ("T", "format is now ", "format í nơ "),
+        // `is` followed by a space is English in any context (owner), so is the `now` after it
+        ("T", "ok is ", "ok is "),
         ("C", "x = cos ", "x = cos "),
     ]);
 }
@@ -776,4 +776,39 @@ fn round5_all_caps_with_a_lowercase_key() {
         .collect();
     all_same_as_off(&["T", "C", "Toff"], &keys);
     run(&[("T", "CAWsT ", "CẮT "), ("T", "LAWsM ", "LẮM "), ("T", "CHIsNH ", "CHÍNH "), ("T", "getValue ", "getValue ")]);
+}
+
+#[test]
+fn owner_rule_is_and_i_sac() {
+    // "chữ í trong tiếng Việt rất hiếm có, thường thì hay ở cuối câu thôi."
+    run(&[
+        // followed by a space: the English word, in any context
+        ("T", "is ok ", "is ok "),
+        ("T", "Is it ok? ", "Is it ok? "),
+        ("T", "It is ok ", "It is ok "),
+        // (`this` alone is `thí`: doubt means Vietnamese; the `is` after it is the English word)
+        ("T", "this is ok ", "thí is ok "),
+        ("T", "the config format is now ", "the config format is now "),
+        ("T", "format is now ", "format is now "),
+        ("T", "Cais nayf is ok ", "Cái này is ok "),
+        ("T", "ddepj quas is ok ", "đẹp quá is ok "),
+        ("C", "is ok ", "is ok "),
+        ("Toff", "is ok ", "is ok "),
+        // a comma is mid-sentence too: the English word
+        ("T", "this is, however ", "thí is, however "),
+        ("T", "ddepj quas is, nhuw vaayj ", "đẹp quá is, như vậy "),
+        // end of a sentence, Enter, or before a closing quote/bracket: í
+        ("T", "ddepj quas is. ", "đẹp quá í. "),
+        ("T", "thees is! ", "thế í! "),
+        ("T", "ddepj quas is? ", "đẹp quá í? "),
+        ("T", "uwf is\r", "ừ í\r"),
+        ("T", "\"is\" ", "\"í\" "),
+        ("T", "(is) ", "(í) "),
+        ("T", "[is] ", "[í] "),
+        // the code shape still wins
+        ("T", "is_empty ", "is_empty "),
+        // VNI: í is i1
+        ("V", "i1 ", "í "),
+        ("V", "d9e5p qua1 i1. ", "đẹp quá í. "),
+    ]);
 }

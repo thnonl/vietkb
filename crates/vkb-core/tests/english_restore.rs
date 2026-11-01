@@ -86,8 +86,8 @@ fn start_of_sentence_common_vietnamese_wins() {
 fn start_of_sentence_rare_vietnamese_loses_to_common_english() {
     // Owner amendment 2: "if" at the start is `if`, not `ì`.
     // Only a keyword whose Vietnamese twin is rare stays English at a line start.
-    check(telex(), &[("if ", "if "), ("is ", "í "), ("or ", "ỏ "), ("of ", "of "), ("us ", "ú ")]);
-    check(code_app(), &[("if ", "if "), ("is ", "í ")]);
+    check(telex(), &[("if ", "if "), ("is ", "is "), ("or ", "ỏ "), ("of ", "of "), ("us ", "ú ")]);
+    check(code_app(), &[("if ", "if "), ("is ", "is ")]);
 }
 
 #[test]

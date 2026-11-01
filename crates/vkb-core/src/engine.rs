@@ -1259,6 +1259,24 @@ impl Engine {
         {
             return (false, None);
         }
+        // Owner: `í` is rare in Vietnamese and mostly ends a sentence. Telex `is` followed by
+        // a space (or a comma, `;`, `:`, Tab) is the English word in any context; ended by
+        // sentence punctuation, Enter, or a closing quote or bracket it is `í`.
+        if self.options.method == InputMethod::Telex
+            && self.raw.len() == 2
+            && matches!(self.raw[0], 'i' | 'I')
+            && self.raw[1] == 's'
+        {
+            match ch {
+                // Mid-sentence: the English word. A comma is mid-sentence too.
+                ' ' | '\t' | ',' | ';' | ':' => return (true, None),
+                // End of a sentence or of a quote/bracket: `í`.
+                '.' | '!' | '?' | '\u{2026}' | '\r' | '\n' | '"' | '\'' | ')' | ']' | '}' | '\u{bb}' | '\u{201d}'
+                | '\u{2019}' => return (false, None),
+                // Anything else (`_`, `(`, `.`-chains ...): the normal rules.
+                _ => {}
+            }
+        }
         // Acronyms typed in capitals (`USA`, `UX`, `OS`, `CO2`).
         let mut token = [0u8; MAX_WORD];
         let mut alnum = true;
