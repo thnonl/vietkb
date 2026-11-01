@@ -229,7 +229,7 @@ composed text differs from the typed keys is a candidate.
 
    | left | rule |
    |---|---|
-   | Start (line / sentence start) | protected words stay; otherwise −1.0, code app +3.5, a rare English form against a real Vietnamese word −3 |
+   | Start (line / sentence start) | protected words stay. Neutral app: flips only when the Vietnamese reading is absent from the corpus list and the English word is common (`if is or of us`); `Chaos Lens Hair Seen Chars` stay `Cháo Lén Hải Sên Chá`, `Mix`/`Max` stay `Mĩ`/`Mã`. Code app: −1.0, +3.5, weak −3 |
    | Code (after `= ( [ { < > + * % & \| !`) | +3.0, code app +3.5; protected words only for a programming word in a code app |
    | Clause (after `, ; :`) | −1.0; code app +1.0; weak −3 |
    | English or code | +3.0; code app +3.5 |
@@ -270,10 +270,16 @@ composed text differs from the typed keys is a candidate.
      a letter right after a complete separator confirms code, one correction rewrites word and
      separator to the typed keys and the new word is literal (`foo.bar`, `std::io`, `a->b`).
      `.` counts only after a word that is not plausibly Vietnamese (`ngỗng.Con`, `gỏi.Có` stay).
-   - after `/`, `~` or `\` (a path): a word seen < 20 times is restored (`cd /usr/bin`); `bật/tắt` stays.
+   - a path: a token that *starts* with `/`, `~`, `./`, `C:\` or contains `://` (not a slash glued to
+     a word: `xanh/đỏ/tím/vàng`, `anh/chị` are lists). Inside it a word that is not a common (seen ≥ 20)
+     plausible Vietnamese word keeps the typed keys (`cd /usr/bin`, `~/Downloads`, `C:\Users`).
    - an inner capital after a lowercase letter: if the part before is a whole plausible Vietnamese
-     word that is not an English word, the capital starts a new word (`ViệtNam`, `iPhone`); otherwise
-     the word freezes as typed (`getValue`, `useEffect`, `HttpClient`).
+     word of ≥ 2 letters that is not an English word, and the capital is not a Telex key, the capital
+     starts a new word (`ViệtNam`); in that new token capitals are never keys. A capital that is a
+     key (`NguyeenX`: Shift+X tone) composes as in 0.2.7. Otherwise the word freezes as typed
+     (`getValue`, `useEffect`, `HttpClient`, and every one-letter prefix: `iOS`, `macOS`, `eBay`,
+     `iCloud`, `iMac`, `eKYC`).
+   - `!` is sentence punctuation (a context cut like `.`); only `!=` is code, because `=` is.
    - the word after a code separator is literal, even with `raw_zone` off.
 
 4. *Mid-word.* `spell::is_feasible_prefix` judges plain letters: onset + a prefix of one of 103

@@ -42,6 +42,7 @@ assert2
 asserted2
 asserting2
 assertion2
+assess3
 assessed2
 assesses2
 assessing2
@@ -934,6 +935,7 @@ morons3
 morose3
 mosaic3
 mosaics3
+moss3
 mots7
 mow3
 mower3
@@ -1124,6 +1126,7 @@ poses3
 posing2
 posit5
 posits5
+possess3
 possessed2
 possesses2
 possessing2

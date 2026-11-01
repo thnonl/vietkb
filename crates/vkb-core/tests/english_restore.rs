@@ -40,7 +40,8 @@ fn english_words_come_back_as_typed() {
             ("use ", "use "),
             ("were ", "were "),
             ("here ", "here "),
-            ("has ", "has "),
+            // `has` is a Vietnamese `há` that a line start keeps; after English it is `has`.
+            ("has ", "há "),
             ("tax ", "tax "),
             ("see ", "see "),
             ("through ", "through "),
@@ -561,7 +562,7 @@ fn a_wrong_auto_restore_can_be_taken_back_and_put_again() {
     assert_eq!(shown, "tôi hay mix ");
     // The next typed key ends the chance.
     feed(&mut engine, &mut shown, "n");
-    assert!(!engine.can_restore() || engine.can_restore());
+    assert!(!engine.can_restore(), "a typed key ends the chance to take a correction back");
     // Mid-word: `pass` restored on the fourth key, the hotkey takes it back.
     let mut engine = Engine::new(telex());
     let mut shown = String::new();
@@ -596,4 +597,86 @@ fn code_shapes_keep_programming_words_in_a_code_app() {
     );
     // The same Vietnamese words after a Vietnamese word, or alone, stay Vietnamese.
     check(code_app(), &[("nhaf cos ", "nhà có "), ("Cos nhaf ", "Có nhà "), ("tooi cos ", "tôi có ")]);
+}
+
+#[test]
+fn product_names_with_an_inner_capital_stay_as_typed() {
+    // Review blocker: `iOS` was `iÓ` (the S acted as the sắc key).
+    check(
+        telex(),
+        &[
+            ("iOS ", "iOS "),
+            ("iPadOS ", "iPadOS "),
+            ("macOS ", "macOS "),
+            ("tvOS ", "tvOS "),
+            ("watchOS ", "watchOS "),
+            ("eBay ", "eBay "),
+            ("iCloud ", "iCloud "),
+            ("iMac ", "iMac "),
+            ("eKYC ", "eKYC "),
+            ("Ddi iOS 17 nhes ", "Đi iOS 17 nhé "),
+            ("ddt iOS ", "ddt iOS "),
+            ("VieetjNam ", "ViệtNam "),
+            // After a split a capital is a letter, never a key.
+            ("VieetjNamS ", "ViệtNamS "),
+            // Shift+X as the tone key is 0.2.7 behaviour and stays.
+            ("NguyeenX ", "Nguyễn "),
+        ],
+    );
+    check(code_app(), &[("iOS ", "iOS "), ("macOS ", "macOS "), ("NguyeenX ", "Nguyễn ")]);
+}
+
+#[test]
+fn slash_lists_are_not_paths() {
+    check(
+        telex(),
+        &[
+            ("xanh/ddor/tims/vangf ", "xanh/đỏ/tím/vàng "),
+            ("ddaajm/nhatj ", "đậm/nhạt "),
+            ("gaoj/luas ", "gạo/lúa "),
+            ("ddieeuj/kieenj ", "điệu/kiện "),
+            ("anh/chij ", "anh/chị "),
+            // Real paths keep the typed keys.
+            ("cd /usr/bin ", "cd /usr/bin "),
+            ("~/Downloads ", "~/Downloads "),
+            ("C:\\Users ", "C:\\Users "),
+            ("./build.sh ", "./build.sh "),
+            ("ls /usr/local/bin ", "ls /usr/local/bin "),
+        ],
+    );
+}
+
+#[test]
+fn more_doubled_key_words() {
+    for word in ["loss", "toss", "moss", "assess", "pass"] {
+        assert_eq!(simulate(telex(), &format!("{word} ")), format!("{word} "), "{word}");
+    }
+    check(telex(), &[("lass ", "las "), ("bass ", "bas ")]);
+}
+
+#[test]
+fn bang_is_sentence_punctuation_but_not_equals() {
+    check(telex(), &[("Hay!Cos ", "Hay!Có "), ("wow! cos ", "wow! có ")]);
+    check(code_app(), &[("x != cos ", "x != cos "), ("Hay! Cos ", "Hay! Có ")]);
+}
+
+#[test]
+fn neutral_line_start_keeps_ordinary_vietnamese() {
+    check(
+        telex(),
+        &[
+            ("Chaos ", "Cháo "),
+            ("Lens ", "Lén "),
+            ("Hair ", "Hải "),
+            ("Seen ", "Sên "),
+            ("Chars ", "Chá "),
+            ("If ", "If "),
+            ("if ", "if "),
+            // `Mix` and `Max` read as the Vietnamese names `Mĩ` and `Mã` at a line start;
+            // `hay mix` and the code apps still give `mix` and `max`.
+            ("Mix ", "Mĩ "),
+            ("Max ", "Mã "),
+        ],
+    );
+    check(code_app(), &[("Max ", "Max "), ("if ", "if ")]);
 }

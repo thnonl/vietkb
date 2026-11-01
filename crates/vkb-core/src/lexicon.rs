@@ -310,6 +310,13 @@ pub fn english_beats_vietnamese(vi_key: &[u8], typed: &[u8], word: EnglishWord, 
             if protected {
                 return false;
             }
+            // Outside a code editor a line start flips only when the Vietnamese
+            // reading is genuinely absent and the English word is common
+            // (`if`, `is`, `or`); `Chaos`, `Lens`, `Hair`, `Seen`, `Chars` are
+            // ordinary Vietnamese (`cháo`, `lén`, `hải`, `sên`, `chả`).
+            if !code_app && (present || word.level > 2) {
+                return false;
+            }
             score -= 1.0;
             if code_app {
                 score += 3.5;

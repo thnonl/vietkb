@@ -139,8 +139,12 @@ pub struct Engine {
     correction: Option<Correction>,
     /// The user took the correction of the word being typed back: leave it alone.
     auto_suppressed: bool,
-    /// The word started right after `/`, `~` or `\\`: a path.
+    /// The word started right after `/`, `~` or `\\` inside a path token.
     after_path_sep: bool,
+    /// The current space-delimited token started as a path (`/usr`, `~/`, `C:\\`, `./`).
+    path_token: bool,
+    /// The word is the part after an inner-capital split: capitals never act as keys here.
+    split_token: bool,
 }
 
 impl Engine {
@@ -165,6 +169,8 @@ impl Engine {
             correction: None,
             auto_suppressed: false,
             after_path_sep: false,
+            path_token: false,
+            split_token: false,
         }
     }
 
@@ -331,6 +337,7 @@ impl Engine {
 
     fn reset_word(&mut self) {
         self.auto_suppressed = false;
+        self.split_token = false;
         self.raw.clear();
         self.composed.clear();
         self.text.clear();
@@ -411,11 +418,20 @@ impl Engine {
             && self.literal_from == usize::MAX
             && self.raw.last().is_some_and(|last| last.is_ascii_lowercase())
         {
-            if self.inner_capital_splits() {
-                // `VieetjNam`, `iPhone`: the part before is a Vietnamese word of
-                // its own; the capital starts the next one.
-                self.reset_word();
+            if self.split_token {
+                // Already after a split: capitals are letters here, never keys.
+                self.literal_from = 0;
+            } else if self.inner_capital_splits() {
+                if self.capital_is_a_key(ch) {
+                    // `NguyeenX`: Shift+X is the tone key, as in 0.2.7.
+                } else {
+                    // `VieetjNam`: the part before is a Vietnamese word of its
+                    // own; the capital starts the next one.
+                    self.reset_word();
+                    self.split_token = true;
+                }
             } else {
+                // `getValue`, `iOS`, `macOS`, `eBay`: the word stays as typed.
                 self.literal_from = 0;
             }
         }
@@ -712,13 +728,29 @@ impl Engine {
         if ch != ' ' {
             self.prev_word = if matches!(ch, ',' | ';' | ':') {
                 PrevWord { kind: PrevKind::Clause, count: 0, hash: 0 }
-            } else if matches!(ch, '=' | '(' | '[' | '{' | '<' | '>' | '+' | '*' | '%' | '&' | '|' | '!') {
+            } else if matches!(ch, '=' | '(' | '[' | '{' | '<' | '>' | '+' | '*' | '%' | '&' | '|') {
                 PrevWord { kind: PrevKind::Code, count: 0, hash: 0 }
             } else {
                 PrevWord::NONE
             };
         }
-        let path = std::mem::replace(&mut self.after_path_sep, matches!(ch, '/' | '~' | '\\'));
+        // A path is a token that *starts* with a separator (`/usr`, `~/`, `./`, `C:\\`),
+        // never a slash glued to a word (`xanh/đỏ/tím`).
+        let path = self.after_path_sep;
+        let starts_token = self.raw.is_empty()
+            && matches!(self.last_emitted, None | Some(' ') | Some('\t') | Some('\r') | Some('\n'));
+        match ch {
+            ' ' | '\t' | '\r' | '\n' => self.path_token = false,
+            '/' | '\\' | '~' => {
+                // `://` of a URL and `C:\\` of a drive also start a path.
+                if self.path_token || starts_token || (ch != '~' && self.last_emitted == Some(':')) {
+                    self.path_token = true;
+                }
+            }
+            '.' if starts_token => self.path_token = true,
+            _ => {}
+        }
+        self.after_path_sep = self.path_token && matches!(ch, '/' | '\\' | '~');
         // Raw zone (spec §A9 + amendment 2026-10-30): the opener only arms; the
         // next key decides. The decision is taken at the end of this key, on the
         // *final* left text, because the macro and A10 restore branches below
@@ -924,7 +956,8 @@ impl Engine {
     /// (`Việt|Nam`, `i|Phone`) starts a new word; anything else (`getValue`,
     /// `useEffect`) freezes the word as typed.
     fn inner_capital_splits(&self) -> bool {
-        if self.composed.literal || self.composed.escaped || self.raw.len() > 8 {
+        // A one-letter prefix (`iOS`, `eBay`, `iMac`) is never a word of its own.
+        if self.composed.literal || self.composed.escaped || self.raw.len() < 2 || self.raw.len() > 8 {
             return false;
         }
         let mut word = [0u8; MAX_WORD];
@@ -937,6 +970,20 @@ impl Engine {
         let mut key = [0u8; 48];
         let key_len = self.composed_key(&mut key);
         self.plausibly_vietnamese(key_len.map(|len| &key[..len]))
+    }
+
+    /// The capital would act as a Telex key on the word so far (tone, `w`, or a
+    /// doubling of the last letter), so the word is left to compose as in 0.2.7.
+    fn capital_is_a_key(&self, ch: char) -> bool {
+        if self.options.method == InputMethod::Vni {
+            return false;
+        }
+        let lower = ch.to_ascii_lowercase();
+        if matches!(lower, 's' | 'f' | 'r' | 'x' | 'j' | 'w' | 'z') {
+            return true;
+        }
+        matches!(lower, 'a' | 'e' | 'o' | 'd')
+            && self.raw.last().is_some_and(|last| last.to_ascii_lowercase() == lower)
     }
 
     /// The doubled tone key of an English word was swallowed (`pass` shows
@@ -1011,7 +1058,8 @@ impl Engine {
         if path {
             // `cd /usr/bin`: a word right after `/`, `~` or `\\` is a path
             // unless it is a common Vietnamese word (`bật/tắt`).
-            return !key_len.is_some_and(|len| lexicon::vi_count(&key[..len]) >= 20);
+            let common = key_len.is_some_and(|len| lexicon::vi_count(&key[..len]) >= 20);
+            return !(common && common_vietnamese);
         }
         if ch.is_ascii_digit() {
             // `utf8`, `h264`: letters then a digit with no space (Telex only: in
@@ -1152,6 +1200,7 @@ impl VietnameseEngine for Engine {
         self.pending_code = None;
         self.correction = None;
         self.after_path_sep = false;
+        self.path_token = false;
     }
 
     fn set_options(&mut self, options: EngineOptions) {
@@ -1284,6 +1333,7 @@ impl VietnameseEngine for Engine {
         self.pending_code = None;
         self.correction = None;
         self.after_path_sep = false;
+        self.path_token = false;
     }
 }
 /// EVKey character class 1: keys that end the word but leave it re-openable
