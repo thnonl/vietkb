@@ -100,7 +100,7 @@ pub fn vi_count(key: &[u8]) -> u32 {
 /// English words that mark the previous word as English even when they are also
 /// plausible Vietnamese toneless syllables. Sorted.
 static FUNCTION_WORDS: &[&str] = &[
-    "and", "any", "are", "at", "be", "but", "by", "each", "for", "from", "have", "her", "his", "how", "in", "is", "it", "its", "many", "my", "not", "of", "on", "or", "our", "she", "some", "such", "that", "the", "their", "them", "then", "there", "these", "they", "this", "those", "up", "was", "were", "what", "when", "where", "which", "who", "will", "with", "would", "you", "your",
+    "and", "any", "are", "at", "be", "but", "by", "each", "for", "from", "have", "her", "his", "how", "in", "is", "it", "its", "many", "my", "not", "now", "of", "on", "or", "our", "she", "some", "such", "that", "the", "their", "them", "then", "there", "these", "they", "this", "those", "up", "was", "were", "what", "when", "where", "which", "who", "will", "with", "would", "you", "your",
 ];
 
 pub fn is_function_word(word: &[u8]) -> bool {
@@ -205,7 +205,7 @@ pub enum Left {
 /// English only on positive English evidence (English or code on the left, a
 /// code app at the start of a line, a known English collocation), never because
 /// a word pair is missing from the table.
-const PROTECTED_COUNT: u32 = 100;
+pub const PROTECTED_COUNT: u32 = 100;
 const fn colloc(previous: &str, english: &str) -> u32 {
     let mut hash = fnv_const(FNV_BASIS, previous.as_bytes());
     hash = fnv_const(hash, b" ");
@@ -240,6 +240,28 @@ static VI_COLLOCATIONS: &[u32] = &[
     colloc("nguo+i2", "mix"),
     colloc("quo^c1", "mix"),
 ];
+
+/// The only phrases the one-word-back correction may turn into English: an
+/// explicit, small list (owner: when in doubt, Vietnamese). The first word is
+/// what a line start keeps as Vietnamese (`Mã`, `Sĩ`), the second certainly
+/// English.
+static BACK_PAIRS: &[u32] = &[
+    colloc("max", "speed"),
+    colloc("max", "pro"),
+    colloc("max", "plus"),
+    colloc("max", "power"),
+    colloc("six", "pack"),
+];
+static BACK_FIRST: &[&str] = &["max", "six"];
+
+pub fn back_first(typed: &[u8]) -> bool {
+    BACK_FIRST.iter().any(|w| w.as_bytes() == typed)
+}
+
+pub fn back_pair(first: &[u8], second: &[u8]) -> bool {
+    let hash = fnv_extend(fnv_extend(fnv_extend(FNV_BASIS, first), b" "), second);
+    BACK_PAIRS.contains(&hash)
+}
 
 /// Known acronyms typed in capitals (`USA`, `UX`, `OS`): Telex would turn the
 /// vowel and the S into `ÚA`, `Ũ`, `Ó`. Matched case-sensitively (letters and
@@ -304,8 +326,10 @@ pub fn english_wins(vi_key: &[u8], typed: &[u8], word: EnglishWord, left: Left, 
         // `the car`, `my tips`, `with cups`: an English noun, even a plural or a
         // word that collides with a common Vietnamese one.
         Left::Function => !(protected && (word.level > 2 || word.loan)),
-        // `I like mix`, but `test có xanh` and `hook sẽ chạy` stay Vietnamese.
-        Left::English => !protected && !weak,
+        // `I like mix`: an English word on the left and a word Vietnamese text
+        // borrows, a programming word or a function word (`format is now`). Everything else stays Vietnamese
+        // (`test có xanh`, `hook sẽ chạy`, `code mô phỏng`).
+        Left::English => (word.loan || word.tech || is_function_word(typed)) && !protected && !weak,
         // `x = max`, `foo(cos`: a code context.
         Left::Code => !protected || (code_app && word.tech),
         // A keyword whose Vietnamese twin is rare (`ì`).

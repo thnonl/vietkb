@@ -251,13 +251,15 @@ mod one_word_back {
         engine.boundary();
         type_str(&mut engine, &mut out, "speed ");
         assert_eq!(out, "Mã speed ");
-        // The restore hotkey on the first word.
+        // The restore hotkey on the first word cancels the chance too.
         let mut engine = Engine::new(EngineOptions::default());
         let mut out = String::new();
         type_str(&mut engine, &mut out, "Max ");
         assert_eq!(out, "Mã ");
-        // (nothing to restore on a Vietnamese word kept by the score: the call is a no-op)
-        let _ = engine.can_restore();
+        let action = engine.restore_word();
+        apply_action(&mut out, action, KeyInput::key(0, None));
+        type_str(&mut engine, &mut out, "speed ");
+        assert_eq!(out, "Mã speed ");
         // A modifier key alone does not end the chance.
         let mut engine = Engine::new(EngineOptions::default());
         let mut out = String::new();
@@ -337,5 +339,58 @@ fn owner_examples_still_hold() {
         ("T", "Max speed ", "Max speed "),
         ("T", "Six pack ", "Six pack "),
         ("T", "user were ", "user were "),
+    ]);
+}
+
+#[test]
+fn one_word_back_never_touches_common_vietnamese() {
+    // Review: the left word must be an English base form whose Vietnamese reading is not common.
+    let pairs = [
+        ("Teen file ", "Tên file "),
+        ("Sangs team ", "Sáng team "),
+        ("Been server ", "Bên server "),
+        ("Toots API ", "Tốt API "),
+        ("Boos API ", "Bố API "),
+        ("Teen file laf gif? ", "Tên file là gì? "),
+        ("Sangs team oi ", "Sáng team oi "),
+        ("Toots code quas ", "Tốt code quá "),
+        ("Been server ddang chayj ", "Bên server đang chạy "),
+        ("Boos API ddax xong ", "Bố API đã xong "),
+    ];
+    let mut table: Vec<(&str, String, String)> = Vec::new();
+    for (keys, expected) in pairs {
+        table.push(("T", keys.to_string(), expected.to_string()));
+        table.push(("C", keys.to_string(), expected.to_string()));
+        table.push(("T", format!("Xong roofi. {keys}"), format!("Xong rồi. {expected}")));
+        table.push(("T", format!("Cos bug. {keys}"), format!("Có bug. {expected}")));
+    }
+    let rows: Vec<(&str, &str, &str)> = table.iter().map(|(p, k, e)| (*p, k.as_str(), e.as_str())).collect();
+    run(&rows);
+    // The two that must still work, and after a full stop.
+    run(&[
+        ("T", "Max speed ", "Max speed "),
+        ("T", "Max Pro ", "Max Pro "),
+        ("T", "Xong roofi. Max speed ", "Xong rồi. Max speed "),
+        ("T", "Six pack ", "Six pack "),
+        ("T", "Six thing ", "Sĩ thing "),
+        ("T", "Max thing ", "Mã thing "),
+        ("T", "Max level ", "Mã level "),
+        ("T", "Six sigma ", "Sĩ sigma "),
+    ]);
+}
+
+#[test]
+fn vni_tone_changes_are_not_code() {
+    run(&[
+        ("V", "ba12 ", "bà "),
+        ("V", "ca13 ", "cả "),
+        ("V", "a12 ", "à "),
+        ("V", "ho21 ", "hó "),
+        ("V", "to6i12 ", "tồi "),
+        ("V", "ngu7o7i21 ", "ngưới "),
+        ("V", "Win10 ", "Win10 "),
+        ("V", "A52 ", "A52 "),
+        ("V", "A101 ", "A101 "),
+        ("V", "Top10 ", "Top10 "),
     ]);
 }

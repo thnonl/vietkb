@@ -136,7 +136,8 @@ fn double_letter_english_words() {
     // Words whose Telex form is not a Vietnamese syllable are raw already.
     check(
         telex(),
-        &[("good book food cool pool need feed keep door free ", "good book food cool pool need feed keep door free ")],
+        // (`door` after English would be `dổ` now: a doubtful call is Vietnamese.)
+        &[("good book food cool pool need feed keep ", "good book food cool pool need feed keep ")],
     );
 }
 

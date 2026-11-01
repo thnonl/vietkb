@@ -229,8 +229,9 @@ composed text differs from the typed keys is a candidate.
    - the composed text cannot be Vietnamese (`ủe`, `wể`, `pas`, `rẻpot` with spell check off): the list
      decides (`user`, `were`, `order`, `pass`);
    - an English function word on the left (`the cups`, `the car`, `I see`, `it is`, `my tips`), or an
-     English word on the left when the Vietnamese reading is not a common word (`I like mix`; `test có
-     xanh` stays);
+     English word on the left when the word is a loanword, a programming word or a function word and the
+     Vietnamese reading is not a common word (`I like mix`, `format is now`; `test có xanh`, `keep door`
+     stay Vietnamese);
    - a code context on the left (after `= ( [ { < > + * % & |`), where a common Vietnamese word flips only
      for a programming word (`x = cos`) in a code app; a code identifier (`res os buf …`) after an
      English or code word in a code app;
@@ -282,18 +283,17 @@ composed text differs from the typed keys is a candidate.
    restore hotkey (`can_restore`/`restore_word`) puts the Vietnamese word back, and again the English.
    A mid-word correction taken back leaves that word alone (`auto_suppressed`).
 
-6. *One word back (amendment 4).* A Vietnamese word kept over an English one **at a line or sentence
-   start** (and not among the most common Vietnamese words, < 500) is remembered for one word. If the
-   NEXT word is clearly English (restored, or raw because it cannot be Vietnamese) its break rewrites the
-   first word to the typed keys: `Max speed`, `Max Pro`, `Six pack`. An unusual or unknown Vietnamese
-   word on the right is no evidence (`mĩ miều`, `mĩ cảm`, `mĩ thuật` stay), and a Vietnamese word is never
-   rewritten to English in the middle of a sentence (`bên JavaScript`, `nút merge`). English-to-Vietnamese
-   rewrites do not exist: English is chosen only on positive evidence. One `Replace` over the old word,
-   the space, the next word and the break key, in charset units; the restore hotkey takes it back
-   exactly. The chance ends at Backspace, any non-modifier command or navigation key, Enter, Tab, Escape,
-   a chord, `boundary()` (focus change, app switch, mouse click), a macro, `restore_word` on the first
-   word, `set_options`. Platform note: this is the first `Replace` that deletes more than the current
-   word (word + space + word); backends must not clamp `delete_units` to the word length.
+6. *One word back (amendment 4).* Owner principle: when in doubt, Vietnamese. So there is no score here,
+   only an explicit small list of phrases (`lexicon::BACK_PAIRS`): `max speed`, `max pro`, `max plus`,
+   `max power`, `six pack`. A line or sentence start keeps `Max`/`Six` as `Mã`/`Sĩ`; if the NEXT word is
+   exactly the second word of one of these pairs (typed as English, raw), its break rewrites the first word to
+   the typed keys. Nothing else is ever rewritten (`Tên file`, `Sáng team`, `Bên server`, `Tốt API`,
+   `Bố API`, `mĩ miều` all stay). One `Replace` over the old word, the space, the next word and the break
+   key, in charset units; the restore hotkey takes it back exactly. The chance ends at Backspace, any
+   non-modifier command or navigation key, Enter, Tab, Escape, a chord, `boundary()` (focus change, app
+   switch, mouse click), a macro, `restore_word` on the first word, `set_options`. Platform note: this is
+   the first `Replace` that deletes more than the current word (word + space + word); backends must not
+   clamp `delete_units` to the word length.
 7. *Review round 3.* `quýt`: the rime check accepts `qu` + `yt` (= `uyt`); the Vietnamese list now holds
    every syllable seen once (4,000 syllables) minus those with an impossible rime; a rare real word
    (`tã`) beats `tax` after a Vietnamese word, `ủe`/`wể` (no real syllable) still lose; an English

@@ -21,8 +21,6 @@ use crate::method::{self, Composed};
 use crate::tone as place;
 use crate::lexicon::{self, Left};
 
-/// A Vietnamese syllable seen at least this often is never corrected one word back.
-const VERY_COMMON: u32 = 500;
 use crate::{spell, AppKind, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine, MAX_WORD};
 
 /// Windows virtual-key codes the engine reacts to even without a character.
@@ -84,6 +82,9 @@ struct Back {
     shown: TextBuf,
     /// The English reading (the typed keys).
     alternate: TextBuf,
+    /// The typed keys, lowercase.
+    typed: [u8; MAX_WORD],
+    typed_len: usize,
 }
 
 /// What the break that just ended a word left behind, for the one-word-back check.
@@ -94,6 +95,9 @@ struct Scratch {
     /// The word as it stands after the break (restored or composed).
     final_text: TextBuf,
     right: PrevWord,
+    /// The typed keys of the word, lowercase ASCII letters (empty otherwise).
+    right_raw: [u8; MAX_WORD],
+    right_len: usize,
 }
 
 /// The last automatic correction, kept until the next key so the restore hotkey
@@ -212,7 +216,7 @@ impl Engine {
     /// after any amount of typing the numbers must equal what they were after
     /// the first pass.
     #[doc(hidden)]
-    pub fn buffer_footprint(&self) -> ([usize; 8], bool) {
+    pub fn buffer_footprint(&self) -> ([usize; 10], bool) {
         let reopen = self.reopen.as_ref();
         let correction = self.correction.as_ref();
         let pending = self.pending_code.as_ref();
@@ -225,13 +229,17 @@ impl Engine {
             pending.map_or(0, |p| p.raw.capacity() + p.chain.capacity()),
             self.macros.len(),
             std::mem::size_of::<Self>(),
+            self.back.as_ref().map_or(0, |b| b.shown.capacity() + b.alternate.capacity()),
+            self.scratch.as_ref().map_or(0, |s| s.old_text.capacity() + s.final_text.capacity()),
         ];
         let spilled = self.raw.spilled()
             || self.text.spilled()
             || self.composed.letters.spilled()
             || reopen.is_some_and(|r| r.raw.spilled() || r.text.spilled())
             || correction.is_some_and(|c| c.shown.spilled() || c.alternate.spilled())
-            || pending.is_some_and(|p| p.raw.spilled() || p.chain.spilled());
+            || pending.is_some_and(|p| p.raw.spilled() || p.chain.spilled())
+            || self.back.as_ref().is_some_and(|b| b.shown.spilled() || b.alternate.spilled())
+            || self.scratch.as_ref().is_some_and(|s| s.old_text.spilled() || s.final_text.spilled());
         (caps, spilled)
     }
 
@@ -1090,7 +1098,8 @@ impl Engine {
             return false;
         }
         let mut key = [0u8; 48];
-        self.composed_key(&mut key).map_or(true, |len| lexicon::vi_count(&key[..len]) == 0)
+        let len = self.composed_key(&mut key);
+        !self.plausibly_vietnamese(len.map(|len| &key[..len]))
     }
 
     /// The composed word is a common Vietnamese word or could be a real
@@ -1140,7 +1149,14 @@ impl Engine {
             let first = raw[raw.len() - trailing];
             // `a11` is the doubled-tone undo of VNI, not a number.
             let repeated = raw[raw.len() - trailing..].iter().all(|&c| c == first);
-            if matches!(first, '0'..='5') && !repeated {
+            // `ba12` (a tone changed) is Vietnamese typing: the letters before
+            // the digits are a plausible lowercase syllable. `Win10`, `A52`,
+            // `Top10` are not.
+            let mut letters = Composed::default();
+            method::compose(&raw[..raw.len() - trailing], &self.options, usize::MAX, &mut letters);
+            let vietnamese_letters = raw[0].is_ascii_lowercase()
+                && spell::is_plausible_syllable(&letters.letters, letters.tone, self.options.jfwz_as_consonant);
+            if matches!(first, '0'..='5') && !repeated && !vietnamese_letters {
                 return true;
             }
         }
@@ -1229,10 +1245,12 @@ impl Engine {
         );
         // A Vietnamese word kept over an English one that is not among the most
         // common Vietnamese words may still be corrected once (amendment 4).
+        // Only the first word of an explicit phrase (`Max speed`, `Six pack`) is
+        // ever corrected one word back; everything else stays Vietnamese.
         let candidate = !wins
             && plausible
             && matches!(left, Left::Start)
-            && lexicon::vi_count(&key[..len]) < VERY_COMMON;
+            && lexicon::back_first(&word[..self.raw.len()]);
         (wins, candidate.then_some(1.0))
     }
 
@@ -1250,6 +1268,15 @@ impl Engine {
             push_encoded(raw_ch, self.options.charset, &mut raw_text);
         }
         let composed_text = self.text.clone();
+        let mut lower = [0u8; MAX_WORD];
+        let mut lower_len = self.raw.len();
+        for (slot, &typed) in lower.iter_mut().zip(self.raw.iter()) {
+            if !typed.is_ascii_alphabetic() {
+                lower_len = 0;
+                break;
+            }
+            *slot = typed.to_ascii_lowercase() as u8;
+        }
         if self.want_scratch {
             let right = self.summarize_word(restored);
             self.scratch = Some(Scratch {
@@ -1257,10 +1284,17 @@ impl Engine {
                 old_text: composed_text.clone(),
                 final_text: if restored { raw_text.clone() } else { composed_text.clone() },
                 right,
+                right_raw: lower,
+                right_len: lower_len,
             });
         }
         if candidate {
-            self.back = Some(Back { shown: composed_text, alternate: raw_text });
+            self.back = Some(Back {
+                shown: composed_text,
+                alternate: raw_text,
+                typed: lower,
+                typed_len: lower_len,
+            });
         }
     }
 
@@ -1277,7 +1311,9 @@ impl Engine {
         // `Max speed`, `Six pack`: the next word is English that cannot be
         // Vietnamese. An unusual Vietnamese word on the right (`mĩ miều`) is not
         // evidence; neither is anything else.
-        let rewrite = scratch.right.kind == PrevKind::English;
+        let right = &scratch.right_raw[..scratch.right_len];
+        let rewrite = scratch.right.kind == PrevKind::English
+            && lexicon::back_pair(&back.typed[..back.typed_len], right);
         if !rewrite {
             return action;
         }
