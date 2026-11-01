@@ -84,14 +84,14 @@ fn opts(method: InputMethod) -> EngineOptions { EngineOptions { method, ..Engine
 }
 #[test] fn restore_wrong_word_telex() {
     // D4 in 28-engine-rulings.md: spell_check=false disables restore_wrong_word.
-    let mut on=Session::new(EngineOptions { restore_wrong_word:true, spell_check:false, ..opts(InputMethod::Telex) });
+    let mut on=Session::new(EngineOptions { restore_wrong_word:true, spell_check:false, auto_restore_english:false, ..opts(InputMethod::Telex) });
     assert_eq!(on.text("google "), "gôgle ");
-    let mut off=Session::new(EngineOptions { spell_check:false, ..opts(InputMethod::Telex) });
+    let mut off=Session::new(EngineOptions { spell_check:false, auto_restore_english:false, ..opts(InputMethod::Telex) });
     assert_eq!(off.text("google "), "gôgle ");
 }
 #[test] fn restore_wrong_word_vni() {
     // With spell check off, both flags allow VNI transforms at boundary.
-    let mut on=Session::new(EngineOptions { restore_wrong_word:true, spell_check:false, ..opts(InputMethod::Vni) });
+    let mut on=Session::new(EngineOptions { restore_wrong_word:true, spell_check:false, auto_restore_english:false, ..opts(InputMethod::Vni) });
     assert_eq!(on.text("go6gle "), "gôgle ");
     let mut off=Session::new(EngineOptions { spell_check:false, ..opts(InputMethod::Vni) });
     assert_eq!(off.text("go6gle "), "gôgle ");

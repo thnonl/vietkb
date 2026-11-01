@@ -108,8 +108,10 @@ fn d6_english_passthrough_with_defaults() {
     assert_eq!(simulate(options, "dduwowngf"), "đường");
     // The escape hatch keeps working: with the spell check off, transforms
     // apply as before.
+    // (D10 keeps listed English words raw even then; this pins the 0.2.7 contract.)
     let unchecked = EngineOptions {
         spell_check: false,
+        auto_restore_english: false,
         ..EngineOptions::default()
     };
     assert_eq!(simulate(unchecked, "test"), "tét");

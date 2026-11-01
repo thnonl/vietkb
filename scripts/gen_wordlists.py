@@ -23,7 +23,7 @@ Needs `cargo` (builds the vkb-core example `compose_words`).
 """
 import argparse, collections, glob, os, re, subprocess, sys, unicodedata
 
-MIN_COUNT = 4
+MIN_COUNT = 1
 RIME_MIN = 3
 LEVELS = ["10", "20", "35", "40", "50", "55", "60"]
 LEVEL_DIGIT = {lv: str(i + 1) for i, lv in enumerate(LEVELS)}
@@ -99,9 +99,11 @@ def read_loans(path):
 
 
 def compose(words, repo):
-    """raw -> composed text, for default options and for `jfwz_as_consonant = false`."""
+    """raw -> composed text, for default options and for `jfwz_as_consonant = false`.
+    Second result: the same with spell check off (`order` -> `ỏde`)."""
     out = {}
-    for env in ({}, {"COMPOSE_NO_JFWZ": "1"}):
+    nospell = {}
+    for env in ({}, {"COMPOSE_NO_JFWZ": "1"}, {"COMPOSE_NO_SPELL": "1"}):
         res = subprocess.run(
             ["cargo", "run", "-q", "-p", "vkb-core", "--example", "compose_words"],
             input="\n".join(words), text=True, capture_output=True, cwd=repo,
@@ -109,8 +111,8 @@ def compose(words, repo):
         for line in res.stdout.splitlines():
             raw, _, composed = line.partition("\t")
             if composed and composed != raw:
-                out.setdefault(raw, set()).add(composed)
-    return out
+                (nospell if "COMPOSE_NO_SPELL" in env else out).setdefault(raw, set()).add(composed)
+    return out, nospell
 
 
 def read_vietnamese(tatoeba, cv):
@@ -173,9 +175,11 @@ def main():
     techs = read_loans(os.path.join(here, "wordlists", "tech-words.txt"))
     escape_deny = read_loans(os.path.join(here, "wordlists", "escape-deny.txt"))
     escape_allow = read_loans(os.path.join(here, "wordlists", "escape-allow.txt"))
-    for w in loans:
+    idents = read_loans(os.path.join(here, "wordlists", "ident-words.txt"))
+    names = read_loans(os.path.join(here, "wordlists", "names.txt"))
+    for w in loans | idents | names | escape_allow:
         english.setdefault(w, TECH_LEVEL)
-    composed = compose(sorted(english), repo)
+    composed, nospell = compose(sorted(english), repo)
     unigrams, bigrams = read_vietnamese(args.tatoeba, args.cv)
     total = sum(unigrams.values())
 
@@ -193,45 +197,6 @@ def main():
         if k in wins:
             del vi[k]
 
-    cand = {}
-    for raw, forms in composed.items():
-        keys = set()
-        for form in forms:
-            k = key_of(form)
-            if k and valid_key(k, foreign=True):
-                keys.add(k)
-        # A doubled tone key typed in an English word (`pass`, `error`, `coffee`)
-        # is swallowed as an undo: the screen shows `pas`, `eror`. Restore those
-        # when the English word is common (SCOWL size 20 or less) and the
-        # collapsed text is not itself a common English word (`ass` -> `as`, the
-        # Telex idiom for typing a literal `as`; `lass` -> `las` stays too).
-        if not keys and raw not in escape_deny and (english[raw] <= "2" or raw in escape_allow):
-            for form in forms:
-                if len(form) < len(raw) and form.isascii() and english.get(form.lower(), "9") > "2":
-                    keys.add("!" + form.lower())
-        if keys:
-            cand[raw] = keys
-    ambiguous = {k for keys in cand.values() for k in keys if k in vi}
-
-    with open(os.path.join(args.out, "english.txt"), "w") as f:
-        for w in sorted(cand):
-            level = english[w]
-            if w in loans:
-                level = chr(ord("a") + int(level) - 1)
-            elif w in techs:
-                level = chr(ord("A") + int(level) - 1)
-            f.write(w + level + "\n")
-    with open(os.path.join(args.out, "vi.txt"), "w") as f:
-        for k in sorted(vi):
-            f.write(f"{k} {vi[k]}\n")
-    pairs = {}
-    for (p, v), c in bigrams.items():
-        if v in ambiguous and p in vi:
-            pairs[fnv1a32(p + " " + v)] = min(c, 255)
-    with open(os.path.join(args.out, "pairs.bin"), "wb") as f:
-        hs = sorted(pairs)
-        f.write(b"".join(h.to_bytes(4, "little") for h in hs))
-        f.write(bytes(pairs[h] for h in hs))
     rimes = collections.Counter()
     for k, c in unigrams.items():
         r = rime_of(k)
@@ -249,6 +214,60 @@ def main():
                 line = line.strip()
                 if line and not line.startswith("#"):
                     op(line)
+    # A token whose rime Vietnamese does not have (`yanh`, a name or an English
+    # word in a sentence) is not a Vietnamese syllable.
+    vi = {k: c for k, c in vi.items() if rime_of(k) in keep}
+
+    cand = {}
+    for raw, forms in composed.items():
+        keys = set()
+        for form in forms:
+            k = key_of(form)
+            if k and valid_key(k, foreign=True):
+                keys.add(k)
+        # A doubled tone key typed in an English word (`pass`, `error`, `coffee`)
+        # is swallowed as an undo: the screen shows `pas`, `eror`. Restore those
+        # when the English word is common (SCOWL size 20 or less) and the
+        # collapsed text is not itself a common English word (`ass` -> `as`, the
+        # Telex idiom for typing a literal `as`; `lass` -> `las` stays too).
+        if not keys and raw not in escape_deny and (english[raw] <= "2" or raw in escape_allow):
+            for form in forms:
+                if len(form) < len(raw) and form.isascii() and (
+                        raw in escape_allow or english.get(form.lower(), "9") > "2"):
+                    keys.add("!" + form.lower())
+        if keys:
+            cand[raw] = keys
+    # Spell check off: the structural check no longer keeps `order`, `teacher`
+    # raw, so the common English words (size 20 or less, brands, code words) are
+    # listed for the word break and the mid-word switch as well.
+    for raw in nospell:
+        if raw not in cand and raw not in escape_deny and (english[raw] <= "2" or raw in names or raw in idents or raw in loans):
+            cand[raw] = {"!nospell"}
+    ambiguous = {k for keys in cand.values() for k in keys if k in vi}
+
+    with open(os.path.join(args.out, "english.txt"), "w") as f:
+        for w in sorted(cand):
+            level = english[w]
+            if w in loans:
+                level = chr(ord("a") + int(level) - 1)
+            elif w in idents:
+                level = chr(ord("h") + int(level) - 1)
+            elif w in names:
+                level = chr(ord("o") + int(level) - 1)
+            elif w in techs:
+                level = chr(ord("A") + int(level) - 1)
+            f.write(w + level + "\n")
+    with open(os.path.join(args.out, "vi.txt"), "w") as f:
+        for k in sorted(vi):
+            f.write(f"{k} {vi[k]}\n")
+    pairs = {}
+    for (p, v), c in bigrams.items():
+        if v in ambiguous and p in vi:
+            pairs[fnv1a32(p + " " + v)] = min(c, 255)
+    with open(os.path.join(args.out, "pairs.bin"), "wb") as f:
+        hs = sorted(pairs)
+        f.write(b"".join(h.to_bytes(4, "little") for h in hs))
+        f.write(bytes(pairs[h] for h in hs))
     with open(os.path.join(args.out, "rimes.txt"), "w") as f:
         for r in sorted(keep):
             f.write(r + "\n")

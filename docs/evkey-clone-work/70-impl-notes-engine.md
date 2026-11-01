@@ -292,10 +292,40 @@ composed text differs from the typed keys is a candidate.
    restore hotkey (`can_restore`/`restore_word`) puts the Vietnamese word back, and again the English.
    A mid-word correction taken back leaves that word alone (`auto_suppressed`).
 
+6. *One word back (amendment 4).* At the space after a word whose English-versus-Vietnamese call was
+   close (score between −7.5 and +3, `Back`), the NEXT word's break may rewrite that one word, once:
+   - Vietnamese was kept and the next word is certainly English (restored, or raw because it cannot be
+     Vietnamese): `Max speed`, `Max Pro`, `Six pack` become English (`score + 6 > 0`);
+   - English was chosen and the next word is a common Vietnamese word (seen ≥ 8 times): `now xanh`,
+     `Nor thần`, `How lửa` become `nơ`, `nỏ`, `hơ` (`score − 2.5 < 0`).
+   One `Replace`: delete the old word, the space and the next word (charset units), retype both and the
+   break key. The restore hotkey takes it back exactly (`Correction`). The chance ends at Backspace, any
+   non-modifier command or navigation key, Enter, Tab, Escape, a chord (Ctrl/Alt/Win), `boundary()`
+   (focus change, app switch, mouse click), a macro, `restore_word` on the first word, `set_options`.
+   Left-context fixes need no rewrite (`nước mix` is forced Vietnamese: `VI_COLLOCATIONS`).
+   Platform note: this is the first `Replace` that deletes more than the current word (word + space +
+   word, up to ~70 units); backends must not clamp `delete_units` to the word length.
+7. *Review round 3.* `quýt`: the rime check accepts `qu` + `yt` (= `uyt`); the Vietnamese list now holds
+   every syllable seen once (4,000 syllables) minus those with an impossible rime; a rare real word
+   (`tã`) beats `tax` after a Vietnamese word, `ủe`/`wể` (no real syllable) still lose; an English
+   function word on the left (`the`, `my`, `with`) lets a plural or a word that collides with a common
+   Vietnamese one win (`the cups`, `the car`); code identifiers (`res os sys buf cur arr foo qux tar …`,
+   `ident-words.txt`) stay raw in a code app after a code word, bracket, comma or operator and before
+   `.`/`(`; names typed with a capital (`Mary`, `Asus`, `Jesus`, `Paris`) stay English unless they start a
+   line with a common Vietnamese reading; all-caps acronyms (`USA UX SOS IMF NASA OS …`, 2-5 letters, and
+   `usa asap sos`) stay raw; VNI digits: a word in a path/URL, a known acronym (`CO2`), a trailing run of
+   two different digits starting with a tone key (`Win10`, `A101`, `A52`), or one letter plus one digit
+   that is a capital or not a vowel (`A1`, `x1`) stays raw (`tie61ng`, `mo65`, `a11`-undo, `ý` unaffected).
+8. *Spell check off.* The list-based restore no longer depends on it: `english.txt` also lists the
+   common English words that Telex garbles when the structural check is off (`order`, `teacher`,
+   `report`; brands `twitter facebook google …`). At the break they are restored; mid-word they switch
+   to raw when the complete typed word is listed and its composed form is not a plausible Vietnamese
+   syllable. The structural "infeasible prefix" trigger stays spell-check only.
+
 **VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone keys.
 `tie61ng`, `to6i`, `co1` are unaffected.
 
-**Lists.** `english.txt` (12 KB), `vi.txt` (22 KB), `pairs.bin` (21 KB), rime prefixes (112 `u32`).
+**Lists.** `english.txt` (57 KB, about 6,100 words), `vi.txt` (34 KB), `pairs.bin` (23 KB), rime prefixes (112 `u32`).
 Sources and licences: `THIRD_PARTY_NOTICES.md` at the repo root (bundled with the app) and
 `crates/vkb-core/data/THIRD_PARTY.md`. Regenerate with `scripts/gen_wordlists.py`.
 

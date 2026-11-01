@@ -10,6 +10,7 @@ fn main() {
     let options = EngineOptions {
         auto_restore_english: false,
         jfwz_as_consonant: std::env::var_os("COMPOSE_NO_JFWZ").is_none(),
+        spell_check: std::env::var_os("COMPOSE_NO_SPELL").is_none(),
         ..EngineOptions::default()
     };
     for line in std::io::stdin().lock().lines() {

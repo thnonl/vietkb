@@ -120,6 +120,16 @@ pub fn is_feasible_prefix(letters: &[Letter], allow_jfwz: bool) -> bool {
             if rest_ok(onset, rest) {
                 return true;
             }
+            // `qu` + `yt` is the rime `uyt` (`quýt`, `quỵt`).
+            if *onset == "qu" && !rest.is_empty() && {
+                let mut joined = [0u8; 8];
+                let len = (rest.len() + 1).min(joined.len());
+                joined[0] = b'u';
+                joined[1..len].copy_from_slice(&rest.as_bytes()[..len - 1]);
+                crate::lexicon::rime_prefix_ok(&joined[..len])
+            } {
+                return true;
+            }
         }
     }
     if allow_jfwz {
@@ -148,6 +158,10 @@ pub fn is_plausible_syllable(letters: &[Letter], tone: Tone, allow_jfwz: bool) -
         return false;
     }
     if matches!(letters[0].base(), 'f' | 'j' | 'w' | 'z') {
+        return false;
+    }
+    // `ue…` (`ủe` of `user`) is a rime only after an onset (`huế`, `tuệ`).
+    if letters.len() >= 2 && letters[0].base() == 'u' && letters[1].base() == 'e' {
         return false;
     }
     let base = |i: usize| letters[i].base();

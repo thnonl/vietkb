@@ -250,8 +250,10 @@ fn english_words_survive_spell_check() {
 
 #[test]
 fn spell_check_off_transforms_english_looking_words() {
+    // 0.2.7 contract: with the spell checker off nothing keeps English raw (D10 does).
     let options = EngineOptions {
         spell_check: false,
+        auto_restore_english: false,
         ..EngineOptions::default()
     };
     assert_ne!(simulate(options, "windows"), "windows");
