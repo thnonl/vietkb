@@ -161,3 +161,5 @@ Owner example 2 (same day): "Ví dụ như chữ \"tuổi teen\" thì teen đún
 **D10 rule (owner, 2026-11-01):** "Làm gì có từ tiếng việt nào mà bắt đầu từ kí tự F bao giờ mà Fix bị sai được, chữ W, Z ở đầu cũng vậy." → a word starting with f, w, z or j (when those are consonants, the default) is never Vietnamese: it is output exactly as typed from the first key (Fix, Facebook, Wifi, Zalo, Zoom, JSON). With `jfwz_as_consonant` off, a leading w is ư and the rule does not apply to it.
 
 **Correction (owner, same day):** "Tôi nhầm, W vẫn nên xem xét tiếng Việt chứ không hoàn toàn là tiếng Anh" → only f, z, j at a word start are never Vietnamese. A leading w goes through the normal rules (Telex `w` = ư: ưa, ước, ừ); doubt → Vietnamese.
+
+**D10 (owner, 2026-11-01):** "the car ra the cả là sai, làm gì có từ tiếng Việt nào như thế." → after a strong English determiner/possessive (the, an, my, your, his, her, its, our, their, this, these, those, every, each, some, any), a listed English word stays English: that is clear evidence, not doubt. Non-determiners (you, in, will) keep the doubt → Vietnamese rule ("thank you cả nhà").
