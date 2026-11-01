@@ -208,8 +208,9 @@ pub enum Left {
     /// The previous word was a determiner or possessive that is no Vietnamese text
     /// (`the`, `my`, `your`): the next word is English if its keys are a listed word.
     Determiner,
-    /// The previous word was English or code.
-    English,
+    /// The previous word was English or code; `hash` is the FNV state after `word + " "`,
+    /// `run` how many English words in a row end here (`ok` is one, `the new dashboard` three).
+    English { hash: u32, run: u32 },
     /// The previous word was this Vietnamese syllable: its corpus count and the
     /// FNV state after `key + " "`.
     Vietnamese { count: u32, hash: u32 },
@@ -249,6 +250,9 @@ static COLLOCATIONS: [u32; 6] = [
     colloc("cach1", "teen"),
     colloc("thich1", "mix"),
 ];
+
+/// English word + word pairs that are English: `I like mix`.
+static EN_COLLOCATIONS: &[u32] = &[colloc("like", "mix"), colloc("love", "mix")];
 
 /// Vietnamese word + English-looking word pairs that are really Vietnamese
 /// (`nước mix` is `nước mĩ`): they force the Vietnamese reading.
@@ -332,7 +336,7 @@ pub fn english_wins(
     let weak = word.level > 2 && !word.loan && !word.name && count > 0;
     // Short identifiers (`res`, `os`, `arr`) only in a code editor after code.
     if word.ident {
-        return code_app && matches!(left, Left::English | Left::Code | Left::Function);
+        return code_app && matches!(left, Left::English { .. } | Left::Code | Left::Function);
     }
     if let Left::Vietnamese { hash, .. } = left {
         let phrase = fnv_extend(hash, typed);
@@ -343,9 +347,11 @@ pub fn english_wins(
             return true;
         }
     }
-    // `the car`, `my phone`: after a determiner a listed English word is English.
+    // `the car`, `my phone`: after a determiner a listed English word is English, when
+    // it is a real common word (not `sangs`, `seeps`, `thees`, `thee`).
     if matches!(left, Left::Determiner) {
-        return true;
+        let common = word.level <= 3 || word.loan || word.tech || word.name;
+        return common && typed != b"thee";
     }
     if !plausible {
         return true;
@@ -355,10 +361,14 @@ pub fn english_wins(
         // word that collides with a common Vietnamese one.
         // Not when the word has a common Vietnamese reading (`you má`, `check in có`).
         Left::Function => count < KNOWN_COUNT,
-        // `I like mix`: an English word on the left and a word Vietnamese text
-        // borrows, a programming word or a function word (`format is now`). Everything else stays Vietnamese
-        // (`test có xanh`, `hook sẽ chạy`, `code mô phỏng`).
-        Left::English => (word.loan || word.tech || is_function_word(typed)) && !protected && !weak,
+        // `format is now`: a function word after English. `ok max`, `shop mix`, `Zalo max`,
+        // `post max` are not evidence (one interjection or content word is not); an English
+        // phrase of two words or more is. A
+        // programming word needs a code app and a code operator (`Left::Code`).
+        Left::English { hash, run } => {
+            (run >= 2 && is_function_word(typed) && !protected && !weak)
+                || EN_COLLOCATIONS.contains(&fnv_extend(hash, typed))
+        }
         // `x = max`, `foo(cos`: a code context.
         // After a code operator or bracket: evidence only in a code app, and only
         // for a lowercase programming word (`x = cos`, `f(max`). A capitalised

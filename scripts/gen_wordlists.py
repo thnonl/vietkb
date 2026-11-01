@@ -85,9 +85,13 @@ def read_english(scowl, tech_file):
         if w and not w.startswith("#"):
             levels[w] = min(levels.get(w, TECH_LEVEL), TECH_LEVEL)
     # An inflected form (`cats`, `its`) is rarer than its base: never "common".
+    # `cars` (car is level 1) is level 3; the plural of a rarer word is rarer still
+    # (`sangs`, `seeps`): base level + 2.
     for w in list(levels):
-        if w.endswith("s") and w[:-1] in levels and levels[w] < "3":
-            levels[w] = "3"
+        if w.endswith("s") and w[:-1] in levels:
+            base = int(levels[w[:-1]])
+            floor = 3 if base == 1 else min(7, base + 2)
+            levels[w] = str(max(int(levels[w]), floor))
     return levels
 
 

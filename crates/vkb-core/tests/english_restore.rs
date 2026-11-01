@@ -108,7 +108,7 @@ fn context_decides_the_ambiguous_words() {
             ("I like mix ", "I like mix "),
             // After an English function word the programming word wins over `có`.
             ("the cos ", "the cos "),
-            ("user max ", "user max "),
+            ("user max ", "user mã "),
             // Context is cut by punctuation: after a comma it is a fresh start,
             // and a common English word beats the rare `mĩ`.
             ("tooi hay, mix ", "tôi hay, mĩ "),

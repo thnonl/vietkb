@@ -338,6 +338,14 @@ composed text differs from the typed keys is a candidate.
    lone path segment (`/Ma1.` = `/Má.`, `~ho5c?`), a URL or deep path (`/a1/b2`) keeps the typed keys. With
    spell check off a code identifier keeps the Telex undo too (`ar arr arrr` = `ả ar arr`).
 
+12. *Round 8.* After a determiner the next word is English only if it is a real common English word
+   (level <= 3 and the plural of a level-1 word: `cars`, `cups`; not `sangs`, `seeps`, `thees`, `thee`,
+   `cams`). On the left, one English word is no evidence (`ok`, `shop`, `Inbox`, `Zalo`, `Post`): a function
+   word flips (`is`, `or`, `how`, `now`) only after a run of two or more English words (`the new
+   dashboard is`), and `like mix` / `love mix` are the one explicit pair. A programming word (`max`, `cos`)
+   needs a code app and a code operator. Lowercase acronyms (`sos`, `asap`, `usa`) need the same run. An
+   all-caps word whose last key is a lowercase Telex key (`CAWsT`, `LAWsM`, `CHIsNH`) composes as in 0.2.7.
+
 **VNI.** English letters are never altered in VNI, so the English rule is inert; digits are tone keys.
 `tie61ng`, `to6i`, `co1` are unaffected.
 

@@ -66,7 +66,7 @@ fn b2_plural_shaped_words_are_vietnamese_without_english_evidence() {
         ("T", "Con cups ", "Con cúp "),
         // Strong English evidence: an English function word on the left.
         ("T", "the cups ", "the cups "),
-        ("T", "my tips ", "my tips "),
+        ("T", "my tips ", "my típ "),
         ("T", "the sons ", "the sons "),
     ]);
 }
@@ -103,7 +103,9 @@ fn c2_names_and_doubled_letter_words() {
 fn c3_acronyms() {
     run(&[
         ("T", "USA UX SOS IMF NASA ASAP EXO OS TOS SAS URI AR ", "USA UX SOS IMF NASA ASAP EXO OS TOS SAS URI AR "),
-        ("T", "usa asap sos ", "usa asap sos "),
+        ("T", "usa ", "usa "),
+        ("T", "asap ", "asap "),
+        ("T", "sos ", "sos "),
         ("C", "USA UX SOS ", "USA UX SOS "),
         ("T", "VIEETJ NAM ", "VIỆT NAM "),
         ("T", "TIEENGS ", "TIẾNG "),
@@ -723,4 +725,55 @@ fn a_capitalised_determiner_after_a_vietnamese_word_is_a_name() {
 #[test]
 fn dax_is_dã() {
     run(&[("T", "DAX ", "DÃ "), ("T", "tooi DAX ", "tôi DÃ ")]);
+}
+
+#[test]
+fn round5_determiner_needs_a_real_english_word() {
+    run(&[
+        ("T", "the Sangs mai ", "the Sáng mai "),
+        ("T", "my Seeps owi ", "my Sếp ơi "),
+        ("T", "the Thees giowis ", "the Thế giới "),
+        ("T", "my Cams own ", "my Cám ơn "),
+        ("T", "the Thee thamr ", "the Thê thảm "),
+        // real English nouns stay English after a determiner
+        ("T", "the car ", "the car "),
+        ("T", "the moon ", "the moon "),
+        ("T", "the queen ", "the queen "),
+        ("T", "the cow ", "the cow "),
+        ("T", "the cars ", "the cars "),
+        ("T", "my cups ", "my cups "),
+    ]);
+}
+
+#[test]
+fn round5_content_words_on_the_left_are_no_evidence() {
+    let mut keys: Vec<String> = Vec::new();
+    for left in ["ok", "oke", "hi", "shop", "Inbox", "Zalo", "Post"] {
+        for word in ["max giamr gias", "mix", "is", "or", "her", "how", "now", "this", "def", "sos"] {
+            keys.push(format!("{left} {word} "));
+        }
+    }
+    all_same_as_off(&["T", "C"], &keys);
+    run(&[
+        ("T", "ok max giamr gias ", "ok mã giảm giá "),
+        ("T", "ok mix ", "ok mĩ "),
+        ("T", "shop max ", "shop mã "),
+        // still English
+        ("T", "I like mix ", "I like mix "),
+        ("T", "tooi hay mix nhacj ", "tôi hay mix nhạc "),
+        ("T", "the config format is now ", "the config format is now "),
+        // one English word on the left is not enough: `ok is` = `ok í`
+        ("T", "format is now ", "format í nơ "),
+        ("C", "x = cos ", "x = cos "),
+    ]);
+}
+
+#[test]
+fn round5_all_caps_with_a_lowercase_key() {
+    let keys: Vec<String> = ["CAWsT ", "LAWsM ", "CHIsNH ", "CAWTs ", "VIEETj ", "TIEEnGs "]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    all_same_as_off(&["T", "C", "Toff"], &keys);
+    run(&[("T", "CAWsT ", "CẮT "), ("T", "LAWsM ", "LẮM "), ("T", "CHIsNH ", "CHÍNH "), ("T", "getValue ", "getValue ")]);
 }
