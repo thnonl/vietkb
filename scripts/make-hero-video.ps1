@@ -12,7 +12,9 @@ $n = $fps * $duration
 
 New-Item -ItemType Directory -Force $assets | Out-Null
 Copy-Item (Join-Path $root 'site\assets\logo-v.png') (Join-Path $assets 'logo-v.png') -Force
-Copy-Item (Join-Path $root 'site\assets\main-light.png') (Join-Path $assets 'main-light.png') -Force
+foreach ($f in 'main-dark.png', 'mac-settings-dark.png') {
+  Copy-Item (Join-Path $root "site\assets\$f") (Join-Path $assets $f) -Force
+}
 
 Remove-Item $frames -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $frames | Out-Null

@@ -6,31 +6,18 @@
   const reduceQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const forced = new URLSearchParams(location.search).get('reduce') === '1';
   const freeze = new URLSearchParams(location.search).has('t');
-  const CHARS = 'tieengs';
-  const STEP = 0.22;              // one keystroke per 220 ms
-  const TYPE_END = CHARS.length * STEP;
-  const FINAL_AT = 2.0;
-  const RESET_AT = 3.5;
-  const duration = 4.2;
+  // What VietKB shows after each key of "Vieetj": the word changes as you type.
+  const STEPS = ['V', 'Vi', 'Vie', 'Viê', 'Viêt', 'Việt'];
+  const STEP = 0.32;              // one keystroke per 320 ms
+  const RESET_AT = STEPS.length * STEP + 1.6;
+  const duration = RESET_AT + 0.5;
   let reduced = reduceQuery.matches || forced;
-  let paused = false, raf = 0, start = performance.now(), previous = null;
-  const finalState = () => { root.dataset.state = 'final'; raw.textContent = ''; };
+  let paused = false, raf = 0, start = performance.now();
+  const finalState = () => { raw.textContent = STEPS[STEPS.length - 1]; };
   const render = (seconds) => {
     if (reduced || paused) { finalState(); return; }
     const t = ((seconds % duration) + duration) % duration;
-    if (t >= RESET_AT) {
-      root.dataset.state = 'reset';
-      raw.textContent = '';
-    } else if (t >= FINAL_AT) {
-      root.dataset.state = 'final';
-      raw.textContent = '';
-    } else if (t >= TYPE_END) {
-      root.dataset.state = 'typing';
-      raw.textContent = CHARS;
-    } else {
-      root.dataset.state = 'typing';
-      raw.textContent = CHARS.slice(0, Math.floor(t / STEP) + 1);
-    }
+    raw.textContent = t >= RESET_AT ? '' : STEPS[Math.min(STEPS.length - 1, Math.floor(t / STEP))];
   };
   const tick = (now) => {
     if (reduced || paused || freeze) return;
@@ -70,3 +57,50 @@
   else raf = requestAnimationFrame(tick);
 })();
 
+
+// Types the first headline line the way VietKB does it: each Telex key updates the
+// word in place (o + x becomes õ, e + e becomes ê), and the letter that changed flashes.
+(() => {
+  const root = document.documentElement;
+  const live = document.querySelector('.type-live');
+  const keysOut = document.querySelector('.h1-keys code');
+  if (!live || !keysOut) return;
+  const params = new URLSearchParams(location.search);
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('t') || params.get('reduce') === '1') {
+    root.classList.remove('type-pending');
+    return;
+  }
+  const KEYS = 'Gox tieengs Vieetj';
+  // What the line shows after each key in KEYS.
+  const SHOWN = ['G', 'Go', 'Gõ', 'Gõ ', 'Gõ t', 'Gõ ti', 'Gõ tie', 'Gõ tiê', 'Gõ tiên', 'Gõ tiêng', 'Gõ tiếng',
+    'Gõ tiếng ', 'Gõ tiếng V', 'Gõ tiếng Vi', 'Gõ tiếng Vie', 'Gõ tiếng Viê', 'Gõ tiếng Viêt', 'Gõ tiếng Việt'];
+  const caret = document.createElement('span');
+  caret.className = 'type-caret';
+  const draw = (i) => {
+    const text = SHOWN[i], prev = i ? SHOWN[i - 1] : '';
+    let at = -1;
+    if (text.length === prev.length) at = [...text].findIndex((c, k) => c !== prev[k]);
+    live.textContent = '';
+    if (at < 0) live.append(text);
+    else {
+      const flash = document.createElement('span');
+      flash.className = 'type-flash';
+      flash.textContent = text[at];
+      live.append(text.slice(0, at), flash, text.slice(at + 1));
+    }
+    live.append(caret);
+    keysOut.textContent = KEYS.slice(0, i + 1);
+  };
+  root.classList.remove('type-pending');
+  root.classList.add('type-run');
+  live.append(caret);
+  keysOut.textContent = '';
+  let i = 0;
+  const step = () => {
+    draw(i);
+    i += 1;
+    if (i < SHOWN.length) setTimeout(step, KEYS[i] === ' ' || KEYS[i - 1] === ' ' ? 280 : 140);
+    else setTimeout(() => root.classList.add('type-done'), 400);
+  };
+  setTimeout(step, 600);
+})();

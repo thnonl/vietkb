@@ -19,23 +19,26 @@
   .line{display:flex;align-items:center;gap:6px;font-family:"Cascadia Mono",Consolas,monospace;
     font-size:92px;font-weight:600;height:120px}
   .raw{color:var(--ink)}
-  .final{color:var(--accent);display:none;position:relative}
-  .final.on{display:inline-block}
-  .final::after{content:"";position:absolute;left:0;right:0;bottom:-12px;height:5px;background:var(--accent);
-    transform-origin:left;transform:scaleX(0)}
-  .final.on::after{transform:scaleX(1);transition:none}
+  .typed{display:flex;gap:10px;height:52px}
+  .typed span{display:grid;place-items:center;width:46px;height:52px;border-radius:10px;
+    background:rgba(255,255,255,.07);font-family:"Cascadia Mono",Consolas,monospace;font-size:24px;color:var(--muted)}
+  .typed span.last{background:var(--accent);color:#fff}
   .caret{width:5px;height:92px;background:var(--accent)}
   .cap{font-size:22px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
   .feats{display:grid;gap:18px;justify-items:start}
   .feat{display:flex;align-items:center;gap:16px;font-size:34px;font-weight:600;opacity:0}
   .feat i{width:44px;height:44px;border-radius:12px;background:rgba(139,123,255,.18);
     display:grid;place-items:center;font-style:normal;color:var(--accent);font-size:22px}
+  #s4{gap:34px}
   .stats{display:flex;gap:64px;align-items:flex-end}
   .stat{text-align:center}
   .stat b{display:block;font-size:84px;letter-spacing:-.03em;color:var(--accent)}
   .stat span{font-size:22px;color:var(--muted)}
   .ui{display:grid;gap:18px;justify-items:center}
-  .ui img{width:560px;border-radius:14px;border:1px solid rgba(255,255,255,.14);
+  .shots{display:flex;gap:40px;align-items:flex-end}
+  .shots figure{margin:0;display:grid;gap:12px;justify-items:center}
+  .shots figcaption{font-size:20px;color:var(--muted)}
+  .ui img{height:400px;width:auto;border-radius:14px;border:1px solid rgba(255,255,255,.14);
     box-shadow:0 30px 80px rgba(0,0,0,.55)}
   .cta{display:grid;gap:18px;justify-items:center}
   .cta b{font-size:56px;letter-spacing:-.02em}
@@ -46,45 +49,50 @@
 <div class="stage">
   <section class="scene" id="s1">
     <div class="brand"><img src="assets/logo-v.png" alt=""><b>VietKB</b></div>
-    <div class="tag">Bộ gõ tiếng Việt cho Windows</div>
+    <div class="tag">Bộ gõ tiếng Việt cho Windows và macOS</div>
   </section>
 
   <section class="scene" id="s2">
-    <div class="line"><span class="raw" id="raw"></span><span class="final" id="final">tiếng</span><span class="caret" id="caret"></span></div>
-    <div class="cap">Telex · VNI · Unicode</div>
+    <div class="line"><span class="raw" id="raw"></span><span class="caret" id="caret"></span></div>
+    <div class="typed" id="typed"></div>
+    <div class="cap">Chữ đổi ngay sau mỗi phím</div>
   </section>
 
   <section class="scene" id="s3">
     <div class="feats">
-      <div class="feat" id="f1"><i>⌨</i>Telex và VNI, kiểu cũ &amp; mới</div>
-      <div class="feat" id="f2"><i>⚡</i>Gõ tắt, phím tắt trong hook</div>
-      <div class="feat" id="f3"><i>◎</i>Quy tắc riêng theo từng ứng dụng</div>
-      <div class="feat" id="f4"><i>◐</i>Khay hệ thống V/E, chạy ẩn</div>
+      <div class="feat" id="f1"><i>⌨</i>Telex và VNI, dấu kiểu cũ hoặc mới</div>
+      <div class="feat" id="f2"><i>⚡</i>Gõ tắt tự đặt: vn → Việt Nam</div>
+      <div class="feat" id="f3"><i>◎</i>Cài đặt riêng cho từng ứng dụng</div>
+      <div class="feat" id="f4"><i>◐</i>Kiểm tra chính tả, tự viết hoa đầu câu</div>
     </div>
   </section>
 
   <section class="scene" id="s4">
     <div class="stats">
-      <div class="stat"><b>0,8 µs</b><span>xử lý mỗi phím (p99)</span></div>
-      <div class="stat"><b>14 MB</b><span>khi chỉ nằm trong khay</span></div>
-      <div class="stat"><b>0,3 s</b><span>từ mở máy tới gõ được</span></div>
+      <div class="stat"><b>0,8 µs</b><span>xử lý mỗi phím</span></div>
+      <div class="stat"><b>14 MB</b><span>RAM khi chạy nền</span></div>
+      <div class="stat"><b>0,3 s</b><span>để khởi động</span></div>
     </div>
+    <div class="cap">Đo trên Windows</div>
   </section>
 
   <section class="scene" id="s5">
-    <div class="ui"><img src="assets/main-light.png" alt=""><div class="cap">13 điều khiển · một cửa sổ 480×460</div></div>
+    <div class="ui"><div class="shots"><figure><img src="assets/main-dark.png" alt=""><figcaption>Windows</figcaption></figure><figure><img src="assets/mac-settings-dark.png" alt=""><figcaption>macOS</figcaption></figure></div><div class="cap">Cửa sổ cài đặt trên Windows và macOS</div></div>
   </section>
 
   <section class="scene" id="s6">
-    <div class="cta"><b>Tải cho Windows</b><span>thnonl.github.io/vietkb</span></div>
+    <div class="cta"><b>Tải cho Windows và macOS</b><span>thnonl.github.io/vietkb</span></div>
   </section>
 </div>
 <script>
   const q = new URLSearchParams(location.search);
   const $ = id => document.getElementById(id);
   const scenes = ['s1','s2','s3','s4','s5','s6'].map($);
-  const raw = $('raw'), fin = $('final');
-  const CHARS = 'tieengs', STEP = 0.20, TYPE_END = CHARS.length * STEP;
+  const raw = $('raw'), typed = $('typed');
+  // Keys pressed, and what VietKB shows after each one: no commit step, no space.
+  const CHARS = 'Vieetj';
+  const STEPS = ['V', 'Vi', 'Vie', 'Viê', 'Viêt', 'Việt'];
+  const STEP = 0.40;
   const DUR = 16.0;
 
   // scene windows: [start, end]
@@ -113,13 +121,10 @@
     } else if (t < W.s2[1]) {
       const p = local('s2'), fo = fadeOut('s2', t);
       show($('s2'), Math.min(1, p * 6) * fo, 0);
-      const tt = (t - W.s2[0]) * (TYPE_END + 0.6) / (W.s2[1] - W.s2[0]);
-      if (tt < TYPE_END) {
-        raw.style.display = ''; fin.classList.remove('on');
-        raw.textContent = CHARS.slice(0, Math.floor(tt / STEP) + 1);
-      } else {
-        raw.textContent = ''; raw.style.display = 'none'; fin.classList.add('on');
-      }
+      const n = Math.min(CHARS.length, Math.floor(Math.max(0, t - W.s2[0] - 0.25) / STEP) + 1);
+      raw.textContent = STEPS[n - 1];
+      typed.innerHTML = [...CHARS.slice(0, n)]
+        .map((c, i) => `<span${i === n - 1 ? ' class="last"' : ''}>${c}</span>`).join('');
     } else if (t < W.s3[1]) {
       const fo = fadeOut('s3', t);
       show($('s3'), fo, 0);

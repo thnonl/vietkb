@@ -284,7 +284,7 @@ def check_positive():
     record("SITE-09", "Mac content present in both languages and in the 404 (title/meta, Mac screenshots, default shortcuts, autostart wording)", "MAC-DOC-01,MAC-DOC-05,MAC-LNG-24", verdict(bad), "; ".join(bad))
 
 # ---------------------------------------------------------------- English page must not leak Vietnamese (MAC-LNG-29 aria/alt; LNG-06 site half)
-ALLOW_EN = re.compile(r"tiếng|Tiếng|Việt|ưo|ươ|tieengs|Telex|VNI")   # examples of the product's own output
+ALLOW_EN = re.compile(r"tiếng|Tiếng|Việt|ưo|ươ|tieengs|Vieetj|Telex|VNI")   # examples of the product's own output
 def check_en_leaks():
     bad = []
     for tag, a, line in EN.tags:
