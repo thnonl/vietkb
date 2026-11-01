@@ -7,9 +7,11 @@
 # The exe is the normal release build plus the `store` cargo feature: autostart
 # through the manifest's StartupTask, no self-updater, no network code. Same tauri
 # invocation as the NSIS build (build-prod.ps1, release.yml) except `--no-bundle`
-# and the feature. Nothing here touches `target\release\bundle`.
+# and the feature. Like build-dev.ps1 it uses its OWN cargo target dir
+# (`target-store`), so a store exe never lands in `target\release` where the NSIS
+# build (build-prod.ps1, release.yml) takes its exe from.
 #
-# Output: target\store\VietKB_<version>_x64.msix (staging dir: target\store\stage).
+# Output: target-store\store\VietKB_<version>_x64.msix (staging dir: target-store\store\stage).
 #
 # Store submission is UNSIGNED: the Store signs the package itself. -Sign is only
 # for installing the package locally (Add-AppxPackage) to test it. A self-signed
@@ -28,7 +30,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $tauri = Join-Path $root 'ui\node_modules\.bin\tauri.cmd'
 $packaging = Join-Path $root 'packaging\msix'
-$outDir = Join-Path $root 'target\store'
+$targetDir = Join-Path $root 'target-store'
+$outDir = Join-Path $targetDir 'store'
 $stage = Join-Path $outDir 'stage'
 $exeName = 'vietkb.exe'
 
@@ -56,16 +59,20 @@ if (-not $SkipBuild) {
     }
     # `tauri build` runs the UI build (beforeBuildCommand) and adds custom-protocol
     # itself; it is spelled out as in build-prod.ps1.
+    # `tauri build` has no `--target-dir`; cargo reads CARGO_TARGET_DIR.
+    $previousTargetDir = $env:CARGO_TARGET_DIR
+    $env:CARGO_TARGET_DIR = $targetDir
     Push-Location (Join-Path $root 'crates\vkb-app')
     try {
         & $tauri build --features custom-protocol,store --no-bundle
         if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
     } finally {
         Pop-Location
+        $env:CARGO_TARGET_DIR = $previousTargetDir
     }
 }
 
-$exe = Join-Path $root "target\release\$exeName"
+$exe = Join-Path $targetDir "release\$exeName"
 if (-not (Test-Path $exe)) { throw "built exe not found: $exe" }
 
 # --- stage ---------------------------------------------------------------------

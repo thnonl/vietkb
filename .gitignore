@@ -1,5 +1,6 @@
 /target
 /target-dev
+/target-store
 /dist
 /tmp
 /ui/node_modules
