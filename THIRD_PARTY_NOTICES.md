@@ -282,8 +282,8 @@ computed over the Vietnamese sentences of the Tatoeba project
 - Changes: the sentences were split into syllables and only counts were kept.
   VietKB does not contain, and cannot reproduce, any sentence.
 
-Word pairs (0.2.9): `bigrams.rs` also uses the Vietnamese sentences above. Only 32-bit
-hashes of adjacent syllable pairs, where one of the two is a Vietnamese reading of an
+Word pairs (0.2.9): `bigrams.rs` also uses the Vietnamese sentences above (Tatoeba, and the
+Common Voice list of section 3). Only 32-bit hashes of adjacent syllable pairs, where one of the two is a Vietnamese reading of an
 English word (`mã`, `bõ`, `rôm` ...), were kept; no sentence or word can be read back from them.
 
 ## 2b. Tatoeba (English sentences, 0.2.9)
@@ -305,13 +305,17 @@ Tatoeba (`eng_sentences_detailed.tsv`, downloaded on 2026-11-02; bz2 file sha256
 The same counts also use `server/data/vi/sentence-collector.txt` of
 <https://github.com/common-voice/common-voice>. Common Voice sentences are
 released into the public domain under CC0 1.0
-(<https://creativecommons.org/publicdomain/zero/1.0/>). Only counts were kept.
+(<https://creativecommons.org/publicdomain/zero/1.0/>). Counts were kept, and so were the
+32-bit hashes of Vietnamese syllable pairs that `bigrams.rs` takes from the same list (section 2).
+No sentence is kept.
 
 ## 4. Written for VietKB
 
 The programming word list, the loanword list, the rime curation lists and the app
 table (`scripts/wordlists/`, `crates/vkb-core/src/appkind.rs`) were written for
-VietKB and are MIT licensed.
+VietKB and are MIT licensed. So is `crates/vkb-core/data/real_syllables.rs` (165 real
+Vietnamese syllables that the corpus does not attest, hand-curated, 0.2.9) and the reviewed
+not-real list `crates/vkb-core/tests/fixtures/d10_not_vietnamese.txt`.
 
 ## Dependencies
 

@@ -6,9 +6,9 @@ determiners, which keep the 0.2.8 rules) whose Telex reading is a valid Vietname
 the corpus knows (`max`/mã, `box`/bõ, `mix`/mĩ) or that is a level-1 word with no corpus count
 (`room`/rôm, `soon`/sôn). Two tables, both sorted FNV-1a 32 hashes (no text is stored):
 
-  EN_PAIRS  "w1 w2" for English sentences, when w1 or w2 is an ambiguous word that is a real
+  ENGLISH_PAIRS  "w1 w2" for English sentences, when w1 or w2 is an ambiguous word that is a real
             Vietnamese syllable (a word with no corpus count is English by default), seen >= --en-min times.
-  VI_PAIRS  "k1 k2" (syllable keys, see lexicon.rs) for Vietnamese sentences, when k1 or k2 is the
+  VIETNAMESE_PAIRS  "k1 k2" (syllable keys, see lexicon.rs) for Vietnamese sentences, when k1 or k2 is the
             key of an ambiguous word's Vietnamese reading, seen >= --vi-min times.
 
 Inputs (download yourself, run with `python3 -I`; never commit them):
@@ -90,8 +90,10 @@ def main():
     # English is already the default for a word with no corpus count (`room`): its English pairs
     # decide nothing. Only words that are real Vietnamese syllables need them.
     # Rarer English forms (SCOWL level 3+, plurals) keep the old rule: Vietnamese wins.
-    real = keep_vietnamese & set(ambiguous) | {w for w, ks in ambiguous.items()
-            if any(vi_count.get(k, 0) > 0 for k in ks) and not levels[w].isdigit() or levels[w] in "12" and any(vi_count.get(k, 0) > 0 for k in ambiguous[w])}
+    real = (keep_vietnamese & set(ambiguous)) | {
+        w for w, ks in ambiguous.items()
+        if (any(vi_count.get(k, 0) > 0 for k in ks) and not levels[w].isdigit())
+        or (levels[w] in "12" and any(vi_count.get(k, 0) > 0 for k in ambiguous[w]))}
     print(f"ambiguous words: {len(ambiguous)}, keys: {len(amb_keys)}", file=sys.stderr)
 
     # English pairs.
