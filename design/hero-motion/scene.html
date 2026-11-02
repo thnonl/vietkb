@@ -24,6 +24,18 @@
     background:rgba(255,255,255,.07);font-family:"Cascadia Mono",Consolas,monospace;font-size:24px;color:var(--muted)}
   .typed span.last{background:var(--accent);color:#fff}
   .caret{width:5px;height:92px;background:var(--accent)}
+  .chat{width:860px;height:400px;display:grid;grid-template-rows:64px 1fr 80px;background:var(--card);
+    border-radius:20px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.45);overflow:hidden}
+  .chat-head{display:flex;align-items:center;padding:0 28px;font-size:24px;font-weight:600;color:var(--muted);
+    border-bottom:1px solid rgba(255,255,255,.08)}
+  .chat-body{display:flex;flex-direction:column;justify-content:flex-end;gap:14px;padding:20px 28px;overflow:hidden}
+  .bub{max-width:76%;padding:12px 20px;border-radius:18px;font-size:28px;line-height:1.35}
+  .bub.in{background:rgba(255,255,255,.08);align-self:flex-start}
+  .bub.out{background:var(--accent);color:#fff;align-self:flex-end}
+  .chat-input{display:flex;align-items:center;padding:0 28px;font-size:28px;white-space:pre;
+    border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.14)}
+  .chat-caret{width:3px;height:36px;background:var(--accent);margin-left:2px}
+  .chat-input mark{background:rgba(139,123,255,.5);color:#fff;border-radius:6px}
   .cap{font-size:22px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
   .feats{display:grid;gap:18px;justify-items:start}
   .feat{display:flex;align-items:center;gap:16px;font-size:34px;font-weight:600;opacity:0}
@@ -58,6 +70,16 @@
     <div class="cap">Chữ đổi ngay sau mỗi phím</div>
   </section>
 
+  <section class="scene" id="s2b">
+    <div class="chat">
+      <div class="chat-head">Nhóm dự án</div>
+      <div class="chat-body" id="chatBody"></div>
+      <div class="chat-input"><span id="chatInput"></span><span class="chat-caret"></span></div>
+    </div>
+    <!-- Caption for the chat beat: edit only this line (draft; the copywriter's final text replaces it). -->
+    <div class="cap">Gõ zoom, fix, pass, không tắt tiếng Việt.</div>
+  </section>
+
   <section class="scene" id="s3">
     <div class="feats">
       <div class="feat" id="f1"><i>⌨</i>Telex và VNI, dấu kiểu cũ hoặc mới</div>
@@ -87,18 +109,36 @@
 <script>
   const q = new URLSearchParams(location.search);
   const $ = id => document.getElementById(id);
-  const scenes = ['s1','s2','s3','s4','s5','s6'].map($);
+  const scenes = ['s1','s2','s2b','s3','s4','s5','s6'].map($);
   const raw = $('raw'), typed = $('typed');
   // Keys pressed, and what VietKB shows after each one: no commit step, no space.
   const CHARS = 'Tieengs Vieetj';
   const STEPS = ['T', 'Ti', 'Tie', 'Tiê', 'Tiên', 'Tiêng', 'Tiếng', 'Tiếng ',
     'Tiếng V', 'Tiếng Vi', 'Tiếng Vie', 'Tiếng Viê', 'Tiếng Viêt', 'Tiếng Việt'];
   const STEP = 0.26;
-  const DUR = 21.0;
+
+  // Chat beat: three messages typed in Telex key by key in the input bar, then sent as bubbles.
+  // Each out[i] is the on-screen text after key i, from `vkb simulate` on every prefix (neutral app,
+  // D10 on). snap = {key index: word} where the engine showed a mangled form and then the English word;
+  // that word is highlighted briefly.
+  const CHAT_LEAD = 0.25, CHAT_STEP = 0.055, CHAT_SEND = 0.35;
+  const MSGS = [
+    { side: 'in', telex: "Seeps owi, mai zoom meet lucs 9h dduwowcj khoong?",
+      out: ["S","Se","Sê","Sêp","Sếp","Sếp ","Sếp o","Sếp ơ","Sếp ơi","Sếp ơi,","Sếp ơi, ","Sếp ơi, m","Sếp ơi, ma","Sếp ơi, mai","Sếp ơi, mai ","Sếp ơi, mai z","Sếp ơi, mai zo","Sếp ơi, mai zoo","Sếp ơi, mai zoom","Sếp ơi, mai zoom ","Sếp ơi, mai zoom m","Sếp ơi, mai zoom me","Sếp ơi, mai zoom mê","Sếp ơi, mai zoom mêt","Sếp ơi, mai zoom meet ","Sếp ơi, mai zoom meet l","Sếp ơi, mai zoom meet lu","Sếp ơi, mai zoom meet luc","Sếp ơi, mai zoom meet lúc","Sếp ơi, mai zoom meet lúc ","Sếp ơi, mai zoom meet lúc 9","Sếp ơi, mai zoom meet lúc 9h","Sếp ơi, mai zoom meet lúc 9h ","Sếp ơi, mai zoom meet lúc 9h d","Sếp ơi, mai zoom meet lúc 9h đ","Sếp ơi, mai zoom meet lúc 9h đu","Sếp ơi, mai zoom meet lúc 9h đư","Sếp ơi, mai zoom meet lúc 9h đưo","Sếp ơi, mai zoom meet lúc 9h đươ","Sếp ơi, mai zoom meet lúc 9h đươc","Sếp ơi, mai zoom meet lúc 9h được","Sếp ơi, mai zoom meet lúc 9h được ","Sếp ơi, mai zoom meet lúc 9h được k","Sếp ơi, mai zoom meet lúc 9h được kh","Sếp ơi, mai zoom meet lúc 9h được kho","Sếp ơi, mai zoom meet lúc 9h được khô","Sếp ơi, mai zoom meet lúc 9h được khôn","Sếp ơi, mai zoom meet lúc 9h được không","Sếp ơi, mai zoom meet lúc 9h được không?"],
+      snap: {"24":"meet"} },
+    { side: 'out', telex: "Anh fix bug xong rooif, em test laij giups anh nhes",
+      out: ["A","An","Anh","Anh ","Anh f","Anh fi","Anh fix","Anh fix ","Anh fix b","Anh fix bu","Anh fix bug","Anh fix bug ","Anh fix bug x","Anh fix bug xo","Anh fix bug xon","Anh fix bug xong","Anh fix bug xong ","Anh fix bug xong r","Anh fix bug xong ro","Anh fix bug xong rô","Anh fix bug xong rôi","Anh fix bug xong rồi","Anh fix bug xong rồi,","Anh fix bug xong rồi, ","Anh fix bug xong rồi, e","Anh fix bug xong rồi, em","Anh fix bug xong rồi, em ","Anh fix bug xong rồi, em t","Anh fix bug xong rồi, em te","Anh fix bug xong rồi, em té","Anh fix bug xong rồi, em test","Anh fix bug xong rồi, em test ","Anh fix bug xong rồi, em test l","Anh fix bug xong rồi, em test la","Anh fix bug xong rồi, em test lai","Anh fix bug xong rồi, em test lại","Anh fix bug xong rồi, em test lại ","Anh fix bug xong rồi, em test lại g","Anh fix bug xong rồi, em test lại gi","Anh fix bug xong rồi, em test lại giu","Anh fix bug xong rồi, em test lại giup","Anh fix bug xong rồi, em test lại giúp","Anh fix bug xong rồi, em test lại giúp ","Anh fix bug xong rồi, em test lại giúp a","Anh fix bug xong rồi, em test lại giúp an","Anh fix bug xong rồi, em test lại giúp anh","Anh fix bug xong rồi, em test lại giúp anh ","Anh fix bug xong rồi, em test lại giúp anh n","Anh fix bug xong rồi, em test lại giúp anh nh","Anh fix bug xong rồi, em test lại giúp anh nhe","Anh fix bug xong rồi, em test lại giúp anh nhé"],
+      snap: {"30":"test"} },
+    { side: 'in', telex: "Boss vuwaf feedback: pass rooif, ddi coffee thooi",
+      out: ["B","Bo","Bó","Boss","Boss ","Boss v","Boss vu","Boss vư","Boss vưa","Boss vừa","Boss vừa ","Boss vừa f","Boss vừa fe","Boss vừa fee","Boss vừa feed","Boss vừa feedb","Boss vừa feedba","Boss vừa feedbac","Boss vừa feedback","Boss vừa feedback:","Boss vừa feedback: ","Boss vừa feedback: p","Boss vừa feedback: pa","Boss vừa feedback: pá","Boss vừa feedback: pass","Boss vừa feedback: pass ","Boss vừa feedback: pass r","Boss vừa feedback: pass ro","Boss vừa feedback: pass rô","Boss vừa feedback: pass rôi","Boss vừa feedback: pass rồi","Boss vừa feedback: pass rồi,","Boss vừa feedback: pass rồi, ","Boss vừa feedback: pass rồi, d","Boss vừa feedback: pass rồi, đ","Boss vừa feedback: pass rồi, đi","Boss vừa feedback: pass rồi, đi ","Boss vừa feedback: pass rồi, đi c","Boss vừa feedback: pass rồi, đi co","Boss vừa feedback: pass rồi, đi cò","Boss vừa feedback: pass rồi, đi cof","Boss vừa feedback: pass rồi, đi cofe","Boss vừa feedback: pass rồi, đi coffee","Boss vừa feedback: pass rồi, đi coffee ","Boss vừa feedback: pass rồi, đi coffee t","Boss vừa feedback: pass rồi, đi coffee th","Boss vừa feedback: pass rồi, đi coffee tho","Boss vừa feedback: pass rồi, đi coffee thô","Boss vừa feedback: pass rồi, đi coffee thôi"],
+      snap: {"3":"Boss","24":"pass","42":"coffee"} }
+  ];
+  const chatBody = $('chatBody'), chatInput = $('chatInput');
+  const DUR = 30.72;
 
   // scene windows: [start, end]
   // The feature list and the settings windows hold longest: they carry the most to read.
-  const W = { s1:[0.0,2.2], s2:[2.2,7.0], s3:[7.0,11.5], s4:[11.5,13.7], s5:[13.7,18.7], s6:[18.7,21.0] };
+  const W = { s1:[0.0,2.2], s2:[2.2,7.0], s2b:[7.0,16.72], s3:[16.72,21.22], s4:[21.22,23.42], s5:[23.42,28.42], s6:[28.42,30.72] };
 
   function show(el, opacity, y) {
     el.style.opacity = opacity;
@@ -127,6 +167,32 @@
       raw.textContent = STEPS[n - 1];
       typed.innerHTML = [...CHARS.slice(0, n)]
         .map((c, i) => `<span${i === n - 1 ? ' class="last"' : ''}>${c === ' ' ? '␣' : c}</span>`).join('');
+    } else if (t < W.s2b[1]) {
+      const a = W.s2b[0], fo = fadeOut('s2b', t);
+      show($('s2b'), Math.min(1, (t - a) / 0.25) * fo, 0);
+      let clock = a + CHAT_LEAD, bubbles = '', input = '', typing = false;
+      MSGS.forEach(m => {
+        const len = m.out.length, typedEnd = clock + len * CHAT_STEP, sent = typedEnd + CHAT_SEND;
+        if (t >= sent) {
+          bubbles += `<div class="bub ${m.side}">${m.out[len - 1]}</div>`;
+        } else if (t >= clock && !typing) {
+          typing = true;
+          const k = Math.min(len - 1, Math.floor((t - clock) / CHAT_STEP));
+          const cur = m.out[k];
+          let shown = cur;
+          // Flash the word the engine snapped back to English, for 0.4 s after that key.
+          Object.keys(m.snap).forEach(sk => {
+            const age = (t - clock) - Number(sk) * CHAT_STEP, word = m.snap[sk], pos = cur.lastIndexOf(word);
+            if (Number(sk) <= k && age >= 0 && age < 0.4 && pos >= 0) {
+              shown = cur.slice(0, pos) + '<mark>' + word + '</mark>' + cur.slice(pos + word.length);
+            }
+          });
+          input = shown;
+        }
+        clock = sent;
+      });
+      chatBody.innerHTML = bubbles;
+      chatInput.innerHTML = input;
     } else if (t < W.s3[1]) {
       const fo = fadeOut('s3', t);
       show($('s3'), fo, 0);

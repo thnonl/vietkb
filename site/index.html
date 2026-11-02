@@ -63,7 +63,8 @@
       <div class="hero-copy">
         <p class="eyebrow">Miễn phí · Mã nguồn mở</p>
         <h1 id="hero-title"><span class="type-line"><span class="type-ghost">Gõ tiếng Việt</span><span class="type-live" aria-hidden="true"></span></span><br><span class="h1-accent">trên Windows và Mac</span></h1>
-        <p class="pitch">VietKB hỗ trợ Telex và VNI, có gõ tắt, kiểm tra chính tả và cài đặt riêng cho từng ứng dụng. Ứng dụng chạy nền, chỉ để lại biểu tượng V/E trong khay hệ thống hoặc trên thanh menu.</p>
+        <p class="kicker">Mới 0.2.8: nhận biết tiếng Anh</p>
+        <p class="pitch">VietKB hỗ trợ Telex và VNI, tự nhận biết tiếng Anh và code, có gõ tắt và cài đặt riêng cho từng ứng dụng. Ứng dụng chạy nền, chỉ để lại biểu tượng V/E trong khay hệ thống hoặc trên thanh menu.</p>
 
         <!-- Không có JS: nút chính là Windows, dòng dưới là link macOS; cả hai đều bấm được.
              Có JS: máy Mac thấy nút chính là macOS, link phụ là Windows (xem script cuối trang). -->
@@ -72,6 +73,7 @@
             <span class="dl-label">Tải cho Windows</span>
             <span class="btn-meta" data-release="installer">3,1 MB</span>
           </a>
+          <a class="btn btn-ghost" id="dl-store" href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">Tải từ Microsoft Store</a>
           <a class="btn btn-ghost" href="https://github.com/thnonl/vietkb">
             <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
               <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
@@ -90,7 +92,7 @@
           <span data-release="latest">Bản mới nhất trên GitHub</span>
           <span class="tag">Windows 10/11 · x64</span>
           <span class="tag">macOS 11+ · Apple silicon và Intel</span>
-          <span class="tag">Chưa ký số</span>
+          <span class="tag">Bản .exe chưa ký số</span>
         </p>
 
         <ul class="hero-specs">
@@ -110,7 +112,7 @@
           <div class="screen">
             <video class="hero-video" autoplay muted loop playsinline preload="metadata"
                    poster="assets/hero-poster.jpg" width="1280" height="720"
-                   aria-label="Clip 21 giây giới thiệu VietKB: gõ Vieetj ra Việt, các tính năng chính, số đo trên Windows và cửa sổ cài đặt trên Windows và macOS.">
+                   aria-label="Clip 31 giây giới thiệu VietKB: gõ Vieetj ra Việt, một đoạn chat có zoom, fix, pass gõ thẳng mà không tắt tiếng Việt, các tính năng chính, số đo trên Windows và cửa sổ cài đặt trên Windows và macOS.">
               <source src="assets/hero-motion.mp4" type="video/mp4">
             </video>
           </div>
@@ -159,53 +161,59 @@
       </div>
 
       <ul class="cards">
-        <li class="card">
+        <li class="card card-new">
           <span class="key-id" aria-hidden="true">01</span>
+          <span class="badge-new">Mới</span>
+          <h3>Tự nhận biết tiếng Anh và code</h3>
+          <p>Gõ <code>user</code>, <code>zoom</code>, <code>coffee</code>, <code>fix</code> hay <code>pass</code> giữa câu tiếng Việt, VietKB trả lại đúng phím bạn bấm, không cần gõ đúp hay tắt tiếng Việt. <code>zoom</code> không còn thành <code>zôm</code>. Từ trùng tiếng Việt, như <code>cos</code>, vẫn ra <code>có</code>. Muốn khôi phục, bấm <code>Ctrl+Shift+Z</code> (Mac: <code>⌃⇧Z</code>) ngay sau từ đó. Bật sẵn, tắt trong Nâng cao.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">02</span>
           <h3>Telex và VNI</h3>
           <p>Chọn Telex hoặc VNI, đặt dấu kiểu cũ (<code>hoà</code>) hoặc kiểu mới (<code>hòa</code>). Chữ gõ ra là Unicode dựng sẵn. Trên Windows có thêm Unicode tổ hợp (NFD).</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">02</span>
+          <span class="key-id" aria-hidden="true">03</span>
           <h3>Gõ tắt</h3>
           <p>Tự đặt từ viết tắt, ví dụ gõ <code>vn</code> ra <code>Việt Nam</code>. Bảng gõ tắt xuất ra tệp được để mang sang máy khác. Có thể để gõ tắt hoạt động cả khi đang tắt tiếng Việt.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">03</span>
+          <span class="key-id" aria-hidden="true">04</span>
           <h3>Riêng cho từng ứng dụng</h3>
           <p>Luôn tắt tiếng Việt trong game hay terminal, hoặc dùng kiểu gõ khác cho một ứng dụng. VietKB cũng có thể nhớ bạn đã bật hay tắt tiếng Việt ở mỗi ứng dụng.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">04</span>
+          <span class="key-id" aria-hidden="true">05</span>
           <h3>Phím tắt</h3>
           <p>Mặc định bấm Ctrl+Shift (Windows) hoặc <span class="mac-keys">⌃⇧</span> (Mac) để bật tắt tiếng Việt. Đổi phím trong cửa sổ <em>Phím tắt…</em> <a href="#phim-tat">Xem bảng phím tắt</a>.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">05</span>
+          <span class="key-id" aria-hidden="true">06</span>
           <h3>Gọn nhẹ</h3>
           <p>Bộ cài Windows chỉ <span data-release="installer">3,1 MB</span>, chạy nền tốn khoảng 14 MB RAM. Bản Mac là một tệp <code>.dmg</code> dùng cho cả máy chip Apple lẫn Intel.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">06</span>
+          <span class="key-id" aria-hidden="true">07</span>
           <h3>Biểu tượng V/E</h3>
           <p>Biểu tượng trong khay (Windows) hoặc trên thanh menu (Mac) cho biết đang gõ tiếng Việt (V) hay tiếng Anh (E). Nhấp vào để chuyển, nhấp phải để mở menu. Khi có bản mới, biểu tượng hiện chấm báo.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">07</span>
-          <h3>Kiểm tra chính tả</h3>
-          <p>Khi từ vừa gõ không phải tiếng Việt, VietKB trả lại đúng các phím bạn bấm, nên gõ <code>text</code> không bị thành <code>tẽt</code>. Có thêm tự viết hoa đầu câu và tự sửa <code>ưo</code> thành <code>ươ</code>.</p>
+          <span class="key-id" aria-hidden="true">08</span>
+          <h3>Viết hoa và sửa dấu</h3>
+          <p>Tự viết hoa đầu câu và tự sửa <code>ưo</code> thành <code>ươ</code>.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">08</span>
+          <span class="key-id" aria-hidden="true">09</span>
           <h3>Địa chỉ web, email</h3>
           <p>Khi bạn gõ địa chỉ web, email hay đường dẫn tệp, VietKB không thêm dấu vào giữa.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">09</span>
+          <span class="key-id" aria-hidden="true">10</span>
           <h3>Ô mật khẩu, bàn phím ảo</h3>
           <p>Trong ô mật khẩu, bấm phím nào ra phím đó, không bị thêm dấu. Trên Windows, gõ bằng bàn phím ảo của hệ thống vẫn ra tiếng Việt.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">10</span>
+          <span class="key-id" aria-hidden="true">11</span>
           <h3>Âm báo</h3>
           <p>Nếu muốn, VietKB phát một âm khi bật và một âm khác khi tắt tiếng Việt.</p>
         </li>
@@ -351,7 +359,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Tải bộ cài</h4>
-          <p>Bấm <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải cho Windows</a> để tải tệp <code>.exe</code>.</p>
+          <p>Bấm <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải cho Windows</a> để tải tệp <code>.exe</code>, hoặc <a href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">tải từ Microsoft Store</a>. Bản Store được cài và cập nhật tự động, không có cảnh báo ứng dụng chưa ký số.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -372,7 +380,7 @@
         </svg>
         <p>
           <strong>Nếu Windows hiện cảnh báo SmartScreen</strong>
-          Bộ cài chưa được ký số nên Windows có thể cảnh báo. Bấm <em>Thông tin thêm</em>, rồi <em>Vẫn chạy</em>.
+          Bộ cài .exe tải từ GitHub chưa được ký số nên Windows có thể cảnh báo. Bấm <em>Thông tin thêm</em>, rồi <em>Vẫn chạy</em>. Bản trên Microsoft Store không có cảnh báo này.
         </p>
       </div>
 
@@ -491,12 +499,12 @@
             <div><dt>Tệp cho Mac</dt><dd data-release="dmg-fact">.dmg</dd></div>
             <div><dt>Khi chạy (Windows)</dt><dd>14 MB</dd></div>
             <div><dt>Nền tảng</dt><dd>Windows 10/11, macOS 11+</dd></div>
-            <div><dt>Ký số</dt><dd>Chưa có</dd></div>
+            <div><dt>Ký số</dt><dd>Chưa có (bản .exe trên GitHub)</dd></div>
           </dl>
 
           <ul class="todo">
             <li><strong>macOS</strong> Chưa được Apple công chứng và chưa tự cập nhật.</li>
-            <li><strong>Ký số</strong> Bộ cài Windows chưa ký số nên SmartScreen còn cảnh báo khi cài.</li>
+            <li><strong>Ký số</strong> Bộ cài .exe trên GitHub chưa ký số nên SmartScreen còn cảnh báo khi cài. Bản trên Microsoft Store thì không.</li>
           </ul>
         </div>
 
@@ -561,6 +569,10 @@
   }
 
   if (detectOS() !== 'mac') return;
+
+  /* Microsoft Store chỉ có cho Windows: trên Mac thì ẩn nút này. */
+  var store = document.getElementById('dl-store');
+  if (store) store.style.display = 'none';
 
   var primary = document.getElementById('dl-primary');
   var alt = document.getElementById('dl-alt');

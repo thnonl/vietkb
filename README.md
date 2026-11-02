@@ -4,10 +4,12 @@ Bộ gõ tiếng Việt cho Windows và macOS, viết bằng Rust + Tauri 2. Nh�
 
 - Trang giới thiệu: **https://thnonl.github.io/vietkb/**
 - Tải bản mới nhất: **https://github.com/thnonl/vietkb/releases/latest**
+- Tải trên Microsoft Store (Windows): **https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS**
 - Ủng hộ: **https://ko-fi.com/N4X728S6TT** (buy me a coffee)
 
 ## Có gì
 
+- **Tự nhận biết tiếng Anh và code**: `user`, `zoom`, `coffee` giữa câu tiếng Việt được giữ nguyên. Từ trùng tiếng Việt như `cos` vẫn ra `có`. Bật sẵn; tắt được trong Nâng cao.
 - Telex và VNI; chữ ra Unicode. Bản Windows chọn được thêm Unicode NFD.
 - Kiểu gõ cũ/mới, đặt dấu tự do, kiểm tra chính tả, tự khôi phục từ gõ sai, viết hoa đầu câu. Địa chỉ web, email và đường dẫn tệp tự giữ nguyên.
 - Gõ tắt (kể cả khi đã tắt tiếng Việt), bảng gõ tắt riêng, gõ tắt theo hoa/thường.
@@ -21,7 +23,10 @@ Không có: bảng mã cũ (TCVN3, VNI-Windows, VISCII…), VIQR, công cụ chu
 
 ## Cài
 
-**Windows** (Windows 10 1809+ và Windows 11, x64): tải `VietKB_<version>_x64-setup.exe` ở mục Releases rồi chạy. Bản phát hành **chưa ký số**, Windows sẽ hỏi xác nhận.
+**Windows** (Windows 10 1809+ và Windows 11, x64):
+
+1. **Khuyên dùng: [Microsoft Store](https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS).** Bản Store được ký số và tự cập nhật.
+2. Hoặc tải `VietKB_<version>_x64-setup.exe` ở mục Releases rồi chạy. Bản `.exe` này **chưa ký số**, Windows sẽ hỏi xác nhận.
 
 **macOS** (macOS 11 trở lên, Apple silicon và Intel):
 

@@ -61,7 +61,8 @@
       <div class="hero-copy">
         <p class="eyebrow">Free · Open source</p>
         <h1 id="hero-title">Type Vietnamese<br><span class="h1-accent">on Windows and Mac</span></h1>
-        <p class="pitch">VietKB supports Telex and VNI, with text expansion, spell check and per-app settings. It runs in the background, with just a V/E icon in the system tray or the menu bar.</p>
+        <p class="kicker">New in 0.2.8: recognizes English</p>
+        <p class="pitch">VietKB supports Telex and VNI, recognizes English and code, and offers text expansion and per-app settings. It runs in the background, with just a V/E icon in the system tray or the menu bar.</p>
 
         <!-- Without JS: Windows is the main button and macOS a link below; both work.
              With JS: Mac visitors get macOS as the main button (see the script at the end). -->
@@ -70,6 +71,7 @@
             <span class="dl-label">Download for Windows</span>
             <span class="btn-meta" data-release="installer">3.1 MB</span>
           </a>
+          <a class="btn btn-ghost" id="dl-store" href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">Get it from Microsoft Store</a>
           <a class="btn btn-ghost" href="https://github.com/thnonl/vietkb">
             <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
               <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
@@ -88,7 +90,7 @@
           <span data-release="latest">Latest release on GitHub</span>
           <span class="tag">Windows 10/11 · x64</span>
           <span class="tag">macOS 11+ · Apple silicon and Intel</span>
-          <span class="tag">Not code-signed</span>
+          <span class="tag">GitHub .exe not code-signed</span>
         </p>
 
         <ul class="hero-specs">
@@ -108,7 +110,7 @@
           <div class="screen">
             <video class="hero-video" autoplay muted loop playsinline preload="metadata"
                    poster="../assets/hero-poster.jpg" width="1280" height="720"
-                   aria-label="21-second clip about VietKB: typing Vieetj gives Việt, the main features, measurements on Windows, and the settings window on Windows and macOS.">
+                   aria-label="31-second clip about VietKB: typing Vieetj gives Việt, a chat where zoom, fix and pass are typed without switching Vietnamese off, the main features, measurements on Windows, and the settings window on Windows and macOS.">
               <source src="../assets/hero-motion.mp4" type="video/mp4">
             </video>
           </div>
@@ -157,53 +159,59 @@
       </div>
 
       <ul class="cards">
-        <li class="card">
+        <li class="card card-new">
           <span class="key-id" aria-hidden="true">01</span>
+          <span class="badge-new">New</span>
+          <h3>Recognize English and code</h3>
+          <p>Type <code>user</code>, <code>zoom</code>, <code>coffee</code>, <code>fix</code> or <code>pass</code>. VietKB returns the keys you typed, so you never double a key or switch Vietnamese off. <code>zoom</code> no longer turns into <code>zôm</code>. Words that are also Vietnamese, like <code>cos</code>, stay Vietnamese. Press <code>Ctrl+Shift+Z</code> (Mac: <code>⌃⇧Z</code>) right after it to switch back. On by default; turn it off under Advanced.</p>
+        </li>
+        <li class="card">
+          <span class="key-id" aria-hidden="true">02</span>
           <h3>Telex and VNI</h3>
           <p>Choose Telex or VNI, and old-style (<code>hoà</code>) or new-style (<code>hòa</code>) tone placement. Text comes out as precomposed Unicode. On Windows you can also pick decomposed Unicode (NFD).</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">02</span>
+          <span class="key-id" aria-hidden="true">03</span>
           <h3>Text expansion</h3>
           <p>Set your own abbreviations, for example <code>vn</code> for <code>Việt Nam</code>. Export the list to a file to take it to another computer. Expansion can keep working while Vietnamese is off.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">03</span>
+          <span class="key-id" aria-hidden="true">04</span>
           <h3>Per-app settings</h3>
           <p>Keep Vietnamese off in games or the terminal, or use a different typing method in one app. VietKB can also remember whether you had Vietnamese on or off in each app.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">04</span>
+          <span class="key-id" aria-hidden="true">05</span>
           <h3>Shortcuts</h3>
           <p>Press Ctrl+Shift (Windows) or <span class="mac-keys">⌃⇧</span> (Mac) to turn Vietnamese on or off. Change the keys in the <em>Shortcuts…</em> window. <a href="#shortcuts">See all shortcuts</a>.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">05</span>
+          <span class="key-id" aria-hidden="true">06</span>
           <h3>Small</h3>
           <p>The Windows installer is only <span data-release="installer">3.1 MB</span>, and the app uses about 14 MB of RAM in the background. The Mac version is one <code>.dmg</code> for both Apple silicon and Intel.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">06</span>
+          <span class="key-id" aria-hidden="true">07</span>
           <h3>The V/E icon</h3>
           <p>The icon in the tray (Windows) or the menu bar (Mac) shows whether you are typing Vietnamese (V) or English (E). Click it to switch, right-click for the menu. When an update is out, the icon shows a dot.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">07</span>
-          <h3>Spell check</h3>
-          <p>When a word is not Vietnamese, VietKB puts back the keys you pressed, so <code>text</code> does not turn into <code>tẽt</code>. It can also capitalize new sentences and fix <code>ưo</code> to <code>ươ</code>.</p>
+          <span class="key-id" aria-hidden="true">08</span>
+          <h3>Capitals and vowel fixes</h3>
+          <p>It can also capitalize new sentences and fix <code>ưo</code> to <code>ươ</code>.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">08</span>
+          <span class="key-id" aria-hidden="true">09</span>
           <h3>Web and email addresses</h3>
           <p>When you type a web address, an email address or a file path, VietKB adds no tone marks to it.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">09</span>
+          <span class="key-id" aria-hidden="true">10</span>
           <h3>Passwords, on-screen keyboard</h3>
           <p>In password fields, every key comes through as pressed, with no tone marks. On Windows, the system on-screen keyboard types Vietnamese too.</p>
         </li>
         <li class="card">
-          <span class="key-id" aria-hidden="true">10</span>
+          <span class="key-id" aria-hidden="true">11</span>
           <h3>Sounds</h3>
           <p>If you like, VietKB plays one sound when Vietnamese turns on and another when it turns off.</p>
         </li>
@@ -349,7 +357,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Download the installer</h4>
-          <p>Click <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download for Windows</a> to get the <code>.exe</code> file.</p>
+          <p>Click <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download for Windows</a> to get the <code>.exe</code> file, or <a href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">get it from Microsoft Store</a>. The Store version installs and updates automatically, with no unsigned-app warning.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -370,7 +378,7 @@
         </svg>
         <p>
           <strong>If Windows shows a SmartScreen warning</strong>
-          The installer is not code-signed yet, so Windows may warn you. Click <em>More info</em>, then <em>Run anyway</em>.
+          The .exe from GitHub is not code-signed yet, so Windows may warn you. Click <em>More info</em>, then <em>Run anyway</em>. The Microsoft Store version does not show this warning.
         </p>
       </div>
 
@@ -489,12 +497,12 @@
             <div><dt>Mac download</dt><dd data-release="dmg-fact">.dmg</dd></div>
             <div><dt>Running (Windows)</dt><dd>14 MB</dd></div>
             <div><dt>Platforms</dt><dd>Windows 10/11, macOS 11+</dd></div>
-            <div><dt>Code signing</dt><dd>Not yet</dd></div>
+            <div><dt>Code signing</dt><dd>Not yet (GitHub .exe)</dd></div>
           </dl>
 
           <ul class="todo">
             <li><strong>macOS</strong> Not notarized by Apple yet, and no self-update.</li>
-            <li><strong>Signing</strong> The Windows installer is not code-signed, so SmartScreen still warns during install.</li>
+            <li><strong>Signing</strong> The GitHub .exe is not code-signed, so SmartScreen still warns during install. The Microsoft Store version does not.</li>
           </ul>
         </div>
 
@@ -559,6 +567,10 @@
   }
 
   if (detectOS() !== 'mac') return;
+
+  /* Microsoft Store is Windows-only: hide that button on a Mac. */
+  var store = document.getElementById('dl-store');
+  if (store) store.style.display = 'none';
 
   var primary = document.getElementById('dl-primary');
   var alt = document.getElementById('dl-alt');

@@ -7,7 +7,7 @@ $frames = Join-Path $root 'design\hero-motion\_frames'
 $assets = Join-Path $root 'design\hero-motion\assets'
 $edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 $fps = 25
-$duration = 21
+$duration = 30.72
 $n = $fps * $duration
 
 New-Item -ItemType Directory -Force $assets | Out-Null
