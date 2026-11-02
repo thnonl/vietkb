@@ -107,3 +107,29 @@ fn vni_equivalents_of_the_same_rules() {
         ],
     );
 }
+
+#[test]
+fn left_side_compounds_keep_the_vietnamese_word() {
+    // The English-looking word after a Vietnamese word is Vietnamese in its compound
+    // (owner: a word has partners on both sides; `room` is `rôm` in `nổi rôm`, `mọc rôm`, `bị rôm`).
+    check(
+        telex(),
+        &[
+            ("tooi bij nooir room ", "tôi bị nổi rôm "),
+            ("tooi mojc room ", "tôi mọc rôm "),
+            ("tooi bij room ", "tôi bị rôm "),
+            ("tooi ddanhs vary ", "tôi đánh vảy "),
+            ("tooi caoj vary ", "tôi cạo vảy "),
+            ("ngawns churn ", "ngắn chủn "),
+            // The right side: `vảy rồng`, `chủn ngủn`.
+            ("vary roongf ", "vảy rồng "),
+            ("churn ngunr ", "chủn ngủn "),
+        ],
+    );
+}
+
+#[test]
+fn churn_is_english_alone_and_after_a_vietnamese_word() {
+    // `churn` (chủn) is compound-only: `ngắn chủn`, `chủn ngủn` keep it Vietnamese.
+    check(telex(), &[("churn ", "churn "), ("tooi churn ", "tôi churn ")]);
+}

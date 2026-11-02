@@ -303,6 +303,16 @@ static VI_COLLOCATIONS: &[u32] = &[
     colloc("nguo+i2", "mix"),
     colloc("quo^c1", "mix"),
     colloc("ca1", "tree"),
+    // Left-side compounds of the rôm and churn/vảy readings: the Vietnamese word before the
+    // English-looking word makes the Vietnamese reading (owner: "room" has Vietnamese partners
+    // on both sides: nổi rôm, mọc rôm, bị rôm; the left side is checked here, the right side in
+    // BACK_VI_PAIRS).
+    colloc("no^i3", "room"),
+    colloc("moc5", "room"),
+    colloc("bi5", "room"),
+    colloc("Danh1", "vary"),
+    colloc("cao5", "vary"),
+    colloc("nga(n1", "churn"),
 ];
 
 /// The only phrases the one-word-back correction may turn into English: an
@@ -328,6 +338,8 @@ static BACK_VI_PAIRS: &[u32] = &[
     colloc("keen", "keen"),
     colloc("vary", "cas"),
     colloc("vary", "neens"),
+    colloc("vary", "roongf"),
+    colloc("churn", "ngunr"),
 ];
 
 /// Hand-written, short on purpose: compounds that 0.2.8 typed right and that the stand-alone
