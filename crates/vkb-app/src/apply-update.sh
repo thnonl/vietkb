@@ -108,10 +108,10 @@ OLD="$PARENT/.$NAME.old.$$"
 rm -rf "$NEW" "$OLD"
 ditto "$SRC" "$NEW" >>"$LOG" 2>&1 || fail "ditto failed"
 [ -x "$NEW/Contents/MacOS/$EXE" ] || fail "copied bundle has no executable"
-# Warning only, never a failure: release builds are ad-hoc signed, and an
-# ad-hoc signature can fail strict verification on perfectly good copies.
+# Warning only, never a failure: release builds carry a self-signed (before
+# 0.2.9: ad-hoc) signature, which can fail strict verification on good copies.
 if ! codesign --verify --deep --strict "$NEW" >>"$LOG" 2>&1; then
-  log "warning: codesign --verify failed on the copy (ad-hoc builds; not fatal)"
+  log "warning: codesign --verify failed on the copy (not fatal)"
 fi
 log "copied to $NEW"
 
