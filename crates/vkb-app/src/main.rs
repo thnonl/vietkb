@@ -292,6 +292,13 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
     let Some(pending) = take_pending(label, id) else { return };
     let Some(window) = app.get_webview_window(label) else { return };
 
+    // macOS: the staged window turns opaque in place, already painted. First,
+    // before the activation below: macOS may refuse to activate an app whose
+    // only window is transparent, and an app that is not active leaves its
+    // window behind the frontmost app, occluded and never painted.
+    #[cfg(target_os = "macos")]
+    macos_shell::reveal_staged(&window);
+
     if label == MAIN_LABEL {
         enter_foreground(app);
         if let Err(error) = window.show() {
@@ -308,9 +315,6 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
             centre_on_launch_monitor(&window);
             centre_on_launch_monitor(&window);
         }
-        // macOS: the staged window turns opaque in place, already painted.
-        #[cfg(target_os = "macos")]
-        macos_shell::reveal_staged(&window);
         if let Err(error) = window.set_focus() {
             tracing::warn!(%error, "could not focus the settings window");
         }
@@ -333,9 +337,6 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
         }
         modal_opened(label, pending.owner.clone());
         enter_foreground(app);
-        // macOS: the staged window turns opaque in place, already painted.
-        #[cfg(target_os = "macos")]
-        macos_shell::reveal_staged(&window);
         if let Err(error) = window.set_focus() {
             tracing::warn!(%error, "could not focus the modal");
         }
