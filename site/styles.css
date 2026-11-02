@@ -627,6 +627,15 @@ a { color: var(--accent); }
 /* Tính năng mới: viền nhấn, nhãn "Mới" / "New" và dòng nhỏ đầu khối hero. Dùng token sáng/tối sẵn có. */
 .card-new { border-color: var(--accent); }
 
+/* Ghi chú nhỏ dưới nội dung thẻ, cùng màu phụ với phần mô tả. */
+.card .card-note {
+  margin: 10px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .badge-new {
   display: inline-block;
   margin: 4px 0 0 8px;

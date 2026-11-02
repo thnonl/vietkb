@@ -9,7 +9,7 @@ Bộ gõ tiếng Việt cho Windows và macOS, viết bằng Rust + Tauri 2. Nh�
 
 ## Có gì
 
-- **Tự nhận biết tiếng Anh và code**: `user`, `zoom`, `coffee` giữa câu tiếng Việt được giữ nguyên. Từ trùng tiếng Việt như `cos` vẫn ra `có`. Bật sẵn; tắt được trong Nâng cao.
+- **Tự nhận biết tiếng Anh và code**: tiếng Anh, tên, tên tệp và code gõ giữa câu tiếng Việt được giữ nguyên, không cần gõ đúp hay tắt tiếng Việt. Hơn 95% trong 10.000 từ tiếng Anh thông dụng nhất. Kho từ tiếp tục mở rộng. Bật sẵn.
 - Telex và VNI; chữ ra Unicode. Bản Windows chọn được thêm Unicode NFD.
 - Kiểu gõ cũ/mới, đặt dấu tự do, kiểm tra chính tả, tự khôi phục từ gõ sai, viết hoa đầu câu. Địa chỉ web, email và đường dẫn tệp tự giữ nguyên.
 - Gõ tắt (kể cả khi đã tắt tiếng Việt), bảng gõ tắt riêng, gõ tắt theo hoa/thường.
