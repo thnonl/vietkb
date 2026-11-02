@@ -4,6 +4,8 @@ mod commands;
 mod i18n;
 mod running_apps;
 #[cfg(target_os = "macos")]
+mod input_monitoring;
+#[cfg(target_os = "macos")]
 mod macos_shell;
 mod tray;
 // Store (MSIX) build: no self-updater. The stub keeps only the link opener the
@@ -80,7 +82,12 @@ fn main_content_height() -> f64 {
 /// and Input Monitoring (see the keys). Either one missing means the banner.
 #[cfg(target_os = "macos")]
 fn permissions_missing() -> bool {
-    !vkb_macos::has_accessibility_permission() || !vkb_macos::has_input_monitoring_permission()
+    // Input Monitoring comes from the cache (`input_monitoring.rs`): the TCC
+    // query costs ~20 ms on the main thread right before the window build. The
+    // refresh lands well before the page asks for the status.
+    let im_granted = input_monitoring::granted();
+    input_monitoring::refresh();
+    !vkb_macos::has_accessibility_permission() || !im_granted
 }
 
 /// Disable the window a modal was opened from.
@@ -813,7 +820,11 @@ fn main() {
         vkb_windows::perf::init_from_env();
     }
     #[cfg(target_os = "macos")]
-    vkb_macos::set_data_dir(vkb_config::paths::config_dir());
+    {
+        vkb_macos::set_data_dir(vkb_config::paths::config_dir());
+        // First Input Monitoring reading, off the main thread.
+        input_monitoring::refresh();
+    }
 
     // M8: serialise concurrent launches before the single-instance plugin can be
     // raced into creating a second tray icon / event tap (singleton.rs).
@@ -973,6 +984,8 @@ fn main() {
             WindowEvent::Focused(false) => commands::clear_hotkey_capture_for(window.label()),
             #[cfg(target_os = "macos")]
             WindowEvent::Focused(true) => {
+                // Back from System Settings, maybe with a new grant.
+                input_monitoring::refresh();
                 refocus_modal(window.app_handle(), window.label());
             }
             // The OS theme flipped: with theme=System the native background follows.

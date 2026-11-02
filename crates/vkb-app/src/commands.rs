@@ -1540,7 +1540,11 @@ pub fn accessibility_status() -> bool {
 pub fn input_monitoring_status() -> bool {
     #[cfg(target_os = "macos")]
     {
-        vkb_macos::has_input_monitoring_permission()
+        // Served from the cache, never a TCC query on the main thread; the
+        // refresh emits `vkb:input-monitoring` if the answer turns out stale.
+        let granted = crate::input_monitoring::granted();
+        crate::input_monitoring::refresh();
+        granted
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -1554,7 +1558,9 @@ pub fn input_monitoring_status() -> bool {
 pub fn request_input_monitoring() -> bool {
     #[cfg(target_os = "macos")]
     {
-        vkb_macos::request_input_monitoring_permission()
+        let granted = vkb_macos::request_input_monitoring_permission();
+        crate::input_monitoring::note(granted);
+        granted
     }
     #[cfg(not(target_os = "macos"))]
     {

@@ -12,6 +12,7 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { fitWindowToContent, resizeBy } from "../lib/fit";
   import Icon from "./Icon.svelte";
   import * as api from "../lib/api";
@@ -134,7 +135,22 @@
     const timer = setInterval(() => void refresh(), POLL_MS);
     const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
+    // macOS serves Input Monitoring from a cache and refreshes it in the
+    // background (input_monitoring.rs); a refresh that finds a new answer says
+    // so here, so a grant made in System Settings shows without a poll's delay.
+    let unlisten: UnlistenFn | null = null;
+    let disposed = false;
+    if (native && platformState.mac) {
+      void listen<boolean>("vkb:input-monitoring", () => void refresh())
+        .then((stop) => {
+          if (disposed) stop();
+          else unlisten = stop;
+        })
+        .catch(() => {});
+    }
     return () => {
+      disposed = true;
+      unlisten?.();
       clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
