@@ -22,7 +22,7 @@ use crate::method::{self, Composed};
 use crate::tone as place;
 use crate::lexicon::{self, Left};
 
-use crate::{spell, AppKind, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine, MAX_WORD};
+use crate::{spell, AppKind, Charset, EngineAction, EngineOptions, InputMethod, KeyInput, VietnameseEngine, MAX_WORD};
 
 /// Windows virtual-key codes the engine reacts to even without a character.
 pub const VK_BACK: u16 = 0x08;
@@ -30,14 +30,18 @@ pub const VK_TAB: u16 = 0x09;
 pub const VK_RETURN: u16 = 0x0D;
 pub const VK_ESCAPE: u16 = 0x1B;
 pub const VK_SPACE: u16 = 0x20;
+/// Caret keys the line history follows ("gõ dấu đè"): plain Left, Right and End.
+pub const VK_END: u16 = 0x23;
+pub const VK_LEFT: u16 = 0x25;
+pub const VK_RIGHT: u16 = 0x27;
 
-/// Raw keystrokes the reference implementation treated as a wrong word at a
-/// boundary, ported verbatim as a compat shim.
 /// Below this corpus count a syllable typed in the English stop-coda shape
 /// (`test` = `tét`, `list` = `lít`) is read as the English word at the break.
 const STOP_SHAPE_RARE: u32 = 20;
 
-const COMPAT_RESTORE_RAW: &[&str] =&["of", "oj", "awf", "owf", "uwf", "aww", "oww", "uww"];
+/// Raw keystrokes the reference implementation treated as a wrong word at a
+/// boundary, ported verbatim as a compat shim.
+const COMPAT_RESTORE_RAW: &[&str] = &["of", "oj", "awf", "owf", "uwf", "aww", "oww", "uww"];
 
 /// The word before the one being decided (D10 left context), kept as numbers:
 /// no text, no allocation.
@@ -184,6 +188,9 @@ pub struct Engine {
     /// The word was reopened from the line as typed keys (D10 had put them back):
     /// a tone or mark key typed onto it asks for the Vietnamese word.
     reopened_raw: bool,
+    /// Text the line history does not describe lies right of the caret (something was typed in
+    /// the middle of a line): End or Right then lands somewhere unknown.
+    beyond_end: bool,
     /// The word started right after `/`, `~` or `\\` inside a path token.
     after_path_sep: bool,
     /// The current space-delimited token started as a path (`/usr`, `~/`, `C:\\`, `./`).
@@ -228,6 +235,7 @@ impl Engine {
             correction: None,
             auto_suppressed: false,
             reopened_raw: false,
+            beyond_end: true,
             after_path_sep: false,
             path_token: false,
             path_segments: 0,
@@ -359,6 +367,71 @@ impl Engine {
 
     /// `Phục hồi từ gõ sai`: put the raw keystrokes back on screen and keep the
     /// rest of the word literal.
+    /// Owner 2026-11-03 ("gõ dấu đè"): make `word`, a word already on screen right before the
+    /// caret, the current word, as if its keys had just been typed, so the next tone or mark key
+    /// re-tones it in place (`nhá` + `f` = `nhà`). The platform calls this when the caret moved
+    /// and a tone key comes right after a word it read from the app (accessibility API).
+    /// `false` (and nothing changed) when the text is not a word this engine would type back the
+    /// same way: the key is then typed as usual.
+    pub fn seed_word(&mut self, word: &str) -> bool {
+        if self.options.charset != Charset::Unicode || word.is_empty() || word.chars().count() * 2 > MAX_WORD {
+            return false;
+        }
+        let vni = self.options.method == InputMethod::Vni;
+        let caps = word.chars().filter(|c| c.is_alphabetic()).all(char::is_uppercase) && word.chars().count() > 1;
+        let case = |c: char| if caps { c.to_ascii_uppercase() } else { c };
+        let mut keys: SmallVec<[char; MAX_WORD]> = SmallVec::new();
+        let mut tone = Tone::None;
+        for ch in word.chars() {
+            if ch.is_ascii_alphabetic() {
+                keys.push(ch);
+                continue;
+            }
+            let Some((base, mark, t)) = crate::letters::decompose(ch) else {
+                return false;
+            };
+            keys.push(if ch.is_uppercase() { base.to_ascii_uppercase() } else { base });
+            let mark_key = match (vni, mark) {
+                (_, crate::letters::Mark::None) => None,
+                (false, crate::letters::Mark::Circumflex) => Some(base),
+                (false, crate::letters::Mark::Breve | crate::letters::Mark::Horn) => Some('w'),
+                (false, crate::letters::Mark::Bar) => Some('d'),
+                (true, crate::letters::Mark::Circumflex) => Some('6'),
+                (true, crate::letters::Mark::Breve) => Some('8'),
+                (true, crate::letters::Mark::Horn) => Some('7'),
+                (true, crate::letters::Mark::Bar) => Some('9'),
+            };
+            if let Some(k) = mark_key {
+                keys.push(case(k));
+            }
+            if t != Tone::None {
+                if tone != Tone::None {
+                    return false;
+                }
+                tone = t;
+            }
+        }
+        if tone != Tone::None {
+            let k = if vni { [' ', '1', '2', '3', '4', '5'][tone.index()] } else { [' ', 's', 'f', 'r', 'x', 'j'][tone.index()] };
+            keys.push(case(k));
+        }
+        let mut composed = Composed::default();
+        method::compose(&keys, &self.options, usize::MAX, &mut composed);
+        let mut text = TextBuf::new();
+        self.render_into(&composed.letters, composed.tone, composed.tone_slot, &mut text);
+        if !text.iter().copied().eq(word.chars()) {
+            return false;
+        }
+        self.reset_word();
+        self.line.clear();
+        self.raw = keys;
+        self.composed = composed;
+        self.text = text;
+        // The user went back to fix this word: it is Vietnamese, D10 leaves it alone.
+        self.auto_suppressed = true;
+        true
+    }
+
     pub fn restore_word(&mut self) -> EngineAction {
         self.back = None;
         if let Some(correction) = self.correction.take() {
@@ -657,6 +730,149 @@ impl Engine {
         };
         self.line.push_word(&self.raw, entry);
         self.line.push_mark();
+    }
+
+    // -- "Gõ dấu đè" (owner, 2026-11-03) ------------------------------------------------------
+    // Only words still in the line history: plain Left/Right/End move a caret inside it, and a
+    // tone key typed right after one of its words re-tones that word in place. Anything else
+    // there (a click, Home, Up/Down, a chord, another key typed mid-line) forgets the line, and a
+    // tone key then just adds its character (`tốt` + `x` = `tốtx`), as before.
+
+    /// Word `nth` (from the newest) rebuilt from its keys, when it still shows what it showed.
+    fn line_word(&self, nth: usize) -> Option<(SmallVec<[char; MAX_WORD]>, Entry, Composed, TextBuf)> {
+        let mut keys = SmallVec::new();
+        let entry = self.line.word_from_newest(nth, &mut keys)?;
+        let mut composed = Composed::default();
+        method::compose(&keys, &self.options, entry.literal_from(), &mut composed);
+        if let Some(slot) = entry.tone_slot() {
+            composed.tone_slot = Some(slot);
+        }
+        let mut text = TextBuf::new();
+        self.render_into(&composed.letters, composed.tone, composed.tone_slot, &mut text);
+        (line::text_hash(&text) == entry.hash).then_some((keys, entry, composed, text))
+    }
+
+    /// On-screen characters the remembered line holds (`None` when a word cannot be rebuilt).
+    fn line_width(&self) -> Option<usize> {
+        let mut width = 0;
+        for nth in 0..self.line.len() {
+            let entry = self.line.entry_from_newest(nth)?;
+            width += if entry.word { self.line_word(nth)?.3.len() } else { 1 };
+        }
+        Some(width)
+    }
+
+    /// The remembered word whose end is exactly at the caret, counted from the newest.
+    fn word_ending_at_caret(&self) -> Option<usize> {
+        let back = self.line.caret_back();
+        let mut dist = 0;
+        for nth in 0..self.line.len() {
+            let entry = self.line.entry_from_newest(nth)?;
+            if entry.word && dist == back {
+                return Some(nth);
+            }
+            dist += if entry.word { self.line_word(nth)?.3.len() } else { 1 };
+            if dist > back {
+                // The caret is inside this entry.
+                return None;
+            }
+        }
+        None
+    }
+
+    /// Plain Left/Right/End: follow the caret inside the remembered line, or forget it.
+    fn caret_key(&mut self, vk: u16) {
+        if !self.raw.is_empty() {
+            if self.line.editing().is_some() {
+                self.commit_edit();
+            } else {
+                // A word still being typed is not in the line: the caret leaves it.
+                VietnameseEngine::reset(self);
+                return;
+            }
+        }
+        if self.options.charset != Charset::Unicode {
+            VietnameseEngine::reset(self);
+            return;
+        }
+        // Whatever the caret leaves (context, pending code shapes) is reset; the line is kept.
+        let line = std::mem::take(&mut self.line);
+        let beyond_end = self.beyond_end;
+        VietnameseEngine::reset(self);
+        self.line = line;
+        self.beyond_end = beyond_end;
+        let back = self.line.caret_back();
+        match vk {
+            VK_LEFT => match self.line_width() {
+                Some(width) if back < width => self.line.set_caret_back(back + 1),
+                _ => self.forget_line(),
+            },
+            VK_RIGHT if back > 0 => self.line.set_caret_back(back - 1),
+            // Right at the end, or End past text typed in the middle of the line: the caret goes
+            // where the line does not describe.
+            VK_RIGHT => self.forget_line(),
+            _ if self.beyond_end => self.forget_line(),
+            _ => self.line.set_caret_back(0),
+        }
+    }
+
+    fn forget_line(&mut self) {
+        self.line.clear();
+        self.beyond_end = true;
+    }
+
+    /// A key typed with the caret inside the remembered line. `Some`: handled here.
+    fn mid_line_key(&mut self, ch: char) -> Option<EngineAction> {
+        let tone_key = match self.options.method {
+            InputMethod::Vni => matches!(ch, '0'..='5'),
+            _ => matches!(ch.to_ascii_lowercase(), 's' | 'f' | 'r' | 'x' | 'j' | 'z'),
+        };
+        if self.line.editing().is_some() {
+            if tone_key && !self.raw.is_empty() {
+                // Another tone on the word being re-toned (`nhá` + `f` + `r`).
+                return Some(self.word_key(ch));
+            }
+            self.commit_edit();
+        } else if tone_key && self.raw.is_empty() {
+            if let Some((nth, (keys, entry, composed, text))) =
+                self.word_ending_at_caret().and_then(|nth| self.line_word(nth).map(|w| (nth, w)))
+            {
+                self.reset_word();
+                self.raw = keys;
+                self.composed = composed;
+                self.text = text;
+                self.literal_from = entry.literal_from();
+                // The user went back to fix this word: it is Vietnamese, D10 leaves it alone.
+                self.auto_suppressed = true;
+                self.line.set_editing(Some(nth));
+                return Some(self.word_key(ch));
+            }
+        }
+        // Typed in the middle of the line: from here the line before the caret is unknown, and
+        // so is the text after it.
+        self.leave_mid_line();
+        None
+    }
+
+    /// Write the re-toned word back into its place in the line.
+    fn commit_edit(&mut self) {
+        let Some(nth) = self.line.editing() else { return };
+        if !self.raw.is_empty() {
+            match Entry::word(self.literal_from, self.composed.tone_slot, &self.text) {
+                Some(entry) => self.line.replace_word_from_newest(nth, &self.raw, entry),
+                None => self.line.clear(),
+            }
+        }
+        self.line.set_editing(None);
+        self.reset_word();
+    }
+
+    fn leave_mid_line(&mut self) {
+        if self.line.editing().is_some() {
+            self.commit_edit();
+        }
+        self.line.clear();
+        self.beyond_end = true;
     }
 
     /// A separator the app typed with no word of ours in front of it.
@@ -1800,6 +2016,8 @@ impl VietnameseEngine for Engine {
         self.reset_word();
         // A caret move or focus change is a boundary the memory must not cross.
         self.line.clear();
+        // After a caret move or focus change the app may hold text right of the caret.
+        self.beyond_end = true;
         self.caps_pending = false;
         self.last_emitted = None;
         self.raw_pending = false;
@@ -1846,6 +2064,10 @@ impl VietnameseEngine for Engine {
         Engine::on_screen(self)
     }
 
+    fn seed_word(&mut self, word: &str) -> bool {
+        Engine::seed_word(self, word)
+    }
+
     fn process_key(&mut self, key: KeyInput) -> EngineAction {
         // Key-up and non-text chords are none of our business.
         if !key.down {
@@ -1877,6 +2099,10 @@ impl VietnameseEngine for Engine {
         {
             self.back = None;
         }
+        // The caret is inside the remembered line: an editing key there makes it unknown.
+        if self.line.caret_back() > 0 && matches!(key.vk, VK_BACK | VK_RETURN | VK_TAB | VK_ESCAPE) {
+            self.leave_mid_line();
+        }
         match key.vk {
             VK_BACK => return self.backspace(),
             VK_RETURN => return self.boundary_key('\r'),
@@ -1887,6 +2113,12 @@ impl VietnameseEngine for Engine {
         }
         let ch = match key.ch {
             Some(ch) => ch,
+            // "Gõ dấu đè": plain Left/Right/End move the caret inside the remembered line.
+            None if matches!(key.vk, VK_LEFT | VK_RIGHT | VK_END) && !key.modifiers.shift => {
+                self.caret_key(key.vk);
+                self.raw_pending = false;
+                return EngineAction::Noop;
+            }
             None => {
                 // A key with no character and no word/boundary role of its own —
                 // arrows, Home/End, PgUp/PgDn, Delete, F-keys — is a caret move or
@@ -1901,6 +2133,11 @@ impl VietnameseEngine for Engine {
                 return EngineAction::Noop;
             }
         };
+        if self.line.caret_back() > 0 {
+            if let Some(action) = self.mid_line_key(ch) {
+                return action;
+            }
+        }
         if let Some(pending) = pending {
             if let Some(action) = self.chain_key(pending, ch) {
                 return action;
@@ -1958,6 +2195,7 @@ impl VietnameseEngine for Engine {
     fn boundary(&mut self) {
         self.reset_word();
         self.line.clear();
+        self.beyond_end = true;
         self.prev_word = PrevWord::NONE;
         self.pending_code = None;
         self.correction = None;

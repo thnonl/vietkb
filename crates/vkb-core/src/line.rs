@@ -107,7 +107,14 @@ pub struct LineHistory {
     entries: [Entry; LINE_ENTRIES],
     head: u8,
     count: u8,
+    /// "Gõ dấu đè": on-screen characters between the caret and the end of the remembered line
+    /// (Left/Right/End move it; 0 = the caret is at the end, where new text goes).
+    caret_back: u16,
+    /// The word (counted from the newest entry) being re-toned in place, if any.
+    editing: u8,
 }
+
+const NOT_EDITING: u8 = u8::MAX;
 
 impl Default for LineHistory {
     fn default() -> Self {
@@ -124,6 +131,8 @@ impl LineHistory {
             entries: [Entry { word: false, len: 0, literal: NO_LITERAL, slot: NO_SLOT, hash: 0 }; LINE_ENTRIES],
             head: 0,
             count: 0,
+            caret_back: 0,
+            editing: NOT_EDITING,
         }
     }
 
@@ -133,6 +142,91 @@ impl LineHistory {
         self.key_end = 0;
         self.head = 0;
         self.count = 0;
+        self.caret_back = 0;
+        self.editing = NOT_EDITING;
+    }
+
+    /// Number of headers (words and separator marks) remembered.
+    pub fn len(&self) -> usize {
+        usize::from(self.count)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub fn caret_back(&self) -> usize {
+        usize::from(self.caret_back)
+    }
+
+    pub fn set_caret_back(&mut self, back: usize) {
+        self.caret_back = back.min(usize::from(u16::MAX)) as u16;
+    }
+
+    /// The word being re-toned in place, counted from the newest entry.
+    pub fn editing(&self) -> Option<usize> {
+        (self.editing != NOT_EDITING).then_some(usize::from(self.editing))
+    }
+
+    pub fn set_editing(&mut self, nth: Option<usize>) {
+        self.editing = nth.map_or(NOT_EDITING, |n| n as u8);
+    }
+
+    /// Header `nth` counted from the newest (0 = newest).
+    pub fn entry_from_newest(&self, nth: usize) -> Option<Entry> {
+        if nth >= usize::from(self.count) {
+            return None;
+        }
+        Some(self.entries[(usize::from(self.head) + usize::from(self.count) - 1 - nth) % LINE_ENTRIES])
+    }
+
+    /// The keys of word `nth` (counted from the newest) into `out`, with its header.
+    pub fn word_from_newest(&self, nth: usize, out: &mut SmallVec<[char; MAX_WORD]>) -> Option<Entry> {
+        let entry = self.entry_from_newest(nth).filter(|e| e.word)?;
+        let newer: u32 = (0..nth).filter_map(|n| self.entry_from_newest(n)).map(|e| u32::from(e.len)).sum();
+        let first = self.key_end.wrapping_sub(newer).wrapping_sub(u32::from(entry.len));
+        out.clear();
+        for offset in 0..u32::from(entry.len) {
+            out.push(self.keys[slot(first.wrapping_add(offset))]);
+        }
+        Some(entry)
+    }
+
+    /// Put `keys`/`entry` in place of word `nth` (counted from the newest), keeping every other
+    /// entry, the caret and the order. Rare (one call per in-place re-tone): rebuilt by copying.
+    pub fn replace_word_from_newest(&mut self, nth: usize, keys: &[char], entry: Entry) {
+        let count = usize::from(self.count);
+        if nth >= count || !self.entry_from_newest(nth).is_some_and(|e| e.word) {
+            return;
+        }
+        let mut all_keys = [['\0'; MAX_WORD]; LINE_ENTRIES];
+        let mut all_entries = [Entry::mark(); LINE_ENTRIES];
+        let mut scratch: SmallVec<[char; MAX_WORD]> = SmallVec::new();
+        // Oldest first.
+        for i in 0..count {
+            let n = count - 1 - i;
+            let e = self.entry_from_newest(n).unwrap_or_default();
+            if e.word {
+                let _ = self.word_from_newest(n, &mut scratch);
+                all_keys[i][..scratch.len()].copy_from_slice(&scratch);
+            }
+            all_entries[i] = e;
+        }
+        let (caret_back, editing) = (self.caret_back, self.editing);
+        self.clear();
+        for i in 0..count {
+            let n = count - 1 - i;
+            if n == nth {
+                self.push_word(keys, entry);
+            } else if all_entries[i].word {
+                let len = usize::from(all_entries[i].len);
+                self.push_word(&all_keys[i][..len], all_entries[i]);
+            } else {
+                self.push_mark();
+            }
+        }
+        self.caret_back = caret_back;
+        self.editing = editing;
     }
 
     /// The newest header, if any.

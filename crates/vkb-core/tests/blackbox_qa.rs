@@ -446,11 +446,12 @@ mod one_word_back {
         press(&mut engine, &mut out, KeyInput::backspace());
         type_str(&mut engine, &mut out, " ");
         assert_eq!(out, "Mã speed ");
-        // An arrow key between the words.
+        // An arrow key between the words (Up: Left/Right now move inside the remembered line,
+        // where a tone key re-tones the word before the caret, "gõ dấu đè").
         let mut engine = Engine::new(EngineOptions::default());
         let mut out = String::new();
         type_str(&mut engine, &mut out, "Max ");
-        press(&mut engine, &mut out, KeyInput::key(0x25, None));
+        press(&mut engine, &mut out, KeyInput::key(0x26, None));
         type_str(&mut engine, &mut out, "speed ");
         assert_eq!(out, "Mã speed ");
         // Enter between the words.
