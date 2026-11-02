@@ -58,6 +58,8 @@ export const checkHotkeyConflict = (input: string, ignoreField: string) =>
 export const openConfigFolder = () => invoke<void>("open_config_folder");
 export const restartApp = () => invoke<void>("restart_app");
 export const appInfo = () => invoke<AppInfoView>("app_info");
+/** Tells the shell this window has painted its content; it shows the window then. */
+export const windowReady = () => invoke<void>("window_ready");
 
 /** Additive: the `Run` key itself, read back after every write so the switch
  *  can never claim an autostart Windows does not have. */
