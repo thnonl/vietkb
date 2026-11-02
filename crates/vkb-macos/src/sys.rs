@@ -21,7 +21,9 @@ use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
 use parking_lot::Mutex;
 
+use crate::debuglog::{self, EvIn, PostPath, Units};
 use crate::globals;
+use crate::ime;
 use crate::inject::{self, Step};
 use crate::keys::MAC_BACKSPACE;
 use crate::state::{EventKind, Host, RawEvent, Runtime, MARKER};
@@ -52,6 +54,7 @@ const TAP_DISABLED_BY_USER_INPUT: u32 = 0xFFFF_FFFF;
 const FIELD_AUTOREPEAT: u32 = 8;
 const FIELD_KEYCODE: u32 = 9;
 const FIELD_TARGET_PID: u32 = 40;
+const FIELD_SOURCE_PID: u32 = 41;
 const FIELD_SOURCE_USER_DATA: u32 = 42;
 
 // CGEventTapLocation / Place / Options / source state
@@ -85,6 +88,7 @@ extern "C" {
     fn CGEventGetIntegerValueField(event: CGEventRef, field: u32) -> i64;
     fn CGEventSetIntegerValueField(event: CGEventRef, field: u32, value: i64);
     fn CGEventGetFlags(event: CGEventRef) -> u64;
+    fn CGEventGetTimestamp(event: CGEventRef) -> u64;
     fn CGEventSetFlags(event: CGEventRef, flags: u64);
     fn CGEventKeyboardGetUnicodeString(
         event: CGEventRef,
@@ -125,16 +129,54 @@ extern "C" {
         key_callbacks: *const c_void,
         value_callbacks: *const c_void,
     ) -> CFDictionaryRef;
+    fn CFStringGetCString(
+        string: CFStringRef,
+        buffer: *mut c_char,
+        size: isize,
+        encoding: u32,
+    ) -> u8;
+    fn CFNotificationCenterGetDistributedCenter() -> *const c_void;
+    fn CFNotificationCenterAddObserver(
+        center: *const c_void,
+        observer: *const c_void,
+        callback: extern "C" fn(*const c_void, *mut c_void, CFStringRef, *const c_void, CFDictionaryRef),
+        name: CFStringRef,
+        object: *const c_void,
+        suspension_behavior: isize,
+    );
+    fn CFNotificationCenterRemoveObserver(
+        center: *const c_void,
+        observer: *const c_void,
+        name: CFStringRef,
+        object: *const c_void,
+    );
     static kCFRunLoopCommonModes: CFStringRef;
     static kCFBooleanTrue: CFTypeRef;
     static kCFTypeDictionaryKeyCallBacks: u8;
     static kCFTypeDictionaryValueCallBacks: u8;
 }
 
-// `IsSecureEventInputEnabled` lives in HIToolbox, re-exported by Carbon.
+// `IsSecureEventInputEnabled` and the TIS (text input source) API live in
+// HIToolbox, re-exported by Carbon.
 #[link(name = "Carbon", kind = "framework")]
 extern "C" {
     fn IsSecureEventInputEnabled() -> bool;
+    fn TISCopyCurrentKeyboardInputSource() -> CFTypeRef;
+    fn TISGetInputSourceProperty(source: CFTypeRef, key: CFStringRef) -> *const c_void;
+    static kTISPropertyInputSourceID: CFStringRef;
+    static kTISPropertyInputSourceType: CFStringRef;
+    static kTISPropertyInputSourceCategory: CFStringRef;
+    static kTISNotifySelectedKeyboardInputSourceChanged: CFStringRef;
+}
+
+// libdispatch (part of libSystem): run a plain C function on the main queue.
+extern "C" {
+    static _dispatch_main_q: u8;
+    fn dispatch_async_f(
+        queue: *const c_void,
+        context: *mut c_void,
+        work: extern "C" fn(*mut c_void),
+    );
 }
 
 #[link(name = "AppKit", kind = "framework")]
@@ -286,6 +328,121 @@ pub fn running_apps() -> Vec<(String, String)> {
     })
 }
 
+// -- Input source (IME guard) ----------------------------------------------
+
+/// Set while a refresh is queued on the main queue (collapses bursts).
+static IME_PENDING: AtomicBool = AtomicBool::new(false);
+/// `debuglog::now_us()` of the last safety-net request.
+static IME_LAST_REQUEST_US: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Safety net: re-read the input source at most this often while typing, in
+/// case the change notification was missed. One queued block, not a TIS call.
+const IME_RECHECK_US: u64 = 2_000_000;
+/// `kCFStringEncodingUTF8`.
+const CF_UTF8: u32 = 0x0800_0100;
+/// `CFNotificationSuspensionBehaviorDeliverImmediately`.
+const DELIVER_IMMEDIATELY: isize = 4;
+static IME_OBSERVER_TOKEN: u8 = 0;
+
+unsafe fn cf_string(string: CFStringRef) -> String {
+    if string.is_null() {
+        return String::new();
+    }
+    let mut buffer = [0 as c_char; 256];
+    if CFStringGetCString(string, buffer.as_mut_ptr(), buffer.len() as isize, CF_UTF8) == 0 {
+        return String::new();
+    }
+    CStr::from_ptr(buffer.as_ptr()).to_string_lossy().into_owned()
+}
+
+/// Read the selected input source and update the cache. TIS is main-thread
+/// API, so this runs only through [`request_ime_refresh`].
+extern "C" fn refresh_input_source(_context: *mut c_void) {
+    IME_PENDING.store(false, Ordering::Release);
+    let (id, kind, category) = unsafe {
+        let source = TISCopyCurrentKeyboardInputSource();
+        if source.is_null() {
+            return;
+        }
+        let read = |key: CFStringRef| cf_string(TISGetInputSourceProperty(source, key));
+        let out = (
+            read(kTISPropertyInputSourceID),
+            read(kTISPropertyInputSourceType),
+            read(kTISPropertyInputSourceCategory),
+        );
+        CFRelease(source);
+        out
+    };
+    let composing = ime::is_composing_source(&id, &kind, &category);
+    if ime::set_composing(composing) {
+        tracing::info!(%id, %kind, composing, "input source changed");
+        debuglog::note(format_args!(
+            "input-source id={id} type={kind} composing={composing}"
+        ));
+    }
+}
+
+/// Queue a re-read of the selected input source on the main queue.
+fn request_ime_refresh() {
+    if IME_PENDING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    unsafe {
+        dispatch_async_f(
+            ptr::addr_of!(_dispatch_main_q).cast(),
+            ptr::null_mut(),
+            refresh_input_source,
+        );
+    }
+}
+
+/// Keystroke-path hook: at most one queued refresh every [`IME_RECHECK_US`].
+#[inline]
+fn request_ime_refresh_throttled() {
+    let now = debuglog::now_us();
+    let last = IME_LAST_REQUEST_US.load(Ordering::Relaxed);
+    if now.saturating_sub(last) >= IME_RECHECK_US {
+        IME_LAST_REQUEST_US.store(now, Ordering::Relaxed);
+        request_ime_refresh();
+    }
+}
+
+extern "C" fn input_source_changed(
+    _center: *const c_void,
+    _observer: *mut c_void,
+    _name: CFStringRef,
+    _object: *const c_void,
+    _info: CFDictionaryRef,
+) {
+    request_ime_refresh();
+}
+
+/// Listen for `kTISNotifySelectedKeyboardInputSourceChanged`. Delivered on the
+/// run loop of the calling thread (the tap thread).
+fn observe_input_source() {
+    unsafe {
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDistributedCenter(),
+            ptr::addr_of!(IME_OBSERVER_TOKEN).cast(),
+            input_source_changed,
+            kTISNotifySelectedKeyboardInputSourceChanged,
+            ptr::null(),
+            DELIVER_IMMEDIATELY,
+        );
+    }
+    request_ime_refresh();
+}
+
+fn unobserve_input_source() {
+    unsafe {
+        CFNotificationCenterRemoveObserver(
+            CFNotificationCenterGetDistributedCenter(),
+            ptr::addr_of!(IME_OBSERVER_TOKEN).cast(),
+            kTISNotifySelectedKeyboardInputSourceChanged,
+            ptr::null(),
+        );
+    }
+}
+
 // -- Sound ------------------------------------------------------------------
 
 struct SendSound(Retained<AnyObject>);
@@ -373,6 +530,8 @@ fn event_source() -> CGEventSourceRef {
 
 /// Create, tag and post one key event. Returns `false` when it could not be made.
 fn post_key(keycode: u16, down: bool, text: Option<&[u16]>) -> bool {
+    let log = debuglog::enabled();
+    let started = if log { debuglog::now_us() } else { 0 };
     unsafe {
         let event = CGEventCreateKeyboardEvent(event_source(), keycode, down);
         if event.is_null() {
@@ -385,14 +544,24 @@ fn post_key(keycode: u16, down: bool, text: Option<&[u16]>) -> bool {
             CGEventKeyboardSetUnicodeString(event, units.len() as std::ffi::c_ulong, units.as_ptr());
         }
         let proxy = PROXY.load(Ordering::Acquire);
-        if !proxy.is_null() && post_mode() == 1 {
-            CGEventTapPostEvent(proxy, event);
-        } else if post_mode() == 2 {
-            CGEventPost(HID_EVENT_TAP, event);
+        let mode = post_mode();
+        let path = if !proxy.is_null() && mode == 1 {
+            PostPath::Proxy
+        } else if mode == 2 {
+            PostPath::Hid
         } else {
-            CGEventPost(SESSION_EVENT_TAP, event);
+            PostPath::Session
+        };
+        match path {
+            PostPath::Proxy => CGEventTapPostEvent(proxy, event),
+            PostPath::Hid => CGEventPost(HID_EVENT_TAP, event),
+            PostPath::Session => CGEventPost(SESSION_EVENT_TAP, event),
         }
         CFRelease(event.cast_const());
+        if log {
+            let done = debuglog::now_us();
+            debuglog::injected(started, keycode, down, text, path, done.saturating_sub(started));
+        }
         true
     }
 }
@@ -431,6 +600,9 @@ impl Host for MacHost {
     }
     fn secure_input(&mut self) -> bool {
         secure_input_enabled()
+    }
+    fn ime_composing(&mut self) -> bool {
+        ime::composing()
     }
     fn hotkey_capture(&mut self) -> bool {
         // A capture that outlives its field (lost blur, app switch) must not
@@ -515,13 +687,65 @@ fn read_event(event_type: u32, event: CGEventRef) -> Option<RawEvent> {
     }
 }
 
+/// Record the event as the tap received it (only called while tracing is on).
+/// While secure input is on nothing but that fact is recorded.
+fn log_event_in(t0: u64, event: CGEventRef, raw: &RawEvent) -> (u32, bool) {
+    let secure = secure_input_enabled();
+    let seq = debuglog::next_seq();
+    let mut ev = EvIn {
+        t_us: t0,
+        lag_us: None,
+        seq,
+        kind: raw.kind,
+        keycode: 0,
+        uni: Units::empty(),
+        flags: 0,
+        source_pid: 0,
+        target_pid: 0,
+        user_data: 0,
+        autorepeat: false,
+    };
+    if !secure {
+        unsafe {
+            let ts = CGEventGetTimestamp(event);
+            if ts != 0 {
+                ev.lag_us = Some(t0.saturating_sub(debuglog::event_ts_to_us(ts)));
+            }
+            ev.source_pid = CGEventGetIntegerValueField(event, FIELD_SOURCE_PID);
+            ev.target_pid = i64::from(raw.target_pid);
+            ev.user_data = raw.user_data;
+            ev.autorepeat = raw.autorepeat;
+            if raw.kind != EventKind::MouseDown {
+                ev.keycode = raw.keycode;
+                ev.flags = raw.flags;
+                let mut buffer = [0u16; 8];
+                let mut length: std::ffi::c_ulong = 0;
+                CGEventKeyboardGetUnicodeString(
+                    event,
+                    buffer.len() as std::ffi::c_ulong,
+                    &mut length,
+                    buffer.as_mut_ptr(),
+                );
+                ev.uni = Units::from_units(&buffer[..(length as usize).min(buffer.len())]);
+            }
+        }
+    }
+    debuglog::event_in(ev, secure);
+    (seq, secure)
+}
+
 extern "C" fn tap_callback(
     proxy: CGEventTapProxy,
     event_type: u32,
     event: CGEventRef,
     refcon: *mut c_void,
 ) -> CGEventRef {
+    let log = debuglog::enabled();
+    let t0 = if log { debuglog::now_us() } else { 0 };
     if event_type == TAP_DISABLED_BY_TIMEOUT || event_type == TAP_DISABLED_BY_USER_INPUT {
+        if log {
+            debuglog::tap_disabled(event_type == TAP_DISABLED_BY_TIMEOUT);
+        }
         // The system turned the tap off (slow callback, or secure input toggled).
         // Turn it back on and forget half-seen state: events were lost meanwhile.
         let tap = TAP.load(Ordering::Acquire);
@@ -532,7 +756,10 @@ extern "C" fn tap_callback(
             let ctx = unsafe { &mut *refcon.cast::<TapContext>() };
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ctx.runtime.reset()));
         }
-        tracing::warn!(event_type, "event tap was disabled by the system; re-enabled");
+        tracing::error!(
+            by_timeout = event_type == TAP_DISABLED_BY_TIMEOUT,
+            "event tap was disabled by the system; re-enabled (events were lost)"
+        );
         return event;
     }
     if refcon.is_null() || event.is_null() {
@@ -542,12 +769,28 @@ extern "C" fn tap_callback(
         return event;
     };
     let ctx = unsafe { &mut *refcon.cast::<TapContext>() };
+    if raw.kind == EventKind::KeyDown {
+        request_ime_refresh_throttled();
+    }
+    let (seq, secure) = if log {
+        log_event_in(t0, event, &raw)
+    } else {
+        (0, false)
+    };
     PROXY.store(proxy, Ordering::Release);
     let decision = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         ctx.runtime.poll_config();
         ctx.runtime.on_event(&raw)
     }));
     PROXY.store(ptr::null_mut(), Ordering::Release);
+    if log {
+        let stage = if decision.is_ok() {
+            ctx.runtime.last_stage()
+        } else {
+            "panic"
+        };
+        debuglog::event_out(seq, t0, decision.as_ref().ok(), stage, secure);
+    }
     match decision {
         Ok(decision) if decision.swallow => ptr::null_mut(),
         _ => event,
@@ -608,10 +851,12 @@ fn tap_thread(ready: mpsc::Sender<std::result::Result<(), String>>) {
     *RUN_LOOP.lock() = run_loop as usize;
     globals::READY.store(true, Ordering::SeqCst);
     let _ = ready.send(Ok(()));
+    observe_input_source();
 
     if !globals::STOP.load(Ordering::SeqCst) {
         unsafe { CFRunLoopRun() };
     }
+    unobserve_input_source();
 
     globals::READY.store(false, Ordering::SeqCst);
     *RUN_LOOP.lock() = 0;
@@ -642,6 +887,8 @@ fn install_inner() -> Result<()> {
     if !has_accessibility_permission() {
         bail!("Accessibility permission is not granted");
     }
+    // Reads VKB_DEBUG_KEYS once; a no-op afterwards and when it is unset.
+    debuglog::init();
     // A previous thread: reap it if it ended, refuse a second tap while it lives.
     {
         let mut slot = THREAD.lock();

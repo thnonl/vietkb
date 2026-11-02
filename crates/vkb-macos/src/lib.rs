@@ -12,8 +12,10 @@
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 pub mod autostart;
+pub mod debuglog;
 mod globals;
 pub mod hotkeys;
+pub mod ime;
 pub mod inject;
 pub mod keys;
 pub mod sound;
