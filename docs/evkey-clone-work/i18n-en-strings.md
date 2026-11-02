@@ -211,6 +211,19 @@ Shown under a hotkey field when the combination is invalid, reserved by the OS, 
 | `hk.common.closeWindow` | Đóng cửa sổ | Close window |
 | `hk.common.spotlight` | Spotlight | Spotlight |
 | `hk.common.macKeyboard` | Đổi bàn phím của macOS | Switch keyboard layout |
+| `hk.reserved.mac` | {combo} đã được macOS dùng cho: {action}. Hãy nhấn tổ hợp khác. | {combo} is used by macOS for: {action}. Choose another. |
+| `hk.sys.hide` | Ẩn ứng dụng | Hide app |
+| `hk.sys.minimize` | Thu nhỏ cửa sổ | Minimize window |
+| `hk.sys.settings` | Mở cài đặt của ứng dụng | Open app settings |
+| `hk.sys.lockScreen` | Khoá màn hình | Lock screen |
+| `hk.sys.switchWindows` | Chuyển cửa sổ cùng ứng dụng | Switch windows of the app |
+| `hk.sys.characterViewer` | Bảng ký tự | Character Viewer |
+| `hk.sys.logOut` | Đăng xuất | Log out |
+| `hk.sys.fullScreen` | Toàn màn hình | Full screen |
+| `hk.err.unusableKey` | Không dùng được phím này cho phím tắt | This key can't be used in a shortcut |
+| `hk.sys.screenshot` | Chụp màn hình | Screenshot |
+| `hk.sys.missionControl` | Mission Control và chuyển Space | Mission Control and Spaces |
+| `hk.sys.showDesktop` | Hiện màn hình nền | Show desktop |
 | `hk.warning` | {combo} là phím {action} ở hầu hết ứng dụng. Vẫn đặt được nếu bạn muốn. | {combo} is “{action}” in most apps. You can still use it. |
 
 ## Hotkey and input-method catalogue
@@ -478,4 +491,4 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS. |
 
-Total: 350 keys.
+Total: 363 keys.

@@ -4,7 +4,8 @@
   import Icon from "./Icon.svelte";
   import Keycap from "./Keycap.svelte";
   import { t } from "../lib/lang.svelte";
-  import { canonicalize, comboFromEvent, hotkeyHazard, keyToken } from "../lib/hotkey";
+  import { canonicalize, comboFromEvent, hotkeyHazard, isUnusableMacKey, keyToken, prettyHotkey } from "../lib/hotkey";
+  import { isMacOS } from "../lib/platform.svelte";
   import type { HotkeyActionField } from "../lib/catalog";
 
   // The capture well: focus, press a chord, Enter commits, Esc cancels,
@@ -121,6 +122,13 @@
 
   const shown = $derived(editing ? held || draft : value ?? "");
   const keys = $derived(shown ? shown.split("+") : []);
+  // macOS names the keys by their glyphs (⌃⇧), as the keycaps do (D-MAC-35).
+  // Windows keeps the stored names untouched.
+  const ariaValue = $derived.by(() => {
+    const raw = (editing ? shown : value) || "";
+    if (!raw) return t("capture.unset");
+    return isMacOS() ? prettyHotkey(raw) : raw;
+  });
   const modified = $derived((value ?? "") !== defaultValue);
   const clash = $derived(conflict ?? conflictText);
 
@@ -281,6 +289,12 @@
       if (held) draft = held;
       return;
     }
+    if (isUnusableMacKey(event)) {
+      event.preventDefault();
+      error = t("hk.err.unusableKey");
+      setProblem();
+      return;
+    }
     if (!keyToken(event)) return;
     event.preventDefault();
     // A real key ends the modifier run: later keyups must not commit it.
@@ -329,7 +343,7 @@
     type="button"
     class="capa"
     id={`cap-${field}`}
-    aria-label={t("capture.aria", { label, value: (editing ? shown : value) || t("capture.unset") })}
+    aria-label={t("capture.aria", { label, value: ariaValue })}
     onfocus={begin}
     onblur={reset}
     onclick={rearm}
