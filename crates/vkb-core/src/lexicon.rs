@@ -23,6 +23,11 @@ mod bigrams {
 }
 use bigrams::{ENGLISH_PAIRS, VIETNAMESE_PAIRS};
 
+mod real_syllables {
+    include!("../data/real_syllables.rs");
+}
+use real_syllables::REAL_SYLLABLES;
+
 static ENGLISH: &str = include_str!("../data/english.txt");
 static VI: &str = include_str!("../data/vi.txt");
 
@@ -138,6 +143,12 @@ static CLOSED_EXTRA: &[&str] = &["also", "as", "does", "has", "if", "us", "own",
 /// A function word, determiner or other closed-class word.
 pub fn is_closed_word(word: &[u8]) -> bool {
     is_function_word(word) || is_determiner(word) || CLOSED_EXTRA.iter().any(|w| w.as_bytes() == word)
+}
+
+/// A real Vietnamese syllable that the corpus does not attest (`són`, `lải`, `chơ`), from the
+/// hand-curated `data/real_syllables.rs`. `key` is a syllable key (see the module docs).
+pub fn real_syllable(key: &[u8]) -> bool {
+    REAL_SYLLABLES.binary_search_by(|k| k.as_bytes().cmp(key)).is_ok()
 }
 
 /// English words the engine keeps Vietnamese although the syllable corpus lacks the reading.
@@ -543,5 +554,40 @@ mod tests {
     #[test]
     fn function_words_are_sorted() {
         assert!(FUNCTION_WORDS.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    /// The D10 review of every plausible syllable that composes from a listed English word
+    /// (2026-11-02): `key<TAB>examples`, one per line. Not Vietnamese by review.
+    static REVIEW_NOT_REAL: &str = include_str!("../tests/fixtures/d10_not_vietnamese.txt");
+
+    #[test]
+    fn real_syllables_are_sorted_absent_from_corpus_and_reviewed() {
+        assert!(REAL_SYLLABLES.windows(2).all(|w| w[0] < w[1]), "real_syllables.rs must stay sorted");
+        for key in REAL_SYLLABLES {
+            assert_eq!(vi_count(key.as_bytes()), 0, "{key} is attested in vi.txt; drop it from the inventory");
+        }
+        let mut reviewed = 0;
+        for line in REVIEW_NOT_REAL.lines().filter(|l| !l.starts_with('#')) {
+            let key = line.split('\t').next().unwrap_or_default();
+            assert!(!real_syllable(key.as_bytes()), "{key} is both real and reviewed not real");
+            assert_eq!(vi_count(key.as_bytes()), 0, "{key} is attested in vi.txt");
+            reviewed += 1;
+        }
+        assert!(reviewed > 500, "the review fixture was truncated ({reviewed} keys)");
+    }
+
+    #[test]
+    fn real_syllable_examples() {
+        // Owner examples: these composed syllables are real and stay Vietnamese.
+        for key in ["son1", "sun1", "lai3", "cho+", "ma3", "ga1", "no3", "tre^", "e^1", "hi1"] {
+            assert!(real_syllable(key.as_bytes()), "{key}");
+        }
+        // Junk from the owner's list (rose, buses, rooms, doors, trees, moons, sees, mores,
+        // sixes, bier, corer, cursors, dyes, boxer, mixer): not real, so the typed English stays.
+        for key in ["roe1", "bue1", "dye1", "ro^m1", "do^1", "tre^1", "mo^n1", "so^n1", "se^1", "moe1", "sie1",
+            "bie3", "coe3", "cuo1", "boe3", "mie3"]
+        {
+            assert!(!real_syllable(key.as_bytes()), "{key}");
+        }
     }
 }
