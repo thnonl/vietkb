@@ -3,7 +3,50 @@
 //! the frontmost app, so the app itself has to be activated.
 
 use objc2::MainThreadMarker;
-use objc2_app_kit::NSApplication;
+use objc2_app_kit::{NSApplication, NSWindow};
+
+/// Run `f` on the window's `NSWindow`. Main thread only (AppKit); every caller
+/// (window build, `reveal`) already runs there, so off it this does nothing.
+fn with_ns_window(window: &tauri::WebviewWindow, f: impl FnOnce(&NSWindow)) {
+    if MainThreadMarker::new().is_none() {
+        tracing::warn!("NSWindow access off the main thread; skipped");
+        return;
+    }
+    let Ok(ptr) = window.ns_window() else { return };
+    // SAFETY: `ns_window()` is the live NSWindow behind this Tauri window, and
+    // we are on the main thread, where AppKit objects may be used.
+    if let Some(ns_window) = unsafe { (ptr as *const NSWindow).as_ref() } {
+        f(ns_window);
+    }
+}
+
+/// Put a freshly built (hidden) window on screen fully transparent, without
+/// making it key: WebKit only loads and renders a page whose window is ordered
+/// in (a hidden window runs no animation frames, and a cold one may not even
+/// start its navigation), so the page paints its real content behind alpha 0
+/// and `reveal_staged` makes that frame visible. While transparent it lets
+/// clicks through to whatever is behind it.
+///
+/// A child window (a modal with a parent) is already ordered in by
+/// `addChildWindow:` during the build; this makes it transparent before the
+/// run loop gets to composite a frame of it.
+pub fn stage_transparent(window: &tauri::WebviewWindow) {
+    with_ns_window(window, |ns_window| {
+        ns_window.setAlphaValue(0.0);
+        ns_window.setIgnoresMouseEvents(true);
+        ns_window.orderFront(None);
+    });
+}
+
+/// Make a staged window opaque and clickable again. The caller then shows and
+/// focuses it as before; both happen in the same main-thread turn, so the first
+/// composited frame at alpha 1 is the page the window already painted.
+pub fn reveal_staged(window: &tauri::WebviewWindow) {
+    with_ns_window(window, |ns_window| {
+        ns_window.setIgnoresMouseEvents(false);
+        ns_window.setAlphaValue(1.0);
+    });
+}
 
 /// Activate VietKB so its windows come in front of every other app. Runs on the
 /// main thread, queued after the activation-policy change that precedes it.

@@ -189,6 +189,24 @@ fn is_pending(label: &str) -> bool {
 /// Record a freshly built window and arm its fallback timer. `id` `None` on the
 /// page's own report (matches by label), the timer passes its id.
 fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner: Option<String>) {
+    // macOS: a hidden WKWebView runs no animation frames (and a cold one may not
+    // start its navigation), so the page could never report a painted frame.
+    // Order the window in at alpha 0 instead, already in place, and let `reveal`
+    // turn it opaque.
+    #[cfg(target_os = "macos")]
+    if let Some(window) = app.get_webview_window(label) {
+        macos_shell::stage_transparent(&window);
+        if label == MAIN_LABEL {
+            centre_on_launch_monitor(&window);
+            centre_on_launch_monitor(&window);
+        } else {
+            match owner.as_deref().and_then(|name| app.get_webview_window(name)) {
+                Some(parent) => centre_on_parent(&window, Some(&parent)),
+                None => centre_on_monitor(&window, app),
+            }
+        }
+    }
+
     let id = NEXT_PENDING_ID.fetch_add(1, Ordering::SeqCst);
     PENDING.lock().push(Pending { label: label.to_string(), id, started, owner });
     tracing::info!(window = label, build_ms = millis_since(started), "window.built");
@@ -233,6 +251,9 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
         // actually has there (94 px off on a 125% -> 100% pair otherwise).
         centre_on_launch_monitor(&window);
         centre_on_launch_monitor(&window);
+        // macOS: the staged window turns opaque in place, already painted.
+        #[cfg(target_os = "macos")]
+        macos_shell::reveal_staged(&window);
         if let Err(error) = window.set_focus() {
             tracing::warn!(%error, "could not focus the settings window");
         }
@@ -253,6 +274,9 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
         }
         modal_opened(label, pending.owner.clone());
         enter_foreground(app);
+        // macOS: the staged window turns opaque in place, already painted.
+        #[cfg(target_os = "macos")]
+        macos_shell::reveal_staged(&window);
         if let Err(error) = window.set_focus() {
             tracing::warn!(%error, "could not focus the modal");
         }
