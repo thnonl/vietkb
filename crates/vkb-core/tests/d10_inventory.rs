@@ -133,3 +133,26 @@ fn churn_is_english_alone_and_after_a_vietnamese_word() {
     // `churn` (chủn) is compound-only: `ngắn chủn`, `chủn ngủn` keep it Vietnamese.
     check(telex(), &[("churn ", "churn "), ("tooi churn ", "tôi churn ")]);
 }
+
+/// Keys (`simulate_keys`) for a text with `\x08` standing for Backspace.
+fn keys_of(text: &str) -> Vec<vkb_core::KeyInput> {
+    text.chars()
+        .map(|ch| if ch == '\u{8}' { vkb_core::KeyInput::backspace() } else { vkb_core::KeyInput::char(ch) })
+        .collect()
+}
+
+#[test]
+fn backspace_over_the_separator_drops_the_back_state() {
+    // `room` is restored at the space; Backspace takes the space back, so `rar` joins `room`
+    // as the same word, exactly as with D10 off (main: `roomrar`).
+    let on = vkb_core::simulate_keys(EngineOptions::default(), &keys_of("room \u{8}rar "));
+    let off = vkb_core::simulate_keys(
+        EngineOptions { auto_restore_english: false, ..EngineOptions::default() },
+        &keys_of("room \u{8}rar "),
+    );
+    assert_eq!(off, "roomrar ", "main behaviour");
+    assert_eq!(on, off, "D10 must join the word like main");
+    // The Vietnamese compound with the space in place is unchanged.
+    let on = vkb_core::simulate_keys(EngineOptions::default(), &keys_of("room rar "));
+    assert_eq!(on, "rôm rả ");
+}

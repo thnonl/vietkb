@@ -954,6 +954,21 @@ impl Engine {
             if auto && matches!(ch, '_' | '@') {
                 self.raw_pending = true;
             }
+            // The restored word stays reachable like any committed word: a Backspace over the
+            // separator reopens it as its raw English text, so `room` BS `rar` joins as
+            // `roomrar` (as with D10 off), not as a composed Vietnamese word.
+            if auto && is_reopening_separator(ch) {
+                let mut composed = Composed::default();
+                method::compose(&self.raw, &self.options, 0, &mut composed);
+                let mut text = TextBuf::new();
+                text.extend(insert.iter().take(raw_units).copied());
+                self.reopen = Some(CommittedWord {
+                    raw: self.raw.clone(),
+                    composed,
+                    text,
+                    literal_from: 0,
+                });
+            }
             self.reset_word();
             return EngineAction::Replace {
                 delete_units: old_len as u32,
