@@ -106,6 +106,12 @@ pub trait Host: Send {
     fn hotkey_capture(&mut self) -> bool {
         false
     }
+    /// Another input method (Apple Vietnamese, Japanese, ...) is the selected
+    /// input source and composes text itself: VietKB passes every key through.
+    /// Must be a cached read, never a TIS call (see `crate::ime`).
+    fn ime_composing(&mut self) -> bool {
+        false
+    }
     /// Delete `deletes` characters backwards, then type `text`, in one batch.
     fn replace(&mut self, deletes: u32, text: &str);
     /// Re-post a physical key as a tagged press (down + up) with empty flags.
@@ -182,6 +188,10 @@ pub struct Runtime {
     own_writes: Vec<(bool, Instant)>,
     sink: Option<Box<dyn EngineSink>>,
     secure_logged: Option<Instant>,
+    /// Why the last event ended as it did (diagnostics only: `keys.log`).
+    stage: &'static str,
+    /// Last seen IME state; a flip drops the pending word.
+    ime_seen: bool,
 }
 
 impl Runtime {
@@ -221,6 +231,8 @@ impl Runtime {
             own_writes: Vec::new(),
             sink,
             secure_logged: None,
+            stage: "",
+            ime_seen: false,
         };
         match cfg {
             Some(cfg) => runtime.apply_config(cfg),
@@ -312,6 +324,11 @@ impl Runtime {
         self.down = [0; 4];
     }
 
+    /// Why the last event was handled as it was (diagnostics only).
+    pub fn last_stage(&self) -> &'static str {
+        self.stage
+    }
+
     /// Hand the injection sink back (tap creation failed before it was used).
     pub fn take_sink(&mut self) -> Option<Box<dyn EngineSink>> {
         self.sink.take()
@@ -319,11 +336,14 @@ impl Runtime {
 
     /// Feed one tap event. The returned decision says whether to swallow it.
     pub fn on_event(&mut self, ev: &RawEvent) -> Decision {
+        self.stage = "";
         // Our own injections re-enter the tap; never feed them back.
         if is_injected(ev.user_data) {
+            self.stage = "injected";
             return Decision::PASS;
         }
         if ev.kind == EventKind::MouseDown {
+            self.stage = "mouse";
             // Any mouse button: the caret may have moved ("Mouse button down
             // -> boundary()" in 20-spec).
             self.boundary_engine();
@@ -334,6 +354,7 @@ impl Runtime {
             globals::note_secure_input(secure);
         }
         if secure {
+            self.stage = "secure";
             // Password fields: never convert, never swallow new keys. A trigger
             // already swallowed keeps its key-up swallowed (bits are kept).
             if self
@@ -391,6 +412,7 @@ impl Runtime {
         // swallowed, so the chord reaches the page being recorded into. The
         // key-up of a trigger swallowed before capture began is still swallowed.
         if capturing {
+            self.stage = "capture";
             self.hotkeys.discard_latches();
             // The auto-repeat of a trigger swallowed before capture began stays
             // swallowed (its key-up is swallowed too, so the page never sees an
@@ -453,6 +475,7 @@ impl Runtime {
 
         // 1. Hotkeys first: the trigger must never reach the app.
         if let Some(hotkey) = self.hotkeys.on_key(vk, down, modifiers, is_modifier) {
+            self.stage = "hotkey";
             let handled = self.on_hotkey(hotkey);
             if !is_modifier {
                 if down {
@@ -482,6 +505,7 @@ impl Runtime {
 
         // 2. Shortcut chords are never text.
         if self.mods.has_shortcut_modifier() {
+            self.stage = "shortcut";
             if is_modifier {
                 // A modifier on its own types nothing and may be half of a
                 // chord whose key needs the word (`restore_word`).
@@ -499,10 +523,26 @@ impl Runtime {
         self.refresh_app(ev.target_pid);
         self.sync_word_context();
         let enabled = self.effective_enabled();
-        if !enabled && !self.macro_only_active() {
+        // Another input method composes on its own: stand aside entirely, like
+        // the Windows hook does while an IME composes (macros included).
+        let ime = self.host.ime_composing();
+        if ime != self.ime_seen {
+            // Input source switched (e.g. with Globe): the pending word belongs
+            // to the other source and must not be continued.
+            self.ime_seen = ime;
+            self.reset_engine();
+        }
+        if ime {
+            self.stage = "ime";
             self.reset_engine();
             return Decision::PASS;
         }
+        if !enabled && !self.macro_only_active() {
+            self.stage = "disabled";
+            self.reset_engine();
+            return Decision::PASS;
+        }
+        self.stage = "engine";
 
         // 4. Caret movement and other commands end the current word.
         if keys::is_caret_mover(vk) {
@@ -999,9 +1039,13 @@ mod tests {
         bundle: String,
         secure: Arc<Mutex<bool>>,
         capture: Arc<Mutex<bool>>,
+        ime: Arc<Mutex<bool>>,
     }
 
     impl Host for MockHost {
+        fn ime_composing(&mut self) -> bool {
+            *self.ime.lock()
+        }
         fn hotkey_capture(&mut self) -> bool {
             *self.capture.lock()
         }
@@ -1033,14 +1077,17 @@ mod tests {
         log: Arc<Mutex<Log>>,
         secure: Arc<Mutex<bool>>,
         capture: Arc<Mutex<bool>>,
+        ime: Arc<Mutex<bool>>,
     }
 
     fn rig(cfg: Option<AppConfig>) -> Rig {
         let log = Arc::new(Mutex::new(Log::default()));
         let secure = Arc::new(Mutex::new(false));
         let capture = Arc::new(Mutex::new(false));
+        let ime = Arc::new(Mutex::new(false));
         globals::store_enabled(true);
         let host = MockHost {
+            ime: ime.clone(),
             log: log.clone(),
             pid: 4242,
             bundle: "com.apple.textedit".to_string(),
@@ -1052,6 +1099,7 @@ mod tests {
             log,
             secure,
             capture,
+            ime,
         }
     }
 
@@ -1122,6 +1170,43 @@ mod tests {
         for ch in "xyz".chars() {
             assert_eq!(press(&mut rig.rt, ch), Decision::PASS);
         }
+        assert!(rig.log.lock().replaced.is_empty());
+    }
+
+    #[test]
+    fn another_input_method_makes_the_tap_stand_aside() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        *rig.ime.lock() = true;
+        // `a` then `s` would be `á` under Telex; with an IME selected nothing
+        // is converted, swallowed or injected.
+        for ch in ['a', 's', ' '] {
+            let decision = press(&mut rig.rt, ch);
+            assert!(!decision.swallow, "{ch}");
+        }
+        assert!(rig.log.lock().replaced.is_empty());
+        rig.rt
+            .on_event(&RawEvent::key(EventKind::KeyDown, mac_code('a'), 0, Some('a')));
+        assert_eq!(rig.rt.last_stage(), "ime");
+        rig.rt.reset();
+        // Back on a plain layout the very next word converts again.
+        *rig.ime.lock() = false;
+        press(&mut rig.rt, 'a');
+        assert!(press(&mut rig.rt, 's').swallow);
+        assert_eq!(rig.log.lock().replaced.last().unwrap().1, "á");
+    }
+
+    #[test]
+    fn switching_input_source_drops_the_pending_word() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        press(&mut rig.rt, 'a');
+        *rig.ime.lock() = true;
+        press(&mut rig.rt, 'x');
+        *rig.ime.lock() = false;
+        // `s` must not combine with the stale `a` into `á`.
+        let decision = press(&mut rig.rt, 's');
+        assert!(!decision.swallow);
         assert!(rig.log.lock().replaced.is_empty());
     }
 
