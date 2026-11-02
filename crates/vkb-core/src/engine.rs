@@ -1458,6 +1458,12 @@ impl Engine {
     /// Amendment 4: the word before the one that just ended may be rewritten, once,
     /// when the right context settles a close call. One `Replace` over the old
     /// word, the space and the new word; the restore hotkey takes it back.
+    ///
+    /// Vietnamese to English (the kept word is Vietnamese): a Vietnamese pair must not be
+    /// attested, and either the explicit list (`back_pair`: `max speed`, `six pack`) or an
+    /// English pair when the Vietnamese reading is rare (`back.vi_count < PROTECTED_COUNT`,
+    /// so `sẽ in` stays Vietnamese). English to Vietnamese (the English word is kept): only
+    /// the explicit compounds of `back_vi_pair`.
     fn one_word_back(&mut self, back: Back, ch: char, action: EngineAction) -> EngineAction {
         let Some(scratch) = self.scratch.take() else {
             return action;

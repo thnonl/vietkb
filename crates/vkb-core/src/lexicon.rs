@@ -409,7 +409,7 @@ pub fn inflected_english(word: &[u8]) -> Option<EnglishWord> {
             return Some(base);
         }
         // `typing` = `type` + `ing`: the stem with its final `e` restored.
-        if stem.len() + 1 <= 32 {
+        if stem.len() < 32 {
             let mut with_e = [0u8; 33];
             with_e[..stem.len()].copy_from_slice(stem);
             with_e[stem.len()] = b'e';
