@@ -180,6 +180,16 @@ group("Hotkey validation messages", "Shown under a hotkey field when the combina
  ("hk.common.closeWindow", "Đóng cửa sổ", "Close window"),
  ("hk.common.spotlight", "Spotlight", "Spotlight"),
  ("hk.common.macKeyboard", "Đổi bàn phím của macOS", "Switch keyboard layout"),
+ ("hk.reserved.mac", "{combo} đã được macOS dùng cho: {action}. Hãy nhấn tổ hợp khác.", "{combo} is used by macOS for: {action}. Choose another."),
+ ("hk.sys.hide", "Ẩn ứng dụng", "Hide app"),
+ ("hk.sys.minimize", "Thu nhỏ cửa sổ", "Minimize window"),
+ ("hk.sys.settings", "Mở cài đặt của ứng dụng", "Open app settings"),
+ ("hk.sys.appSwitcher", "Chuyển ứng dụng", "Switch apps"),
+ ("hk.sys.lockScreen", "Khoá màn hình", "Lock screen"),
+ ("hk.sys.forceQuit", "Buộc thoát ứng dụng", "Force quit"),
+ ("hk.sys.screenshot", "Chụp màn hình", "Screenshot"),
+ ("hk.sys.missionControl", "Mission Control và chuyển Space", "Mission Control and Spaces"),
+ ("hk.sys.showDesktop", "Hiện màn hình nền", "Show desktop"),
  ("hk.warning", "{combo} là phím {action} ở hầu hết ứng dụng. Vẫn đặt được nếu bạn muốn.", "{combo} is “{action}” in most apps. You can still use it."),
 ])
 

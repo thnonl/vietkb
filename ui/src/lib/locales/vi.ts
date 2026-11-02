@@ -159,6 +159,16 @@ export const vi: Record<string, string> = {
   "hk.common.closeWindow": "Đóng cửa sổ",
   "hk.common.spotlight": "Spotlight",
   "hk.common.macKeyboard": "Đổi bàn phím của macOS",
+  "hk.reserved.mac": "{combo} đã được macOS dùng cho: {action}. Hãy nhấn tổ hợp khác.",
+  "hk.sys.hide": "Ẩn ứng dụng",
+  "hk.sys.minimize": "Thu nhỏ cửa sổ",
+  "hk.sys.settings": "Mở cài đặt của ứng dụng",
+  "hk.sys.appSwitcher": "Chuyển ứng dụng",
+  "hk.sys.lockScreen": "Khoá màn hình",
+  "hk.sys.forceQuit": "Buộc thoát ứng dụng",
+  "hk.sys.screenshot": "Chụp màn hình",
+  "hk.sys.missionControl": "Mission Control và chuyển Space",
+  "hk.sys.showDesktop": "Hiện màn hình nền",
   "hk.warning": "{combo} là phím {action} ở hầu hết ứng dụng. Vẫn đặt được nếu bạn muốn.",
 
   // Hotkey and input-method catalogue: Names and one-line hints of the actions that can have a shortcut (config.toml supports all of them; the Hotkeys window shows four).

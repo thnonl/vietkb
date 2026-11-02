@@ -247,6 +247,123 @@ mod tests {
         assert!(compile(&none).is_empty());
     }
 
+    /// Every key token the Mac capture field can produce (`macKeyFromCode` in
+    /// ui/src/lib/hotkey.ts) with the macOS keycode of that physical key.
+    fn ui_tokens() -> Vec<(String, u16)> {
+        let mut out: Vec<(String, u16)> = Vec::new();
+        let letters: [(char, u16); 26] = [
+            ('A', 0), ('B', 11), ('C', 8), ('D', 2), ('E', 14), ('F', 3), ('G', 5), ('H', 4),
+            ('I', 34), ('J', 38), ('K', 40), ('L', 37), ('M', 46), ('N', 45), ('O', 31),
+            ('P', 35), ('Q', 12), ('R', 15), ('S', 1), ('T', 17), ('U', 32), ('V', 9),
+            ('W', 13), ('X', 7), ('Y', 16), ('Z', 6),
+        ];
+        for (ch, code) in letters {
+            out.push((ch.to_string(), code));
+        }
+        let digits: [(char, u16); 10] = [
+            ('0', 29), ('1', 18), ('2', 19), ('3', 20), ('4', 21), ('5', 23), ('6', 22),
+            ('7', 26), ('8', 28), ('9', 25),
+        ];
+        for (ch, code) in digits {
+            out.push((ch.to_string(), code));
+        }
+        for (token, code) in [
+            ("-", 27), ("=", 24), ("[", 33), ("]", 30), (";", 41), ("'", 39), (",", 43),
+            (".", 47), ("/", 44), ("\\", 42), ("`", 50), ("Space", 49), ("Up", 126),
+            ("Down", 125), ("Left", 123), ("Right", 124), ("Home", 115), ("End", 119),
+            ("PageUp", 116), ("PageDown", 121), ("Insert", 114),
+        ] {
+            out.push((token.to_string(), code));
+        }
+        let fkeys: [u16; 20] = [
+            122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, 105, 107, 113, 106, 64, 79,
+            80, 90,
+        ];
+        for (i, code) in fkeys.into_iter().enumerate() {
+            out.push((format!("F{}", i + 1), code));
+        }
+        out
+    }
+
+    #[test]
+    fn every_token_the_mac_ui_records_parses_and_matches_its_physical_key() {
+        let mods = Modifiers { ctrl: true, alt: true, ..NO_MODS };
+        for (token, code) in ui_tokens() {
+            let text = format!("Ctrl+Alt+{token}");
+            let hotkey = Cfg::parse(&text).unwrap_or_else(|e| panic!("{text}: {e}"));
+            assert_eq!(hotkey.as_str(), text, "canonical round trip of {text}");
+            let combo = to_combo(Action::Toggle, &hotkey)
+                .unwrap_or_else(|| panic!("{text}: no virtual key"));
+            let vk = keys::vk_for_keycode(code);
+            assert_ne!(vk, keys::VK_NONE, "{token}: keycode {code} has no vk");
+            assert_eq!(combo.vk, Some(vk), "{text}: vk");
+            assert_eq!(combo.modifiers, mods, "{text}: the key must not force Shift");
+            // End to end through the matcher, as the tap drives it.
+            let mut matcher = Matcher::new();
+            assert!(matcher.push(combo));
+            assert_eq!(matcher.on_key(vk, true, mods, false), Some(Action::Toggle), "{text}");
+            assert!(matcher.swallows_trigger(vk), "{text}: trigger is swallowed");
+            matcher.on_key(vk, false, mods, false);
+            // Another modifier set does not fire it.
+            assert_eq!(
+                matcher.on_key(vk, true, Modifiers { shift: true, ..mods }, false),
+                None,
+                "{text}: extra Shift"
+            );
+        }
+    }
+
+    #[test]
+    fn each_modifier_and_a_token_round_trips_for_all_four_modifiers() {
+        for (prefix, mods) in [
+            ("Ctrl", Modifiers { ctrl: true, ..NO_MODS }),
+            ("Alt", Modifiers { alt: true, ..NO_MODS }),
+            ("Shift", Modifiers { shift: true, ..NO_MODS }),
+            ("Win", Modifiers { win: true, ..NO_MODS }),
+        ] {
+            let hotkey = Cfg::parse(&format!("{prefix}+-")).unwrap();
+            let combo = to_combo(Action::Toggle, &hotkey).unwrap();
+            assert_eq!(combo.modifiers, mods, "{prefix}");
+            assert_eq!(combo.vk, Some(keys::VK_OEM_MINUS));
+        }
+    }
+
+    #[test]
+    fn modifier_only_chords_fire_on_release() {
+        let ctrl = Modifiers { ctrl: true, ..NO_MODS };
+        let alt = Modifiers { alt: true, ..NO_MODS };
+        let shift = Modifiers { shift: true, ..NO_MODS };
+        let win = Modifiers { win: true, ..NO_MODS };
+        let both = |a: Modifiers, b: Modifiers| Modifiers {
+            ctrl: a.ctrl || b.ctrl,
+            alt: a.alt || b.alt,
+            shift: a.shift || b.shift,
+            win: a.win || b.win,
+        };
+        let cases = [
+            ("Ctrl+Alt", ctrl, keys::VK_LCONTROL, alt, keys::VK_LMENU),
+            ("Alt+Shift", alt, keys::VK_LMENU, shift, keys::VK_LSHIFT),
+            ("Shift+Win", shift, keys::VK_LSHIFT, win, keys::VK_LWIN),
+            ("Ctrl+Win", ctrl, keys::VK_LCONTROL, win, keys::VK_LWIN),
+            ("Ctrl+Shift", ctrl, keys::VK_LCONTROL, shift, keys::VK_LSHIFT),
+            ("Alt+Win", alt, keys::VK_LMENU, win, keys::VK_LWIN),
+        ];
+        for (text, a, vk_a, b, vk_b) in cases {
+            let mut matcher = only(text, ToggleMode::Release, |s, h| s.toggle = h);
+            assert_eq!(matcher.len(), 1, "{text} compiles");
+            assert_eq!(matcher.on_key(vk_a, true, a, true), None, "{text}");
+            assert_eq!(matcher.on_key(vk_b, true, both(a, b), true), None, "{text}");
+            assert_eq!(matcher.on_key(vk_b, false, a, true), Some(Action::Toggle), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_non_ascii_character_cannot_be_a_hotkey_key() {
+        // What Option+- would have recorded before the Mac UI used event.code.
+        let hotkey = Cfg::parse("Alt+\u{2013}").unwrap();
+        assert!(to_combo(Action::Toggle, &hotkey).is_none());
+    }
+
     #[test]
     fn every_mac_default_hotkey_compiles() {
         let matcher = compile(&HotkeySet::default());

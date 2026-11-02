@@ -161,25 +161,52 @@ const COMMON: Record<string, string> = {
   "Ctrl+Space": "hk.common.cjk",
 };
 
-/** macOS: ⌘ combinations are the app shortcuts everybody has in their fingers,
- *  so they are warned about, never refused. Nothing is reserved. */
+/** macOS: app shortcuts the system does not own: allowed, but warned about.
+ *  Keys are canonical strings (modifier order Ctrl, Alt, Shift, Win). */
 const MAC_COMMON: Record<string, string> = {
+  "Win+S": "hk.common.save",
+  "Win+F": "hk.common.find",
+  "Shift+Win+Z": "hk.common.redo",
+};
+
+/** macOS: chords the system or every app's menu owns. The tap cannot reliably
+ *  win against them (and the page never receives some), so they are refused
+ *  with a reason. Values are i18n keys naming what the chord does. */
+const MAC_RESERVED: Record<string, string> = {
+  "Win+Q": "hk.common.quit",
+  "Win+W": "hk.common.closeWindow",
+  "Win+H": "hk.sys.hide",
+  "Win+M": "hk.sys.minimize",
+  "Win+,": "hk.sys.settings",
+  "Win+Tab": "hk.sys.appSwitcher",
+  "Shift+Win+Tab": "hk.sys.appSwitcher",
+  "Win+Space": "hk.common.spotlight",
+  "Ctrl+Space": "hk.common.macKeyboard",
+  "Ctrl+Alt+Space": "hk.common.macKeyboard",
+  "Ctrl+Win+Q": "hk.sys.lockScreen",
+  "Alt+Win+Escape": "hk.sys.forceQuit",
+  "Shift+Win+3": "hk.sys.screenshot",
+  "Shift+Win+4": "hk.sys.screenshot",
+  "Shift+Win+5": "hk.sys.screenshot",
+  "Ctrl+Up": "hk.sys.missionControl",
+  "Ctrl+Down": "hk.sys.missionControl",
+  "Ctrl+Left": "hk.sys.missionControl",
+  "Ctrl+Right": "hk.sys.missionControl",
   "Win+C": "hk.common.copy",
   "Win+V": "hk.common.paste",
   "Win+X": "hk.common.cut",
-  "Win+A": "hk.common.selectAll",
-  "Win+S": "hk.common.save",
-  "Win+F": "hk.common.find",
   "Win+Z": "hk.common.undo",
-  "Win+Shift+Z": "hk.common.redo",
-  "Win+Q": "hk.common.quit",
-  "Win+W": "hk.common.closeWindow",
-  "Win+Space": "hk.common.spotlight",
-  "Ctrl+Space": "hk.common.macKeyboard",
+  "Win+A": "hk.common.selectAll",
+  F11: "hk.sys.showDesktop",
 };
 
 export const reservedReason = (canonical: string): string | null => {
-  if (isMacOS()) return null;
+  if (isMacOS()) {
+    const action = MAC_RESERVED[canonical];
+    return action
+      ? t("hk.reserved.mac", { combo: prettyHotkey(canonical), action: t(action) })
+      : null;
+  }
   const key = RESERVED[canonical];
   return key ? t(key) : null;
 };
@@ -210,6 +237,47 @@ export const modifiersFrom = (event: KeyboardEvent): string => {
   return parts.join("+");
 };
 
+/** Physical keys by `event.code` on macOS, named as the canonical string (and
+ *  `Hotkey::parse` in vkb-config) names them. */
+const MAC_CODE_TOKENS: Record<string, string> = {
+  Minus: "-",
+  Equal: "=",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Backslash: "\\",
+  Backquote: "`",
+  Space: "Space",
+  ArrowUp: "Up",
+  ArrowDown: "Down",
+  ArrowLeft: "Left",
+  ArrowRight: "Right",
+  Home: "Home",
+  End: "End",
+  PageUp: "PageUp",
+  PageDown: "PageDown",
+  Insert: "Insert",
+  Help: "Insert",
+};
+
+/** macOS only. The token of the physical key; `null` for a key that cannot be
+ *  a hotkey (keypad, ISO/JIS extras: the tap reports other keys for them); or
+ *  `undefined` for an unknown code, where `event.key` decides. */
+const macKeyFromCode = (code: string): string | null | undefined => {
+  const physical = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(code);
+  if (physical) return physical[1] ?? physical[2];
+  const named = MAC_CODE_TOKENS[code];
+  if (named) return named;
+  const fn = /^F([1-9]|1[0-9]|20)$/.exec(code);
+  if (fn) return `F${fn[1]}`;
+  if (code.startsWith("Numpad") || code.startsWith("Intl")) return null;
+  return undefined;
+};
+
 /** Key token for a keydown event, or null when the key cannot end a combo. */
 export const keyToken = (event: KeyboardEvent): string | null => {
   // macOS (S-08): Option turns letters into composed characters (ß, ∑, dead
@@ -217,8 +285,8 @@ export const keyToken = (event: KeyboardEvent): string | null => {
   // matches physical US key positions anyway, so the physical code is the truth.
   // Windows keeps `event.key`: its hook matches layout-based virtual keys.
   if (isMacOS()) {
-    const physical = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(event.code ?? "");
-    if (physical) return physical[1] ?? physical[2];
+    const mapped = macKeyFromCode(event.code ?? "");
+    if (mapped !== undefined) return mapped;
   }
   const key = event.key;
   if (!key || isModifierKey(key)) return null;

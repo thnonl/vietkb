@@ -159,6 +159,16 @@ export const en: Record<string, string> = {
   "hk.common.closeWindow": "Close window",
   "hk.common.spotlight": "Spotlight",
   "hk.common.macKeyboard": "Switch keyboard layout",
+  "hk.reserved.mac": "{combo} is used by macOS for: {action}. Choose another.",
+  "hk.sys.hide": "Hide app",
+  "hk.sys.minimize": "Minimize window",
+  "hk.sys.settings": "Open app settings",
+  "hk.sys.appSwitcher": "Switch apps",
+  "hk.sys.lockScreen": "Lock screen",
+  "hk.sys.forceQuit": "Force quit",
+  "hk.sys.screenshot": "Screenshot",
+  "hk.sys.missionControl": "Mission Control and Spaces",
+  "hk.sys.showDesktop": "Show desktop",
   "hk.warning": "{combo} is “{action}” in most apps. You can still use it.",
 
   // Hotkey and input-method catalogue: Names and one-line hints of the actions that can have a shortcut (config.toml supports all of them; the Hotkeys window shows four).
