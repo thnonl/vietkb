@@ -150,3 +150,6 @@ Owner, verbatim: "GUI trên Mac phải consistence với trên Windows."
 
 ## M12 — Owner, 2026-11-02: Mac hotkeys
 "Về phím tắt trên Mac thì giữ nguyên như hiện tại, nhưng phải đảm bảo hoạt động được, set được tổ hợp phím khác (ngoài tổ hợp hệ thống)" → the Hotkeys window keeps its 4 rows (no rows added for enable/disable/app-exclude/macro panel/macro toggle; Mac defaults stay empty). Each of the 4 must work and accept any chord the user records, except macOS system chords, which are refused with a reason (as Windows refuses Win+L, Alt+Tab, Ctrl+Alt+Del).
+
+## M13 — Owner, 2026-11-02: fast-typing letter drop
+Root cause (owner-verified on hardware): injected text used virtual keycode 0 (physical 'a'); with 'a' still held ~20 ms into the mark key, the "ă" event was dropped and the next replace deleted one letter too many ("2 gõ ằng"). Fix: text events use a pool keycode (A, B, V, C) that is not physically held (tap-tracked + CGEventSourceKeyState HID). Windows is immune (VK_PACKET). EVKey-style serialized output and the browser omnibox killer char were evaluated (docs/evkey-clone-work/90-evkey-mac-re.md) and dropped: owner, "nếu không có cải thiện gì mà chỉ mang lại lỗi và rủi ro thì không đáng làm." Code kept on branch worktree-agent-a2538bb5fa77e2459 for reference.
