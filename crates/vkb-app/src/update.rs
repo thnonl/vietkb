@@ -190,7 +190,8 @@ struct Downloaded {
     version: String,
     verified: bool,
     /// The SHA-256 the file was proven against (macOS hands it to the helper,
-    /// which hashes again right before mounting).
+    /// which hashes again right before mounting). Windows never reads it.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     sha256: Option<String>,
 }
 
