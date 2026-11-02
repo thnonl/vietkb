@@ -174,6 +174,12 @@ pub struct Engine {
     /// The word the last separator committed, live for exactly one key:
     /// `Tha` + space + Backspace + `s` = `Thá`.
     reopen: Option<CommittedWord>,
+    /// The reopen memory a new word started on top of: `Tha` + space + `xy`
+    /// keeps `Tha` here. Deleting the new word to nothing hands it back to
+    /// `reopen`, so the next Backspace (the space) reopens `Tha` (owner bug:
+    /// delete the next word, then add a tone to the first one). Any key other
+    /// than the new word's letters and Backspace drops it.
+    parked: Option<CommittedWord>,
     /// Vietnamese is off, but gõ tắt must still expand (`macro_when_disabled`).
     macro_only: bool,
     /// D10 left context: the word the last plain space ended.
@@ -222,6 +228,7 @@ impl Engine {
             edit_len: usize::MAX,
             digit_prefix: false,
             reopen: None,
+            parked: None,
             macro_only: false,
             prev_word: PrevWord::NONE,
             pending_code: None,
@@ -565,6 +572,27 @@ impl Engine {
         } else {
             action
         }
+    }
+
+    fn backspace_keeping_parked(
+        &mut self,
+        reopening: Option<CommittedWord>,
+        parked: Option<CommittedWord>,
+    ) -> EngineAction {
+        // `backspace`, plus the parked word: the press that deletes the
+        // last letter of the new word hands the parked word back to `reopen`, so
+        // the next Backspace (the separator) reopens it. A press with no word of
+        // ours deletes text we do not know: the parked word is gone.
+        let had_word = !self.raw.is_empty();
+        let action = self.backspace(reopening);
+        if had_word {
+            if self.raw.is_empty() {
+                self.reopen = parked;
+            } else {
+                self.parked = parked;
+            }
+        }
+        action
     }
 
     /// One displayed character per press: the last composed *letter*, not the
@@ -1676,6 +1704,7 @@ impl VietnameseEngine for Engine {
         self.reset_word();
         // A caret move or focus change is a boundary the memory must not cross.
         self.reopen = None;
+        self.parked = None;
         self.caps_pending = false;
         self.last_emitted = None;
         self.raw_pending = false;
@@ -1694,6 +1723,7 @@ impl VietnameseEngine for Engine {
         if self.options.method != options.method || self.options.charset != options.charset {
             self.reset_word();
             self.reopen = None;
+            self.parked = None;
         }
         // Config change is a boundary for the armed flag: turning `raw_zone` off
         // (or changing anything else) must not freeze the next word (spec §A9 §7).
@@ -1728,6 +1758,7 @@ impl VietnameseEngine for Engine {
         if key.modifiers.ctrl || key.modifiers.alt || key.modifiers.win {
             // A chord (Ctrl+Z, Ctrl+V ...) may change the text under us.
             self.back = None;
+            self.parked = None;
             self.correction = None;
             return EngineAction::Noop;
         }
@@ -1750,8 +1781,10 @@ impl VietnameseEngine for Engine {
         {
             self.back = None;
         }
+        // Only the new word's letters and Backspace keep the parked word.
+        let parked = self.parked.take();
         match key.vk {
-            VK_BACK => return self.backspace(reopening),
+            VK_BACK => return self.backspace_keeping_parked(reopening, parked),
             VK_RETURN => return self.boundary_key('\r'),
             VK_TAB => {
                 let ch = key.ch.unwrap_or('\t');
@@ -1778,7 +1811,7 @@ impl VietnameseEngine for Engine {
             }
         }
         match ch {
-            '\u{8}' | '\u{7f}' => self.backspace(reopening),
+            '\u{8}' | '\u{7f}' => self.backspace_keeping_parked(reopening, parked),
             '\r' | '\n' => self.boundary_key('\r'),
             _ if ch.is_control() => self.boundary_key(ch),
             // Owner ruling: digits typed before any letter are plain text, in VNI
@@ -1790,7 +1823,12 @@ impl VietnameseEngine for Engine {
                 self.digit_prefix = true;
                 action
             }
-            _ if is_word_key(self.options.method, ch) => self.word_key(ch),
+            _ if is_word_key(self.options.method, ch) => {
+                // The first letter of a new word right after a separator parks
+                // the previous word instead of losing it; later letters keep it.
+                self.parked = if self.raw.is_empty() { reopening } else { parked };
+                self.word_key(ch)
+            }
             _ if ch.is_ascii_digit() => {
                 // A digit joins the word only when it starts a numeric run or
                 // the word is already e-mail shaped; otherwise it ends it.
@@ -1827,6 +1865,7 @@ impl VietnameseEngine for Engine {
     fn boundary(&mut self) {
         self.reset_word();
         self.reopen = None;
+        self.parked = None;
         self.prev_word = PrevWord::NONE;
         self.pending_code = None;
         self.correction = None;

@@ -1080,3 +1080,59 @@ fn j_before_a_stop_coda_is_not_an_english_cluster_but_the_other_tones_are() {
     // A tone typed after the coda is the Vietnamese order and still works.
     assert_eq!(typed_script(o, "hocj"), "học");
 }
+
+#[test]
+fn deleting_the_next_word_reopens_the_first_one() {
+    // Owner bug: type a word, a space, a second word; delete the second word and
+    // the space; the tone key must still land on the first word.
+    let mut session = Session::new(EngineOptions::default());
+    assert_eq!(session.text("Vieet nam"), "Viêt nam");
+    for expected in ["Viêt na", "Viêt n", "Viêt ", "Viêt"] {
+        assert_eq!(session.backspace(), expected);
+    }
+    assert_eq!(session.text("j"), "Việt");
+
+    let mut session = Session::new(EngineOptions::default());
+    session.text("Tha xy");
+    session.backspace();
+    session.backspace();
+    assert_eq!(session.backspace(), "Tha");
+    assert_eq!(session.text("s"), "Thá");
+}
+
+#[test]
+fn vni_deleting_the_next_word_reopens_the_first_one() {
+    let options = EngineOptions {
+        method: InputMethod::Vni,
+        ..EngineOptions::default()
+    };
+    let mut session = Session::new(options);
+    assert_eq!(session.text("Tha co"), "Tha co");
+    session.backspace();
+    session.backspace();
+    assert_eq!(session.backspace(), "Tha");
+    assert_eq!(session.text("1"), "Thá");
+}
+
+#[test]
+fn the_parked_word_is_dropped_by_anything_but_letters_and_backspace() {
+    // A caret move between: the text left of the caret is unknown, so `s` is a
+    // fresh letter, not a tone on `Tha`.
+    let mut session = Session::new(EngineOptions::default());
+    session.text("Tha x");
+    session.key(KeyInput::key(0x25, None));
+    session.backspace();
+    session.backspace();
+    assert!(session.text("s").ends_with('s'));
+    assert_eq!(session.engine.buffer(), ['s']);
+
+    // The second word committed with a space: the memory is that word now, one
+    // word deep. Deleting it and the space does not reach back to `Tha`.
+    let mut session = Session::new(EngineOptions::default());
+    session.text("Tha xy ");
+    for _ in 0..4 {
+        session.backspace();
+    }
+    assert_eq!(session.out, "Tha");
+    assert_eq!(session.text("s"), "Thas");
+}
