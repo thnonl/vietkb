@@ -20,6 +20,7 @@ pub mod inject;
 pub mod keys;
 pub mod sound;
 pub mod state;
+mod textkey;
 #[cfg(target_os = "macos")]
 mod sys;
 
