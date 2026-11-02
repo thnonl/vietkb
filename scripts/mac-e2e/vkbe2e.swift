@@ -81,7 +81,7 @@ let wCallback: CGEventTapCallBack = { _, type, event, _ in
     return Unmanaged.passUnretained(event)
 }
 func startWatcher() -> Bool {
-    let types: [CGEventType] = [.keyDown, .keyUp, .flagsChanged, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .mouseMoved, .leftMouseDragged]
+    let types: [CGEventType] = [.keyDown, .keyUp, .flagsChanged, .leftMouseDown, .rightMouseDown, .otherMouseDown, .leftMouseDragged]  // mouse moves and scrolls do not affect typing; keys and clicks still abort
     var mask: CGEventMask = 0
     for t in types { mask |= CGEventMask(1) << CGEventMask(t.rawValue) }
     guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .listenOnly,
@@ -407,16 +407,32 @@ struct Case {
 // D10 "Tự nhận biết tiếng Anh và code" (0.2.8). Expected values from `vkb simulate --app neutral|code`;
 // the rows mirror the Windows real-app run (host-e2e8) plus a few owner examples.
 // Owner report 2026-11-02: fast typing loses the first letter of the next word ("gõ bằng" -> "gõ ằng").
-func dropCases() -> [Case] {
-    let a = "gox bawngf tinhs nawng "
-    let e = "gõ bằng tính năng "
-    return [
-        Case(id: "DR-F", keys: a, expect: e, reps: 5, sep: "", speed: .fast, note: "8-15 ms/key"),
-        Case(id: "DR-B", keys: a, expect: e, reps: 5, sep: "", speed: .burst, note: "2-4 ms/key"),
-        Case(id: "DR-R", keys: a, expect: e, reps: 5, sep: "", speed: .roll, note: "rollover 25-45 ms"),
-        Case(id: "DR-H", keys: a, expect: e, reps: 5, sep: "", speed: .human, note: "rollover 40-90 ms"),
-        Case(id: "DR-V", keys: "Tooi ddang gox bawngf tieengs Vieetj veef tinhs nawng mowis. ", expect: "Tôi đang gõ bằng tiếng Việt về tính năng mới. ", reps: 3, sep: "", speed: .roll, note: "sentence, rollover"),
-    ]
+func dropCases(telex: Bool) -> [Case] {
+    // Key orders a person really uses: full word then marks, mark right after the vowel,
+    // mark mid-word, tone before the vowel mark. All give "gõ bằng tính năng".
+    if env["VKB_E2E_DROP_LEAD"] != nil {
+        // Owner's deterministic repro (2026-11-02): a tone digit typed before the words.
+        var out: [Case] = []
+        for (i, k) in ["2 go4 ba8ng2", "2 tinh1 na8ng", "1 go4 ba8ng2", "2 go4 bang82", "go4 ba8ng2"].enumerated() {
+            for sp in [Speed.slow, .fast] {
+                let e = k.hasPrefix("1") ? "1 gõ bằng" : k.contains("tinh") ? "2 tính năng" : k.hasPrefix("2") ? "2 gõ bằng" : "gõ bằng"
+                out.append(Case(id: "LD\(i + 1)-\(sp.rawValue)", keys: k, expect: e, speed: sp, note: "lead digit"))
+            }
+        }
+        return out
+    }
+    let vni = ["go4 ba8ng2 tinh1 na8ng", "go4 bang82 ti1nh nang8", "go4 bang28 tinh1 nan8g",
+               "go4 ba82ng ti1nh na8ng", "go4 ba28ng tinh1 nang8", "go4 ban8g2 ti1nh nan8g"]
+    let tx = ["gox bawngf tinhs nawng", "gox bangwf tisnh nangw", "gox bangfw tinhs nanwg",
+              "gox bawfng tisnh nawng", "gox bafwng tinhs nangw"]
+    let e = "gõ bằng tính năng"
+    var out: [Case] = []
+    for (n, k) in (telex ? tx : vni).enumerated() {
+        for sp in [Speed.burst, .roll, .human] {
+            out.append(Case(id: "DR\(telex ? "T" : "V")\(n + 1)-\(sp.rawValue)", keys: k, expect: e, reps: 3, sep: " ", speed: sp, note: "key order \(n + 1)"))
+        }
+    }
+    return out
 }
 func d10Cases() -> [Case] {
     return [
@@ -710,11 +726,12 @@ func waitForWindow(pid: Int32, timeout: Double = 20) -> Win? {
     return nil
 }
 
-func openChrome(omnibox: Bool) throws -> Setup {
+func openChrome(omnibox: Bool, edge: Bool = false) throws -> Setup {
     let tmp = env["E2E_TMP"] ?? NSTemporaryDirectory()
+    let exe = edge ? "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     let html = "data:text/html,<title>vkbe2e</title><textarea id=t autofocus rows=6 cols=70></textarea><br><input id=i size=70>"
-    let p = try launch("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-                       ["--user-data-dir=\(tmp)/chrome", "--no-first-run", "--no-default-browser-check", "--force-renderer-accessibility",
+    let p = try launch(exe,
+                       ["--user-data-dir=\(tmp)/\(edge ? "edge" : "chrome")", "--no-first-run", "--no-default-browser-check", "--force-renderer-accessibility",
                         "--disable-search-engine-choice-screen", "--disable-sync", "--new-window", html], logName: "chrome.log")
     guard let w = waitForWindow(pid: p.processIdentifier) else { killChild(p); throw abort("Chrome window did not appear") }
     sleep(2)
@@ -722,7 +739,7 @@ func openChrome(omnibox: Bool) throws -> Setup {
     // tell Chrome an AX client is here
     AXUIElementSetAttributeValue(AXUIElementCreateApplication(p.processIdentifier), "AXManualAccessibility" as CFString, kCFBooleanTrue)
     let win = windows().first { $0.pid == p.processIdentifier && $0.layer == 0 && $0.bounds.width > 100 } ?? w
-    let t = Target(name: omnibox ? "chrome-omnibox" : "chrome-textarea", pid: p.processIdentifier, winID: win.id) { axFocusedValue(pid: p.processIdentifier) }
+    let t = Target(name: (edge ? "edge" : "chrome") + (omnibox ? "-omnibox" : "-textarea"), pid: p.processIdentifier, winID: win.id) { axFocusedValue(pid: p.processIdentifier) }
     t.allowSamePid = omnibox
     return Setup(target: t, teardown: { killChild(p) })
 }
@@ -819,7 +836,7 @@ func openTerminal() throws -> Setup {
 var vkPidGlobal: Int32 = 0
 var perappRaw: Set<String> = []   // targets whose per-app rule disables VietKB: expect raw text
 func selectCases(_ method: String, smokeOnly: Bool, only: Set<String>? = nil) -> [Case] {
-    var cs = method == "drop" ? dropCases() : method == "d10" ? d10Cases() : method == "vni" ? vniCases() : telexCases()
+    var cs = method == "drop" ? dropCases(telex: false) : method == "droptx" ? dropCases(telex: true) : method == "d10" ? d10Cases() : method == "vni" ? vniCases() : telexCases()
     if smokeOnly { cs = cs.filter { $0.smoke } }
     if let o = only { cs = cs.filter { o.contains($0.id) } }
     return cs
@@ -835,6 +852,8 @@ func runTarget(_ name: String, method: String, only: Set<String>?) throws {
     case "stickies": setup = try openStickies()
     case "chrome-textarea": setup = try openChrome(omnibox: false)
     case "chrome-omnibox": setup = try openChrome(omnibox: true)
+    case "edge-omnibox": setup = try openChrome(omnibox: true, edge: true)
+    case "edge-textarea": setup = try openChrome(omnibox: false, edge: true)
     case "vscode": setup = try openVSCode()
     case "terminal": setup = try openTerminal()
     case "gui-toggle": setup = try openTextEdit(plain: true)
@@ -844,7 +863,7 @@ func runTarget(_ name: String, method: String, only: Set<String>?) throws {
     var err: Error? = nil
     do {
         activatePid(t.pid)
-        if name == "chrome-omnibox" {
+        if name.hasSuffix("-omnibox") {
             // focus the address bar with Cmd+L, only after the front check
             try guardFront(t, "omnibox focus")
             try typeScript("{CMD+L}", speed: .fast, check: { try guardFront(t, "key") })
@@ -854,14 +873,14 @@ func runTarget(_ name: String, method: String, only: Set<String>?) throws {
         try guardFront(t, "first batch")
         if name == "gui-toggle" { try guiToggle(vkPid: vkPidGlobal, t: t); setup.teardown(); return }
         let full = name.hasPrefix("textedit")
-        var cs = selectCases(method, smokeOnly: !full && method != "d10" && method != "drop", only: only)
+        var cs = selectCases(method, smokeOnly: !full && method != "d10" && !method.hasPrefix("drop"), only: only)
         if name == "vscode" || name == "terminal" { cs = cs.map { var c = $0; if let e = c.expectCode { c.expect = e }; return c } }
         if perappRaw.contains(name) {
             cs = [Case(id: "PA-1", keys: "dduwowcj", expect: "dduwowcj", note: "per-app rule enabled=false -> raw"),
                   Case(id: "PA-2", keys: "Vieejt Nam", expect: "Vieejt Nam", note: "per-app rule enabled=false -> raw")]
         }
         if name == "terminal" { cs = cs.map { var c = $0; if c.reps > 3 { c.reps = 3 }; return c } }
-        if name == "chrome-omnibox" { cs = cs.filter { ["B1", "B2", "E2"].contains(String($0.id.split(separator: "-")[1])) } }
+        if name.hasSuffix("-omnibox") && !method.hasPrefix("drop") { cs = cs.filter { ["B1", "B2", "E2"].contains(String($0.id.split(separator: "-")[1])) } }
         var first = true
         for c in cs {
             do {

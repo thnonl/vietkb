@@ -25,7 +25,7 @@ IDLE_WAIT=300
 TARGETS_TELEX=textedit-plain,textedit-rich,notes,stickies,chrome-textarea,chrome-omnibox,vscode,terminal
 TARGETS_VNI=textedit-plain,textedit-rich,notes,stickies,chrome-textarea,vscode,terminal
 TARGETS_D10=textedit-plain,chrome-textarea,vscode,terminal
-TARGETS_DROP=textedit-plain,notes,chrome-textarea,vscode,terminal
+TARGETS_DROP=${TARGETS_DROP_OVERRIDE:-terminal,edge-omnibox,chrome-textarea,vscode}
 DRY=0
 ONLY=""
 EXTRAS=1
@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 BIN=$APP/Contents/MacOS/vietkb
-TYPING=0; for ph in ${(s:,:)PHASES}; do case $ph in telex|vni|perapp|d10|drop) TYPING=1;; esac; done
+TYPING=0; for ph in ${(s:,:)PHASES}; do case $ph in telex|vni|perapp|d10|drop|droptx) TYPING=1;; esac; done
 mkdir -p "$OUT"
 GLOG=$OUT/guardrail.log
 TMPD=$(mktemp -d /tmp/vkbe2e.XXXXXX)   # scratch: Chrome/VS Code profiles, fake HOME, built harness
@@ -135,6 +135,8 @@ manifest > "$OUT/manifest-before.txt"; glog "OWNER FILES manifest saved (manifes
 idle_s() { ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {printf "%d", $NF/1000000000; exit}'; }
 IDLE=$(idle_s)
 glog "HID idle ${IDLE}s"
+# Owner present and asked to run now (2026-11-02): skip the idle gate; the physical-input watcher still aborts on any real key or click.
+if [[ -n $VKB_E2E_NO_IDLE ]]; then glog "IDLE GATE skipped at owner's request (VKB_E2E_NO_IDLE); watcher stays armed"; IDLE=999; export SKIP_IDLE_GATE=1; fi
 # wait (up to 5 min) for the owner to be idle >= 60 s; nothing has been touched yet
 for i in {1..$(( IDLE_WAIT / 5 ))}; do (( IDLE >= 60 )) && break; sleep 5; IDLE=$(idle_s); done
 glog "HID idle ${IDLE}s at gate"
@@ -179,6 +181,7 @@ language = "vi"
 theme = "dark"
 $EXTRA
 EOF
+  if [[ -n $VKB_E2E_CONFIG ]]; then cp "$VKB_E2E_CONFIG" "$CFGDIR/config.toml"; glog "CONFIG copied from $VKB_E2E_CONFIG"; fi
   glog "CONFIG (test copy, $CFGDIR) sha256=$(shasum -a 256 "$CFGDIR/config.toml" | cut -d' ' -f1)"
   HOME=$HOMEDIR "$BIN" > "$OUT/vietkb-$name.log" 2>&1 &
   VKPID=$!
@@ -194,7 +197,7 @@ EOF
   local oa=(); [[ -n $ONLY ]] && oa=(--only $ONLY)
   [[ $name != telex ]] && export SKIP_IDLE_GATE=1   # later phases follow our own synthetic input; the watcher guards them
   glog "RSS start pid=$VKPID $(ps -o rss= -p $VKPID | tr -d ' ') KB"
-  local hm=$method; [[ $name == d10 || $name == drop ]] && hm=$name   # D10 cases, telex config
+  local hm=$method; [[ $name == d10 || $name == drop || $name == droptx ]] && hm=$name   # D10 cases, telex config
   $H run --method $hm --targets "$targets" --vk-pid $VKPID "${oa[@]}" "$@"
   local rc=$?
   glog "HARNESS exit code $rc"
@@ -202,6 +205,7 @@ EOF
   glog "KILL $(date +%H:%M:%S) pid=$VKPID path=$BIN reason=phase $name finished (launched by this script)"
   kill $VKPID; sleep 1; kill -9 $VKPID 2>/dev/null; VKPID=""
   cp "$CFGDIR/config.toml" "$OUT/config-after-$name.toml" 2>/dev/null
+  [[ -f "$CFGDIR/keys.log" ]] && cp "$CFGDIR/keys.log" "$OUT/keys-$name.log" && glog "KEYLOG copied keys-$name.log"
   return $rc
 }
 
@@ -211,7 +215,8 @@ for ph in ${(s:,:)PHASES}; do
     telex) run_phase telex telex "$( ((EXTRAS)) && echo gui,secure,gui-toggle,)$TARGETS_TELEX" || RC=$?;;
     vni)   run_phase vni vni "$( ((EXTRAS)) && echo secure,)$TARGETS_VNI" || RC=$?;;
     d10)   run_phase d10 telex "$TARGETS_D10" || RC=$?;;
-    drop)  run_phase drop telex "$TARGETS_DROP" || RC=$?;;
+    drop)  run_phase drop vni "$TARGETS_DROP" || RC=$?;;
+    droptx) run_phase droptx telex "$TARGETS_DROP" || RC=$?;;
     perapp) run_phase perapp telex "textedit-plain,stickies" --perapp-raw stickies || RC=$?;;
     app)    glog "PHASE app dev-app=$DEVAPP phases=$APP_PHASES"
             E2E_REPO=$REPO $H appsuite --app "$DEVAPP" --phases "$APP_PHASES" || RC=$?
