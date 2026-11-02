@@ -441,9 +441,13 @@ section[id] { scroll-margin-top: 80px; }
   margin-top: 20px;
 }
 
-/* The main download takes a full row; Store and GitHub sit together under it. */
-.actions .btn-xl { flex: 1 1 100%; }
-.actions .btn-ghost { flex: 1 1 auto; }
+/* Buttons are as wide as their label; they wrap onto a new row only when the row is full. */
+.actions .btn-xl,
+.actions .btn-ghost { flex: 0 0 auto; }
+/* Very narrow phones (under 340px): the main download alone on its row. */
+@media (max-width: 339px) {
+  .actions .btn-xl { flex: 1 1 100%; }
+}
 
 /* Link tải cho nền tảng còn lại, ngay dưới nút chính. */
 .alt-dl {
