@@ -780,3 +780,24 @@ fn closed_class_words_keep_the_old_behaviour_next_to_pairs() {
         &[("as ", "á "), ("has ", "há "), ("us ", "ú "), ("too ", "tô "), ("or ", "ỏ "), ("there ", "thể "), ("these ", "thế "), ("this ", "thí ")],
     );
 }
+
+// Compounds that 0.2.8 typed right and the stand-alone rule would break (corpus gaps, hand list
+// in lexicon.rs: BACK_VI_PAIRS, VI_COLLOCATIONS, VI_AFTER_ENGLISH).
+#[test]
+fn real_vietnamese_compounds_survive_the_standalone_english_rule() {
+    check(
+        telex(),
+        &[
+            ("cas tree ", "cá trê "),
+            ("turn murn ", "tủn mủn "),
+            ("keen keen ", "kên kên "),
+            ("vary cas ", "vảy cá "),
+            ("vary neens ", "vảy nến "),
+            // Alone they are English.
+            ("tree ", "tree "),
+            ("turn ", "turn "),
+            ("keen ", "keen "),
+            ("vary ", "vary "),
+        ],
+    );
+}

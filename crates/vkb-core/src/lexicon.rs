@@ -291,6 +291,7 @@ static VI_COLLOCATIONS: &[u32] = &[
     colloc("nu+o+c1", "mix"),
     colloc("nguo+i2", "mix"),
     colloc("quo^c1", "mix"),
+    colloc("ca1", "tree"),
 ];
 
 /// The only phrases the one-word-back correction may turn into English: an
@@ -310,7 +311,22 @@ static REAL_BUT_UNCOUNTED: &[&[u8]] = &[b"gas", b"nor", b"here"];
 
 /// Compounds the corpus cannot attest but the owner needs (`rôm rả`, `rôm sảy`): English
 /// `room` followed by these typed keys is rewritten to `rôm` (one word back).
-static BACK_VI_PAIRS: &[u32] = &[colloc("room", "rar"), colloc("room", "sayr")];
+static BACK_VI_PAIRS: &[u32] = &[
+    colloc("room", "rar"),
+    colloc("room", "sayr"),
+    colloc("turn", "murn"),
+    colloc("keen", "keen"),
+    colloc("vary", "cas"),
+    colloc("vary", "neens"),
+];
+
+/// Hand-written, short on purpose: compounds that 0.2.8 typed right and that the stand-alone
+/// rule (`count == 0` -> English) would otherwise break, because the Vietnamese corpus does not
+/// attest them (it has 33k sentences). `rôm rả`, `rôm sảy`, `tủn mủn`, `kên kên`, `vảy cá`,
+/// `vảy nến` are rewritten one word back (`BACK_VI_PAIRS`); `cá trê` is a previous-word pair
+/// (`VI_COLLOCATIONS`), and the second `keen` of `kên kên` is Vietnamese after English `keen`
+/// (`VI_AFTER_ENGLISH`). Add an entry only for a real compound the owner confirms.
+static VI_AFTER_ENGLISH: &[u32] = &[colloc("keen", "keen")];
 
 pub fn back_vi_pair(first: &[u8], second: &[u8]) -> bool {
     let hash = fnv_extend(fnv_extend(fnv_extend(FNV_BASIS, first), b" "), second);
@@ -414,6 +430,11 @@ pub fn english_wins(
     }
     if !plausible {
         return true;
+    }
+    if let Left::English { hash, .. } = left {
+        if VI_AFTER_ENGLISH.contains(&fnv_extend(hash, typed)) {
+            return false;
+        }
     }
     // Owner (2026-11-02): `room` is English, there is no Vietnamese `rôm` (`meeting room`,
     // `phòng room`, `room 5`). A common listed English word whose Vietnamese reading is
