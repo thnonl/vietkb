@@ -30,6 +30,7 @@ pub mod appkind;
 pub mod charset;
 pub mod engine;
 pub mod letters;
+pub mod line;
 pub mod lexicon;
 pub mod macros;
 pub mod method;
