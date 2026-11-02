@@ -188,9 +188,6 @@ pub struct Engine {
     /// The word was reopened from the line as typed keys (D10 had put them back):
     /// a tone or mark key typed onto it asks for the Vietnamese word.
     reopened_raw: bool,
-    /// Text the line history does not describe lies right of the caret (something was typed in
-    /// the middle of a line): End or Right then lands somewhere unknown.
-    beyond_end: bool,
     /// The word started right after `/`, `~` or `\\` inside a path token.
     after_path_sep: bool,
     /// The current space-delimited token started as a path (`/usr`, `~/`, `C:\\`, `./`).
@@ -235,7 +232,6 @@ impl Engine {
             correction: None,
             auto_suppressed: false,
             reopened_raw: false,
-            beyond_end: true,
             after_path_sep: false,
             path_token: false,
             path_segments: 0,
@@ -797,28 +793,20 @@ impl Engine {
         }
         // Whatever the caret leaves (context, pending code shapes) is reset; the line is kept.
         let line = std::mem::take(&mut self.line);
-        let beyond_end = self.beyond_end;
         VietnameseEngine::reset(self);
         self.line = line;
-        self.beyond_end = beyond_end;
         let back = self.line.caret_back();
         match vk {
             VK_LEFT => match self.line_width() {
                 Some(width) if back < width => self.line.set_caret_back(back + 1),
-                _ => self.forget_line(),
+                _ => self.line.clear(),
             },
             VK_RIGHT if back > 0 => self.line.set_caret_back(back - 1),
-            // Right at the end, or End past text typed in the middle of the line: the caret goes
-            // where the line does not describe.
-            VK_RIGHT => self.forget_line(),
-            _ if self.beyond_end => self.forget_line(),
-            _ => self.line.set_caret_back(0),
+            // Right at the end of the remembered line, and End: the app may hold text right of it
+            // that the line does not describe (a click into a paragraph, text typed mid-line), and
+            // a re-tone there would delete the wrong letters. Right back to the end keeps the line.
+            _ => self.line.clear(),
         }
-    }
-
-    fn forget_line(&mut self) {
-        self.line.clear();
-        self.beyond_end = true;
     }
 
     /// A key typed with the caret inside the remembered line. `Some`: handled here.
@@ -872,7 +860,6 @@ impl Engine {
             self.commit_edit();
         }
         self.line.clear();
-        self.beyond_end = true;
     }
 
     /// A separator the app typed with no word of ours in front of it.
@@ -2016,8 +2003,6 @@ impl VietnameseEngine for Engine {
         self.reset_word();
         // A caret move or focus change is a boundary the memory must not cross.
         self.line.clear();
-        // After a caret move or focus change the app may hold text right of the caret.
-        self.beyond_end = true;
         self.caps_pending = false;
         self.last_emitted = None;
         self.raw_pending = false;
@@ -2195,7 +2180,6 @@ impl VietnameseEngine for Engine {
     fn boundary(&mut self) {
         self.reset_word();
         self.line.clear();
-        self.beyond_end = true;
         self.prev_word = PrevWord::NONE;
         self.pending_code = None;
         self.correction = None;
