@@ -16,6 +16,7 @@ use smallvec::SmallVec;
 
 use crate::charset::{push_encoded, TextBuf};
 use crate::letters::{compose as compose_letter, Letter, Tone};
+use crate::line::{self, Entry, LineHistory};
 use crate::macros::MacroTable;
 use crate::method::{self, Composed};
 use crate::tone as place;
@@ -33,15 +34,6 @@ pub const VK_SPACE: u16 = 0x20;
 /// Raw keystrokes the reference implementation treated as a wrong word at a
 /// boundary, ported verbatim as a compat shim.
 const COMPAT_RESTORE_RAW: &[&str] = &["of", "oj", "awf", "owf", "uwf", "aww", "oww", "uww"];
-
-/// The word a boundary key just committed, kept only until the next key so a
-/// Backspace can re-open it. One word, not a history.
-struct CommittedWord {
-    raw: SmallVec<[char; MAX_WORD]>,
-    composed: Composed,
-    text: TextBuf,
-    literal_from: usize,
-}
 
 /// The word before the one being decided (D10 left context), kept as numbers:
 /// no text, no allocation.
@@ -171,15 +163,10 @@ pub struct Engine {
     /// The word so far is only leading digits (plain text, not in `raw`): a
     /// following opener still arms the raw zone (`2/3`).
     digit_prefix: bool,
-    /// The word the last separator committed, live for exactly one key:
-    /// `Tha` + space + Backspace + `s` = `Thá`.
-    reopen: Option<CommittedWord>,
-    /// The reopen memory a new word started on top of: `Tha` + space + `xy`
-    /// keeps `Tha` here. Deleting the new word to nothing hands it back to
-    /// `reopen`, so the next Backspace (the space) reopens `Tha` (owner bug:
-    /// delete the next word, then add a tone to the first one). Any key other
-    /// than the new word's letters and Backspace drops it.
-    parked: Option<CommittedWord>,
+    /// What Backspace may reopen: the committed words and separator marks of
+    /// the line, newest last (EVKey's letter array, bounded). `Tha` + space +
+    /// `xy` + BS×3 + BS + `s` = `Thá`: each separator the app typed is one mark.
+    line: LineHistory,
     /// Vietnamese is off, but gõ tắt must still expand (`macro_when_disabled`).
     macro_only: bool,
     /// D10 left context: the word the last plain space ended.
@@ -227,8 +214,7 @@ impl Engine {
             tone_stale: false,
             edit_len: usize::MAX,
             digit_prefix: false,
-            reopen: None,
-            parked: None,
+            line: LineHistory::new(),
             macro_only: false,
             prev_word: PrevWord::NONE,
             pending_code: None,
@@ -254,14 +240,13 @@ impl Engine {
     /// the first pass.
     #[doc(hidden)]
     pub fn buffer_footprint(&self) -> ([usize; 10], bool) {
-        let reopen = self.reopen.as_ref();
         let correction = self.correction.as_ref();
         let pending = self.pending_code.as_ref();
         let caps = [
             self.raw.capacity(),
             self.text.capacity(),
             self.composed.letters.capacity(),
-            reopen.map_or(0, |r| r.raw.capacity() + r.text.capacity()),
+            std::mem::size_of::<LineHistory>(),
             correction.map_or(0, |c| c.shown.capacity() + c.alternate.capacity()),
             pending.map_or(0, |p| p.raw.capacity() + p.chain.capacity()),
             self.macros.len(),
@@ -272,7 +257,6 @@ impl Engine {
         let spilled = self.raw.spilled()
             || self.text.spilled()
             || self.composed.letters.spilled()
-            || reopen.is_some_and(|r| r.raw.spilled() || r.text.spilled())
             || correction.is_some_and(|c| c.shown.spilled() || c.alternate.spilled())
             || pending.is_some_and(|p| p.raw.spilled() || p.chain.spilled())
             || self.back.as_ref().is_some_and(|b| b.shown.spilled() || b.alternate.spilled())
@@ -315,6 +299,7 @@ impl Engine {
     pub fn set_macro_only(&mut self, on: bool) {
         self.macro_only = on;
         self.reset_word();
+        self.line.clear();
         // The armed raw zone never survives a mode switch (spec §A9 §7): the
         // next word is composed by the new mode, not frozen by the old opener.
         self.raw_pending = false;
@@ -323,6 +308,8 @@ impl Engine {
     }
 
     fn macro_only_key(&mut self, key: KeyInput) -> EngineAction {
+        // Nothing is composed here, so there is nothing to reopen.
+        self.line.clear();
         if key.vk == VK_BACK {
             self.raw.pop();
             return EngineAction::Noop;
@@ -367,6 +354,7 @@ impl Engine {
     pub fn restore_word(&mut self) -> EngineAction {
         self.back = None;
         if let Some(correction) = self.correction.take() {
+            self.line.clear();
             return self.toggle_correction(correction);
         }
         if self.raw.is_empty() || self.composed.literal || self.literal_from == 0 {
@@ -379,6 +367,8 @@ impl Engine {
         let action = if next.as_slice() == self.text.as_slice() {
             EngineAction::Swallow
         } else {
+            // The word on screen changes: the history no longer matches it.
+            self.line.clear();
             EngineAction::Replace {
                 delete_units: self.text.len() as u32,
                 insert: next.iter().collect(),
@@ -489,7 +479,9 @@ impl Engine {
             self.literal_from = 0;
         }
         let committed = if self.raw.len() >= MAX_WORD {
-            // Commit the capped word, then start the new word with this key.
+            // Commit the capped word, then start the new word with this key. No
+            // separator follows the cap, so the history cannot describe it.
+            self.line.clear();
             self.reset_word();
             true
         } else {
@@ -516,7 +508,9 @@ impl Engine {
                 // `NguyeenX`, `dD`: Shift+X is the tone key, a doubled `D` is `đ`, as in 0.2.7.
             } else if self.inner_capital_splits() {
                 // `VieetjNam`: the part before is a Vietnamese word of its own;
-                // the capital starts the next one.
+                // the capital starts the next one. The part before is not a
+                // committed word the history knows about.
+                self.line.clear();
                 self.reset_word();
                 self.split_token = true;
             } else {
@@ -574,25 +568,71 @@ impl Engine {
         }
     }
 
-    fn backspace_keeping_parked(
-        &mut self,
-        reopening: Option<CommittedWord>,
-        parked: Option<CommittedWord>,
-    ) -> EngineAction {
-        // `backspace`, plus the parked word: the press that deletes the
-        // last letter of the new word hands the parked word back to `reopen`, so
-        // the next Backspace (the separator) reopens it. A press with no word of
-        // ours deletes text we do not know: the parked word is gone.
-        let had_word = !self.raw.is_empty();
-        let action = self.backspace(reopening);
-        if had_word {
-            if self.raw.is_empty() {
-                self.reopen = parked;
-            } else {
-                self.parked = parked;
-            }
+    /// Backspace with no word of ours left on the line: the app deletes whatever
+    /// stands before the caret, and the history says what that is.
+    ///
+    /// A mark is a separator the app deletes now, and then the word before it is
+    /// the tail again: it comes back as the current word, so the next key composes
+    /// onto it (`Tha` + space + BS + `s` = `Thá`). A word on top with no word of
+    /// ours in front means the history is stale: it is forgotten.
+    fn reopen_from_line(&mut self) {
+        if self.line.pop_mark() {
+            // The word before this separator, if the history still has it.
+            let mut keys: SmallVec<[char; MAX_WORD]> = SmallVec::new();
+            let Some(entry) = self.line.pop_word(&mut keys) else {
+                return;
+            };
+            self.restore_entry(keys, entry);
+        } else if self.line.top().is_some() {
+            self.line.clear();
         }
-        action
+    }
+
+    /// Put a committed word back as the current word, rebuilt from its keys with
+    /// the same compose path fresh typing uses. The rebuilt text must be the text
+    /// the word showed when it was committed; if it is not, the history cannot be
+    /// trusted and the line is forgotten.
+    fn restore_entry(&mut self, keys: SmallVec<[char; MAX_WORD]>, entry: Entry) {
+        let literal_from = entry.literal_from();
+        let mut composed = Composed::default();
+        method::compose(&keys, &self.options, literal_from, &mut composed);
+        // A tone pinned when the word was committed (A4 would place it elsewhere
+        // now) is part of the state the next key continues from: restore the pin
+        // with the word. The render with that pin must be the text on screen.
+        if let Some(slot) = entry.tone_slot() {
+            composed.tone_slot = Some(slot);
+        }
+        let mut text = TextBuf::new();
+        self.render_into(&composed.letters, composed.tone, composed.tone_slot, &mut text);
+        if line::text_hash(&text) != entry.hash {
+            self.line.clear();
+            return;
+        }
+        self.caps_pending = false;
+        self.raw = keys;
+        self.composed = composed;
+        self.text = text;
+        self.literal_from = literal_from;
+    }
+
+    /// Record a committed word (the current keys, with the text on screen) and the
+    /// separator mark the app just typed after it. Nothing is composed here.
+    fn note_committed_word(&mut self, literal_from: usize, tone_slot: Option<usize>, screen: &[char]) {
+        let Some(entry) = Entry::word(literal_from, tone_slot, screen) else {
+            self.line.clear();
+            return;
+        };
+        self.line.push_word(&self.raw, entry);
+        self.line.push_mark();
+    }
+
+    /// A separator the app typed with no word of ours in front of it.
+    fn note_bare_separator(&mut self, ch: char) {
+        if is_reopening_separator(ch) || ch.is_ascii_digit() {
+            self.line.push_mark();
+        } else {
+            self.line.clear();
+        }
     }
 
     /// One displayed character per press: the last composed *letter*, not the
@@ -616,7 +656,18 @@ impl Engine {
     /// The bound: the re-judged screen is exactly the fresh typing of the kept
     /// keystrokes and is no longer than the screen it replaces; otherwise the
     /// frozen path above applies.
-    fn backspace(&mut self, reopening: Option<CommittedWord>) -> EngineAction {
+    /// Tab ends the word like any separator, but it never reopens: Tab may move
+    /// focus to another field, where the word before it is not the text on
+    /// screen any more. Owner ruling, 2026-11-02 (a deliberate deviation from
+    /// EVKey, which treats Tab as class 1). The mark that would be pushed goes
+    /// with the history.
+    fn tab_key(&mut self, ch: char) -> EngineAction {
+        let action = self.boundary_key(ch);
+        self.line.clear();
+        action
+    }
+
+    fn backspace(&mut self) -> EngineAction {
         // Backspace removes the opener itself: the pending raw zone is dead.
         self.raw_pending = false;
         self.digit_prefix = false;
@@ -624,17 +675,10 @@ impl Engine {
         if self.raw.is_empty() {
             // The text left of the caret changed under us: the context is gone.
             self.prev_word = PrevWord::NONE;
-            if let Some(word) = reopening {
-                // The app deletes the boundary itself; the word comes back so
-                // the next keystroke composes onto it (`Tha` + space + BS + `s`
-                // = `Thá`). A second Backspace then deletes one character.
-                self.caps_pending = false;
-                self.raw = word.raw;
-                self.composed = word.composed;
-                self.text = word.text;
-                self.literal_from = word.literal_from;
-            }
-            // Nothing of ours: let the app delete whatever came before.
+            // The app deletes the separator itself; a word it reopens is composed
+            // onto by the next keystroke. A second Backspace then deletes one
+            // character. Nothing of ours: the app deletes whatever came before.
+            self.reopen_from_line();
             return EngineAction::Noop;
         }
         if self.composed.letters.is_empty() {
@@ -912,6 +956,7 @@ impl Engine {
             // opener): never arms, so `/tắt`, `bật//tắt`, `bật /tắt` compose —
             // unless this opener continues a path (`C:\`, `C:/`, `http://`).
             self.raw_pending = opener && (chain_ready || (digits_left && self.options.raw_zone));
+            self.note_bare_separator(ch);
             return EngineAction::Noop;
         }
         let old_len = self.text.len();
@@ -922,7 +967,8 @@ impl Engine {
                 self.push_expansion(&mut insert, &expansion);
                 push_encoded(ch, self.options.charset, &mut insert);
                 // The expansion is text, not a syllable, and it is what the left
-                // token shows once this key is handled.
+                // token shows once this key is handled. The screen shows the
+                // expansion, not the trigger, so nothing here can be reopened.
                 self.raw_pending = self.arm_raw_zone(
                     ch,
                     opener,
@@ -932,6 +978,7 @@ impl Engine {
                     chain_ready && expansion.is_empty(),
                 );
                 self.prev_word = PrevWord::NONE;
+                self.line.clear();
                 self.reset_word();
                 return EngineAction::Replace {
                     delete_units: old_len as u32,
@@ -986,16 +1033,10 @@ impl Engine {
             // separator reopens it as its raw English text, so `room` BS `rar` joins as
             // `roomrar` (as with D10 off), not as a composed Vietnamese word.
             if auto && is_reopening_separator(ch) {
-                let mut composed = Composed::default();
-                method::compose(&self.raw, &self.options, 0, &mut composed);
-                let mut text = TextBuf::new();
-                text.extend(insert.iter().take(raw_units).copied());
-                self.reopen = Some(CommittedWord {
-                    raw: self.raw.clone(),
-                    composed,
-                    text,
-                    literal_from: 0,
-                });
+                let screen: TextBuf = insert.iter().take(raw_units).copied().collect();
+                self.note_committed_word(0, None, &screen);
+            } else {
+                self.line.clear();
             }
             self.reset_word();
             return EngineAction::Replace {
@@ -1031,12 +1072,14 @@ impl Engine {
         // punctuation in class 1, and Enter with the other control characters in
         // class 3 — so Enter ends the line and never re-opens.
         if is_reopening_separator(ch) || ch.is_ascii_digit() {
-            self.reopen = Some(CommittedWord {
-                raw: std::mem::take(&mut self.raw),
-                composed: std::mem::take(&mut self.composed),
-                text: std::mem::take(&mut self.text),
-                literal_from: self.literal_from,
-            });
+            let literal_from = self.literal_from;
+            let tone_slot = self.composed.tone_slot;
+            let screen = std::mem::take(&mut self.text);
+            self.note_committed_word(literal_from, tone_slot, &screen);
+        } else {
+            // Any other character (a control or a symbol) is on screen but not in
+            // the history: the history cannot describe the line any more.
+            self.line.clear();
         }
         // Nothing rewrote the word, so the final left text is `self.text` as it
         // renders from the composed letters (NFC, before charset encoding).
@@ -1540,6 +1583,8 @@ impl Engine {
         if !rewrite {
             return action;
         }
+        // The previous word and this separator are rewritten on screen.
+        self.line.clear();
         let charset = self.options.charset;
         let mut old_region = back.shown.clone();
         push_encoded(' ', charset, &mut old_region);
@@ -1673,6 +1718,8 @@ impl Engine {
                 push_encoded(sep, self.options.charset, &mut insert);
             }
             insert.extend(self.text.iter().copied());
+            // The word before the code shape is rewritten on screen.
+            self.line.clear();
             return Some(EngineAction::Replace {
                 delete_units: (pending.units + pending.chain.len()) as u32,
                 insert: insert.iter().collect(),
@@ -1703,8 +1750,7 @@ impl VietnameseEngine for Engine {
     fn reset(&mut self) {
         self.reset_word();
         // A caret move or focus change is a boundary the memory must not cross.
-        self.reopen = None;
-        self.parked = None;
+        self.line.clear();
         self.caps_pending = false;
         self.last_emitted = None;
         self.raw_pending = false;
@@ -1720,10 +1766,11 @@ impl VietnameseEngine for Engine {
     }
 
     fn set_options(&mut self, options: EngineOptions) {
+        // Any configuration change is a boundary for the line: the history was
+        // built under the old options and may not describe the next rebuild.
+        self.line.clear();
         if self.options.method != options.method || self.options.charset != options.charset {
             self.reset_word();
-            self.reopen = None;
-            self.parked = None;
         }
         // Config change is a boundary for the armed flag: turning `raw_zone` off
         // (or changing anything else) must not freeze the next word (spec §A9 §7).
@@ -1756,18 +1803,18 @@ impl VietnameseEngine for Engine {
             return EngineAction::Noop;
         }
         if key.modifiers.ctrl || key.modifiers.alt || key.modifiers.win {
-            // A chord (Ctrl+Z, Ctrl+V ...) may change the text under us.
+            // A chord (Ctrl+Z, Ctrl+V ...) may change the text under us. The
+            // bare modifier press itself (Ctrl down, Alt down) changes nothing.
             self.back = None;
-            self.parked = None;
+            if !is_modifier_vk(key.vk) {
+                self.line.clear();
+            }
             self.correction = None;
             return EngineAction::Noop;
         }
         if self.macro_only {
             return self.macro_only_key(key);
         }
-        // The just-committed word is reachable from one key only: whatever this
-        // key is (Backspace, a letter, a navigation key), the memory is spent.
-        let reopening = self.reopen.take();
         let pending = self.pending_code.take();
         // Any typed or editing key ends the chance to take a correction back;
         // modifier and navigation presses (no character) do not.
@@ -1781,15 +1828,10 @@ impl VietnameseEngine for Engine {
         {
             self.back = None;
         }
-        // Only the new word's letters and Backspace keep the parked word.
-        let parked = self.parked.take();
         match key.vk {
-            VK_BACK => return self.backspace_keeping_parked(reopening, parked),
+            VK_BACK => return self.backspace(),
             VK_RETURN => return self.boundary_key('\r'),
-            VK_TAB => {
-                let ch = key.ch.unwrap_or('\t');
-                return self.boundary_key(ch);
-            }
+            VK_TAB => return self.tab_key(key.ch.unwrap_or('\t')),
             // Escape is class 3 in EVKey: a hard reset, never a reopenable word.
             VK_ESCAPE => return self.boundary_key(key.ch.unwrap_or('\u{1b}')),
             _ => {}
@@ -1800,7 +1842,12 @@ impl VietnameseEngine for Engine {
                 // A key with no character and no word/boundary role of its own —
                 // arrows, Home/End, PgUp/PgDn, Delete, F-keys — is a caret move or
                 // a window command: it ends the armed window (spec §A9 §7), so an
-                // opener typed before it cannot freeze the next word.
+                // opener typed before it cannot freeze the next word, and the text
+                // left of the caret is unknown from here on. A bare modifier
+                // changes no text and keeps the line.
+                if !is_modifier_vk(key.vk) {
+                    self.line.clear();
+                }
                 self.raw_pending = false;
                 return EngineAction::Noop;
             }
@@ -1811,8 +1858,9 @@ impl VietnameseEngine for Engine {
             }
         }
         match ch {
-            '\u{8}' | '\u{7f}' => self.backspace_keeping_parked(reopening, parked),
+            '\u{8}' | '\u{7f}' => self.backspace(),
             '\r' | '\n' => self.boundary_key('\r'),
+            '\t' => self.tab_key('\t'),
             _ if ch.is_control() => self.boundary_key(ch),
             // Owner ruling: digits typed before any letter are plain text, in VNI
             // too (`1duowcj` = `1được`); the letters after them are a fresh
@@ -1823,12 +1871,8 @@ impl VietnameseEngine for Engine {
                 self.digit_prefix = true;
                 action
             }
-            _ if is_word_key(self.options.method, ch) => {
-                // The first letter of a new word right after a separator parks
-                // the previous word instead of losing it; later letters keep it.
-                self.parked = if self.raw.is_empty() { reopening } else { parked };
-                self.word_key(ch)
-            }
+            // A letter starts or extends a word; the history is untouched.
+            _ if is_word_key(self.options.method, ch) => self.word_key(ch),
             _ if ch.is_ascii_digit() => {
                 // A digit joins the word only when it starts a numeric run or
                 // the word is already e-mail shaped; otherwise it ends it.
@@ -1864,8 +1908,7 @@ impl VietnameseEngine for Engine {
 
     fn boundary(&mut self) {
         self.reset_word();
-        self.reopen = None;
-        self.parked = None;
+        self.line.clear();
         self.prev_word = PrevWord::NONE;
         self.pending_code = None;
         self.correction = None;

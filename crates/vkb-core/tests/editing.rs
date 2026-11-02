@@ -322,12 +322,14 @@ fn reopening_covers_separators_but_not_line_breaks() {
     assert_eq!(session.key(KeyInput::key(vkb_core::VK_ESCAPE, None)), "Tha");
     assert_eq!(session.text("s"), "Thas", "ESC hard-resets the word");
 
-    // Tab is a separator (EVKey class 1): deleting it brings the word back.
+    // Tab does not reopen (owner ruling 2026-11-02: Tab may move focus to another
+    // field, so the word before it is no longer the text on screen). EVKey class 1
+    // would reopen here; this is a deliberate deviation for safety.
     let mut session = Session::new(EngineOptions::default());
     assert_eq!(session.text("Tha"), "Tha");
     assert_eq!(session.key(KeyInput::key(vkb_core::VK_TAB, Some('\t'))), "Tha\t");
     assert_eq!(session.backspace(), "Tha");
-    assert_eq!(session.text("s"), "Thá");
+    assert_eq!(session.text("s"), "Thas");
 
     // Sentence punctuation behaves the same way.
     let mut session = Session::new(EngineOptions::default());
@@ -1115,7 +1117,7 @@ fn vni_deleting_the_next_word_reopens_the_first_one() {
 }
 
 #[test]
-fn the_parked_word_is_dropped_by_anything_but_letters_and_backspace() {
+fn a_caret_move_forgets_the_line_but_deleting_words_walks_back_through_it() {
     // A caret move between: the text left of the caret is unknown, so `s` is a
     // fresh letter, not a tone on `Tha`.
     let mut session = Session::new(EngineOptions::default());
@@ -1126,13 +1128,13 @@ fn the_parked_word_is_dropped_by_anything_but_letters_and_backspace() {
     assert!(session.text("s").ends_with('s'));
     assert_eq!(session.engine.buffer(), ['s']);
 
-    // The second word committed with a space: the memory is that word now, one
-    // word deep. Deleting it and the space does not reach back to `Tha`.
+    // The line is a history, not one word: deleting `xy` and its space walks back
+    // into `Tha`, which the next tone key composes onto (EVKey's boundary entries).
     let mut session = Session::new(EngineOptions::default());
     session.text("Tha xy ");
     for _ in 0..4 {
         session.backspace();
     }
     assert_eq!(session.out, "Tha");
-    assert_eq!(session.text("s"), "Thas");
+    assert_eq!(session.text("s"), "Thá");
 }

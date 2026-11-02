@@ -93,6 +93,31 @@ tone digits (`Tha` + space + BS + `1` = `Thá`), and it must also hold for VNI m
 reopen; that came from reading the `0..32` class fill and missing that the punctuation list is
 written afterwards and reclaims space.
 
+**Update (2026-11-02, owner: "Làm luôn đi"): reopen is a line history, like EVKey.** The
+one-word `reopen` slot and the `parked` slot are gone. `vkb-core` keeps a bounded history
+(`crates/vkb-core/src/line.rs`, `LineHistory`): a ring of 256 raw keystrokes plus a ring of 32
+headers, each either a committed word (keys, `literal_from`, a hash of the on-screen text, a
+pinned tone slot) or one separator mark per separator character the app typed. Every class-1
+separator and digit after a word pushes the word and then a mark; a bare separator pushes a
+mark. Backspace on an empty word pops a mark (the app deletes that separator) and, if the next
+header is a word, rebuilds that word from its keys with the normal compose path and makes it the
+current word, but only if the rebuilt text hashes to what was on screen; otherwise the line is
+forgotten. Entries past the cap drop oldest-first and are beyond reach.
+
+The line is forgotten (`clear`) by: Enter and control characters (class 3), Escape, any key with
+no character except a bare modifier (arrows, Home/End, Delete, F-keys), Ctrl/Alt/Win chords,
+`reset()`, `set_options` method or charset change, `boundary()`, a macro commit, a word-cap
+commit, the inner-capital split, Ctrl+Shift+Z when it rewrites text, a D10 one-word-back
+rewrite, a code-shape (`.`/`->`/`::`) rewrite, and any other character the history cannot
+describe. Tests: `tests/line_history.rs` (owner cases, clearing, cap), and the seeded
+`tests/line_reopen_generated.rs` (2,000 generated cases, Telex and VNI, oracle = fresh typing).
+
+**Tab no longer reopens (owner, 2026-11-02).** Tab (the key and the `\t` character) still ends
+the word, but the line is cleared right after, so Backspace over the Tab reopens nothing. This
+is a deliberate deviation from EVKey, which treats Tab as class 1: Tab may move focus to another
+field, where the word before it is not the text on screen. Space, ASCII punctuation and digits
+keep reopening.
+
 ## D9 — Raw zone arms on the left token, not on the punctuation (owner ruling, 2026-10-30)
 
 `20-spec.md` §A9 specified "any opener ⇒ the next word is literal". Measured on the real engine, that
