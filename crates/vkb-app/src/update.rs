@@ -189,6 +189,9 @@ struct Downloaded {
     path: std::path::PathBuf,
     version: String,
     verified: bool,
+    /// The SHA-256 the file was proven against (macOS hands it to the helper,
+    /// which hashes again right before mounting).
+    sha256: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -642,6 +645,31 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
     let changelog = info.changelog.clone();
     let digest = info.asset_sha256.clone();
 
+    // macOS replaces the running app, so it only downloads what it can prove
+    // and only from this repository's release assets.
+    #[cfg(target_os = "macos")]
+    {
+        if !is_release_asset_url(&url) {
+            return Err(crate::i18n::t("err.update.assetUrl"));
+        }
+        if expected_sha256_mac(digest.as_deref(), &changelog, &name).is_none() {
+            tracing::info!("no SHA-256 known for the dmg; skipping the download");
+            *DOWNLOADED
+                .get_or_init(|| parking_lot::Mutex::new(None))
+                .lock() = Some(Downloaded {
+                path: std::path::PathBuf::new(),
+                version: info.version.clone(),
+                verified: false,
+                sha256: None,
+            });
+            return Ok(DownloadOutcome {
+                path: String::new(),
+                version: info.version,
+                verified: false,
+            });
+        }
+    }
+
     let outcome = tauri::async_runtime::spawn_blocking(move || {
         download_to_temp(&url, &name, &changelog, digest.as_deref(), &info.version)
     })
@@ -703,6 +731,17 @@ pub fn install_update(app: tauri::AppHandle) -> Result<&'static str, String> {
     if available_version().as_deref() != Some(downloaded.version.as_str()) {
         return Err(crate::i18n::t("err.update.notDownloaded"));
     }
+    // Never replace the app with bytes that were not proven. Nothing was
+    // downloaded when the hash was unknown up front (empty path); a file that
+    // still ended up unverified is deleted.
+    let Some(sha256) = downloaded.sha256.clone().filter(|_| downloaded.verified) else {
+        let had_file = !downloaded.path.as_os_str().is_empty();
+        if had_file {
+            let _ = std::fs::remove_file(&downloaded.path);
+        }
+        open_release_page(&app)?;
+        return Ok(if had_file { "page-unverified" } else { "page" });
+    };
     if !downloaded.path.exists() {
         return Err(crate::i18n::t("err.update.installerGone"));
     }
@@ -713,7 +752,7 @@ pub fn install_update(app: tauri::AppHandle) -> Result<&'static str, String> {
         return Err(crate::i18n::t("err.update.macNotBundle"));
     };
     let writable = bundle.parent().is_some_and(dir_is_writable);
-    if let Some(reason) = fallback_reason(&bundle, writable, downloaded.verified) {
+    if let Some(reason) = fallback_reason(&bundle, writable, true) {
         tracing::info!(?reason, bundle = %bundle.display(), "in-place update not possible; opening the release page");
         open_release_page(&app)?;
         return Ok("page");
@@ -724,7 +763,14 @@ pub fn install_update(app: tauri::AppHandle) -> Result<&'static str, String> {
     std::fs::write(&script, MAC_UPDATE_SCRIPT)
         .map_err(|error| tf("err.update.writeScript", &[("error", &error.to_string())]))?;
     let log = dir.join("apply-update.log");
-    let args = mac_script_args(std::process::id(), &downloaded.path, &bundle, &downloaded.version, &log);
+    let args = mac_script_args(
+        std::process::id(),
+        &downloaded.path,
+        &bundle,
+        &downloaded.version,
+        &log,
+        &sha256,
+    );
 
     // Its own process group and no stdio: it outlives this process, which
     // exits below, and reopens VietKB once the bundle is replaced.
@@ -757,6 +803,12 @@ fn open_release_page(app: &tauri::AppHandle) -> Result<(), String> {
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|error| tf("err.update.openPage", &[("error", &error.to_string())]))
+}
+
+/// Only this repository's release downloads may be fetched and installed.
+#[cfg(any(target_os = "macos", test))]
+fn is_release_asset_url(url: &str) -> bool {
+    url.starts_with(&format!("{REPO_URL}/releases/download/"))
 }
 
 /// `.../VietKB.app/Contents/MacOS/vietkb` -> `.../VietKB.app`; `None` for
@@ -831,6 +883,7 @@ fn mac_script_args(
     bundle: &std::path::Path,
     version: &str,
     log: &std::path::Path,
+    sha256: &str,
 ) -> Vec<std::ffi::OsString> {
     vec![
         pid.to_string().into(),
@@ -839,6 +892,7 @@ fn mac_script_args(
         version.into(),
         MAC_BUNDLE_ID.into(),
         log.as_os_str().to_owned(),
+        sha256.into(),
     ]
 }
 
@@ -846,7 +900,7 @@ fn mac_script_args(
 const MAC_BUNDLE_ID: &str = "vn.vietkb.app";
 
 /// Static text, nothing interpolated. Usage:
-/// `apply-update.sh PID DMG BUNDLE VERSION BUNDLE_ID LOG`.
+/// `apply-update.sh PID DMG BUNDLE VERSION BUNDLE_ID LOG SHA256`.
 #[cfg(any(target_os = "macos", test))]
 const MAC_UPDATE_SCRIPT: &str = include_str!("apply-update.sh");
 
@@ -994,6 +1048,7 @@ fn download_to_temp(
     } else {
         expected_sha256(changelog)
     };
+    let expected_hex = expected.clone();
     let verified = match expected {
         Some(expected) => {
             let bytes = std::fs::read(&target)
@@ -1012,6 +1067,7 @@ fn download_to_temp(
         path: target,
         version: version.to_string(),
         verified,
+        sha256: expected_hex,
     })
 }
 
@@ -1435,6 +1491,7 @@ mod tests {
             Path::new("/Users/me/My Apps/Viet'KB \"x\" $(id).app"),
             "0.3.0",
             Path::new("/tmp/Viet KB update/apply-update.log"),
+            &"ab".repeat(32),
         );
         let args: Vec<String> = args.iter().map(|a| a.to_string_lossy().into_owned()).collect();
         assert_eq!(
@@ -1446,8 +1503,20 @@ mod tests {
                 "0.3.0",
                 "vn.vietkb.app",
                 "/tmp/Viet KB update/apply-update.log",
+                &"ab".repeat(32),
             ]
         );
+    }
+
+    #[test]
+    fn only_this_repos_release_assets_are_fetched_on_mac() {
+        assert!(is_release_asset_url(
+            "https://github.com/thnonl/vietkb/releases/download/v1.0.0/VietKB_1.0.0_universal.dmg"
+        ));
+        assert!(!is_release_asset_url("https://github.com/thnonl/vietkb-evil/releases/download/v1/a.dmg"));
+        assert!(!is_release_asset_url("https://github.com/other/vietkb/releases/download/v1/a.dmg"));
+        assert!(!is_release_asset_url("http://github.com/thnonl/vietkb/releases/download/v1/a.dmg"));
+        assert!(!is_release_asset_url("https://x/a.dmg"));
     }
 
     #[test]
@@ -1461,6 +1530,8 @@ mod tests {
             "ditto",
             "xattr -dr com.apple.quarantine",
             "hdiutil detach",
+            "shasum -a 256",
+            "trap",
             "open \"$BUNDLE\"",
         ] {
             assert!(MAC_UPDATE_SCRIPT.contains(needle), "script lacks {needle}");

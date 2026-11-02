@@ -47,6 +47,7 @@ pub const TABLE: &[(&str, &str, &str)] = &[
     ("err.update.exePath", "Không xác định được tệp chạy: {error}", "Couldn't find the VietKB program file: {error}"),
     ("err.update.writeScript", "Không ghi được kịch bản cập nhật: {error}", "Couldn't write the update script: {error}"),
     ("err.update.runInstaller", "Không chạy được trình cài đặt: {error}", "Couldn't start the installer: {error}"),
+    ("err.update.assetUrl", "Địa chỉ tệp cập nhật không thuộc kho phát hành của VietKB.", "The update file isn't from the VietKB releases."),
     ("err.update.macNotBundle", "VietKB không chạy từ một gói .app nên không tự cập nhật được.", "VietKB isn't running from a .app bundle, so it can't update itself."),
     ("err.update.winOnly", "Cài đặt tại chỗ chỉ hỗ trợ Windows.", "In-place updates work only on Windows."),
     ("err.update.linkBlocked", "Liên kết không được phép mở.", "This link can't be opened."),

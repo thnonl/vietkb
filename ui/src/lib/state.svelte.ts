@@ -464,6 +464,7 @@ class Store {
       this.updateBusy = "installing";
       const result = await api.installUpdate();
       if (isMacOS() && result === "page") this.updateNote = t("update.note.macOpened");
+      else if (isMacOS() && result === "page-unverified") this.updateNote = t("update.note.macUnverified");
     } catch (error) {
       this.updateNote = errorText(error);
     } finally {

@@ -289,7 +289,6 @@ Product story, update status and changelog. Tone: calm, plain, no hype (see 90-c
 | `about.check` | Kiểm tra cập nhật | Check for updates |
 | `about.downloading` | Đang tải… | Downloading… |
 | `about.installing` | Đang cập nhật… | Updating… |
-| `about.openDownload` | Mở trang tải về | Open download page |
 | `about.updateNow` | Cập nhật ngay | Update now |
 | `about.changelog` | Nhật ký thay đổi — v{version} | Changelog — v{version} |
 | `about.changelogAria` | Nhật ký thay đổi | Changelog |
@@ -308,6 +307,7 @@ Notes shown under the update button in About, and demo text for the browser prev
 | `update.note.preview` | Chế độ xem trước: đang hiện bản cập nhật mẫu. | Preview mode: showing a sample update. |
 | `update.note.previewNoDownload` | Chế độ xem trước: không tải được tệp cài đặt. | Preview mode: can't download the installer. |
 | `update.note.macOpened` | Không thay thế tại chỗ được (VietKB đang chạy từ ảnh đĩa hoặc thư mục không ghi được). Đã mở trang tải về: tải tệp .dmg và kéo VietKB vào Applications. | Can't update in place (VietKB is running from a disk image or a folder it can't write to). Download page opened: get the .dmg and drag VietKB to Applications. |
+| `update.note.macUnverified` | Không xác minh được bản tải về; đã mở trang tải. | Couldn't verify the download; opened the download page. |
 | `update.note.downloading` | Đang tải bản cập nhật… | Downloading the update… |
 | `update.note.verified` | Đã tải và xác minh SHA256 — bản {version}. Đang cập nhật, ứng dụng sẽ tự mở lại. | Version {version} downloaded and SHA256-verified. Updating; VietKB will reopen on its own. |
 | `update.note.downloaded` | Đã tải bản {version}. Đang cập nhật, ứng dụng sẽ tự mở lại. | Version {version} downloaded. Updating; VietKB will reopen on its own. |
@@ -446,6 +446,7 @@ Error strings that reach the UI as toasts or status lines.
 | `err.update.exePath` | Không xác định được tệp chạy: {error} | Couldn't find the VietKB program file: {error} |
 | `err.update.writeScript` | Không ghi được kịch bản cập nhật: {error} | Couldn't write the update script: {error} |
 | `err.update.runInstaller` | Không chạy được trình cài đặt: {error} | Couldn't start the installer: {error} |
+| `err.update.assetUrl` | Địa chỉ tệp cập nhật không thuộc kho phát hành của VietKB. | The update file isn't from the VietKB releases. |
 | `err.update.macNotBundle` | VietKB không chạy từ một gói .app nên không tự cập nhật được. | VietKB isn't running from a .app bundle, so it can't update itself. |
 | `err.update.winOnly` | Cài đặt tại chỗ chỉ hỗ trợ Windows. | In-place updates work only on Windows. |
 | `err.update.linkBlocked` | Liên kết không được phép mở. | This link can't be opened. |
@@ -477,4 +478,4 @@ Error strings that reach the UI as toasts or status lines.
 | `err.hotkey.noModifier.mac` | phím tắt cần ít nhất một phím ⌃ Control, ⌥ Option, ⇧ Shift hoặc ⌘ Command: {key} | a shortcut needs at least one of ⌃ Control, ⌥ Option, ⇧ Shift or ⌘ Command: {key} |
 | `err.autostart.transient` | VietKB đang chạy từ ổ đĩa cài đặt hoặc thư mục tạm ({path}). Hãy kéo VietKB vào thư mục Ứng dụng, mở lại từ đó rồi bật Mở cùng macOS. | VietKB is running from a disk image or a temporary folder ({path}). Drag VietKB to the Applications folder, open it from there, then turn on Start with macOS. |
 
-Total: 349 keys.
+Total: 350 keys.
