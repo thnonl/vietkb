@@ -212,8 +212,10 @@ impl Gate {
 
     /// A manual operation: always allowed, and it supersedes a running tick.
     fn begin(&self) -> Guard<'_> {
-        self.epoch.fetch_add(1, Ordering::SeqCst);
+        // busy first: a tick's compare_exchange then fails, or it sees the epoch
+        // change and `superseded()` drops its result.
         self.busy.fetch_add(1, Ordering::SeqCst);
+        self.epoch.fetch_add(1, Ordering::SeqCst);
         Guard { gate: self, started_at: self.epoch.load(Ordering::SeqCst) }
     }
 
@@ -572,7 +574,8 @@ fn sleep_until(deadline: SystemTime) {
 /// One named thread for the life of the app: a check five seconds after
 /// launch, then one every `CHECK_INTERVAL` of real time. The setting is read at
 /// each tick, so toggling it needs no restart. A panicking tick is logged and
-/// the timer carries on. Never touches the hook or UI threads.
+/// the timer carries on in debug and test builds only: release builds use
+/// `panic = "abort"`, where `catch_unwind` cannot catch. Never touches the hook or UI threads.
 pub fn schedule_startup_check(app: tauri::AppHandle) {
     let spawned = std::thread::Builder::new().name("vkb-update-timer".into()).spawn(move || {
         sleep_until(SystemTime::now() + STARTUP_DELAY);
@@ -631,6 +634,10 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
     .await
     .unwrap_or_else(|error| Err(tf("err.update.downloadFailed", &[("error", &error.to_string())])))?;
 
+    // A check may have published a newer version while this one downloaded.
+    if available_version().as_deref() != Some(outcome.version.as_str()) {
+        return Err(crate::i18n::t("err.update.notDownloaded"));
+    }
     *DOWNLOADED
         .get_or_init(|| parking_lot::Mutex::new(None))
         .lock() = Some(outcome.clone());
@@ -691,6 +698,11 @@ pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         .lock()
         .clone()
         .ok_or_else(|| crate::i18n::t("err.update.notDownloaded"))?;
+
+    // Never run an installer that is not for the update currently on offer.
+    if available_version().as_deref() != Some(downloaded.version.as_str()) {
+        return Err(crate::i18n::t("err.update.notDownloaded"));
+    }
 
     if !downloaded.path.exists() {
         return Err(crate::i18n::t("err.update.installerGone"));
