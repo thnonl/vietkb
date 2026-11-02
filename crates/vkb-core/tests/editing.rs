@@ -712,8 +712,12 @@ fn tone_before_a_final_stop_consonant_composes() {
     for (keys, word) in [("hojc", "học"), ("nhajt", "nhạt"), ("cajc", "cạc"), ("bojc", "bọc"), ("thojc", "thọc")] {
         assert_eq!(typed_script(o, keys), word, "{keys}");
     }
-    // English still passes through: `test` is t-e-s-t, not `tét`.
-    assert_eq!(typed_script(o, "test"), "test");
+    // Owner 2026-11-02: the tone before a stop coda composes (`bast` = `bát`) ...
+    for (keys, word) in [("bast", "bát"), ("giusp", "giúp"), ("khasc", "khác"), ("casch", "cách")] {
+        assert_eq!(typed_script(o, keys), word, "{keys}");
+    }
+    // ... and English typed that way goes back to the keys at the break (D10).
+    assert_eq!(typed_script(o, "test "), "test ");
 }
 
 #[test]
@@ -1071,13 +1075,15 @@ fn post_edit_tone_then_repeated_trigger_matches_fresh_typing() {
 }
 
 #[test]
-fn j_before_a_stop_coda_is_not_an_english_cluster_but_the_other_tones_are() {
+fn a_tone_before_a_stop_coda_composes_and_english_waits_for_the_break() {
     let o = telex_spell(true);
     assert_eq!(typed_script(o, "hojc"), "học");
     assert_eq!(typed_script(o, "nhajt"), "nhạt");
-    // `s`, `f`, `r`, `x` before a stop coda still read as English.
-    for word in ["hosc", "fast", "best", "test"] {
-        assert_eq!(typed_script(o, word), word, "{word}");
+    // Owner 2026-11-02: `s` before a stop coda is Vietnamese typing too (`hosc` = `hóc`).
+    assert_eq!(typed_script(o, "hosc"), "hóc");
+    // A listed English word with a rare Vietnamese reading is English at the break.
+    for word in ["fast", "best", "test"] {
+        assert_eq!(typed_script(o, &format!("{word} ")), format!("{word} "), "{word}");
     }
     // A tone typed after the coda is the Vietnamese order and still works.
     assert_eq!(typed_script(o, "hocj"), "học");

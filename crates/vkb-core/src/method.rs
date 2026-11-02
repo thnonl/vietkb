@@ -126,6 +126,35 @@ pub(crate) fn compose_word(
             }
         }
 
+        // `australia`, `destruction`: the tone key before the stop coda was English
+        // after all once the word goes on past the coda; the whole word is its keys.
+        if out.escaped
+            && i >= 1
+            && matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
+            && crate::spell::english_stop_cluster(&raw[..i], &out.letters)
+        {
+            literalize(out, raw, i);
+            continue;
+        }
+
+        // An open `uơ` (`thuow`) becomes `ươ` once a coda or `i`/`u` follows it
+        // (`thuowng` = `thương`, `tuo7ng` = `tương`, `huowu` = `hươu`); not after `qu`.
+        if !out.literal
+            && !out.escaped
+            && matches!(ch.to_ascii_lowercase(), 'i' | 'u' | 'c' | 'g' | 'h' | 'm' | 'n' | 'p' | 't')
+        {
+            let n = out.letters.len();
+            if n >= 3
+                && out.letters[n - 2].base() == 'o'
+                && out.letters[n - 2].mark == Mark::Horn
+                && out.letters[n - 3].base() == 'u'
+                && out.letters[n - 3].mark == Mark::None
+                && !(n >= 4 && out.letters[n - 4].base() == 'q')
+            {
+                out.letters[n - 3].mark = Mark::Horn;
+            }
+        }
+
         // Promote `ưo` only once a legal C2 (or `i`/`u` continuation) follows.
         if options.auto_horn_uo && !out.literal && out.tone == Tone::None && i > 0 && matches!(ch.to_ascii_lowercase(), 'i' | 'u' | 'c' | 'h' | 'm' | 'n' | 'p' | 't') {
             if let Some(o) = out.letters.iter().rposition(|letter| letter.base() == 'o' && letter.mark == Mark::None) {
@@ -156,12 +185,16 @@ pub(crate) fn compose_word(
                             letter.is_vowel() || letter.base() == ch.to_ascii_lowercase()
                         })
                 };
+            // Owner 2026-11-02: a tone before a stop coda is common Vietnamese typing
+            // (`bast` = `bát`, `giusp` = `giúp`), as in EVKey; `test` is decided at the
+            // word break by D10 (`spell::english_stop_cluster`), never mid-word.
+            // A9: `c ch p t` take only sắc and nặng, whichever was typed first
+            // (`part`, `next`, `art` are not `pảt`, `nẽt`, `ảt`).
             let invalid =
                 !crate::spell::is_valid_syllable(&out.letters, options.jfwz_as_consonant)
+                    || tone_illegal_before_coda(&out.letters, out.tone)
                     || (options.auto_restore_english
-                        && !crate::spell::is_feasible_prefix(&out.letters, options.jfwz_as_consonant))
-                    || (matches!(options.method, InputMethod::Telex | InputMethod::Legacy)
-                        && crate::spell::english_stop_cluster(&raw[..=i], &out.letters));
+                        && !crate::spell::is_feasible_prefix(&out.letters, options.jfwz_as_consonant));
             if invalid && !keeps_the_marks {
                 if transformed && doubled && protected {
                     // §A1 rule 5 inside a word that survived a deletion: the
@@ -376,11 +409,32 @@ fn apply_w(out: &mut Composed, raw: &[char], i: usize, key: char, options: &Engi
                     escape_to_raw(out, raw, i, drop);
                     return;
                 }
-                out.letters[u].mark = Mark::Horn;
+                // C1 `qu`: its `u` belongs to the onset (`quow` = `quơ`). An open
+                // `uo` is `uơ` (`thuowr` = `thuở`, `huow` = `huơ`): `ươ` needs a coda
+                // or `i`/`u`, which promotes it when typed (`thuow` + `ng` = `thương`).
+                let qu_onset = u + 1 == idx && u >= 1 && out.letters[u - 1].base() == 'q';
+                let open = u + 1 == idx && idx + 1 == out.letters.len();
+                if !qu_onset && !open {
+                    out.letters[u].mark = Mark::Horn;
+                }
                 out.letters[idx].mark = Mark::Horn;
                 out.mark_at = i;
                 return;
             }
+        }
+        // `muaw` = `mưa`, `chuaw` = `chưa`: `uă` needs a coda (`quăng`), so a `w` on
+        // an open `ua` (not the `qu` onset) horns the `u`, as Telex `muwa`.
+        let open_ua = out.letters[idx].base() == 'a'
+            && out.letters[idx].mark == Mark::None
+            && idx + 1 == out.letters.len()
+            && idx >= 1
+            && out.letters[idx - 1].base() == 'u'
+            && out.letters[idx - 1].mark == Mark::None
+            && !(idx >= 2 && out.letters[idx - 2].base() == 'q');
+        if open_ua {
+            out.letters[idx - 1].mark = Mark::Horn;
+            out.mark_at = i;
+            return;
         }
         match out.letters[idx].mark {
             Mark::None => {
@@ -438,6 +492,14 @@ fn w_target(letters: &[Letter]) -> Option<usize> {
     let last = letters
         .iter()
         .rposition(|letter| matches!(letter.base(), 'a' | 'o' | 'u'))?;
+    // `huouw` = `hươu`: the `w` goes to the `uo` pair, not the final `u`.
+    if letters[last].base() == 'u'
+        && last >= 2
+        && letters[last - 1].base() == 'o'
+        && letters[last - 2].base() == 'u'
+    {
+        return Some(last - 1);
+    }
     if letters[last].base() == 'u' {
         if let Some(prev) = letters[..last]
             .iter()
@@ -543,27 +605,38 @@ fn apply_tone(out: &mut Composed, raw: &[char], i: usize, tone: Tone, key: char,
 }
 
 fn mark_vni_horn(out: &mut Composed, raw: &[char], i: usize, key: char) {
-    // VNI horn applied after an adjacent `uo` cluster marks both letters.
-    // Other sequences retain mark_last behavior (`u7a` must not fuse).
-    let len = out.letters.len();
-    if len >= 2
-        && out.letters[len - 2].base() == 'u'
-        && out.letters[len - 2].mark == Mark::None
-        && out.letters[len - 1].base() == 'o'
-        && out.letters[len - 1].mark == Mark::None
-    {
-        // C1 `qu`: its `u` belongs to the onset, so 7 horns only the `o`.
-        // Use raw history to distinguish this from a true `uo` vowel cluster.
-        let qu_onset = i >= 3
-            && raw[i - 3].eq_ignore_ascii_case(&'q')
-            && raw[i - 2].eq_ignore_ascii_case(&'u');
-        let u = len - 2;
-        if qu_onset {
-            out.letters[len - 1].mark = Mark::Horn;
-        } else {
-            out.letters[u].mark = Mark::Horn;
-            out.letters[len - 1].mark = Mark::Horn;
+    // VNI horn on a `uo` cluster marks both letters, also when the coda or the
+    // `i` is already typed (`duoc75` = `được`, `nguoi72` = `người`, as Telex
+    // `duocwj`). Other sequences retain mark_last behavior (`u7a` must not fuse).
+    let letters = &out.letters;
+    if let Some(o) = letters.iter().rposition(|letter| letter.base() == 'o' && letter.mark == Mark::None) {
+        if o >= 1
+            && letters[o - 1].base() == 'u'
+            && letters[o - 1].mark == Mark::None
+            && letters[o + 1..].iter().all(|letter| !matches!(letter.base(), 'a' | 'e' | 'o'))
+        {
+            // C1 `qu`: its `u` belongs to the onset, so 7 horns only the `o`. An
+            // open `uo` is `uơ` (`thuo73` = `thuở`); a later coda promotes it.
+            let qu_onset = o >= 2 && letters[o - 2].base() == 'q';
+            let open = o + 1 == letters.len();
+            if !qu_onset && !open {
+                out.letters[o - 1].mark = Mark::Horn;
+            }
+            out.letters[o].mark = Mark::Horn;
+            out.mark_at = i;
+            return;
         }
+    }
+    // `buu7` = `bưu`, `cuu71` = `cứu`: the rime is `ưu`, never `uư`.
+    let n = out.letters.len();
+    if n >= 2
+        && out.letters[n - 2].base() == 'u'
+        && out.letters[n - 2].mark == Mark::None
+        && out.letters[n - 1].base() == 'u'
+        && out.letters[n - 1].mark == Mark::None
+        && !(n >= 3 && out.letters[n - 3].base() == 'q')
+    {
+        out.letters[n - 2].mark = Mark::Horn;
         out.mark_at = i;
         return;
     }
@@ -621,13 +694,18 @@ mod tests {
     }
 
     #[test]
-    fn telex_uow_marks_both() {
+    fn telex_uow_marks_both_once_the_rime_goes_on() {
         let options = EngineOptions::default();
-        let raw: Vec<char> = "uow".chars().collect();
-        let mut composed = Composed::default();
-        compose(&raw, &options, usize::MAX, &mut composed);
-        assert_eq!(composed.letters[0].mark, Mark::Horn);
-        assert_eq!(composed.letters[1].mark, Mark::Horn);
+        let marks = |input: &str| {
+            let raw: Vec<char> = input.chars().collect();
+            let mut composed = Composed::default();
+            compose(&raw, &options, usize::MAX, &mut composed);
+            (composed.letters[0].mark, composed.letters[1].mark)
+        };
+        // Open: `uơ` (`thuở`); with a coda: `ươ` (`ương`).
+        assert_eq!(marks("uow"), (Mark::None, Mark::Horn));
+        assert_eq!(marks("uown"), (Mark::Horn, Mark::Horn));
+        assert_eq!(marks("uonw"), (Mark::Horn, Mark::Horn));
     }
 
     #[test]

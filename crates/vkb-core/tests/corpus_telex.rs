@@ -108,7 +108,8 @@ fn auto_horn_uo_can_be_disabled() {
 
 #[test]
 fn uow_transform_and_normal_typing_are_unchanged() {
-    check(telex(), &[("uow", "ươ"), ("thuong", "thuong")]);
+    // An open `uo` + w is `uơ` (thuở); a coda or `i`/`u` makes it `ươ`.
+    check(telex(), &[("uow", "uơ"), ("uowng", "ương"), ("thuong", "thuong")]);
 }
 
 #[test]

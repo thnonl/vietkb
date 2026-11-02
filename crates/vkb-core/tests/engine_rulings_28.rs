@@ -101,9 +101,12 @@ fn d5_impossible_onsets_are_invalid() {
 #[test]
 fn d6_english_passthrough_with_defaults() {
     let options = EngineOptions::default();
-    for word in ["test", "chrome", "github", "select"] {
+    for word in ["chrome", "github", "select"] {
         assert_eq!(simulate(options, word), word, "{word} must stay raw");
     }
+    // Owner 2026-11-02: `test` composes while typed (`bast` = `bát` must work) and
+    // goes back to the keys at the break.
+    assert_eq!(simulate(options, "test "), "test ");
     assert_eq!(simulate(options, "tieengs"), "tiếng");
     assert_eq!(simulate(options, "dduwowngf"), "đường");
     // The escape hatch keeps working: with the spell check off, transforms

@@ -145,19 +145,26 @@ fn c4_names_that_became_vietnamese() {
 #[test]
 fn c5_vni_digits() {
     run(&[
-        ("V", "Win10 ", "Win10 "),
-        ("V", "A101 ", "A101 "),
-        ("V", "Galaxy A52 ", "Galaxy A52 "),
+        // Owner 2026-11-02: Vietnamese first; tone keys then `0` are never code.
+        ("V", "Win10 ", "Win "),
+        ("V", "A101 ", "Á "),
+        ("V", "Galaxy A52 ", "Galaxy À "),
         ("V", "CO2 ", "CO2 "),
         ("V", "O2 ", "O2 "),
-        ("V", "Top10 ", "Top10 "),
+        ("V", "Top10 ", "Top "),
         ("V", "x1 y2 z3 ", "x1 ỳ z3 "),
         ("V", "https://x.com/a1/b2 ", "https://x.com/a1/b2 "),
         ("V", "Gate A1 ", "Gate Á "),
         ("V", "tie61ng Vie65t ", "tiếng Việt "),
         ("V", "mo65 ", "mộ "),
         ("V", "to6i ha4y ", "tôi hãy "),
-        ("VC", "Win10 Top10 ", "Win10 Top10 "),
+        ("VC", "Win10 Top10 ", "Win Top "),
+        // A capital at the sentence start, tone then `0` (owner, 0.2.9 gave `To6i40`).
+        ("V", "To6i40 ", "Tôi "),
+        ("V", "to6i40 ", "tôi "),
+        ("V", "Toi640 ", "Tôi "),
+        ("V", "Ba12 ", "Bà "),
+        ("V", "Ba10 ", "Ba "),
     ]);
 }
 
@@ -326,7 +333,7 @@ fn round4_openers_and_operators_do_not_make_vietnamese_raw() {
             }
         }
     }
-    for glue in ["ok>", "ok%", "ok**", "ok=", "ok*", "ok|", "ok+", "ok&", "ok<", "50%", "</div>", "**bold**", "best**"] {
+    for glue in ["ok>", "ok%", "ok**", "ok=", "ok*", "ok|", "ok+", "ok&", "ok<", "50%", "</div>", "**bold**", "lol**"] {
         for body in ["Mas bans hangf online ", "Cams own banj ", "Nays mas ", "Mas; "] {
             keys.push(format!("{glue} {body}"));
         }
@@ -344,6 +351,16 @@ fn round4_openers_and_operators_do_not_make_vietnamese_raw() {
         ("T", "</div> Mas bans hangf online ", "</div> Má bán hàng online "),
         ("T", "**bold** Nays mas ", "**bold** Náy má "),
         ("T", "best** Mas; ", "best** Má; "),
+        // Owner 2026-11-02: a tone before a stop coda composes; English at the break.
+        ("T", "Post ", "Post "),
+        ("T", "bast giusp khasc ", "bát giúp khác "),
+        ("T", "cast mast rest ", "cát mát rét "),
+        // Owner 2026-11-02: an open `uo` + horn is `uơ` (thuở); a coda makes it `ươ`.
+        ("T", "thuowr nay ", "thuở nay "),
+        ("T", "huow tay ", "huơ tay "),
+        ("T", "thuowng nguowif ruouwj ", "thương người rượu "),
+        ("V", "thuo73 nay ", "thuở nay "),
+        ("V", "tuo7ng d9uoc75 huou7 ", "tương được hươu "),
         ("C", "(Mas ddi ", "(Má đi "),
         ("C", "(cos x ", "(cos x "),
         // code still wins where it should: a lowercase programming word in a code app
@@ -587,10 +604,10 @@ fn vni_tone_changes_are_not_code() {
         ("V", "ho21 ", "hó "),
         ("V", "to6i12 ", "tồi "),
         ("V", "ngu7o7i21 ", "ngưới "),
-        ("V", "Win10 ", "Win10 "),
-        ("V", "A52 ", "A52 "),
-        ("V", "A101 ", "A101 "),
-        ("V", "Top10 ", "Top10 "),
+        ("V", "To6i40 ", "Tôi "),
+        ("V", "Ba10 ", "Ba "),
+        ("V", "Win10 ", "Win "),
+        ("V", "A52 ", "À "),
     ]);
 }
 
@@ -748,7 +765,7 @@ fn round5_determiner_needs_a_real_english_word() {
 #[test]
 fn round5_content_words_on_the_left_are_no_evidence() {
     let mut keys: Vec<String> = Vec::new();
-    for left in ["ok", "oke", "hi", "shop", "Inbox", "Zalo", "Post"] {
+    for left in ["ok", "oke", "hi", "shop", "Inbox", "Zalo", "Mail"] {
         for word in ["max giamr gias", "mix", "or", "her", "how", "now", "this", "def", "sos"] {
             keys.push(format!("{left} {word} "));
         }

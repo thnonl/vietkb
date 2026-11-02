@@ -33,7 +33,11 @@ pub const VK_SPACE: u16 = 0x20;
 
 /// Raw keystrokes the reference implementation treated as a wrong word at a
 /// boundary, ported verbatim as a compat shim.
-const COMPAT_RESTORE_RAW: &[&str] = &["of", "oj", "awf", "owf", "uwf", "aww", "oww", "uww"];
+/// Below this corpus count a syllable typed in the English stop-coda shape
+/// (`test` = `tét`, `list` = `lít`) is read as the English word at the break.
+const STOP_SHAPE_RARE: u32 = 20;
+
+const COMPAT_RESTORE_RAW: &[&str] =&["of", "oj", "awf", "owf", "uwf", "aww", "oww", "uww"];
 
 /// The word before the one being decided (D10 left context), kept as numbers:
 /// no text, no allocation.
@@ -177,6 +181,9 @@ pub struct Engine {
     correction: Option<Correction>,
     /// The user took the correction of the word being typed back: leave it alone.
     auto_suppressed: bool,
+    /// The word was reopened from the line as typed keys (D10 had put them back):
+    /// a tone or mark key typed onto it asks for the Vietnamese word.
+    reopened_raw: bool,
     /// The word started right after `/`, `~` or `\\` inside a path token.
     after_path_sep: bool,
     /// The current space-delimited token started as a path (`/usr`, `~/`, `C:\\`, `./`).
@@ -220,6 +227,7 @@ impl Engine {
             pending_code: None,
             correction: None,
             auto_suppressed: false,
+            reopened_raw: false,
             after_path_sep: false,
             path_token: false,
             path_segments: 0,
@@ -404,8 +412,26 @@ impl Engine {
         action
     }
 
+    /// `ch`, just pushed onto a word shown as its typed keys, is a tone or mark key
+    /// and the keys compose a Vietnamese syllable.
+    fn wants_vietnamese(&self, ch: char) -> bool {
+        let key = match self.options.method {
+            InputMethod::Vni => ch.is_ascii_digit(),
+            _ => matches!(ch.to_ascii_lowercase(), 's' | 'f' | 'r' | 'x' | 'j' | 'w' | 'z'),
+        };
+        if !key {
+            return false;
+        }
+        let mut composed = Composed::default();
+        method::compose(&self.raw, &self.options, usize::MAX, &mut composed);
+        !composed.literal
+            && !composed.escaped
+            && spell::is_plausible_syllable(&composed.letters, composed.tone, self.options.jfwz_as_consonant)
+    }
+
     fn reset_word(&mut self) {
         self.auto_suppressed = false;
+        self.reopened_raw = false;
         self.split_token = false;
         self.raw.clear();
         self.composed.clear();
@@ -519,6 +545,12 @@ impl Engine {
             }
         }
         self.raw.push(ch);
+        if std::mem::take(&mut self.reopened_raw) && self.literal_from == 0 && self.wants_vietnamese(ch) {
+            // `cox` (D10 kept the keys) + space + BS + `s` = `có`: the user went back
+            // to give the word a tone. It composes and D10 leaves it alone.
+            self.literal_from = usize::MAX;
+            self.auto_suppressed = true;
+        }
         // §A7 step 4: the first key after a deletion that left a stale tone
         // display re-runs A4 instead of being read as a repeated tone trigger.
         let tone_stale = std::mem::take(&mut self.tone_stale);
@@ -613,6 +645,7 @@ impl Engine {
         self.composed = composed;
         self.text = text;
         self.literal_from = literal_from;
+        self.reopened_raw = literal_from == 0;
     }
 
     /// Record a committed word (the current keys, with the text on screen) and the
@@ -737,8 +770,28 @@ impl Engine {
         // `D-BS-LIT-01`: `next` is the fresh typing of `kept`; the re-judge only
         // stands when it does not grow the word.
         let rejudged = reevaluate && next.len() <= self.text.len();
+        // The deleted coda had promoted `ưo` to `ươ` (`Nguwot` BS shows `Ngươ`): the
+        // screen keeps `ươ` and the kept keys stay live, so the next key composes as
+        // fresh typing would (`w` = `Ngươ`, `i` = `Ngươi`) instead of freezing.
+        // Also `thương` BS BS: the screen keeps `thươ`, the keys say `thuơ`.
+        let promoted = next.as_slice() != target.as_slice() && !rejudged && {
+            let mut alt = composed.letters.clone();
+            for idx in 1..alt.len() {
+                let pair = (alt[idx - 1].base(), alt[idx - 1].mark, alt[idx].base(), alt[idx].mark);
+                if matches!(pair, ('u', crate::letters::Mark::None, 'o', _) | ('u', crate::letters::Mark::Horn, 'o', crate::letters::Mark::None)) {
+                    alt[idx - 1].mark = crate::letters::Mark::Horn;
+                    alt[idx].mark = crate::letters::Mark::Horn;
+                }
+            }
+            let mut alt_next = TextBuf::new();
+            self.render_into(&alt, composed.tone, composed.tone_slot, &mut alt_next);
+            alt_next.as_slice() == target.as_slice()
+        };
         if next.as_slice() == target.as_slice() || rejudged {
             self.raw = kept;
+        } else if promoted {
+            self.raw = kept;
+            next = target.clone();
         } else {
             // The kept keystrokes cannot reproduce the screen (a doubled-trigger
             // escape rewrote the history). If the surviving text is plain
@@ -1301,9 +1354,7 @@ impl Engine {
     }
 
     /// VNI: a word with digits is code, not Vietnamese typed with tone keys, when
-    /// it sits in a path or URL, is a known acronym (`CO2`), ends in two digits
-    /// that start with a tone key (`Win10`, `A101`, `A52`), or is one letter and
-    /// one digit that is not a vowel (`x1`, `y2`) or is a capital (`A1`, `O2`).
+    /// it sits in a path or URL or is a known acronym (`CO2`).
     fn vni_digits_are_code(&self) -> bool {
         // A word that composes to a plausible syllable is never a lone path segment
         // (`/Ma1.` = `/Má.`); a URL or a deep path (`/a1/b2`) keeps the typed keys.
@@ -1323,27 +1374,9 @@ impl Engine {
             ascii &= typed.is_ascii_alphanumeric();
             *slot = typed as u8;
         }
-        let raw = &self.raw;
-        if ascii && lexicon::is_acronym(&token[..raw.len().min(MAX_WORD)]) {
-            return true;
-        }
-        let trailing = raw.iter().rev().take_while(|c| c.is_ascii_digit()).count();
-        if trailing >= 2 && raw.len() > trailing {
-            let first = raw[raw.len() - trailing];
-            // `a11` is the doubled-tone undo of VNI, not a number.
-            let repeated = raw[raw.len() - trailing..].iter().all(|&c| c == first);
-            // `ba12` (a tone changed) is Vietnamese typing: the letters before
-            // the digits are a plausible lowercase syllable. `Win10`, `A52`,
-            // `Top10` are not.
-            let mut letters = Composed::default();
-            method::compose(&raw[..raw.len() - trailing], &self.options, usize::MAX, &mut letters);
-            let vietnamese_letters = raw[0].is_ascii_lowercase()
-                && spell::is_plausible_syllable(&letters.letters, letters.tone, self.options.jfwz_as_consonant);
-            if matches!(first, '0'..='5') && !repeated && !vietnamese_letters {
-                return true;
-            }
-        }
-        false
+        // Owner 2026-11-02: tone keys then `0` are Vietnamese typing (`To6i40` = `Tôi`,
+        // `Ba10` = `Ba`), never code; `Win10`, `Top10`, `A52` are too rare to keep.
+        ascii && lexicon::is_acronym(&token[..self.raw.len().min(MAX_WORD)])
     }
 
     /// D10: at a word break, should the typed keys replace the composed word?
@@ -1444,6 +1477,22 @@ impl Engine {
         let Some(len) = key_len else {
             return true;
         };
+        // `test`, `list`, `Rust`: a plain vowel, a tone key, then a stop coda is how
+        // English is typed. Owner 2026-11-02: it is also how many type `bát`, `giúp`,
+        // so the word composes; at the break a listed word whose Vietnamese reading is
+        // rare goes back to the keys. Common readings (`bút`, `cát`) are not listed.
+        // The plural (`costs`, `lists`) has the same shape before its `s`.
+        let n = self.raw.len();
+        let shape = spell::english_stop_cluster(&self.raw, &self.composed.letters)
+            || (n > 1
+                && self.raw[n - 1].eq_ignore_ascii_case(&'s')
+                && spell::english_stop_cluster(&self.raw[..n - 1], &self.composed.letters));
+        if matches!(self.options.method, InputMethod::Telex | InputMethod::Legacy)
+            && shape
+            && lexicon::vi_count(&key[..len]) < STOP_SHAPE_RARE
+        {
+            return true;
+        }
         let left = match prev.kind {
             PrevKind::English => Left::English { hash: prev.hash, run: prev.count, listed: prev.listed },
             PrevKind::Function => Left::Function,

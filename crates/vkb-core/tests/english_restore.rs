@@ -310,7 +310,8 @@ fn mid_word_never_fires_on_vietnamese() {
         &[
             ("nghi ", "nghi "),
             ("khuy ", "khuy "),
-            ("uow ", "ươ "),
+            ("uow ", "uơ "),
+            ("thuowr ", "thuở "),
             ("truowngf ", "trường "),
             ("dd ", "đ "),
             ("Vieetj ", "Việt "),

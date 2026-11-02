@@ -272,6 +272,7 @@ besoms7
 besot5
 besots7
 bessp
+best1
 bets3
 better1
 bias2
@@ -450,6 +451,7 @@ cheroot5
 cheroots7
 cherryq
 chess2
+chest2
 chief2
 chiefer3
 chiefest3
@@ -498,6 +500,7 @@ closely1
 closer1
 closest1
 closing1
+coast1
 coats4
 coax3
 coaxing3
@@ -614,6 +617,7 @@ corsairs7
 corset3
 corsets5
 cosB
+cost1
 costing1
 cots5
 counter1
@@ -668,6 +672,7 @@ cursor1
 cursors4
 customer1
 cuts3
+cyst5
 dais3
 dams5
 danger1
@@ -780,6 +785,7 @@ disappearing1
 disarm3
 disarms5
 disaster1
+disc2
 discipline1
 discordq
 discount1
@@ -800,6 +806,7 @@ displayed1
 displaying1
 dissertation2
 dissimilar2
+distB
 distance1
 distant1
 distinct1
@@ -858,6 +865,7 @@ duns7
 duos5
 during1
 durum7
+dust2
 dyer5
 dyers7
 dyes5
@@ -1170,6 +1178,7 @@ garden1
 gars7
 gas1
 gasoline1
+gasp4
 gather1
 gawp6
 gawps7
@@ -1181,10 +1190,12 @@ generated1
 generating1
 generation1
 ghee6
+ghost2
 gins4
 girl1
 giro6
 giros7
+gist4
 gits6
 glass1
 goats4
@@ -1234,10 +1245,12 @@ guess1
 guessed1
 guesses1
 guessing1
+guest1
 gums4
 guns3
 guru3
 gurus5
+gust4
 guts4
 guys3
 gyms5
@@ -1552,6 +1565,8 @@ lings6
 lips4
 lira5
 lire5
+lisp5
+list1
 listed1
 listen1
 listing1
@@ -1611,6 +1626,7 @@ lungs4
 lure3
 lures5
 luring3
+lust4
 lux7
 lynx5
 lyre3
@@ -1758,6 +1774,7 @@ morose3
 mosaic3
 mosaics5
 moss3
+most1
 mostly1
 mother1
 mots7
@@ -1771,6 +1788,7 @@ muses5
 music1
 musing3
 musings5
+must1
 mys3
 myself1
 mysterious1
@@ -1978,6 +1996,7 @@ passionate2
 passive2
 passport2
 password2
+past1
 pats4
 pattern1
 paw3
@@ -2026,6 +2045,7 @@ persuaded1
 persuading1
 peso5
 pesos7
+pest4
 petrol1
 pets4
 pharynx5
@@ -2093,6 +2113,7 @@ possibilities1
 possibility1
 possible1
 possibly1
+post1
 posted1
 posting1
 postmaster1
@@ -2352,6 +2373,7 @@ roans7
 roar3
 roaring3
 roars5
+roast3
 roes5
 roof2
 roofer5
@@ -2389,6 +2411,7 @@ ruse3
 ruses5
 rush1
 russellp
+rustB
 ruts5
 sacs5
 safari3
@@ -2724,6 +2747,7 @@ terse2
 terser3
 tersest3
 tessp
+testB
 tested1
 testing1
 thaw3
@@ -2906,6 +2930,7 @@ variety1
 various1
 vars7
 vary1
+vast2
 vastly1
 vats4
 vector1
@@ -2981,6 +3006,7 @@ weest3
 weird1
 wens7
 were1
+west1
 western1
 wets4
 whatever1
@@ -3051,6 +3077,7 @@ worrying1
 worse1
 worsen3
 worsens5
+worst1
 worth1
 worthwhile1
 worthy1

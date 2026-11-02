@@ -54,6 +54,7 @@ cham3	N	charm
 chap1	N	chaps
 che^3	N	cheer,chefer,chefser
 che^p1	N	cheeps
+chet1	C	chest,chests
 chie1	N	chiefs,chisers,chises
 chie2	N	chief
 chie3	N	chiser
@@ -112,6 +113,7 @@ de^m1	N	deems
 de^p1	N	deeps
 de^t1	N	deserts
 den1	N	dens
+dic1	N	disc,discs
 die1	N	dies,dirers,dires,disers
 die3	N	dire,direr,diser
 die^1	N	diesers,dieses,direers,direes
@@ -119,6 +121,7 @@ die^3	N	dieser,direer,direrer
 diet1	N	diets
 dim1	N	dims
 din1	N	dins
+dit1	N	dist,dists
 do+e1	N	dowers,dowse,dowsers,dowses
 do+e3	N	dower,dowser
 do+e^1	N	dowerers,doweres,dowersers,dowerses
@@ -142,6 +145,7 @@ due^3	N	dueser
 duet1	N	duets
 dun1	N	duns
 dung1	N	dungs
+dut1	N	dust,dusts
 dye1	N	dyers,dyes
 dye3	N	dyer
 dye^1	N	dyerers,dyeres,dyersers,dyerses
@@ -170,6 +174,7 @@ goe3	N	goer,gofer,gore,gorer
 goe^1	N	goerers,goeres,goersers,goerses
 goe^3	N	goerer,goerser,goeser,goferer
 gong1	N	gongs
+guet1	N	guest,guests
 gun1	N	guns
 guu1	N	gurus
 guu3	N	guru
@@ -452,6 +457,7 @@ roa1	N	roars
 roa3	N	roar
 roam1	N	roams
 roan1	N	roans
+roat1	N	roast,roasts
 roay1	N	rosarys
 roay3	N	rosary
 roe1	N	roes,rose,rosers,roses
@@ -510,6 +516,7 @@ te^n1	N	teens
 tech1	N	techs
 tem3	N	term
 ten3	N	tern
+tet1	C	test,tests
 tha(	N	thaw
 tha(1	N	thaws
 the^o1	N	therefors,thereofs
