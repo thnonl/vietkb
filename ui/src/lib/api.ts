@@ -2,7 +2,11 @@
 // Command names and payloads are frozen by contract §6; the two commands marked
 // "additive" are proposed additions (reported to the Lead, never renamed).
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as rawInvoke } from "@tauri-apps/api/core";
+import { timedInvoke } from "./perf";
+
+// TEMPORARY (open-timing probe): identity unless VKB_OPEN_TIMING=1.
+const invoke = timedInvoke(rawInvoke);
 import type {
   AppInfoView,
   AppRuleRow,

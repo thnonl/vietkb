@@ -24,6 +24,7 @@ import type {
 import { isLang, type Lang } from "./i18n";
 import { langState, t } from "./lang.svelte";
 import { isMacOS, platformState } from "./platform.svelte";
+import { mark } from "./perf";
 
 export interface SettingsPatch {
   input?: Partial<InputView>;
@@ -233,16 +234,19 @@ class Store {
         this.applyTheme(demoSettings.system.theme);
         return;
       }
+      mark("init:trio:start");
       const [settings, status, info] = await Promise.all([
         api.getSettings(),
         api.getStatus(),
         api.appInfo(),
       ]);
+      mark("init:trio:end");
       this.settings = settings;
       this.status = status;
       this.info = info;
       this.syncLang();
       this.applyTheme(settings.system.theme);
+      mark("init:applied");
       this.unlisten = await listen<StatusView>("vkb:status", (event) => {
         this.status = event.payload;
         if (this.settings) {
@@ -251,6 +255,7 @@ class Store {
           this.settings.input.charset = event.payload.charset;
         }
       });
+      mark("init:listen(vkb:status):end");
 
       // Any config write, from any window or from the backend worker (hotkeys),
       // ends in this event: re-read the settings and tell the rule lists.
@@ -275,6 +280,7 @@ class Store {
       // event, so the title-bar badge and the tray item appear without a
       // restart.
       // The Store build has no updater: no command to ask, no event to follow.
+      mark("init:listeners");
       if (!info.store) {
         this.update = await api.updateStatus().catch(() => null);
         await listen<UpdateStatus>("vkb:update", (event) => {
@@ -284,6 +290,7 @@ class Store {
             this.updateUnlisten = unlisten;
           })
           .catch(() => {});
+        mark("init:listen(vkb:update):end");
       }
     } catch (error) {
       this.settings = demoSettings;

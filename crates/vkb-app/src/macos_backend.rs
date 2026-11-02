@@ -135,6 +135,10 @@ fn timer_tick() {
 /// queued to the worker, at most one request at a time and at most one per
 /// [`RETRY_GAP`]. Safe to call on every Accessibility poll.
 pub fn ensure_installed() {
+    // TEMPORARY (open-timing probe): never install the tap in that mode.
+    if crate::open_timing::enabled() {
+        return;
+    }
     if crate::QUITTING.load(Ordering::SeqCst) || vkb_macos::is_hook_ready() || INSTALL_PENDING.load(Ordering::Acquire) {
         return;
     }

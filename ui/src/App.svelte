@@ -11,12 +11,20 @@
   import { closeCurrent } from "./lib/window.svelte";
   import { fitWindowToContent } from "./lib/fit";
   import { t } from "./lib/lang.svelte";
+  import { tick } from "svelte";
+  import { mark, markPainted } from "./lib/perf";
 
   const kind = new URLSearchParams(window.location.search).get("win") ?? "main";
   const modal = kind !== "main";
 
   onMount(() => {
-    void app.init().then(() => {
+    mark("app:onMount");
+    mark("init:start");
+    void app.init().then(async () => {
+      mark("init:end");
+      await tick();
+      mark("content:mounted");
+      markPainted();
       // macOS: grow the window if the sheet is taller than the estimated height.
       void document.fonts.ready.then(() => fitWindowToContent());
       const theme = new URLSearchParams(window.location.search).get("theme");

@@ -7,12 +7,16 @@ use objc2_app_kit::NSApplication;
 
 /// Activate VietKB so its windows come in front of every other app. Runs on the
 /// main thread, queued after the activation-policy change that precedes it.
-pub fn activate(app: &tauri::AppHandle) {
-    let result = app.run_on_main_thread(|| {
-        if let Some(mtm) = MainThreadMarker::new() {
-            #[allow(deprecated)]
-            NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
-        }
+pub fn activate(app: &tauri::AppHandle, timing_label: &str) {
+    let label = timing_label.to_string();
+    let result = app.run_on_main_thread(move || {
+        crate::open_timing::mark(&label, "fg:activate_ran_begin");
+        crate::open_timing::timed(&label, "fg:activateIgnoringOtherApps", || {
+            if let Some(mtm) = MainThreadMarker::new() {
+                #[allow(deprecated)]
+                NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+            }
+        });
     });
     if let Err(error) = result {
         tracing::warn!(%error, "could not activate the app");

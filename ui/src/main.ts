@@ -1,3 +1,4 @@
+import { mark } from "./lib/perf";
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { detectOS } from "./lib/platform.svelte";
@@ -31,6 +32,8 @@ document.documentElement.dataset.platform = detectOS();
 const target = document.getElementById("app");
 if (!target) throw new Error("missing #app root");
 
+mark("main:body");
 const app = mount(App, { target });
+mark("main:mounted");
 
 export default app;
