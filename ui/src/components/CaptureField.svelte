@@ -56,6 +56,22 @@
       if (now) capturing = false;
     });
   });
+  // The first click may only activate an inactive window, so the backend
+  // refused the arm above. Retry as soon as the window gets focus.
+  $effect(() => {
+    if (!editing || !api.isTauri()) return;
+    const retry = () => {
+      if (capturing || !editing) return;
+      void api
+        .setHotkeyCapture(true)
+        .then(() => {
+          capturing = editing;
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("focus", retry);
+    return () => window.removeEventListener("focus", retry);
+  });
   // The backend lets a capture lapse after ~30 s; renew it while focused.
   $effect(() => {
     if (!editing || !api.isTauri()) return;
@@ -150,7 +166,11 @@
 
   /** Esc ends the capture but keeps the focus, so a click on the same field is
    *  not a focus event: it must arm the capture again. */
-  const rearm = () => {
+  const rearm = (event: MouseEvent) => {
+    // WebKit (macOS) does not focus a <button> on click, so `focus` never
+    // fires and keys would go to <body>. Focus it here (a no-op where the
+    // click already focused it): onfocus runs `begin`, keys reach this button.
+    (event.currentTarget as HTMLElement).focus({ preventScroll: true });
     if (!editing) begin();
   };
 
