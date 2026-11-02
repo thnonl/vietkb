@@ -315,7 +315,6 @@ static BACK_PAIRS: &[u32] = &[
     colloc("max", "plus"),
     colloc("six", "pack"),
 ];
-static BACK_FIRST: &[&str] = &["max", "six"];
 
 /// English words whose Vietnamese reading is a real word that the syllable corpus lacks.
 static REAL_BUT_UNCOUNTED: &[&[u8]] = &[b"gas", b"nor", b"here"];
@@ -353,10 +352,6 @@ pub fn en_pair_of(first: &[u8], second: &[u8]) -> bool {
 /// Vietnamese pair attested in the Vietnamese corpus table; `hash` = FNV of `key1 key2`.
 pub fn vi_pair(hash: u32) -> bool {
     VIETNAMESE_PAIRS.binary_search(&hash).is_ok()
-}
-
-pub fn back_first(typed: &[u8]) -> bool {
-    BACK_FIRST.iter().any(|w| w.as_bytes() == typed)
 }
 
 pub fn back_pair(first: &[u8], second: &[u8]) -> bool {
@@ -429,7 +424,7 @@ pub fn english_wins(
         }
         // An attested Vietnamese pair (`phòng rôm`, `mã nguồn`) is Vietnamese, whatever the
         // English reading would do; it also wins over an English pair for now.
-        if VIETNAMESE_PAIRS.binary_search(&fnv_extend(hash, vi_key)).is_ok() {
+        if vi_pair(fnv_extend(hash, vi_key)) {
             return false;
         }
     }
@@ -473,7 +468,8 @@ pub fn english_wins(
         // `file max`). No bigram hit -> Vietnamese. `listed`: the left word is English
         // text, not a raw typo. The restore hotkey flips it back.
         Left::English { hash, run, listed } => {
-            (listed && !is_closed_word(typed) && ENGLISH_PAIRS.binary_search(&fnv_extend(hash, typed)).is_ok())
+            // A common Vietnamese reading (`sẽ`) is not taken away by an English pair (`sex in`).
+            (listed && !protected && !is_closed_word(typed) && ENGLISH_PAIRS.binary_search(&fnv_extend(hash, typed)).is_ok())
                 || (run >= 2 && is_function_word(typed) && !protected && !weak)
                 || EN_COLLOCATIONS.contains(&fnv_extend(hash, typed))
         }
