@@ -2,6 +2,7 @@
 
 mod commands;
 mod i18n;
+mod open_timing;
 mod running_apps;
 #[cfg(target_os = "macos")]
 mod macos_shell;
@@ -221,10 +222,11 @@ fn take_pending(label: &str, id: Option<u64>) -> Option<Pending> {
 fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static str) {
     let Some(pending) = take_pending(label, id) else { return };
     let Some(window) = app.get_webview_window(label) else { return };
+    open_timing::mark(label, &format!("reveal:begin cause={cause}"));
 
     if label == MAIN_LABEL {
-        enter_foreground(app);
-        if let Err(error) = window.show() {
+        open_timing::timed(label, "reveal:enter_foreground", || enter_foreground_timed(app, label));
+        if let Err(error) = open_timing::timed(label, "reveal:show", || window.show()) {
             tracing::warn!(%error, "could not show the settings window");
         }
         // Two passes: a window that has never been shown sits on the monitor it was
@@ -252,13 +254,14 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
             disable_for_modal(owner);
         }
         modal_opened(label, pending.owner.clone());
-        enter_foreground(app);
+        open_timing::timed(label, "reveal:enter_foreground", || enter_foreground_timed(app, label));
         if let Err(error) = window.set_focus() {
             tracing::warn!(%error, "could not focus the modal");
         }
     }
 
     tracing::info!(window = label, cause, since_build_ms = millis_since(pending.started), "window.shown");
+    open_timing::mark(label, &format!("reveal:end cause={cause}"));
 }
 
 /// The page calls this once its real content is on screen (`App.svelte`). Shows
@@ -274,6 +277,7 @@ fn window_ready(window: tauri::WebviewWindow) {
     if let Some(ms) = since_build {
         tracing::info!(window = %label, since_build_ms = ms, "window.page_ready");
     }
+    open_timing::mark(&label, "rust:window_ready-received");
     reveal(window.app_handle(), &label, None, "ready");
 }
 
@@ -344,14 +348,16 @@ fn refocus_modal(app: &tauri::AppHandle, activated: &str) {
 /// Accessory app opens behind whatever app is frontmost and cannot take focus,
 /// so every window that is about to show calls this first (D-MAC-04/05, M3).
 #[cfg(target_os = "macos")]
-fn enter_foreground(app: &tauri::AppHandle) {
-    if let Err(error) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
+fn enter_foreground_timed(app: &tauri::AppHandle, label: &str) {
+    if let Err(error) = open_timing::timed(label, "fg:set_activation_policy", || {
+        app.set_activation_policy(tauri::ActivationPolicy::Regular)
+    }) {
         tracing::warn!(%error, "could not show the Dock icon");
     }
-    macos_shell::activate(app);
+    open_timing::timed(label, "fg:activate_queue", || macos_shell::activate(app, label));
 }
 #[cfg(not(target_os = "macos"))]
-fn enter_foreground(_app: &tauri::AppHandle) {}
+fn enter_foreground_timed(_app: &tauri::AppHandle, _label: &str) {}
 
 /// Back to a menu-bar-only app once no window is left. The window being
 /// destroyed is told apart by identity (its NSWindow), not by label: a new
@@ -415,7 +421,13 @@ pub fn show_settings_tab(app: &tauri::AppHandle, tab: &str) {
 }
 
 fn open_settings(app: &tauri::AppHandle) {
-    enter_foreground(app);
+    let existing = app.get_webview_window(MAIN_LABEL).is_some();
+    if !existing {
+        open_timing::start(MAIN_LABEL);
+    }
+    open_timing::timed(MAIN_LABEL, "enter_foreground", || {
+        enter_foreground_timed(app, MAIN_LABEL)
+    });
     if let Some(window) = app.get_webview_window(MAIN_LABEL) {
         // Built but still waiting for its page: `reveal` shows it.
         if is_pending(MAIN_LABEL) {
@@ -427,11 +439,16 @@ fn open_settings(app: &tauri::AppHandle) {
         return;
     }
 
+    open_timing::mark(MAIN_LABEL, "build:before");
     let built = build_settings_window(app);
+    open_timing::mark(MAIN_LABEL, "build:returned");
     if built.is_ok() {
         // A stale `Destroyed` of the previous window may have dropped the
         // policy between the call above and the build: assert it again.
-        enter_foreground(app);
+        open_timing::timed(MAIN_LABEL, "enter_foreground#2", || {
+            enter_foreground_timed(app, MAIN_LABEL)
+        });
+        open_timing::mark(MAIN_LABEL, "open_settings:end");
     } else if let Err(error) = built {
         tracing::warn!(%error, "could not create the settings window");
         // A window whose destruction is still in flight refuses the label. It
@@ -484,7 +501,10 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         other => return Err(i18n::tf("rwin.invalid", &[("kind", other)])),
     };
 
-    enter_foreground(app);
+    if app.get_webview_window(label).is_none() {
+        open_timing::start(label);
+    }
+    open_timing::timed(label, "enter_foreground", || enter_foreground_timed(app, label));
     let main = app.get_webview_window(MAIN_LABEL);
 
     if let Some(window) = app.get_webview_window(label) {
@@ -516,7 +536,10 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     let owner = owner_label.as_deref().and_then(|name| app.get_webview_window(name));
 
     let started = Instant::now();
+    open_timing::mark(label, "build:before");
     let url = tauri::WebviewUrl::App(format!("index.html?win={kind}").into());
+    let bg = open_timing::timed(label, "window_bg::initial", || window_bg::initial(app));
+    let init_script = open_timing::timed(label, "window_bg::init_script", window_bg::init_script);
     let mut builder = tauri::WebviewWindowBuilder::new(app, label, url)
         .title(i18n::t(title))
         .inner_size(width, content_height(height))
@@ -532,10 +555,11 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         // ring the page draws on top is the edge itself (ui/src/styles/v4.css).
         .shadow(true)
         .transparent(false)
-        .background_color(window_bg::initial(app))
+        .background_color(bg)
         .theme(window_bg::configured_window_theme())
-        .initialization_script(window_bg::init_script())
+        .initialization_script(init_script)
         .visible(false);
+    builder = timing_hooks(builder, label);
     #[cfg(target_os = "macos")]
     {
         builder = builder
@@ -558,9 +582,11 @@ pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
         #[cfg(not(any(windows, target_os = "macos")))]
         let _ = owner;
     }
-    let window = builder.build().map_err(|error| error.to_string())?;
+    let window = open_timing::timed(label, "builder.build", || builder.build())
+        .map_err(|error| error.to_string())?;
+    open_timing::mark(label, "build:returned");
     // Still hidden: settle the exact colour for the OS theme before it shows.
-    window_bg::apply(&window);
+    open_timing::timed(label, "window_bg::apply", || window_bg::apply(&window));
     // Shown by `reveal` once the page has rendered (or the fallback fires).
     hold_until_ready(app, label, started, owner_label);
     Ok(())
@@ -629,6 +655,18 @@ fn close_aux(app: &tauri::AppHandle) {
 /// frameless shell, centred on the launch monitor as it appears.
 fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let started = std::time::Instant::now();
+    const L: &str = MAIN_LABEL;
+
+    // macOS-only work on every open: AXIsProcessTrusted + Input Monitoring
+    // preflight decide the height (banner). Timed one by one here.
+    #[cfg(target_os = "macos")]
+    if open_timing::enabled() {
+        open_timing::timed(L, "mac:AXIsProcessTrusted", vkb_macos::has_accessibility_permission);
+        open_timing::timed(L, "mac:CGPreflightListenEventAccess", vkb_macos::has_input_monitoring_permission);
+    }
+    let height = open_timing::timed(L, "main_content_height(perm check)", main_content_height);
+    let bg = open_timing::timed(L, "window_bg::initial", || window_bg::initial(app));
+    let init_script = open_timing::timed(L, "window_bg::init_script", window_bg::init_script);
 
     let builder = tauri::WebviewWindowBuilder::new(
         app,
@@ -636,7 +674,7 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title(i18n::t("rwin.main"))
-    .inner_size(480.0, main_content_height())
+    .inner_size(480.0, height)
     .resizable(false)
     .maximizable(false)
     .decorations(cfg!(target_os = "macos"))
@@ -645,24 +683,45 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
     // for DWM to paint the frame shadow at all.
     .shadow(true)
     .transparent(false)
-    .background_color(window_bg::initial(app))
+    .background_color(bg)
     .theme(window_bg::configured_window_theme())
-    .initialization_script(window_bg::init_script())
+    .initialization_script(init_script)
     // Hidden at build time; placed and shown below in one go.
     .visible(false);
+    let builder = timing_hooks(builder, MAIN_LABEL);
     // macOS: overlay title bar, the page draws the caption row (TitleBar.svelte).
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true);
-    let window = builder.build()?;
+    let window = open_timing::timed(L, "builder.build", || builder.build())?;
     // Still hidden: settle the exact colour for the OS theme before it shows.
-    window_bg::apply(&window);
+    open_timing::timed(L, "window_bg::apply", || window_bg::apply(&window));
     // Not shown here. `reveal` shows and places it once the page reports ready:
     // the placement rules (show first, then centre, see `reveal`) are unchanged,
     // they just run after the first real frame is ready instead of before it.
     hold_until_ready(app, MAIN_LABEL, started, None);
     Ok(window)
+}
+
+/// TEMPORARY (open-timing probe): flag the page and log the native page-load
+/// events. No-op unless `VKB_OPEN_TIMING=1`.
+fn timing_hooks<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
+    builder: tauri::WebviewWindowBuilder<'a, R, M>,
+    label: &'static str,
+) -> tauri::WebviewWindowBuilder<'a, R, M> {
+    if !open_timing::enabled() {
+        return builder;
+    }
+    builder
+        .initialization_script("window.__VKB_OPEN_TIMING__ = true;")
+        .on_page_load(move |_window, payload| {
+            let phase = match payload.event() {
+                tauri::webview::PageLoadEvent::Started => "native:page_load_started",
+                tauri::webview::PageLoadEvent::Finished => "native:page_load_finished",
+            };
+            open_timing::mark(label, phase);
+        })
 }
 
 /// Centre `win_len` inside the monitor span `[mon_start, mon_start + mon_len)`,
@@ -849,18 +908,32 @@ fn main() {
             // honouring `system.check_updates`. A failure stays silent and never
             // hides an update already found.
             // The Store build never reaches the network: Store updates it.
+            // TEMPORARY (open-timing probe): with `VKB_OPEN_TIMING=1` no update
+            // check, no keyboard hook / event tap, no hotkeys. Nothing that can
+            // intercept keys or raise a permission prompt.
+            let timing = open_timing::enabled();
+            if timing {
+                eprintln!("VKBT-MODE\topen timing on: no hook, no event tap, no hotkeys, no update check");
+            }
+
             #[cfg(not(feature = "store"))]
-            update::schedule_startup_check(handle.clone());
+            if !timing {
+                update::schedule_startup_check(handle.clone());
+            }
 
             // Hook, config hand-off and both callbacks. Must run after the tray
             // exists (a hotkey can flip it) and after the config load.
             #[cfg(windows)]
-            windows_backend::start();
+            if !timing {
+                windows_backend::start();
+            }
             // Event tap, config hand-off, both callbacks. Without Accessibility
             // the install fails quietly, the banner shows, and `ensure_installed`
             // retries when the grant appears.
             #[cfg(target_os = "macos")]
-            macos_backend::start();
+            if !timing {
+                macos_backend::start();
+            }
 
             // No window exists before the first open: `tauri.conf.json` no
             // longer lists one, so a tray-only start never pays for WebView2.
@@ -885,7 +958,9 @@ fn main() {
             let needs_permissions = permissions_missing();
             #[cfg(not(target_os = "macos"))]
             let needs_permissions = false;
-            if !config.system.start_minimized || needs_permissions {
+            if let Some(count) = open_timing::loop_count() {
+                open_timing::spawn_loop(handle.clone(), count);
+            } else if !config.system.start_minimized || needs_permissions {
                 show_settings(&handle);
             }
 
@@ -999,6 +1074,7 @@ fn main() {
             #[cfg(not(feature = "store"))]
             update::install_update,
             update::open_url,
+            open_timing::perf_marks,
         ])
         .build(tauri::generate_context!())
         .expect("error while building VietKB");

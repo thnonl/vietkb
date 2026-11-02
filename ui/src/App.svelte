@@ -12,6 +12,7 @@
   import { closeCurrent } from "./lib/window.svelte";
   import { fitWindowToContent } from "./lib/fit";
   import { t } from "./lib/lang.svelte";
+  import { mark, markPainted } from "./lib/perf";
 
   const kind = new URLSearchParams(window.location.search).get("win") ?? "main";
   const modal = kind !== "main";
@@ -25,12 +26,25 @@
    *  cap here is for a hidden window, which may run no animation frames at all. */
   const reportPainted = async (): Promise<void> => {
     await tick();
-    await Promise.race([twoFrames(), new Promise<void>((resolve) => setTimeout(resolve, 50))]);
+    mark("ready:wait-start");
+    const winner = await Promise.race([
+      twoFrames().then(() => "raf2"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("cap50"), 50)),
+    ]);
+    mark(`ready:wait-won-by-${winner}`);
     if (api.isTauri()) await api.windowReady().catch(() => {});
+    mark("ready:window_ready-returned");
   };
 
   onMount(() => {
+    mark("app:onMount");
+    mark("init:start");
     void app.init().then(() => {
+      mark("init:end");
+      void tick().then(() => {
+        mark("content:mounted");
+        markPainted();
+      });
       // After the first paint, never before: macOS grows the window if the sheet is
       // taller than the estimated height, and it resizes a window the user sees.
       void reportPainted()

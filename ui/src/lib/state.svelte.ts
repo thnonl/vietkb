@@ -24,6 +24,7 @@ import type {
 import { isLang, type Lang } from "./i18n";
 import { langState, t } from "./lang.svelte";
 import { isMacOS, platformState } from "./platform.svelte";
+import { mark } from "./perf";
 
 export interface SettingsPatch {
   input?: Partial<InputView>;
@@ -249,6 +250,7 @@ class Store {
       // (`window.__VKB_INIT__`): render from them, with no IPC before the first
       // paint. `background` refreshes them right after.
       const seed = takeSeed();
+      mark(seed ? "init:seed-found" : "init:no-seed");
       if (seed) {
         seeded = true;
         this.settings = seed.settings;
@@ -300,6 +302,7 @@ class Store {
           this.settings.input.charset = event.payload.charset;
         }
       });
+      mark("init:listen(vkb:status):end");
 
       // Any config write, from any window or from the backend worker (hotkeys),
       // ends in this event: re-read the settings and tell the rule lists.
@@ -340,6 +343,7 @@ class Store {
       // event, so the title-bar badge and the tray item appear without a
       // restart.
       // The Store build has no updater: no command to ask, no event to follow.
+      mark("bg:listeners");
       if (!this.info?.store) {
         this.update = await api.updateStatus().catch(() => null);
         await listen<UpdateStatus>("vkb:update", (event) => {
@@ -349,6 +353,7 @@ class Store {
             this.updateUnlisten = unlisten;
           })
           .catch(() => {});
+        mark("init:listen(vkb:update):end");
       }
     } catch (error) {
       this.toast("error", t("toast.loadConfigFailed", { error: errorText(error) }), 0);
