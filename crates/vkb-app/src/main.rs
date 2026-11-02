@@ -702,9 +702,9 @@ fn main() {
 
             tray::install(&handle)?;
 
-            // Five seconds after launch, then every 12 h, off the UI thread, honouring
-            // `system.check_updates`. A failure stays silent; the About window
-            // shows the reason when the owner opens it.
+            // Five seconds after launch, then every 12 h, on its own thread,
+            // honouring `system.check_updates`. A failure stays silent and never
+            // hides an update already found.
             // The Store build never reaches the network: Store updates it.
             #[cfg(not(feature = "store"))]
             update::schedule_startup_check(handle.clone());

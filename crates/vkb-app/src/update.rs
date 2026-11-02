@@ -10,7 +10,7 @@
 //! dependency this feature adds.
 
 use std::io::Write;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -191,25 +191,58 @@ struct Downloaded {
 static STATUS: OnceLock<parking_lot::RwLock<UpdateStatus>> = OnceLock::new();
 static DOWNLOADED: OnceLock<parking_lot::Mutex<Option<Downloaded>>> = OnceLock::new();
 
-/// Manual checks and downloads currently running. The periodic timer skips its
-/// tick while this is non-zero, so it never races them for the shared state.
-static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+/// Counts the update operations running (manual check, download, timer tick)
+/// and how many have ever begun. The timer takes the gate only when it is idle,
+/// and drops its result if anything else began while its request was out.
+struct Gate {
+    busy: AtomicUsize,
+    epoch: AtomicU64,
+}
 
-/// Marks an update operation as running until dropped (also on panic/cancel).
-struct InFlight;
+/// Held while an operation runs; released on drop (also on panic/cancel).
+struct Guard<'a> {
+    gate: &'a Gate,
+    started_at: u64,
+}
 
-impl InFlight {
-    fn begin() -> Self {
-        IN_FLIGHT.fetch_add(1, Ordering::SeqCst);
-        InFlight
+impl Gate {
+    const fn new() -> Self {
+        Self { busy: AtomicUsize::new(0), epoch: AtomicU64::new(0) }
+    }
+
+    /// A manual operation: always allowed, and it supersedes a running tick.
+    fn begin(&self) -> Guard<'_> {
+        self.epoch.fetch_add(1, Ordering::SeqCst);
+        self.busy.fetch_add(1, Ordering::SeqCst);
+        Guard { gate: self, started_at: self.epoch.load(Ordering::SeqCst) }
+    }
+
+    /// The timer: only when nothing else runs, decided atomically.
+    fn try_begin(&self) -> Option<Guard<'_>> {
+        self.busy.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst).ok()?;
+        Some(Guard { gate: self, started_at: self.epoch.load(Ordering::SeqCst) })
+    }
+
+    fn is_busy(&self) -> bool {
+        self.busy.load(Ordering::SeqCst) > 0
     }
 }
 
-impl Drop for InFlight {
+impl Guard<'_> {
+    /// Another operation began after this one did.
+    fn superseded(&self) -> bool {
+        self.gate.epoch.load(Ordering::SeqCst) != self.started_at
+            || self.gate.busy.load(Ordering::SeqCst) > 1
+    }
+}
+
+impl Drop for Guard<'_> {
     fn drop(&mut self) {
-        IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+        self.gate.busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
+
+static GATE: Gate = Gate::new();
 
 fn state() -> &'static parking_lot::RwLock<UpdateStatus> {
     STATUS.get_or_init(|| parking_lot::RwLock::new(UpdateStatus::idle()))
@@ -429,6 +462,16 @@ pub fn publish(app: &tauri::AppHandle, status: UpdateStatus) {
         message = status.message.as_deref().unwrap_or("-"),
         "update state"
     );
+    // A downloaded installer is only good for the version it was fetched for.
+    if matches!(status.state, UpdateState::Available | UpdateState::None) {
+        let wanted = status.update.as_ref().map(|info| info.version.as_str());
+        if let Some(cell) = DOWNLOADED.get() {
+            let mut held = cell.lock();
+            if held.as_ref().is_some_and(|d| Some(d.version.as_str()) != wanted) {
+                *held = None;
+            }
+        }
+    }
     *state().write() = status.clone();
     crate::tray::refresh(app, &crate::commands::status_now());
     use tauri::Emitter;
@@ -457,18 +500,46 @@ fn decide_tick(check_updates: bool, in_flight: bool) -> Tick {
     }
 }
 
+/// Whether a periodic result replaces the stored status. A failed tick (offline,
+/// 403/429) must not erase a known update, so an error is kept out of the store
+/// while one is held; it is published only when there is nothing to lose.
+fn should_publish(prev: &UpdateStatus, new: &UpdateStatus) -> bool {
+    match new.state {
+        UpdateState::Available | UpdateState::None => true,
+        UpdateState::Error => prev.update.is_none(),
+        UpdateState::Idle | UpdateState::Checking => false,
+    }
+}
+
 /// One tick: decide, then (maybe) run the check through the same
-/// `run_check` + `publish` path as the manual button. An error is stored and
-/// shown by the About window like before; the next tick simply tries again
-/// (this covers 403/429 as well: no retry in between).
+/// `run_check` + `publish` path as the manual button. The next tick simply
+/// tries again after an error (403/429 included): no retry in between.
 fn run_tick(app: &tauri::AppHandle) {
     let enabled = crate::commands::config_cell().read().system.check_updates;
-    let busy = IN_FLIGHT.load(Ordering::SeqCst) > 0;
-    if decide_tick(enabled, busy) != Tick::Check {
+    let busy = GATE.is_busy();
+    let decision = decide_tick(enabled, busy);
+    if decision != Tick::Check {
+        tracing::debug!(?decision, "update tick skipped");
         return;
     }
-    let _busy = InFlight::begin();
+    let Some(guard) = GATE.try_begin() else {
+        tracing::debug!("update tick skipped: an operation began first");
+        return;
+    };
     let status = run_check();
+    if guard.superseded() {
+        tracing::debug!("update tick dropped: a manual operation began meanwhile");
+        return;
+    }
+    if status.state == UpdateState::Error {
+        tracing::warn!(
+            message = status.message.as_deref().unwrap_or("-"),
+            "periodic update check failed"
+        );
+    }
+    if !should_publish(&current(), &status) {
+        return;
+    }
     if status.state == UpdateState::Available {
         tracing::info!(
             version = status.update.as_ref().map(|i| i.version.as_str()).unwrap_or(""),
@@ -478,17 +549,44 @@ fn run_tick(app: &tauri::AppHandle) {
     publish(app, status);
 }
 
-/// One sleeping worker thread for the life of the app: a check five seconds
-/// after launch, then one every `CHECK_INTERVAL`. The setting is read at each
-/// tick, so toggling it needs no restart. Never touches the hook/UI threads.
+/// Longest single sleep. The deadline is wall-clock, so a laptop that slept
+/// through it checks within one slice of waking.
+const SLEEP_SLICE: Duration = Duration::from_secs(15 * 60);
+
+/// How long to sleep before the next look at the clock, or `None` when the
+/// deadline has passed. A clock moved far backwards (remaining beyond one whole
+/// interval) counts as due rather than waiting out the skew.
+fn sleep_slice(now: SystemTime, deadline: SystemTime) -> Option<Duration> {
+    match deadline.duration_since(now) {
+        Ok(left) if left <= CHECK_INTERVAL && !left.is_zero() => Some(left.min(SLEEP_SLICE)),
+        _ => None,
+    }
+}
+
+fn sleep_until(deadline: SystemTime) {
+    while let Some(slice) = sleep_slice(SystemTime::now(), deadline) {
+        std::thread::sleep(slice);
+    }
+}
+
+/// One named thread for the life of the app: a check five seconds after
+/// launch, then one every `CHECK_INTERVAL` of real time. The setting is read at
+/// each tick, so toggling it needs no restart. A panicking tick is logged and
+/// the timer carries on. Never touches the hook or UI threads.
 pub fn schedule_startup_check(app: tauri::AppHandle) {
-    tauri::async_runtime::spawn_blocking(move || {
-        std::thread::sleep(STARTUP_DELAY);
+    let spawned = std::thread::Builder::new().name("vkb-update-timer".into()).spawn(move || {
+        sleep_until(SystemTime::now() + STARTUP_DELAY);
         loop {
-            run_tick(&app);
-            std::thread::sleep(CHECK_INTERVAL);
+            let tick = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_tick(&app)));
+            if tick.is_err() {
+                tracing::error!("update timer tick panicked; it will run again next interval");
+            }
+            sleep_until(SystemTime::now() + CHECK_INTERVAL);
         }
     });
+    if let Err(error) = spawned {
+        tracing::warn!(%error, "could not start the update timer");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -497,7 +595,7 @@ pub fn schedule_startup_check(app: tauri::AppHandle) {
 
 #[tauri::command]
 pub async fn check_update(app: tauri::AppHandle) -> UpdateStatus {
-    let _busy = InFlight::begin();
+    let _busy = GATE.begin();
     // Paint `Đang kiểm tra…` before the request goes out.
     publish(&app, UpdateStatus::checking());
     let status = tauri::async_runtime::spawn_blocking(run_check)
@@ -514,7 +612,7 @@ pub fn update_status() -> UpdateStatus {
 
 #[tauri::command]
 pub async fn download_update() -> Result<DownloadOutcome, String> {
-    let _busy = InFlight::begin();
+    let _busy = GATE.begin();
     let Some(info) = available() else {
         return Err(crate::i18n::t("err.update.nothingToDownload"));
     };
@@ -859,11 +957,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn periodic_interval_is_twelve_hours() {
-        assert_eq!(CHECK_INTERVAL, Duration::from_secs(43_200));
-    }
-
-    #[test]
     fn tick_is_skipped_when_the_setting_is_off() {
         assert_eq!(decide_tick(false, false), Tick::SkipDisabled);
         assert_eq!(decide_tick(false, true), Tick::SkipDisabled);
@@ -876,23 +969,55 @@ mod tests {
     }
 
     #[test]
-    fn in_flight_guard_counts_and_releases() {
-        let before = IN_FLIGHT.load(Ordering::SeqCst);
-        {
-            let _a = InFlight::begin();
-            let _b = InFlight::begin();
-            assert_eq!(IN_FLIGHT.load(Ordering::SeqCst), before + 2);
-        }
-        assert_eq!(IN_FLIGHT.load(Ordering::SeqCst), before);
+    fn gate_try_begin_is_exclusive_and_releases() {
+        let gate = Gate::new();
+        let first = gate.try_begin().expect("idle gate");
+        assert!(gate.try_begin().is_none());
+        assert!(gate.is_busy());
+        drop(first);
+        assert!(!gate.is_busy());
+        assert!(gate.try_begin().is_some());
     }
 
     #[test]
-    fn an_error_tick_leaves_the_next_tick_free_to_check() {
-        // run_check turns any failure (including 403/429) into an error state,
-        // never a retry loop; the decision for the next tick is independent.
-        let status = UpdateStatus::error("x");
-        assert_eq!(status.state, UpdateState::Error);
-        assert_eq!(decide_tick(true, false), Tick::Check);
+    fn a_manual_operation_supersedes_a_running_tick() {
+        let gate = Gate::new();
+        let tick = gate.try_begin().unwrap();
+        assert!(!tick.superseded());
+        let manual = gate.begin();
+        assert!(tick.superseded());
+        drop(manual);
+        // Even after the manual one finished, the tick's result stays dropped.
+        assert!(tick.superseded());
+    }
+
+    fn known_update() -> UpdateStatus {
+        UpdateStatus::available(parse_release(FAKE_RELEASE).unwrap().expect("fake release"))
+    }
+
+    #[test]
+    fn a_failed_tick_never_erases_a_known_update() {
+        let known = known_update();
+        let error = UpdateStatus::error("offline");
+        assert!(!should_publish(&known, &error));
+        // Nothing to lose: the reason may be shown.
+        assert!(should_publish(&UpdateStatus::none(), &error));
+        // Real answers always replace.
+        assert!(should_publish(&known, &UpdateStatus::none()));
+        assert!(should_publish(&UpdateStatus::none(), &known));
+    }
+
+    #[test]
+    fn sleep_slices_follow_the_wall_clock() {
+        let now = SystemTime::now();
+        let hour = Duration::from_secs(3600);
+        assert_eq!(sleep_slice(now, now + hour), Some(SLEEP_SLICE));
+        assert_eq!(sleep_slice(now, now + Duration::from_secs(60)), Some(Duration::from_secs(60)));
+        // Woke after the deadline: due now.
+        assert_eq!(sleep_slice(now + hour, now), None);
+        assert_eq!(sleep_slice(now, now), None);
+        // Clock jumped back beyond a whole interval: treat as due.
+        assert_eq!(sleep_slice(now, now + CHECK_INTERVAL + hour), None);
     }
 
     #[test]
