@@ -185,8 +185,9 @@ const READY_FALLBACK_MS: u64 = 1500;
 /// window never turns key), and WebKit then holds the page until the window is
 /// shown: waiting for the fallback would leave nothing on screen for ~1.8 s.
 /// Past this mark the window is shown as it is, blank until the page paints,
-/// which is never worse than showing it at build. Healthy cold opens start
-/// their script 120-200 ms after staging.
+/// which is never worse than showing it at build (`schedule_early_check`).
+/// Measured on cold opens: the window turns occlusion-visible 90-170 ms after
+/// staging when all is well, and the script pings 250-470 ms after it.
 #[cfg(target_os = "macos")]
 const EARLY_REVEAL_MS: u64 = 350;
 
@@ -234,24 +235,10 @@ fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner
     PENDING.lock().push(Pending { label: label.to_string(), id, started, owner, alive: false });
     tracing::info!(window = label, build_ms = millis_since(started), "window.built");
 
-    // macOS safety net: a staged page whose script has not started is being held
-    // back by WebKit; show the window now rather than at the fallback.
+    // macOS safety net: a staged page that WebKit is holding back is shown now
+    // rather than at the fallback.
     #[cfg(target_os = "macos")]
-    {
-        let app = app.clone();
-        let label = label.to_string();
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(EARLY_REVEAL_MS));
-            let silent = PENDING
-                .lock()
-                .iter()
-                .any(|pending| pending.label == label && pending.id == id && !pending.alive);
-            if silent {
-                let handle = app.clone();
-                let _ = app.run_on_main_thread(move || reveal(&handle, &label, Some(id), "early"));
-            }
-        });
-    }
+    schedule_early_check(app, label, id, false);
 
     let app = app.clone();
     let label = label.to_string();
@@ -259,6 +246,38 @@ fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner
         std::thread::sleep(Duration::from_millis(READY_FALLBACK_MS));
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || reveal(&handle, &label, Some(id), "fallback"));
+    });
+}
+
+/// macOS: `EARLY_REVEAL_MS` after staging, decide whether WebKit is running the
+/// staged page. It is when the page's script has pinged (`page_alive`) or when
+/// the window is occlusion-visible (the throttle trigger is gone; a slow cold
+/// compile gets one more `EARLY_REVEAL_MS` to ping). Otherwise the window is
+/// shown now, blank until it paints.
+#[cfg(target_os = "macos")]
+fn schedule_early_check(app: &tauri::AppHandle, label: &str, id: u64, second: bool) {
+    let app = app.clone();
+    let label = label.to_string();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(EARLY_REVEAL_MS));
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let silent = PENDING
+                .lock()
+                .iter()
+                .any(|pending| pending.label == label && pending.id == id && !pending.alive);
+            if !silent {
+                return;
+            }
+            let unthrottled = handle
+                .get_webview_window(&label)
+                .is_some_and(|window| macos_shell::occlusion_visible(&window));
+            if unthrottled && !second {
+                schedule_early_check(&handle, &label, id, true);
+            } else {
+                reveal(&handle, &label, Some(id), "early");
+            }
+        });
     });
 }
 
