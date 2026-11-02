@@ -376,7 +376,8 @@ extern "C" fn refresh_input_source(_context: *mut c_void) {
     if ime::set_composing(composing) {
         tracing::info!(%id, %kind, composing, "input source changed");
         debuglog::note(format_args!(
-            "input-source id={id} type={kind} composing={composing}"
+            "ime composing={composing} id={id} ty={}",
+            kind.trim_start_matches("TISType")
         ));
     }
 }
@@ -416,8 +417,10 @@ extern "C" fn input_source_changed(
     request_ime_refresh();
 }
 
-/// Listen for `kTISNotifySelectedKeyboardInputSourceChanged`. Delivered on the
-/// run loop of the calling thread (the tap thread).
+/// Listen for `kTISNotifySelectedKeyboardInputSourceChanged`. Registered from
+/// the tap thread, so the system normally delivers it through that thread's run
+/// loop; the handler only queues a refresh, so it does not matter which thread
+/// it runs on (and the periodic re-check covers a missed delivery).
 fn observe_input_source() {
     unsafe {
         CFNotificationCenterAddObserver(

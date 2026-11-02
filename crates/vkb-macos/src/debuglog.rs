@@ -875,14 +875,41 @@ mod tests {
     }
 
     #[test]
-    fn secure_input_records_no_event_and_no_injection() {
-        // Not initialised in tests, so nothing is sent; the gate itself is what
-        // is asserted: while secure, `injected` must not look at its arguments.
+    fn secure_input_queues_only_secure_lines() {
+        // Install a real pipe (the same one `init` builds) without the env var.
+        let (tx, rx) = sync_channel(64);
+        let installed = PIPE
+            .set(Pipe {
+                tx,
+                dropped: Arc::new(AtomicU64::new(0)),
+            })
+            .is_ok();
+        assert!(installed, "no other test installs the pipe");
+
         event_in(ev(EventKind::KeyDown, 0x0B, "b", 0, 0), true);
         assert!(SECURE_NOW.load(Ordering::Relaxed));
         injected(1, 0, true, Some(&[0x62]), PostPath::Proxy, 1);
+        injected(2, crate::keys::MAC_BACKSPACE, true, None, PostPath::Proxy, 1);
+        event_out(7, now_us(), Some(&Decision::SWALLOW), "engine", true);
+        let queued: Vec<Rec> = rx.try_iter().collect();
+        assert_eq!(queued.len(), 1, "exactly the secure line");
+        assert!(matches!(queued[0], Rec::Secure { .. }));
+
+        // Back to normal: the same calls now queue ev / inj / dec.
         event_in(ev(EventKind::KeyDown, 0x0B, "b", 0, 0), false);
         assert!(!SECURE_NOW.load(Ordering::Relaxed));
+        injected(3, 0, true, Some(&[0x62]), PostPath::Proxy, 1);
+        event_out(7, now_us(), Some(&Decision::SWALLOW), "engine", false);
+        let kinds: Vec<&str> = rx
+            .try_iter()
+            .map(|rec| match rec {
+                Rec::Ev(_) => "ev",
+                Rec::Inj { .. } => "inj",
+                Rec::Dec { .. } => "dec",
+                _ => "other",
+            })
+            .collect();
+        assert_eq!(kinds, ["ev", "inj", "dec"]);
     }
 
     #[derive(Clone, Default)]

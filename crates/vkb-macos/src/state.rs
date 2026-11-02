@@ -190,6 +190,8 @@ pub struct Runtime {
     secure_logged: Option<Instant>,
     /// Why the last event ended as it did (diagnostics only: `keys.log`).
     stage: &'static str,
+    /// Last seen IME state; a flip drops the pending word.
+    ime_seen: bool,
 }
 
 impl Runtime {
@@ -230,6 +232,7 @@ impl Runtime {
             sink,
             secure_logged: None,
             stage: "",
+            ime_seen: false,
         };
         match cfg {
             Some(cfg) => runtime.apply_config(cfg),
@@ -522,7 +525,14 @@ impl Runtime {
         let enabled = self.effective_enabled();
         // Another input method composes on its own: stand aside entirely, like
         // the Windows hook does while an IME composes (macros included).
-        if self.host.ime_composing() {
+        let ime = self.host.ime_composing();
+        if ime != self.ime_seen {
+            // Input source switched (e.g. with Globe): the pending word belongs
+            // to the other source and must not be continued.
+            self.ime_seen = ime;
+            self.reset_engine();
+        }
+        if ime {
             self.stage = "ime";
             self.reset_engine();
             return Decision::PASS;
@@ -1165,6 +1175,7 @@ mod tests {
 
     #[test]
     fn another_input_method_makes_the_tap_stand_aside() {
+        let _guard = globals::TEST_LOCK.lock();
         let mut rig = rig(None);
         *rig.ime.lock() = true;
         // `a` then `s` would be `á` under Telex; with an IME selected nothing
@@ -1183,6 +1194,20 @@ mod tests {
         press(&mut rig.rt, 'a');
         assert!(press(&mut rig.rt, 's').swallow);
         assert_eq!(rig.log.lock().replaced.last().unwrap().1, "á");
+    }
+
+    #[test]
+    fn switching_input_source_drops_the_pending_word() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        press(&mut rig.rt, 'a');
+        *rig.ime.lock() = true;
+        press(&mut rig.rt, 'x');
+        *rig.ime.lock() = false;
+        // `s` must not combine with the stale `a` into `á`.
+        let decision = press(&mut rig.rt, 's');
+        assert!(!decision.swallow);
+        assert!(rig.log.lock().replaced.is_empty());
     }
 
     #[test]
