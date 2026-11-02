@@ -11,7 +11,7 @@
 
 use std::ffi::{c_char, c_void, CStr};
 use std::ptr;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU16, AtomicU8, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -63,6 +63,7 @@ const HID_EVENT_TAP: u32 = 0;
 const HEAD_INSERT: u32 = 0;
 const TAP_OPTION_DEFAULT: u32 = 0;
 const SOURCE_STATE_PRIVATE: i32 = -1;
+const SOURCE_STATE_HID: i32 = 1;
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
@@ -104,6 +105,7 @@ extern "C" {
     fn CGEventCreateKeyboardEvent(source: CGEventSourceRef, keycode: u16, down: bool)
         -> CGEventRef;
     fn CGEventSourceCreate(state: i32) -> CGEventSourceRef;
+    fn CGEventSourceKeyState(state: i32, keycode: u16) -> bool;
     // macOS 10.15+: Input Monitoring (kTCCServiceListenEvent).
     fn CGPreflightListenEventAccess() -> bool;
     fn CGRequestListenEventAccess() -> bool;
@@ -531,6 +533,34 @@ fn event_source() -> CGEventSourceRef {
     }
 }
 
+/// Physical keys (user data 0) seen down by the tap, one bit per keycode < 16.
+/// Never cleared on tap-disable: stale bits only skip a keycode, which is harmless.
+static HELD: AtomicU16 = AtomicU16::new(0);
+
+fn track_physical(raw: &RawEvent) {
+    if raw.user_data != 0 || raw.keycode >= 16 {
+        return;
+    }
+    let bit = 1u16 << raw.keycode;
+    match raw.kind {
+        EventKind::KeyDown => {
+            HELD.fetch_or(bit, Ordering::Relaxed);
+        }
+        EventKind::KeyUp => {
+            HELD.fetch_and(!bit, Ordering::Relaxed);
+        }
+        _ => {}
+    }
+}
+
+/// Keycode for one injected text step: a pool key the user is not holding.
+fn text_keycode() -> u16 {
+    crate::textkey::choose(|k| {
+        HELD.load(Ordering::Relaxed) & (1u16 << k) != 0
+            || unsafe { CGEventSourceKeyState(SOURCE_STATE_HID, k) }
+    })
+}
+
 /// Create, tag and post one key event. Returns `false` when it could not be made.
 fn post_key(keycode: u16, down: bool, text: Option<&[u16]>) -> bool {
     let log = debuglog::enabled();
@@ -574,13 +604,17 @@ pub fn send_replace(deletes: u32, text: &str) {
     for step in inject::plan(deletes, text) {
         match step {
             Step::Backspace => {
+                // The same collision is possible in theory if Backspace is held.
                 post_key(MAC_BACKSPACE, true, None);
                 post_key(MAC_BACKSPACE, false, None);
             }
             Step::Text(units) => {
-                // Virtual keycode 0 carries the string; the app reads the string.
-                post_key(0, true, Some(&units));
-                post_key(0, false, Some(&units));
+                // A pool keycode carries the string; the app reads the string.
+                // Chosen once so down/up match; must not be held or the app
+                // drops the event.
+                let key = text_keycode();
+                post_key(key, true, Some(&units));
+                post_key(key, false, Some(&units));
             }
         }
     }
@@ -772,6 +806,7 @@ extern "C" fn tap_callback(
         return event;
     };
     let ctx = unsafe { &mut *refcon.cast::<TapContext>() };
+    track_physical(&raw);
     if raw.kind == EventKind::KeyDown {
         request_ime_refresh_throttled();
     }
