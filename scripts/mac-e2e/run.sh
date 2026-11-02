@@ -46,19 +46,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 # Desktop lock preflight: another session may hold ~/.claude/desktop-qa.lock. Abort before touching anything unless it is ours
-# (session "Phiên bản vietkb cho Mac") or stale (its "until" is more than 10 min in the past).
+# (session "Phiên bản vietkb cho Mac"), free (empty, no session, released:true) or stale ("until" more than 10 min past).
+# Release a lock by overwriting it with {"session":"","released":true}, never by deleting it.
 LOCK=$HOME/.claude/desktop-qa.lock
 if [[ -f $LOCK ]]; then
   LOCKMSG=$(python3 -I - "$LOCK" <<'PYEOF'
 import json, sys, datetime
 try:
-    d = json.load(open(sys.argv[1]))
+    text = open(sys.argv[1], encoding="utf-8-sig").read().strip()
+    if not text:
+        sys.exit(0)
+    d = json.loads(text)
 except Exception as e:
     print("ABORT unreadable lock: %s" % e); sys.exit(0)
-if d.get("session") == "Phiên bản vietkb cho Mac":
+if d.get("released") or not d.get("session") or d.get("session") == "Phiên bản vietkb cho Mac":
     sys.exit(0)
 try:
-    until = datetime.datetime.strptime(d["until"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+    until = datetime.datetime.fromisoformat(d["until"].replace("Z", "+00:00"))
     if (datetime.datetime.now(datetime.timezone.utc) - until).total_seconds() > 600:
         sys.exit(0)
 except Exception:
