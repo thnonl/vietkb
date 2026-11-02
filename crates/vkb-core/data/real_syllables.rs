@@ -36,7 +36,6 @@ pub static REAL_SYLLABLES: &[&str] = &[
     "cho+",
     "chum1",
     "chun1",
-    "chun3",
     "co^p1",
     "coi1",
     "coi3",

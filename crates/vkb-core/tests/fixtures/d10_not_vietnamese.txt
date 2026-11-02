@@ -70,6 +70,7 @@ choe^1	N	choreers,chorees,choresers,choreses
 choe^3	N	choreer,choreser,choseer
 choen1	N	chosen,chosens
 choi3	N	choir
+chun3	C	churn
 co+e1	N	cowers,cowes,cowsers,cowses
 co+e3	N	cower,cowser
 co+e^1	N	cowerers,coweres,cowersers,cowerses
