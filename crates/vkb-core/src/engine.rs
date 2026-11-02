@@ -656,6 +656,17 @@ impl Engine {
     /// The bound: the re-judged screen is exactly the fresh typing of the kept
     /// keystrokes and is no longer than the screen it replaces; otherwise the
     /// frozen path above applies.
+    /// Tab ends the word like any separator, but it never reopens: Tab may move
+    /// focus to another field, where the word before it is not the text on
+    /// screen any more. Owner ruling, 2026-11-02 (a deliberate deviation from
+    /// EVKey, which treats Tab as class 1). The mark that would be pushed goes
+    /// with the history.
+    fn tab_key(&mut self, ch: char) -> EngineAction {
+        let action = self.boundary_key(ch);
+        self.line.clear();
+        action
+    }
+
     fn backspace(&mut self) -> EngineAction {
         // Backspace removes the opener itself: the pending raw zone is dead.
         self.raw_pending = false;
@@ -1820,10 +1831,7 @@ impl VietnameseEngine for Engine {
         match key.vk {
             VK_BACK => return self.backspace(),
             VK_RETURN => return self.boundary_key('\r'),
-            VK_TAB => {
-                let ch = key.ch.unwrap_or('\t');
-                return self.boundary_key(ch);
-            }
+            VK_TAB => return self.tab_key(key.ch.unwrap_or('\t')),
             // Escape is class 3 in EVKey: a hard reset, never a reopenable word.
             VK_ESCAPE => return self.boundary_key(key.ch.unwrap_or('\u{1b}')),
             _ => {}
@@ -1852,6 +1860,7 @@ impl VietnameseEngine for Engine {
         match ch {
             '\u{8}' | '\u{7f}' => self.backspace(),
             '\r' | '\n' => self.boundary_key('\r'),
+            '\t' => self.tab_key('\t'),
             _ if ch.is_control() => self.boundary_key(ch),
             // Owner ruling: digits typed before any letter are plain text, in VNI
             // too (`1duowcj` = `1được`); the letters after them are a fresh

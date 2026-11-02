@@ -112,6 +112,12 @@ rewrite, a code-shape (`.`/`->`/`::`) rewrite, and any other character the histo
 describe. Tests: `tests/line_history.rs` (owner cases, clearing, cap), and the seeded
 `tests/line_reopen_generated.rs` (2,000 generated cases, Telex and VNI, oracle = fresh typing).
 
+**Tab no longer reopens (owner, 2026-11-02).** Tab (the key and the `\t` character) still ends
+the word, but the line is cleared right after, so Backspace over the Tab reopens nothing. This
+is a deliberate deviation from EVKey, which treats Tab as class 1: Tab may move focus to another
+field, where the word before it is not the text on screen. Space, ASCII punctuation and digits
+keep reopening.
+
 ## D9 — Raw zone arms on the left token, not on the punctuation (owner ruling, 2026-10-30)
 
 `20-spec.md` §A9 specified "any opener ⇒ the next word is literal". Measured on the real engine, that

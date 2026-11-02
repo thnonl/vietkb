@@ -187,7 +187,16 @@ fn run_case(sentence: &Sentence, vni: bool, j: usize, delete_sep: bool, cont: &s
     let presses = sentence.presses_after(j, delete_sep);
     let typed = sentence.typed();
     let expected_screen = simulate(opts, &kept);
-    let expected_final = simulate(opts, &format!("{kept}{cont}"));
+    // A Tab never reopens (owner ruling 2026-11-02), and the line is forgotten
+    // at it. Deleting the separator after word `j` brings `j` back only when no
+    // Tab sits among the separators from there on; otherwise the continuation is
+    // a fresh word after the kept text.
+    let reopens = delete_sep && sentence.seps[j - 1..].iter().all(|sep| !sep.contains('\t'));
+    let expected_final = if delete_sep && !reopens {
+        format!("{expected_screen}{}", simulate(opts, cont))
+    } else {
+        simulate(opts, &format!("{kept}{cont}"))
+    };
 
     let mut engine = Engine::new(opts);
     let mut out = String::new();

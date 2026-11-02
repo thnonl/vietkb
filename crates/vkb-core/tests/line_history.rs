@@ -103,13 +103,25 @@ fn vni_modifier_walks_back_across_two_words() {
 }
 
 #[test]
-fn a_tab_separator_is_walked_back_through() {
+fn a_tab_forgets_the_line() {
+    // Owner ruling 2026-11-02: Tab may move focus to another field, so it never
+    // reopens. Deleting the Tab and the word after it reaches nothing back.
     let mut s = Session::new(telex());
     s.text("Tha");
     s.key(KeyInput::key(VK_TAB, Some('\t')));
     s.text("co");
     assert_eq!(s.backspaces(3), "Tha");
-    assert_eq!(s.text("s"), "Thá");
+    assert_eq!(s.text("s"), "Thas");
+}
+
+#[test]
+fn a_tab_character_forgets_the_line_too() {
+    // The same rule when the Tab arrives as a character, not as the Tab key.
+    let mut s = Session::new(telex());
+    s.text("Tha");
+    s.text("\t");
+    assert_eq!(s.backspace(), "Tha");
+    assert_eq!(s.text("s"), "Thas");
 }
 
 #[test]

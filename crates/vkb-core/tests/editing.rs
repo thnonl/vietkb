@@ -322,12 +322,14 @@ fn reopening_covers_separators_but_not_line_breaks() {
     assert_eq!(session.key(KeyInput::key(vkb_core::VK_ESCAPE, None)), "Tha");
     assert_eq!(session.text("s"), "Thas", "ESC hard-resets the word");
 
-    // Tab is a separator (EVKey class 1): deleting it brings the word back.
+    // Tab does not reopen (owner ruling 2026-11-02: Tab may move focus to another
+    // field, so the word before it is no longer the text on screen). EVKey class 1
+    // would reopen here; this is a deliberate deviation for safety.
     let mut session = Session::new(EngineOptions::default());
     assert_eq!(session.text("Tha"), "Tha");
     assert_eq!(session.key(KeyInput::key(vkb_core::VK_TAB, Some('\t'))), "Tha\t");
     assert_eq!(session.backspace(), "Tha");
-    assert_eq!(session.text("s"), "Thá");
+    assert_eq!(session.text("s"), "Thas");
 
     // Sentence punctuation behaves the same way.
     let mut session = Session::new(EngineOptions::default());
