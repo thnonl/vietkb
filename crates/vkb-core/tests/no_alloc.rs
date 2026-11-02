@@ -170,3 +170,50 @@ fn english_decision_at_a_word_break_does_not_allocate() {
         assert_eq!(lowest, 0, "the word-break decision allocated for {keys}");
     }
 }
+
+/// D10: the word break that decides an ambiguous word (`sex` ↔ `sẽ`) and the one-word-back
+/// rewrite of the word before it (`tooi sex in` after the break) must not allocate on the
+/// decision itself; the returned `Replace` text is measured separately.
+#[test]
+fn ambiguous_word_break_does_not_allocate() {
+    let mut engine = Engine::new(EngineOptions::default());
+    let mut lowest = usize::MAX;
+    for _ in 0..4 {
+        engine.reset();
+        for ch in "tooi".chars() {
+            let _ = engine.process_key(KeyInput::char(ch));
+        }
+        let _ = engine.process_key(KeyInput::space());
+        for ch in "sex".chars() {
+            let _ = engine.process_key(KeyInput::char(ch));
+        }
+        lowest = lowest.min(allocations(|| {
+            let _ = engine.process_key(KeyInput::space());
+        }));
+    }
+    assert_eq!(lowest, 0, "the ambiguous-word break allocated");
+}
+
+#[test]
+fn second_word_rewrite_does_not_allocate_on_the_decision() {
+    let mut engine = Engine::new(EngineOptions::default());
+    let mut lowest = usize::MAX;
+    for _ in 0..4 {
+        engine.reset();
+        for ch in "tooi".chars() {
+            let _ = engine.process_key(KeyInput::char(ch));
+        }
+        let _ = engine.process_key(KeyInput::space());
+        for ch in "max".chars() {
+            let _ = engine.process_key(KeyInput::char(ch));
+        }
+        let _ = engine.process_key(KeyInput::space());
+        for ch in "speed".chars() {
+            let _ = engine.process_key(KeyInput::char(ch));
+        }
+        lowest = lowest.min(allocations(|| {
+            let _ = engine.process_key(KeyInput::space());
+        }));
+    }
+    assert_eq!(lowest, 1, "the second-word rewrite allocates only the Replace insert string");
+}

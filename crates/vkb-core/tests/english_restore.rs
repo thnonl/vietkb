@@ -689,3 +689,115 @@ fn neutral_line_start_keeps_ordinary_vietnamese() {
     );
     check(code_app(), &[("Max ", "Mã "), ("if ", "if ")]);
 }
+
+// Owner (2026-11-02): "Tiếng Việt không có từ rôm, nên gõ room phải ra room chứ."
+// A common English word whose Telex reading is absent from the Vietnamese syllable corpus
+// comes out as typed in every context; real words (any corpus count) stay Vietnamese.
+#[test]
+fn room_and_other_non_words_stay_english_everywhere() {
+    let cases: &[(&str, &str)] = &[
+        ("room ", "room "),
+        ("meeting room ", "meeting room "),
+        ("phongf room ", "phòng room "),
+        ("room 5 ", "room 5 "),
+        ("soon ", "soon "),
+        ("door ", "door "),
+        ("more ", "more "),
+        ("tree ", "tree "),
+        ("showroom ", "showroom "),
+        ("the moon ", "the moon "),
+        // Real Vietnamese words stay Vietnamese.
+        ("max ", "mã "),
+        ("box ", "bõ "),
+        ("mix ", "mĩ "),
+        ("six ", "sĩ "),
+        ("tax ", "tã "),
+        ("gas ", "gá "),
+        ("bus ", "bú "),
+        ("moon ", "môn "),
+        ("see ", "sê "),
+    ];
+    check(telex(), cases);
+    check(code_app(), &cases[..9]);
+}
+
+#[test]
+fn room_compounds_are_still_typeable() {
+    check(
+        telex(),
+        &[
+            ("room rar ", "rôm rả "),
+            ("room sayr ", "rôm sảy "),
+            ("Room rar ", "Rôm rả "),
+            ("room sayr.", "rôm sảy."),
+            ("room raw ", "room raw "),
+            ("room rar", "room rả"),
+        ],
+    );
+}
+
+// Owner (2026-11-02): an ambiguous word (its keys spell a listed English word and compose a
+// real Vietnamese syllable) is decided by the words on both sides, through pair tables built
+// from Tatoeba English / Vietnamese sentences and Common Voice (`scripts/gen_bigrams.py`).
+// An attested English pair -> English; an attested Vietnamese pair -> Vietnamese; neither ->
+// the word's current default (Vietnamese for a real word). The next-word side is the
+// existing one-word-back Replace.
+#[test]
+fn attested_english_pairs_switch_to_english_on_either_side() {
+    check(
+        telex(),
+        &[
+            // The right neighbour settles it (one word back).
+            ("mail box ", "mail box "),
+            ("box office ", "box office "),
+            ("bus stop ", "bus stop "),
+            ("tax return ", "tax return "),
+            ("see you ", "see you "),
+            ("gas station ", "gas station "),
+            ("Max speed ", "Max speed "),
+            ("six pack ", "six pack "),
+            // Not attested -> Vietnamese stays (owner: "file max" has no meaning).
+            ("file max ", "file mã "),
+            ("fix bug max ", "fix bug mã "),
+            ("max so ", "mã so "),
+            ("mix tape ", "mĩ tape "),
+            // Attested Vietnamese pair.
+            ("max nguoonf ", "mã nguồn "),
+            ("tooi thichs mix nhacj ", "tôi thích mix nhạc "),
+            // Alone, the default.
+            ("max ", "mã "),
+            ("box ", "bõ "),
+            ("moon ", "môn "),
+        ],
+    );
+}
+
+#[test]
+fn closed_class_words_keep_the_old_behaviour_next_to_pairs() {
+    // Function words and the like: Vietnamese by default, English only with English on the left.
+    check(
+        telex(),
+        &[("as ", "á "), ("has ", "há "), ("us ", "ú "), ("too ", "tô "), ("or ", "ỏ "), ("there ", "thể "), ("these ", "thế "), ("this ", "thí ")],
+    );
+}
+
+// Compounds that 0.2.8 typed right and the stand-alone rule would break (corpus gaps, hand list
+// in lexicon.rs: BACK_VI_PAIRS, VI_COLLOCATIONS, VI_AFTER_ENGLISH).
+#[test]
+fn real_vietnamese_compounds_survive_the_standalone_english_rule() {
+    check(
+        telex(),
+        &[
+            ("cas tree ", "cá trê "),
+            ("turn murn ", "tủn mủn "),
+            ("keen keen ", "kên kên "),
+            ("vary cas ", "vảy cá "),
+            ("vary neens ", "vảy nến "),
+            // Alone they are English.
+            ("tree ", "tree "),
+            ("turn ", "turn "),
+            ("keen ", "keen "),
+            ("vary ", "vary "),
+        ],
+    );
+}

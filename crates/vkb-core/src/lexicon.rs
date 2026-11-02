@@ -18,6 +18,16 @@ mod consts {
 }
 use consts::RIME_PREFIXES;
 
+mod bigrams {
+    include!("../data/bigrams.rs");
+}
+use bigrams::{ENGLISH_PAIRS, VIETNAMESE_PAIRS};
+
+mod real_syllables {
+    include!("../data/real_syllables.rs");
+}
+use real_syllables::REAL_SYLLABLES;
+
 static ENGLISH: &str = include_str!("../data/english.txt");
 static VI: &str = include_str!("../data/vi.txt");
 
@@ -124,6 +134,28 @@ pub fn is_determiner(word: &[u8]) -> bool {
     DETERMINERS.iter().any(|w| w.as_bytes() == word)
 }
 
+/// More closed-class words that a Vietnamese reading shares (`as`/á, `if`/ì, `us`/ú, `too`/tô,
+/// `has`/há, `also`, `own`, `does`). Owner (2026-11-02): like the function words they keep the
+/// 0.2.8 behaviour (Vietnamese unless English context stands to their left); the pair tables and
+/// the one-word-back rule never apply to them.
+static CLOSED_EXTRA: &[&str] = &["also", "as", "does", "has", "if", "us", "own", "too"];
+
+/// A function word, determiner or other closed-class word.
+pub fn is_closed_word(word: &[u8]) -> bool {
+    is_function_word(word) || is_determiner(word) || CLOSED_EXTRA.iter().any(|w| w.as_bytes() == word)
+}
+
+/// A real Vietnamese syllable that the corpus does not attest (`són`, `lải`, `chơ`), from the
+/// hand-curated `data/real_syllables.rs`. `key` is a syllable key (see the module docs).
+pub fn real_syllable(key: &[u8]) -> bool {
+    REAL_SYLLABLES.binary_search_by(|k| k.as_bytes().cmp(key)).is_ok()
+}
+
+/// English words the engine keeps Vietnamese although the syllable corpus lacks the reading.
+pub fn real_but_uncounted(word: &[u8]) -> bool {
+    REAL_BUT_UNCOUNTED.contains(&word)
+}
+
 pub fn is_function_word(word: &[u8]) -> bool {
     FUNCTION_WORDS.binary_search_by(|w| w.as_bytes().cmp(word)).is_ok()
 }
@@ -220,7 +252,7 @@ pub enum Left {
     Determiner,
     /// The previous word was English or code; `hash` is the FNV state after `word + " "`,
     /// `run` how many English words in a row end here (`ok` is one, `the new dashboard` three).
-    English { hash: u32, run: u32 },
+    English { hash: u32, run: u32, listed: bool },
     /// The previous word was this Vietnamese syllable: its corpus count and the
     /// FNV state after `key + " "`.
     Vietnamese { count: u32, hash: u32 },
@@ -270,6 +302,17 @@ static VI_COLLOCATIONS: &[u32] = &[
     colloc("nu+o+c1", "mix"),
     colloc("nguo+i2", "mix"),
     colloc("quo^c1", "mix"),
+    colloc("ca1", "tree"),
+    // Left-side compounds of the rôm and churn/vảy readings: the Vietnamese word before the
+    // English-looking word makes the Vietnamese reading (owner: "room" has Vietnamese partners
+    // on both sides: nổi rôm, mọc rôm, bị rôm; the left side is checked here, the right side in
+    // BACK_VI_PAIRS).
+    colloc("no^i3", "room"),
+    colloc("moc5", "room"),
+    colloc("bi5", "room"),
+    colloc("Danh1", "vary"),
+    colloc("cao5", "vary"),
+    colloc("nga(n1", "churn"),
 ];
 
 /// The only phrases the one-word-back correction may turn into English: an
@@ -282,10 +325,45 @@ static BACK_PAIRS: &[u32] = &[
     colloc("max", "plus"),
     colloc("six", "pack"),
 ];
-static BACK_FIRST: &[&str] = &["max", "six"];
 
-pub fn back_first(typed: &[u8]) -> bool {
-    BACK_FIRST.iter().any(|w| w.as_bytes() == typed)
+/// English words whose Vietnamese reading is a real word that the syllable corpus lacks.
+static REAL_BUT_UNCOUNTED: &[&[u8]] = &[b"gas", b"nor", b"here"];
+
+/// Compounds the corpus cannot attest but the owner needs (`rôm rả`, `rôm sảy`): English
+/// `room` followed by these typed keys is rewritten to `rôm` (one word back).
+static BACK_VI_PAIRS: &[u32] = &[
+    colloc("room", "rar"),
+    colloc("room", "sayr"),
+    colloc("turn", "murn"),
+    colloc("keen", "keen"),
+    colloc("vary", "cas"),
+    colloc("vary", "neens"),
+    colloc("vary", "roongf"),
+    colloc("churn", "ngunr"),
+];
+
+/// Hand-written, short on purpose: compounds that 0.2.8 typed right and that the stand-alone
+/// rule (`count == 0` -> English) would otherwise break, because the Vietnamese corpus does not
+/// attest them (it has 33k sentences). `rôm rả`, `rôm sảy`, `tủn mủn`, `kên kên`, `vảy cá`,
+/// `vảy nến` are rewritten one word back (`BACK_VI_PAIRS`); `cá trê` is a previous-word pair
+/// (`VI_COLLOCATIONS`), and the second `keen` of `kên kên` is Vietnamese after English `keen`
+/// (`VI_AFTER_ENGLISH`). Add an entry only for a real compound the owner confirms.
+static VI_AFTER_ENGLISH: &[u32] = &[colloc("keen", "keen")];
+
+pub fn back_vi_pair(first: &[u8], second: &[u8]) -> bool {
+    let hash = fnv_extend(fnv_extend(fnv_extend(FNV_BASIS, first), b" "), second);
+    BACK_VI_PAIRS.contains(&hash)
+}
+
+/// English pair `first second` (lowercase words) attested in the English corpus table.
+pub fn en_pair_of(first: &[u8], second: &[u8]) -> bool {
+    let hash = fnv_extend(fnv_extend(fnv_extend(FNV_BASIS, first), b" "), second);
+    ENGLISH_PAIRS.binary_search(&hash).is_ok()
+}
+
+/// Vietnamese pair attested in the Vietnamese corpus table; `hash` = FNV of `key1 key2`.
+pub fn vi_pair(hash: u32) -> bool {
+    VIETNAMESE_PAIRS.binary_search(&hash).is_ok()
 }
 
 pub fn back_pair(first: &[u8], second: &[u8]) -> bool {
@@ -317,6 +395,51 @@ pub fn is_acronym(token: &[u8]) -> bool {
     }
     ACRONYMS.iter().any(|a| a.as_bytes() == token)
         || LOWER_ACRONYMS.iter().any(|a| a.as_bytes() == token)
+}
+
+/// Suffixes that make an inflected English word (`boxers`, `dyes`, `typing`), longest first.
+const INFLECTION_SUFFIXES: &[&str] = &["ers", "ing", "es", "ed", "er", "s"];
+
+/// An English word that the list does not carry but that is an inflection of a listed word:
+/// `boxers` of `box`, `dyes` of `dye` (the stem's final `e` may be dropped: `typing` of `type`).
+/// The stem must be listed, not a closed word, an identifier or a name. The level is the stem's
+/// plus two (the generator's rule: an inflected form is rarer than its base). Words that are
+/// listed themselves are not inflections here (`english_word` answers for them).
+pub fn inflected_english(word: &[u8]) -> Option<EnglishWord> {
+    // Only a word ending in a suffix letter can be an inflection. A doubled `ss` is the Telex
+    // undo idiom (`uss` types `us`, `ass` types `as`), never an English plural.
+    if !matches!(word.last()?, b's' | b'd' | b'r' | b'g') || word.ends_with(b"ss") || english_word(word).is_some() {
+        return None;
+    }
+    for suffix in INFLECTION_SUFFIXES {
+        let sfx = suffix.as_bytes();
+        if word.len() <= sfx.len() + 1 || !word.ends_with(sfx) {
+            continue;
+        }
+        let stem = &word[..word.len() - sfx.len()];
+        if let Some(base) = inflection_stem(stem) {
+            return Some(base);
+        }
+        // `typing` = `type` + `ing`: the stem with its final `e` restored.
+        if stem.len() < 32 {
+            let mut with_e = [0u8; 33];
+            with_e[..stem.len()].copy_from_slice(stem);
+            with_e[stem.len()] = b'e';
+            if let Some(base) = inflection_stem(&with_e[..stem.len() + 1]) {
+                return Some(base);
+            }
+        }
+    }
+    None
+}
+
+/// The listed English word `stem` as an inflection base (see [`inflected_english`]).
+fn inflection_stem(stem: &[u8]) -> Option<EnglishWord> {
+    let base = english_word(stem)?;
+    if base.ident || base.name || stem.len() < 2 || is_closed_word(stem) {
+        return None;
+    }
+    Some(EnglishWord { level: (base.level + 2).min(7), loan: base.loan, tech: base.tech, ident: false, name: false })
 }
 
 /// Should the typed English word replace the composed text?
@@ -356,6 +479,11 @@ pub fn english_wins(
         if COLLOCATIONS.contains(&phrase) {
             return true;
         }
+        // An attested Vietnamese pair (`phòng rôm`, `mã nguồn`) is Vietnamese, whatever the
+        // English reading would do; it also wins over an English pair for now.
+        if vi_pair(fnv_extend(hash, vi_key)) {
+            return false;
+        }
     }
     // `the car`, `my phone`: after a determiner a listed English word is English, when
     // it is a real common word (not `sangs`, `seeps`, `thees`, `thee`).
@@ -366,17 +494,42 @@ pub fn english_wins(
     if !plausible {
         return true;
     }
+    if let Left::English { hash, .. } = left {
+        if VI_AFTER_ENGLISH.contains(&fnv_extend(hash, typed)) {
+            return false;
+        }
+    }
+    // Owner (2026-11-02): `room` is English, there is no Vietnamese `rôm` (`meeting room`,
+    // `phòng room`, `room 5`). A listed English word whose composed syllable is not a real
+    // Vietnamese syllable is English in every context. "Real" = the corpus attests it
+    // (count > 0, handled above) or the hand-curated inventory `real_syllables.rs` lists it.
+    // Owner principle: a word comes out Vietnamese only if the composed text is a real
+    // Vietnamese word; doubt means Vietnamese. Every SCOWL level qualifies, so `sons`, `lair`
+    // and `chow` are English unless their syllables (`són`, `lải`, `chơ`) are in the inventory.
+    // Loanwords (`teen`, `mix`) keep the 0.2.8 treatment.
+    // `gas`/`gá` and `nor`/`nỏ` are kept Vietnamese by `REAL_BUT_UNCOUNTED` and the inventory.
+    if count == 0
+        && !is_closed_word(typed)
+        && !word.loan
+        && !REAL_BUT_UNCOUNTED.contains(&typed)
+        && !real_syllable(vi_key)
+    {
+        return true;
+    }
     match left {
         // `the car`, `my tips`, `with cups`: an English noun, even a plural or a
         // word that collides with a common Vietnamese one.
         // Not when the word has a common Vietnamese reading (`you má`, `check in có`).
         Left::Function => count < KNOWN_COUNT,
-        // `format is now`: a function word after English. `ok max`, `shop mix`, `Zalo max`,
-        // `post max` are not evidence (one interjection or content word is not); an English
-        // phrase of two words or more is. A
-        // programming word needs a code app and a code operator (`Left::Code`).
-        Left::English { hash, run } => {
-            (run >= 2 && is_function_word(typed) && !protected && !weak)
+        // Owner (2026-11-02): after an English word a listed English word stays English
+        // even when its keys compose a real Vietnamese word, but only when the two words
+        // form a pair attested in English sentences (`meeting room`, `mail box`; not
+        // `file max`). No bigram hit -> Vietnamese. `listed`: the left word is English
+        // text, not a raw typo. The restore hotkey flips it back.
+        Left::English { hash, run, listed } => {
+            // A common Vietnamese reading (`sẽ`) is not taken away by an English pair (`sex in`).
+            (listed && !protected && !is_closed_word(typed) && ENGLISH_PAIRS.binary_search(&fnv_extend(hash, typed)).is_ok())
+                || (run >= 2 && is_function_word(typed) && !protected && !weak)
                 || EN_COLLOCATIONS.contains(&fnv_extend(hash, typed))
         }
         // `x = max`, `foo(cos`: a code context.
@@ -447,7 +600,49 @@ mod tests {
     }
 
     #[test]
+    fn pair_tables_are_sorted() {
+        assert!(ENGLISH_PAIRS.windows(2).all(|w| w[0] < w[1]));
+        assert!(VIETNAMESE_PAIRS.windows(2).all(|w| w[0] < w[1]));
+        assert!(en_pair_of(b"mail", b"box") && !en_pair_of(b"file", b"max"));
+    }
+
+    #[test]
     fn function_words_are_sorted() {
         assert!(FUNCTION_WORDS.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    /// The D10 review of every plausible syllable that composes from a listed English word
+    /// (2026-11-02): `key<TAB>examples`, one per line. Not Vietnamese by review.
+    static REVIEW_NOT_REAL: &str = include_str!("../tests/fixtures/d10_not_vietnamese.txt");
+
+    #[test]
+    fn real_syllables_are_sorted_absent_from_corpus_and_reviewed() {
+        assert!(REAL_SYLLABLES.windows(2).all(|w| w[0] < w[1]), "real_syllables.rs must stay sorted");
+        for key in REAL_SYLLABLES {
+            assert_eq!(vi_count(key.as_bytes()), 0, "{key} is attested in vi.txt; drop it from the inventory");
+        }
+        let mut reviewed = 0;
+        for line in REVIEW_NOT_REAL.lines().filter(|l| !l.starts_with('#')) {
+            let key = line.split('\t').next().unwrap_or_default();
+            assert!(!real_syllable(key.as_bytes()), "{key} is both real and reviewed not real");
+            assert_eq!(vi_count(key.as_bytes()), 0, "{key} is attested in vi.txt");
+            reviewed += 1;
+        }
+        assert!(reviewed > 500, "the review fixture was truncated ({reviewed} keys)");
+    }
+
+    #[test]
+    fn real_syllable_examples() {
+        // Owner examples: these composed syllables are real and stay Vietnamese.
+        for key in ["son1", "sun1", "lai3", "cho+", "ma3", "ga1", "no3", "be^t1", "e^1", "hi1"] {
+            assert!(real_syllable(key.as_bytes()), "{key}");
+        }
+        // Junk from the owner's list (rose, buses, rooms, doors, trees, moons, sees, mores,
+        // sixes, bier, corer, cursors, dyes, boxer, mixer): not real, so the typed English stays.
+        for key in ["roe1", "bue1", "dye1", "ro^m1", "do^1", "tre^1", "mo^n1", "so^n1", "se^1", "moe1", "sie1",
+            "bie3", "coe3", "cuo1", "boe3", "mie3", "tre^", "ke^n", "tun3", "vay3"]
+        {
+            assert!(!real_syllable(key.as_bytes()), "{key}");
+        }
     }
 }
