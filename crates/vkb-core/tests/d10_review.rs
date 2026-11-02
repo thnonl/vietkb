@@ -1,9 +1,11 @@
 //! D10 completeness of the hand review (0.2.9). Every syllable a listed English word, or an
 //! inflection of one, composes to in Telex (auto-restore off) must be either:
+//!
 //! - attested by the corpus (count > 0: the rule never fires on it), or
 //! - a real Vietnamese syllable in `data/real_syllables.rs`, or
 //! - reviewed as not real in `tests/fixtures/d10_not_vietnamese.txt`, or
 //! - not a plausible syllable at all (the engine already calls such words English).
+//!
 //! A new count-zero plausible key that appears in neither list fails this test.
 
 use std::collections::BTreeSet;
