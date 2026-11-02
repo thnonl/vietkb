@@ -327,6 +327,11 @@ pub trait VietnameseEngine: Send {
     fn on_screen(&self) -> &[char] {
         &[]
     }
+    /// Make a word already on screen before the caret the current word, so the next tone or
+    /// mark key re-tones it ("gõ dấu đè"). `false` when the engine cannot take it.
+    fn seed_word(&mut self, _word: &str) -> bool {
+        false
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -45,6 +45,46 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
+# Desktop lock preflight: another session may hold ~/.claude/desktop-qa.lock. Abort before touching anything unless it is ours
+# (session "Phiên bản vietkb cho Mac"), free (empty, no session, released:true) or stale ("until" more than 10 min past).
+# Release a lock by overwriting it with {"session":"","released":true}, never by deleting it.
+LOCK=$HOME/.claude/desktop-qa.lock
+if [[ -f $LOCK ]]; then
+  LOCKMSG=$(python3 -I - "$LOCK" <<'PYEOF'
+import json, sys, datetime
+try:
+    text = open(sys.argv[1], encoding="utf-8-sig").read().strip()
+    if not text:
+        sys.exit(0)
+    d = json.loads(text)
+except Exception as e:
+    print("ABORT unreadable lock: %s" % e); sys.exit(0)
+if d.get("released") or not d.get("session") or d.get("session") == "Phiên bản vietkb cho Mac":
+    sys.exit(0)
+try:
+    until = datetime.datetime.fromisoformat(d["until"].replace("Z", "+00:00"))
+    if (datetime.datetime.now(datetime.timezone.utc) - until).total_seconds() > 600:
+        sys.exit(0)
+except Exception:
+    pass
+print("ABORT desktop locked by session %r until %s" % (d.get("session"), d.get("until")))
+PYEOF
+)
+  if [[ -n $LOCKMSG ]]; then echo "$LOCKMSG (lock file $LOCK). Nothing touched."; exit 7; fi
+fi
+# Take the lock (slots of <= 20 min, refreshed while the run lasts), read it back, release it on every exit by overwriting.
+LOCK_SESSION="Phiên bản vietkb cho Mac"; LOCK_SINCE=$(date -u +%FT%TZ); LOCK_REFRESH_PID=""
+lock_write() { print -r -- "{\"session\":\"$LOCK_SESSION\",\"project\":\"vietkb\",\"since\":\"$LOCK_SINCE\",\"until\":\"$(date -u -v+20M +%FT%TZ)\",\"note\":\"scripts/mac-e2e/run.sh pid $$\"}" > "$LOCK"; }
+lock_ours() { [[ -f $LOCK ]] && grep -qF "\"session\":\"$LOCK_SESSION\"" "$LOCK"; }
+release_lock() {
+  [[ -n $LOCK_REFRESH_PID ]] && kill $LOCK_REFRESH_PID 2>/dev/null; LOCK_REFRESH_PID=""
+  lock_ours && print -r -- '{"session":"","released":true}' > "$LOCK"
+}
+lock_write
+if ! lock_ours; then echo "ABORT desktop lock could not be taken (read-back shows: $(cat "$LOCK" 2>/dev/null)). Nothing touched."; exit 7; fi
+( while sleep 300; do lock_ours || exit 0; lock_write; done ) &!
+LOCK_REFRESH_PID=$!
+trap release_lock EXIT INT TERM HUP   # replaced by cleanup (which also releases) once the run has state to restore
 BIN=$APP/Contents/MacOS/vietkb
 TYPING=0; for ph in ${(s:,:)PHASES}; do case $ph in telex|vni|perapp|d10|drop|droptx) TYPING=1;; esac; done
 mkdir -p "$OUT"
@@ -99,6 +139,7 @@ cleanup() {
   fi
   for a in TextEdit Notes Stickies "Google Chrome" Code; do pgrep -x "$a" >/dev/null && glog "NOTE still running after run: $a (pid $(pgrep -x "$a" | head -1)); check whether it was running before the run"; done
   rm -rf "$TMPD"
+  release_lock; glog "LOCK released"
   glog "CLEANUP done"
 }
 trap cleanup EXIT INT TERM HUP
@@ -114,7 +155,7 @@ if [[ ,$PHASES, == *,app,* ]]; then
   DEVBIN=$DEVAPP/Contents/MacOS/vietkb
   DEVID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$DEVAPP/Contents/Info.plist" 2>/dev/null)
   glog "DEVAPP path=$DEVAPP id=$DEVID sha256=$(shasum -a 256 "$DEVBIN" 2>/dev/null | cut -d' ' -f1) version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$DEVAPP/Contents/Info.plist" 2>/dev/null)"
-  if [[ $DEVID != *.dev ]]; then glog "ABORT dev app identifier '$DEVID' is not a dev-channel build (guardrails section 6). Build it with scripts/mac-e2e/build-dev-app.sh"; trap - EXIT; rm -rf "$TMPD"; exit 2; fi
+  if [[ $DEVID != *.dev ]]; then glog "ABORT dev app identifier '$DEVID' is not a dev-channel build (guardrails section 6). Build it with scripts/mac-e2e/build-dev-app.sh"; trap - EXIT; release_lock; rm -rf "$TMPD"; exit 2; fi
   for p in $(pgrep -f "$HOME/.*VietKB.app/Contents/MacOS/vietkb" 2>/dev/null); do glog "PRE owner/other VietKB running (observed only, never touched): pid $p $(ps -o comm= -p $p)"; done
 fi
 
@@ -136,11 +177,11 @@ idle_s() { ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {printf "%d", $NF/100000000
 IDLE=$(idle_s)
 glog "HID idle ${IDLE}s"
 # Owner present and asked to run now (2026-11-02): skip the idle gate; the physical-input watcher still aborts on any real key or click.
-if [[ -n $VKB_E2E_NO_IDLE ]]; then glog "IDLE GATE skipped at owner's request (VKB_E2E_NO_IDLE); watcher stays armed"; IDLE=999; export SKIP_IDLE_GATE=1; fi
+if [[ -n ${VKB_E2E_NO_IDLE:-} ]]; then glog "IDLE GATE skipped at owner's request (VKB_E2E_NO_IDLE); watcher stays armed"; IDLE=999; export SKIP_IDLE_GATE=1; fi
 # wait (up to 5 min) for the owner to be idle >= 60 s; nothing has been touched yet
 for i in {1..$(( IDLE_WAIT / 5 ))}; do (( IDLE >= 60 )) && break; sleep 5; IDLE=$(idle_s); done
 glog "HID idle ${IDLE}s at gate"
-if (( IDLE < 60 )); then glog "ABORT owner not idle (< 60 s). Nothing touched."; trap - EXIT; rm -rf "$TMPD"; exit 4; fi
+if (( IDLE < 60 )); then glog "ABORT owner not idle (< 60 s). Nothing touched."; trap - EXIT; release_lock; rm -rf "$TMPD"; exit 4; fi
 (( DRY )) && { glog "dry run: stopping after preflight"; exit 0; }
 
 # --- input source -> ABC for the run
@@ -181,7 +222,7 @@ language = "vi"
 theme = "dark"
 $EXTRA
 EOF
-  if [[ -n $VKB_E2E_CONFIG ]]; then cp "$VKB_E2E_CONFIG" "$CFGDIR/config.toml"; glog "CONFIG copied from $VKB_E2E_CONFIG"; fi
+  if [[ -n ${VKB_E2E_CONFIG:-} ]]; then cp "$VKB_E2E_CONFIG" "$CFGDIR/config.toml"; glog "CONFIG copied from $VKB_E2E_CONFIG"; fi
   glog "CONFIG (test copy, $CFGDIR) sha256=$(shasum -a 256 "$CFGDIR/config.toml" | cut -d' ' -f1)"
   HOME=$HOMEDIR "$BIN" > "$OUT/vietkb-$name.log" 2>&1 &
   VKPID=$!

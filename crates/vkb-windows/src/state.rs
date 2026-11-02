@@ -554,7 +554,14 @@ impl HookRuntime {
             return Decision::PASS;
         }
 
-        // 4. Caret movement and other commands end the current word.
+        // 4. Caret movement and other commands end the current word. Plain Left/Right/End go to
+        // the engine instead: it follows the caret inside the line it remembers, so a tone key
+        // after a word there re-tones it ("gõ dấu đè", owner 2026-11-03).
+        if matches!(vk, keys::VK_LEFT | keys::VK_RIGHT | keys::VK_END) && !modifiers.shift {
+            trace.stage("caret-in-line");
+            let _ = self.process(KeyInput { vk, scan: info.scanCode as u16, ch: None, modifiers, down: true, repeat });
+            return Decision::PASS;
+        }
         if keys::is_caret_mover(vk) {
             trace.stage("caret-mover");
             self.reset_engine();
