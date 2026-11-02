@@ -271,14 +271,24 @@ func postMod(_ m: String, down: Bool) {
 }
 func releaseAllMods() { for m in ["SHIFT", "CTRL", "ALT", "CMD"] where curFlags & modFlag[m]!.rawValue != 0 { postMod(m, down: false) } }
 
-enum Speed: String { case fast, slow, burst
+enum Speed: String { case fast, slow, burst, roll, human
     func gap() -> UInt32 {
         switch self { case .fast: return UInt32.random(in: 8_000...15_000)
         case .slow: return UInt32.random(in: 150_000...250_000)
-        case .burst: return UInt32.random(in: 2_000...4_000) }
+        case .burst: return UInt32.random(in: 2_000...4_000)
+        case .roll: return UInt32.random(in: 25_000...45_000)
+        case .human: return UInt32.random(in: 40_000...90_000) }
     }
 }
+/// `roll`: key rollover like a fast typist: the next key goes down before the
+/// previous one is released (down N, down N+1, up N). `human`: 40-90 ms gaps, also rolled.
+var rollPendingUp: CGKeyCode? = nil
+func flushRoll() { if let p = rollPendingUp { postKey(p, down: false); rollPendingUp = nil } }
 func tapKey(_ kc: CGKeyCode, speed: Speed) {
+    if speed == .roll || speed == .human {
+        postKey(kc, down: true); usleep(UInt32.random(in: 8_000...20_000))
+        flushRoll(); rollPendingUp = kc; usleep(speed.gap()); return
+    }
     postKey(kc, down: true); usleep(UInt32.random(in: 1_500...4_000)); postKey(kc, down: false); usleep(speed.gap())
 }
 
@@ -288,7 +298,7 @@ func tapKey(_ kc: CGKeyCode, speed: Speed) {
 /// Upper-case letters and shifted symbols press Shift around the key (per-letter Shift).
 /// `check` runs before EVERY key (guardrails section 7): it must throw at the first foreground mismatch; nothing is re-focused.
 func typeScript(_ s: String, speed: Speed, check: () throws -> Void) throws {
-    defer { releaseAllMods() }
+    defer { flushRoll(); releaseAllMods() }
     var n = 0
     let chars = Array(s); var i = 0
     while i < chars.count {
@@ -396,6 +406,18 @@ struct Case {
 }
 // D10 "Tự nhận biết tiếng Anh và code" (0.2.8). Expected values from `vkb simulate --app neutral|code`;
 // the rows mirror the Windows real-app run (host-e2e8) plus a few owner examples.
+// Owner report 2026-11-02: fast typing loses the first letter of the next word ("gõ bằng" -> "gõ ằng").
+func dropCases() -> [Case] {
+    let a = "gox bawngf tinhs nawng "
+    let e = "gõ bằng tính năng "
+    return [
+        Case(id: "DR-F", keys: a, expect: e, reps: 5, sep: "", speed: .fast, note: "8-15 ms/key"),
+        Case(id: "DR-B", keys: a, expect: e, reps: 5, sep: "", speed: .burst, note: "2-4 ms/key"),
+        Case(id: "DR-R", keys: a, expect: e, reps: 5, sep: "", speed: .roll, note: "rollover 25-45 ms"),
+        Case(id: "DR-H", keys: a, expect: e, reps: 5, sep: "", speed: .human, note: "rollover 40-90 ms"),
+        Case(id: "DR-V", keys: "Tooi ddang gox bawngf tieengs Vieetj veef tinhs nawng mowis. ", expect: "Tôi đang gõ bằng tiếng Việt về tính năng mới. ", reps: 3, sep: "", speed: .roll, note: "sentence, rollover"),
+    ]
+}
 func d10Cases() -> [Case] {
     return [
         Case(id: "D10-01", keys: "user ", expect: "user "),
@@ -797,7 +819,7 @@ func openTerminal() throws -> Setup {
 var vkPidGlobal: Int32 = 0
 var perappRaw: Set<String> = []   // targets whose per-app rule disables VietKB: expect raw text
 func selectCases(_ method: String, smokeOnly: Bool, only: Set<String>? = nil) -> [Case] {
-    var cs = method == "d10" ? d10Cases() : method == "vni" ? vniCases() : telexCases()
+    var cs = method == "drop" ? dropCases() : method == "d10" ? d10Cases() : method == "vni" ? vniCases() : telexCases()
     if smokeOnly { cs = cs.filter { $0.smoke } }
     if let o = only { cs = cs.filter { o.contains($0.id) } }
     return cs
@@ -832,7 +854,7 @@ func runTarget(_ name: String, method: String, only: Set<String>?) throws {
         try guardFront(t, "first batch")
         if name == "gui-toggle" { try guiToggle(vkPid: vkPidGlobal, t: t); setup.teardown(); return }
         let full = name.hasPrefix("textedit")
-        var cs = selectCases(method, smokeOnly: !full && method != "d10", only: only)
+        var cs = selectCases(method, smokeOnly: !full && method != "d10" && method != "drop", only: only)
         if name == "vscode" || name == "terminal" { cs = cs.map { var c = $0; if let e = c.expectCode { c.expect = e }; return c } }
         if perappRaw.contains(name) {
             cs = [Case(id: "PA-1", keys: "dduwowcj", expect: "dduwowcj", note: "per-app rule enabled=false -> raw"),
