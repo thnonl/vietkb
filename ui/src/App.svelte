@@ -22,10 +22,15 @@
 
   /** Tell the shell the real content is on screen so it can show this window
    *  (main.rs `window_ready`). The shell keeps its own fallback timer; the 50 ms
-   *  cap here is for a hidden window, which may run no animation frames at all. */
+   *  cap here is for a hidden window, which may run no animation frames at all.
+   *  macOS stages the window at alpha 0 instead of hiding it (macos_shell.rs), so
+   *  frames do run there and the report waits for a real painted frame: a cold
+   *  first frame can take longer than 50 ms, and the cap would then reveal a
+   *  window that has not painted yet. */
   const reportPainted = async (): Promise<void> => {
     await tick();
-    await Promise.race([twoFrames(), new Promise<void>((resolve) => setTimeout(resolve, 50))]);
+    if (document.documentElement.dataset.platform === "macos") await twoFrames();
+    else await Promise.race([twoFrames(), new Promise<void>((resolve) => setTimeout(resolve, 50))]);
     if (api.isTauri()) await api.windowReady().catch(() => {});
   };
 
