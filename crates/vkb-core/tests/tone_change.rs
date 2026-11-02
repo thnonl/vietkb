@@ -282,10 +282,11 @@ fn d_tn_06_owner_repro_reopen_a_two_unit_tone_target() {
 
 #[test]
 fn d_tn_06_owner_repro_works_after_every_separator() {
-    // §D8: the reopen memory covers space, Tab and ASCII punctuation (class 1).
+    // §D8: the reopen memory covers space and ASCII punctuation (class 1). Tab is
+    // not reopened: owner ruling 2026-11-02 (Tab may move focus to another field).
     assert_eq!(flow(telex(), "vieet.\u{8}s"), "viết");
     assert_eq!(flow(telex(), "vieet,\u{8}s"), "viết");
-    assert_eq!(flow(telex(), "vieet\t\u{8}s"), "viết");
+    assert_eq!(flow(telex(), "vieet\t\u{8}s"), "viêts");
     assert_eq!(flow(vni(), "vie6t.\u{8}1"), "viết");
     // Two Backspaces: the reopened word loses its last letter, then retones.
     assert_eq!(flow(telex(), "vieet \u{8}\u{8}s"), "viế");

@@ -217,3 +217,53 @@ fn second_word_rewrite_does_not_allocate_on_the_decision() {
     }
     assert_eq!(lowest, 1, "the second-word rewrite allocates only the Replace insert string");
 }
+
+/// The line history never touches the heap: words and separators are appended to
+/// inline rings, and a Backspace over a separator rebuilds the word from them.
+#[test]
+fn words_and_separators_do_not_allocate() {
+    let mut engine = Engine::new(EngineOptions::default());
+    let lowest = minimum_over(8, || {
+        engine.reset();
+        for ch in "nam ho ban, xanh. ".chars() {
+            // Plain letters and separators: every key is a Noop.
+            assert!(engine.process_key(KeyInput::char(ch)).is_noop(), "{ch:?}");
+        }
+    });
+    assert_eq!(lowest, 0, "typing words and separators allocated");
+}
+
+#[test]
+fn backspace_across_separators_does_not_allocate() {
+    let mut engine = Engine::new(EngineOptions::default());
+    let lowest = minimum_over(8, || {
+        engine.reset();
+        for ch in "nam ho ban, xanh ".chars() {
+            engine.process_key(KeyInput::char(ch));
+        }
+        // Walk every separator back: each one reopens the word before it.
+        for _ in 0..17 {
+            engine.process_key(KeyInput::backspace());
+        }
+    });
+    assert_eq!(lowest, 0, "Backspace across separators allocated");
+}
+
+#[test]
+fn history_overflow_does_not_allocate() {
+    // 80 separators and words: the 32-entry history drops its oldest entries
+    // over and over; the drops and the pushes stay inline.
+    let mut engine = Engine::new(EngineOptions::default());
+    let lowest = minimum_over(4, || {
+        engine.reset();
+        for _ in 0..80 {
+            for ch in "ba ".chars() {
+                engine.process_key(KeyInput::char(ch));
+            }
+        }
+        for _ in 0..40 {
+            engine.process_key(KeyInput::backspace());
+        }
+    });
+    assert_eq!(lowest, 0, "history overflow allocated");
+}
