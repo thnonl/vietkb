@@ -18,6 +18,11 @@ mod consts {
 }
 use consts::RIME_PREFIXES;
 
+mod bigrams {
+    include!("../data/bigrams.rs");
+}
+use bigrams::ENGLISH_BIGRAMS;
+
 static ENGLISH: &str = include_str!("../data/english.txt");
 static VI: &str = include_str!("../data/vi.txt");
 
@@ -220,7 +225,7 @@ pub enum Left {
     Determiner,
     /// The previous word was English or code; `hash` is the FNV state after `word + " "`,
     /// `run` how many English words in a row end here (`ok` is one, `the new dashboard` three).
-    English { hash: u32, run: u32 },
+    English { hash: u32, run: u32, listed: bool },
     /// The previous word was this Vietnamese syllable: its corpus count and the
     /// FNV state after `key + " "`.
     Vietnamese { count: u32, hash: u32 },
@@ -283,6 +288,23 @@ static BACK_PAIRS: &[u32] = &[
     colloc("six", "pack"),
 ];
 static BACK_FIRST: &[&str] = &["max", "six"];
+
+/// English words whose Vietnamese reading is a real word that the syllable corpus lacks.
+static REAL_BUT_UNCOUNTED: &[&[u8]] = &[b"gas", b"nor", b"here"];
+
+/// Words that are English alone but whose Vietnamese reading starts a real compound
+/// (`rôm rả`, `rôm sảy`); the one-word-back check turns them back into Vietnamese.
+static BACK_VI_FIRST: &[&str] = &["room"];
+static BACK_VI_PAIRS: &[u32] = &[colloc("room", "rar"), colloc("room", "sayr")];
+
+pub fn back_vi_first(typed: &[u8]) -> bool {
+    BACK_VI_FIRST.iter().any(|w| w.as_bytes() == typed)
+}
+
+pub fn back_vi_pair(first: &[u8], second: &[u8]) -> bool {
+    let hash = fnv_extend(fnv_extend(fnv_extend(FNV_BASIS, first), b" "), second);
+    BACK_VI_PAIRS.contains(&hash)
+}
 
 pub fn back_first(typed: &[u8]) -> bool {
     BACK_FIRST.iter().any(|w| w.as_bytes() == typed)
@@ -366,17 +388,34 @@ pub fn english_wins(
     if !plausible {
         return true;
     }
+    // Owner (2026-11-02): `room` is English, there is no Vietnamese `rôm` (`meeting room`,
+    // `phòng room`, `room 5`). A common listed English word whose Vietnamese reading is
+    // absent from the syllable corpus is not a stand-alone Vietnamese word, so the typed
+    // keys win in every context. Threshold: count == 0, because the counts of the words
+    // that must stay Vietnamese overlap those that must not (corpus counts):
+    // room/rôm 0, soon/sôn 0, door/dổ 0, more/mỏe 0, tree/trê 0 flip to English;
+    // see/sê 2, tax/tã 2, box/bõ 1, bus/bú 1, max/mã 31, mix/mĩ 21, moon/môn 60,
+    // six/sĩ 173 stay Vietnamese (any count above 0 is "doubt -> Vietnamese").
+    // `gas`/`gá` is absent from the corpus but is a real word (`gá chồng`), so it is
+    // listed in `REAL_BUT_UNCOUNTED`. Only SCOWL level 1 (the commonest English words) qualifies: the level 3+ words (`sons`, `lair`, `chow`, `mar`) collide with real Vietnamese words the corpus also lacks (`són`, `lải`, `chơ`, `mả`).
+    // `nor`/`nỏ` is such a word too.
+    if count == 0 && !is_function_word(typed) && word.level == 1 && !word.loan && !REAL_BUT_UNCOUNTED.contains(&typed)
+    {
+        return true;
+    }
     match left {
         // `the car`, `my tips`, `with cups`: an English noun, even a plural or a
         // word that collides with a common Vietnamese one.
         // Not when the word has a common Vietnamese reading (`you má`, `check in có`).
         Left::Function => count < KNOWN_COUNT,
-        // `format is now`: a function word after English. `ok max`, `shop mix`, `Zalo max`,
-        // `post max` are not evidence (one interjection or content word is not); an English
-        // phrase of two words or more is. A
-        // programming word needs a code app and a code operator (`Left::Code`).
-        Left::English { hash, run } => {
-            (run >= 2 && is_function_word(typed) && !protected && !weak)
+        // Owner (2026-11-02): after an English word a listed English word stays English
+        // even when its keys compose a real Vietnamese word, but only when the two words
+        // form a pair attested in English sentences (`meeting room`, `mail box`; not
+        // `file max`). No bigram hit -> Vietnamese. `listed`: the left word is English
+        // text, not a raw typo. The restore hotkey flips it back.
+        Left::English { hash, run, listed } => {
+            (listed && ENGLISH_BIGRAMS.binary_search(&fnv_extend(hash, typed)).is_ok())
+                || (run >= 2 && is_function_word(typed) && !protected && !weak)
                 || EN_COLLOCATIONS.contains(&fnv_extend(hash, typed))
         }
         // `x = max`, `foo(cos`: a code context.
@@ -444,6 +483,11 @@ mod tests {
             let real = matches!(bad, "ay" | "ot");
             assert_eq!(rime_prefix_ok(bad.as_bytes()), real, "{bad}");
         }
+    }
+
+    #[test]
+    fn english_bigrams_are_sorted() {
+        assert!(ENGLISH_BIGRAMS.windows(2).all(|w| w[0] < w[1]));
     }
 
     #[test]

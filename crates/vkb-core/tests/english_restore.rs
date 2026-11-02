@@ -689,3 +689,49 @@ fn neutral_line_start_keeps_ordinary_vietnamese() {
     );
     check(code_app(), &[("Max ", "Mã "), ("if ", "if ")]);
 }
+
+// Owner (2026-11-02): "Tiếng Việt không có từ rôm, nên gõ room phải ra room chứ."
+// A common English word whose Telex reading is absent from the Vietnamese syllable corpus
+// comes out as typed in every context; real words (any corpus count) stay Vietnamese.
+#[test]
+fn room_and_other_non_words_stay_english_everywhere() {
+    let cases: &[(&str, &str)] = &[
+        ("room ", "room "),
+        ("meeting room ", "meeting room "),
+        ("phongf room ", "phòng room "),
+        ("room 5 ", "room 5 "),
+        ("soon ", "soon "),
+        ("door ", "door "),
+        ("more ", "more "),
+        ("tree ", "tree "),
+        ("showroom ", "showroom "),
+        ("the moon ", "the moon "),
+        // Real Vietnamese words stay Vietnamese.
+        ("max ", "mã "),
+        ("box ", "bõ "),
+        ("mix ", "mĩ "),
+        ("six ", "sĩ "),
+        ("tax ", "tã "),
+        ("gas ", "gá "),
+        ("bus ", "bú "),
+        ("moon ", "môn "),
+        ("see ", "sê "),
+    ];
+    check(telex(), cases);
+    check(code_app(), &cases[..9]);
+}
+
+#[test]
+fn room_compounds_are_still_typeable() {
+    check(
+        telex(),
+        &[
+            ("room rar ", "rôm rả "),
+            ("room sayr ", "rôm sảy "),
+            ("Room rar ", "Rôm rả "),
+            ("room sayr.", "rôm sảy."),
+            ("room raw ", "room raw "),
+            ("room rar", "room rả"),
+        ],
+    );
+}

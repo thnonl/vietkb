@@ -52,6 +52,9 @@ struct PrevWord {
     count: u32,
     /// FNV state after `key + " "`, so the pair hash is one `fnv_extend` away.
     hash: u32,
+    /// `PrevKind::English` only: the word is a listed English word or a code shape that
+    /// was left as typed (not a raw typo): the next listed English word stays English.
+    listed: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -73,7 +76,7 @@ enum PrevKind {
 }
 
 impl PrevWord {
-    const NONE: PrevWord = PrevWord { kind: PrevKind::None, count: 0, hash: 0 };
+    const NONE: PrevWord = PrevWord { kind: PrevKind::None, count: 0, hash: 0, listed: false };
 }
 
 /// A Vietnamese word kept over an English one at the space after it, kept for
@@ -185,6 +188,8 @@ pub struct Engine {
     scratch: Option<Scratch>,
     /// A one-word-back candidate is waiting: record what this break leaves.
     want_scratch: bool,
+    /// The last word break restored the typed keys on a D10 decision (not a typo restore).
+    word_auto: bool,
     /// What stood left of the word whose break is being handled.
     boundary_prev: PrevKind,
     boundary_prev_run: u32,
@@ -219,6 +224,7 @@ impl Engine {
             back: None,
             scratch: None,
             want_scratch: false,
+            word_auto: false,
             boundary_prev: PrevKind::None,
             boundary_prev_run: 0,
         }
@@ -805,9 +811,9 @@ impl Engine {
         self.boundary_prev_run = prev.count;
         if ch != ' ' {
             self.prev_word = if matches!(ch, ',' | ';' | ':') {
-                PrevWord { kind: PrevKind::Clause, count: 0, hash: 0 }
+                PrevWord { kind: PrevKind::Clause, count: 0, hash: 0, listed: false }
             } else if matches!(ch, '=' | '(' | '[' | '{' | '<' | '>' | '+' | '*' | '%' | '&' | '|') {
-                PrevWord { kind: PrevKind::Code, count: 0, hash: 0 }
+                PrevWord { kind: PrevKind::Code, count: 0, hash: 0, listed: false }
             } else {
                 PrevWord::NONE
             };
@@ -896,6 +902,7 @@ impl Engine {
         }
 
         let (auto, score) = self.auto_decide(ch, prev, path, self.path_segments);
+        self.word_auto = auto;
         if auto || (self.options.restore_wrong_word && self.should_restore()) {
             let mut insert = TextBuf::new();
             for &raw_ch in &self.raw {
@@ -1338,7 +1345,7 @@ impl Engine {
             return (true, None);
         };
         let left = match prev.kind {
-            PrevKind::English => Left::English { hash: prev.hash, run: prev.count },
+            PrevKind::English => Left::English { hash: prev.hash, run: prev.count, listed: prev.listed },
             PrevKind::Function => Left::Function,
             PrevKind::Determiner => Left::Determiner,
             PrevKind::Vietnamese => Left::Vietnamese { count: prev.count, hash: prev.hash },
@@ -1375,7 +1382,9 @@ impl Engine {
     /// screen; otherwise the composed word is.
     fn note_boundary(&mut self, ch: char, score: Option<f32>, restored: bool, old_len: usize) {
         let candidate = ch == ' ' && !restored && !self.raw.is_empty() && score.is_some();
-        if !self.want_scratch && !candidate {
+        // `room` kept English may still become `rôm` before `rả` / `sảy`.
+        let reverse = ch == ' ' && restored && self.raw_is_back_vi_first();
+        if !self.want_scratch && !candidate && !reverse {
             return;
         }
         let mut raw_text = TextBuf::new();
@@ -1410,7 +1419,27 @@ impl Engine {
                 typed: lower,
                 typed_len: lower_len,
             });
+        } else if reverse {
+            self.back = Some(Back {
+                shown: raw_text,
+                alternate: composed_text,
+                typed: lower,
+                typed_len: lower_len,
+            });
         }
+    }
+
+    /// The word that just ended was typed as a word that has a Vietnamese compound
+    /// reading (`room`): lowercase ASCII letters only, no allocation.
+    fn raw_is_back_vi_first(&self) -> bool {
+        let mut lower = [0u8; MAX_WORD];
+        if self.raw.len() > MAX_WORD || !self.raw.iter().all(char::is_ascii_alphabetic) {
+            return false;
+        }
+        for (slot, &typed) in lower.iter_mut().zip(self.raw.iter()) {
+            *slot = typed.to_ascii_lowercase() as u8;
+        }
+        lexicon::back_vi_first(&lower[..self.raw.len()])
     }
 
     /// Amendment 4: the word before the one that just ended may be rewritten, once,
@@ -1427,8 +1456,9 @@ impl Engine {
         // Vietnamese. An unusual Vietnamese word on the right (`mĩ miều`) is not
         // evidence; neither is anything else.
         let right = &scratch.right_raw[..scratch.right_len];
-        let rewrite = scratch.right.kind == PrevKind::English
-            && lexicon::back_pair(&back.typed[..back.typed_len], right);
+        let first = &back.typed[..back.typed_len];
+        let rewrite = (scratch.right.kind == PrevKind::English && lexicon::back_pair(first, right))
+            || (scratch.right.kind != PrevKind::English && lexicon::back_vi_pair(first, right));
         if !rewrite {
             return action;
         }
@@ -1471,18 +1501,18 @@ impl Engine {
             });
         // The pronoun `I` opens an English clause as the function words do.
         if self.raw.as_slice() == ['I'] && !restored {
-            return PrevWord { kind: PrevKind::Function, count: self.next_run(), hash: 0 };
+            return PrevWord { kind: PrevKind::Function, count: self.next_run(), hash: 0, listed: false };
         }
         // A determiner that stayed raw or was restored (`the`, `my`, `your`, `these`
         // after English); `this` shown as `thí` is Vietnamese.
         // A capitalised one after a Vietnamese word is a name (`Em My`, `Bé My`).
         let name_like = self.raw.first().is_some_and(char::is_ascii_uppercase) && self.boundary_prev == PrevKind::Vietnamese;
         if ascii && !name_like && (restored || !self.raw_differs()) && lexicon::is_determiner(&word[..self.raw.len()]) {
-            return PrevWord { kind: PrevKind::Determiner, count: self.next_run(), hash: 0 };
+            return PrevWord { kind: PrevKind::Determiner, count: self.next_run(), hash: 0, listed: false };
         }
         // Only when the word stays as typed: `how` shown as `hơ` is Vietnamese.
         if ascii && !restored && !self.raw_differs() && lexicon::is_function_word(&word[..self.raw.len()]) {
-            return PrevWord { kind: PrevKind::Function, count: self.next_run(), hash: 0 };
+            return PrevWord { kind: PrevKind::Function, count: self.next_run(), hash: 0, listed: false };
         }
         let english = restored || (ascii && (self.composed.literal || self.literal_from != usize::MAX));
         if english {
@@ -1491,23 +1521,32 @@ impl Engine {
             } else {
                 0
             };
-            return PrevWord { kind: PrevKind::English, count: self.next_run(), hash };
+            let listed = if restored {
+                self.word_auto || (ascii && lexicon::english_word(&word[..self.raw.len()]).is_some())
+            } else {
+                // Unchanged text: English-looking only if it could not be a Vietnamese
+                // syllable typed without its marks (`tuoi`, `chao`).
+                ascii && !spell::is_plausible_syllable(&self.composed.letters, self.composed.tone, self.options.jfwz_as_consonant)
+            };
+            return PrevWord { kind: PrevKind::English, count: self.next_run(), hash, listed };
         }
         let mut key = [0u8; 48];
         if let Some(len) = self.composed_key(&mut key) {
             let count = lexicon::vi_count(&key[..len]);
             if count > 0 {
                 let hash = lexicon::fnv_extend(lexicon::fnv_extend(lexicon::FNV_BASIS, &key[..len]), b" ");
-                return PrevWord { kind: PrevKind::Vietnamese, count, hash };
+                return PrevWord { kind: PrevKind::Vietnamese, count, hash, listed: false };
             }
         }
         // An unchanged ASCII word the Vietnamese list does not know (`new`, `Hanoi`)
         // is read as English for the run of English words.
         if ascii && !self.raw_differs() {
             let hash = lexicon::fnv_extend(lexicon::fnv_extend(lexicon::FNV_BASIS, &word[..self.raw.len()]), b" ");
-            return PrevWord { kind: PrevKind::English, count: self.next_run(), hash };
+            let listed = lexicon::english_word(&word[..self.raw.len()]).is_some()
+                || !spell::is_plausible_syllable(&self.composed.letters, self.composed.tone, self.options.jfwz_as_consonant);
+            return PrevWord { kind: PrevKind::English, count: self.next_run(), hash, listed };
         }
-        PrevWord { kind: PrevKind::Other, count: 0, hash: 0 }
+        PrevWord { kind: PrevKind::Other, count: 0, hash: 0, listed: false }
     }
 
     /// `foo.`, `a-`, `std:` — a word followed by a code separator that the next
