@@ -101,3 +101,23 @@
   };
   setTimeout(step, 600);
 })();
+
+// Compact menu on phones and tablets: a button opens the link panel under the header.
+// Escape or a link click closes it. On wide screens the CSS shows the links in the header row.
+(() => {
+  const btn = document.querySelector('.menu-btn');
+  const nav = document.getElementById('site-menu');
+  if (!btn || !nav) return;
+  const set = (open) => {
+    nav.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  btn.addEventListener('click', () => set(!nav.classList.contains('is-open')));
+  nav.addEventListener('click', (e) => { if (e.target.closest('a')) set(false); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && nav.classList.contains('is-open')) { set(false); btn.focus(); }
+  });
+  document.addEventListener('click', (e) => {
+    if (!nav.contains(e.target) && !btn.contains(e.target)) set(false);
+  });
+})();

@@ -20,13 +20,13 @@
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="720">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#FFF9F2" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#161423" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#FFF9F2">
 <link rel="icon" href="../assets/logo-v.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&amp;display=swap">
+<script>document.documentElement.classList.add('js')</script>
 <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -39,7 +39,7 @@
       <span class="brand-name">VietKB</span>
     </a>
 
-    <nav class="nav" aria-label="Main">
+    <nav class="nav" id="site-menu" aria-label="Main">
       <a href="#start">Get started</a>
       <a href="#features">Features</a>
       <a href="#shortcuts">Shortcuts</a>
@@ -54,6 +54,11 @@
       <a href="index.html" hreflang="en" lang="en" aria-label="English" aria-current="page">EN</a>
     </nav>
 
+    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span class="visually-hidden">Menu</span>
+    </button>
+
     <a class="btn btn-primary btn-small btn-header" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download</a>
   </div>
 </header>
@@ -66,7 +71,7 @@
         <p class="eyebrow">Free · Open source</p>
         <h1 id="hero-title"><span class="type-line"><span class="type-ghost">Type Vietnamese</span><span class="type-live" aria-hidden="true"></span></span><br><span class="h1-accent">on Windows and&nbsp;Mac</span></h1>
         <p class="kicker">New: recognizes over 95% of common English words</p>
-        <p class="pitch">VietKB supports Telex and VNI. English words, names, file names and code typed in Vietnamese text stay as you typed them, with no need to switch Vietnamese off. It runs in the background, with just a V/E icon in the system tray or the menu bar.</p>
+        <p class="pitch"><span class="pitch-full">VietKB supports Telex and VNI. English words, names, file names and code typed in Vietnamese text stay as you typed them, with no need to switch Vietnamese off. It runs in the background, with just a V/E icon in the system tray or the menu bar.</span><span class="pitch-short">English and code typed mid-sentence stay as typed, no need to switch Vietnamese off.</span></p>
         <p class="how"><strong>How it works:</strong> type with Telex or VNI, and accented letters appear as you type.</p>
 
         <!-- Without JS: Windows is the main button and macOS a link below; both work.

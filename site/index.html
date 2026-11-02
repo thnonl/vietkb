@@ -20,13 +20,13 @@
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="720">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#FFF9F2" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#161423" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#FFF9F2">
 <link rel="icon" href="assets/logo-v.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&amp;display=swap">
+<script>document.documentElement.classList.add('js')</script>
 <link rel="stylesheet" href="styles.css">
 <!-- Hides the headline before hero.js types it; reveals it anyway if hero.js never starts. -->
 <script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&!/[?&](t|reduce)=/.test(location.search)){var d=document.documentElement;d.classList.add('type-pending');setTimeout(function(){d.classList.remove('type-pending')},3000)}</script>
@@ -41,7 +41,7 @@
       <span class="brand-name">VietKB</span>
     </a>
 
-    <nav class="nav" aria-label="Điều hướng chính">
+    <nav class="nav" id="site-menu" aria-label="Điều hướng chính">
       <a href="#bat-dau">Bắt đầu</a>
       <a href="#tinh-nang">Tính năng</a>
       <a href="#phim-tat">Phím tắt</a>
@@ -56,6 +56,11 @@
       <a href="en/" hreflang="en" lang="en" aria-label="English">EN</a>
     </nav>
 
+    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span class="visually-hidden">Mục lục</span>
+    </button>
+
     <a class="btn btn-primary btn-small btn-header" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải về</a>
   </div>
 </header>
@@ -68,7 +73,7 @@
         <p class="eyebrow">Miễn phí · Mã nguồn mở</p>
         <h1 id="hero-title"><span class="type-line"><span class="type-ghost">Gõ tiếng Việt</span><span class="type-live" aria-hidden="true"></span></span><br><span class="h1-accent">trên Windows và&nbsp;Mac</span></h1>
         <p class="kicker">Mới: nhận biết hơn 95% từ tiếng Anh thông dụng</p>
-        <p class="pitch">VietKB hỗ trợ Telex và VNI. Tiếng Anh, tên, tên tệp và code gõ giữa câu tiếng Việt được giữ nguyên, không cần tắt tiếng Việt. Ứng dụng chạy nền, chỉ để lại biểu tượng V/E trong khay hệ thống hoặc trên thanh menu.</p>
+        <p class="pitch"><span class="pitch-full">VietKB hỗ trợ Telex và VNI. Tiếng Anh, tên, tên tệp và code gõ giữa câu tiếng Việt được giữ nguyên, không cần tắt tiếng Việt. Ứng dụng chạy nền, chỉ để lại biểu tượng V/E trong khay hệ thống hoặc trên thanh menu.</span><span class="pitch-short">Tiếng Anh và code gõ giữa câu được giữ nguyên, không cần tắt tiếng Việt.</span></p>
         <p class="how"><strong>Cách dùng:</strong> gõ Telex hoặc VNI, chữ có dấu hiện ra ngay khi bạn gõ.</p>
 
         <!-- Không có JS: nút chính là Windows, dòng dưới là link macOS; cả hai đều bấm được.
