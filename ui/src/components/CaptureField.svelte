@@ -150,7 +150,11 @@
 
   /** Esc ends the capture but keeps the focus, so a click on the same field is
    *  not a focus event: it must arm the capture again. */
-  const rearm = () => {
+  const rearm = (event: MouseEvent) => {
+    // WebKit (macOS) does not focus a <button> on click, so `focus` never
+    // fires and keys would go to <body>. Focus it here (a no-op where the
+    // click already focused it): onfocus runs `begin`, keys reach this button.
+    (event.currentTarget as HTMLElement).focus();
     if (!editing) begin();
   };
 

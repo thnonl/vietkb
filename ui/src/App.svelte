@@ -26,6 +26,9 @@
     // the key itself (hotkey capture) calls preventDefault, so it keeps Esc.
     const onKey = (event: KeyboardEvent) => {
       if (!modal || event.key !== "Escape" || event.defaultPrevented) return;
+      // A hotkey field is recording: Esc cancels it, never the dialog, even if
+      // WebKit left focus on <body> so the field did not see the key.
+      if (document.querySelector(".cap.rec")) return;
       event.preventDefault();
       closeCurrent();
     };
