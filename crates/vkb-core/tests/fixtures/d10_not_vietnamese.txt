@@ -88,7 +88,6 @@ coe3	N	core,corer,coser,coxer
 coe^1	N	coreers,corees,corerers,coreres
 coe^3	N	coreer,corerer,corerser,coreser
 coet1	N	corset,corsets,corsetss
-coi3	N	coir
 com1	N	corms
 com3	N	corm
 con1	N	cons,corns
@@ -198,6 +197,7 @@ ho^e^3	N	hooferer,hooferser
 ho^p1	N	hoops
 hoa4	N	hoax
 hoay3	N	hoary
+hoe1	N	hoers,hoes,horse,horsers
 hoe3	N	hoer,horser,hoser
 hoe^1	N	hoerers,hoeres,hoersers,hoerses
 hoe^3	N	hoerer,hoerser,hoeser,horseer
