@@ -21,9 +21,12 @@
 <meta property="og:image:height" content="720">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#ECECF1" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#101017" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FFF9F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161423" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="assets/logo-v.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
 <!-- Hides the headline before hero.js types it; reveals it anyway if hero.js never starts. -->
 <script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&!/[?&](t|reduce)=/.test(location.search)){var d=document.documentElement;d.classList.add('type-pending');setTimeout(function(){d.classList.remove('type-pending')},3000)}</script>
@@ -34,11 +37,12 @@
 <header class="site-header">
   <div class="wrap header-inner">
     <a class="brand" href="index.html">
-      <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+      <span class="brand-key"><img src="assets/logo-v.png" alt="" width="28" height="28"></span>
       <span class="brand-name">VietKB</span>
     </a>
 
     <nav class="nav" aria-label="Điều hướng chính">
+      <a href="#bat-dau">Bắt đầu</a>
       <a href="#tinh-nang">Tính năng</a>
       <a href="#phim-tat">Phím tắt</a>
       <a href="#cai-dat">Cài đặt</a>
@@ -52,7 +56,7 @@
       <a href="en/" hreflang="en" lang="en" aria-label="English">EN</a>
     </nav>
 
-    <a class="btn btn-primary btn-small" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải về</a>
+    <a class="btn btn-primary btn-small btn-header" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải về</a>
   </div>
 </header>
 
@@ -62,14 +66,15 @@
     <div class="wrap hero-grid">
       <div class="hero-copy">
         <p class="eyebrow">Miễn phí · Mã nguồn mở</p>
-        <h1 id="hero-title"><span class="type-line"><span class="type-ghost">Gõ tiếng Việt</span><span class="type-live" aria-hidden="true"></span></span><br><span class="h1-accent">trên Windows và Mac</span></h1>
+        <h1 id="hero-title"><span class="type-line"><span class="type-ghost">Gõ tiếng Việt</span><span class="type-live" aria-hidden="true"></span></span><br><span class="h1-accent">trên Windows và&nbsp;Mac</span></h1>
         <p class="kicker">Mới: nhận biết hơn 95% từ tiếng Anh thông dụng</p>
         <p class="pitch">VietKB hỗ trợ Telex và VNI. Tiếng Anh, tên, tên tệp và code gõ giữa câu tiếng Việt được giữ nguyên, không cần tắt tiếng Việt. Ứng dụng chạy nền, chỉ để lại biểu tượng V/E trong khay hệ thống hoặc trên thanh menu.</p>
+        <p class="how"><strong>Cách dùng:</strong> gõ Telex hoặc VNI, chữ có dấu hiện ra ngay khi bạn gõ.</p>
 
         <!-- Không có JS: nút chính là Windows, dòng dưới là link macOS; cả hai đều bấm được.
              Có JS: máy Mac thấy nút chính là macOS, link phụ là Windows (xem script cuối trang). -->
         <div class="actions">
-          <a class="btn btn-primary" id="dl-primary" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">
+          <a class="btn btn-primary btn-xl" id="dl-primary" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">
             <span class="dl-label">Tải cho Windows</span>
             <span class="btn-meta" data-release="installer">3,1 MB</span>
           </a>
@@ -110,15 +115,16 @@
       <figure class="board-wrap">
         <div class="board">
           <div class="screen">
-            <video class="hero-video" autoplay muted loop playsinline preload="metadata"
+            <!-- Không autoplay trong HTML: hero.js tự phát khi máy không yêu cầu giảm chuyển động. Có thanh điều khiển để tạm dừng. -->
+            <video class="hero-video" muted loop playsinline controls preload="metadata"
                    poster="assets/hero-poster.jpg" width="1280" height="720"
                    aria-label="Clip 31 giây giới thiệu VietKB: gõ Vieetj ra Việt, một đoạn chat có zoom, fix, pass gõ thẳng mà không tắt tiếng Việt, các tính năng chính, số đo trên Windows và cửa sổ cài đặt trên Windows và macOS.">
               <source src="assets/hero-motion.mp4" type="video/mp4">
             </video>
           </div>
 
-          <div class="telex-demo" aria-hidden="true">
-            <span class="telex-raw">Việt</span><span class="telex-caret"></span>
+          <div class="telex-demo">
+            <span class="telex-raw" aria-hidden="true">Việt</span><span class="telex-caret" aria-hidden="true"></span>
             <button type="button" aria-label="Tạm dừng hoạt ảnh" aria-pressed="false">Ⅱ</button>
           </div>
 
@@ -130,6 +136,35 @@
           Gõ <code>Vieetj</code> ra <code>Việt</code>. Chữ đổi ngay sau mỗi phím bạn gõ, không phải đợi gõ xong cả từ.
         </figcaption>
       </figure>
+    </div>
+  </section>
+
+  <section class="section start" id="bat-dau" aria-labelledby="bat-dau-title">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 id="bat-dau-title">Bắt đầu trong 3 bước</h2>
+          <p class="lead">Cả Windows lẫn Mac đều làm theo ba bước này. Chi tiết cho từng máy nằm ở mục Cài đặt.</p>
+        </div>
+      </div>
+
+      <ol class="quick">
+        <li class="quick-step">
+          <span class="qs-top"><span class="qs-num">1</span><svg class="qs-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></span>
+          <h3>Tải về</h3>
+          <p>Bấm nút tải ở đầu trang. Trang tự chọn đúng bản cho máy của bạn.</p>
+        </li>
+        <li class="quick-step">
+          <span class="qs-top"><span class="qs-num">2</span><svg class="qs-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18"/></svg></span>
+          <h3>Mở và cài đặt</h3>
+          <p>Mở tệp vừa tải và làm theo hướng dẫn. Trên Mac, kéo VietKB vào Applications.</p>
+        </li>
+        <li class="quick-step">
+          <span class="qs-top"><span class="qs-num">3</span><svg class="qs-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></span>
+          <h3>Gõ thử</h3>
+          <p>Mở một ô nhập bất kỳ và gõ <code>Vieetj</code>, sẽ ra <strong>Việt</strong>. Bấm biểu tượng V/E để bật hoặc tắt tiếng Việt.</p>
+        </li>
+      </ol>
     </div>
   </section>
 
@@ -153,7 +188,6 @@
   <section class="section" id="tinh-nang" aria-labelledby="tinh-nang-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">01</span>
         <div>
           <h2 id="tinh-nang-title">Tính năng</h2>
           <p class="lead">Các tính năng dưới đây có trên cả Windows và Mac, trừ chỗ ghi rõ.</p>
@@ -225,7 +259,6 @@
   <section class="section" id="phim-tat" aria-labelledby="phim-tat-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">02</span>
         <div>
           <h2 id="phim-tat-title">Phím tắt mặc định</h2>
           <p class="lead">Trên Mac, các phím F1, F2, F8, F9, F11 đang dùng cho độ sáng, âm lượng và Hiện màn hình nền, nên VietKB không gán sẵn. Trong cửa sổ <em>Phím tắt…</em> bạn đổi được phím bật/tắt tiếng Việt, đổi kiểu gõ, khôi phục từ gõ sai và mở cài đặt.</p>
@@ -241,43 +274,43 @@
           <tbody>
             <tr>
               <th scope="row">Chuyển bật / tắt tiếng Việt</th>
-              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd></td>
-              <td><kbd>⌃⇧</kbd><span class="key-name">Control + Shift</span></td>
+              <td data-label="Windows"><kbd>Ctrl</kbd>+<kbd>Shift</kbd></td>
+              <td data-label="macOS"><kbd>⌃⇧</kbd><span class="key-name">Control + Shift</span></td>
             </tr>
             <tr>
               <th scope="row">Khôi phục từ gõ sai</th>
-              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
-              <td><kbd>⌃⇧Z</kbd><span class="key-name">Control + Shift + Z</span></td>
+              <td data-label="Windows"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
+              <td data-label="macOS"><kbd>⌃⇧Z</kbd><span class="key-name">Control + Shift + Z</span></td>
             </tr>
             <tr>
               <th scope="row">Mở cài đặt</th>
-              <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td>
-              <td><kbd>⌃⌥S</kbd><span class="key-name">Control + Option + S</span></td>
+              <td data-label="Windows"><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td>
+              <td data-label="macOS"><kbd>⌃⌥S</kbd><span class="key-name">Control + Option + S</span></td>
             </tr>
             <tr>
               <th scope="row">Bật tiếng Việt</th>
-              <td><kbd>F1</kbd></td>
-              <td class="unset">Chưa đặt</td>
+              <td data-label="Windows"><kbd>F1</kbd></td>
+              <td data-label="macOS" class="unset">Chưa đặt</td>
             </tr>
             <tr>
               <th scope="row">Tắt tiếng Việt</th>
-              <td><kbd>F2</kbd></td>
-              <td class="unset">Chưa đặt</td>
+              <td data-label="Windows"><kbd>F2</kbd></td>
+              <td data-label="macOS" class="unset">Chưa đặt</td>
             </tr>
             <tr>
               <th scope="row">Bảng gõ tắt</th>
-              <td><kbd>F8</kbd></td>
-              <td class="unset">Chưa đặt</td>
+              <td data-label="Windows"><kbd>F8</kbd></td>
+              <td data-label="macOS" class="unset">Chưa đặt</td>
             </tr>
             <tr>
               <th scope="row">Bật / tắt gõ tắt</th>
-              <td><kbd>F9</kbd></td>
-              <td class="unset">Chưa đặt</td>
+              <td data-label="Windows"><kbd>F9</kbd></td>
+              <td data-label="macOS" class="unset">Chưa đặt</td>
             </tr>
             <tr>
               <th scope="row">Bật / tắt loại trừ ứng dụng</th>
-              <td><kbd>F11</kbd></td>
-              <td class="unset">Chưa đặt</td>
+              <td data-label="Windows"><kbd>F11</kbd></td>
+              <td data-label="macOS" class="unset">Chưa đặt</td>
             </tr>
           </tbody>
         </table>
@@ -289,7 +322,6 @@
   <section class="section" id="giao-dien" aria-labelledby="giao-dien-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">03</span>
         <div>
           <h2 id="giao-dien-title">Giao diện</h2>
           <p class="lead">Cửa sổ cài đặt chứa các tùy chọn hay dùng. Phím tắt, bảng gõ tắt và tùy chọn nâng cao nằm ở cửa sổ riêng. Trên thanh tiêu đề có nút <span lang="en">VI | EN</span> để đổi ngôn ngữ và nút Sáng/Tối. Giao diện mặc định sáng hay tối theo hệ thống.</p>
@@ -310,7 +342,7 @@
 
         <figure>
           <div class="shot-frame">
-            <img src="assets/main-dark.png" width="480" height="460"
+            <img src="assets/main-dark.png" width="480" height="460" loading="lazy"
                  alt="Cửa sổ cài đặt VietKB trên Windows, chế độ tối, cùng các tùy chọn như ảnh bên cạnh.">
           </div>
           <figcaption>
@@ -348,7 +380,6 @@
   <section class="section" id="cai-dat" aria-labelledby="cai-dat-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">04</span>
         <div>
           <h2 id="cai-dat-title">Cài đặt</h2>
           <p class="lead">Mỗi máy chỉ ba bước, không cần cài thêm phần mềm nào khác.</p>
@@ -375,7 +406,7 @@
       </ol>
 
       <div class="note">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/>
           <path d="M12 9.5v4M12 16.8h.01"/>
         </svg>
@@ -405,7 +436,7 @@
       </ol>
 
       <div class="note">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/>
           <path d="M12 9.5v4M12 16.8h.01"/>
         </svg>
@@ -419,7 +450,7 @@
       </div>
 
       <div class="note note-info">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <circle cx="12" cy="12" r="9"/>
           <path d="M12 11v5M12 7.8h.01"/>
         </svg>
@@ -434,7 +465,6 @@
   <section class="section" id="hoi-dap" aria-labelledby="hoi-dap-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">05</span>
         <div>
           <h2 id="hoi-dap-title">Hỏi đáp</h2>
           <p class="lead">Phần lớn là câu hỏi khi mới cài trên Mac.</p>
@@ -485,7 +515,6 @@
   <section class="section" id="phat-hanh" aria-labelledby="phat-hanh-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">06</span>
         <div>
           <h2 id="phat-hanh-title">Bản phát hành</h2>
           <p class="lead">Mỗi bản phát hành có bộ cài Windows và tệp <code>.dmg</code> cho Mac. Ghi chú phát hành lấy từ GitHub.</p>
@@ -514,7 +543,7 @@
             <h3>Ghi chú phát hành</h3>
             <span class="log-dot" aria-hidden="true"></span>
           </div>
-          <div id="changelog">
+          <div id="changelog" tabindex="0" role="region" aria-label="Ghi chú phát hành">
             <p class="log-empty">Chưa tải được ghi chú phát hành. <a href="https://github.com/thnonl/vietkb/releases">Xem trên GitHub</a>.</p>
           </div>
           <p class="log-foot">
@@ -532,7 +561,7 @@
   <div class="wrap footer-inner">
     <div class="footer-brand">
       <a class="brand" href="index.html">
-        <span class="brand-key"><img src="assets/logo-v.png" alt="" width="22" height="22"></span>
+        <span class="brand-key"><img src="assets/logo-v.png" alt="" width="28" height="28"></span>
         <span class="brand-name">VietKB</span>
       </a>
       <p class="footer-note">Bộ gõ tiếng Việt miễn phí cho Windows và macOS.</p>

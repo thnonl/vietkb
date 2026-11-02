@@ -21,9 +21,12 @@
 <meta property="og:image:height" content="720">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#ECECF1" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#101017" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FFF9F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161423" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../assets/logo-v.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -32,11 +35,12 @@
 <header class="site-header">
   <div class="wrap header-inner">
     <a class="brand" href="index.html">
-      <span class="brand-key"><img src="../assets/logo-v.png" alt="" width="22" height="22"></span>
+      <span class="brand-key"><img src="../assets/logo-v.png" alt="" width="28" height="28"></span>
       <span class="brand-name">VietKB</span>
     </a>
 
     <nav class="nav" aria-label="Main">
+      <a href="#start">Get started</a>
       <a href="#features">Features</a>
       <a href="#shortcuts">Shortcuts</a>
       <a href="#install">Install</a>
@@ -50,7 +54,7 @@
       <a href="index.html" hreflang="en" lang="en" aria-label="English" aria-current="page">EN</a>
     </nav>
 
-    <a class="btn btn-primary btn-small" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download</a>
+    <a class="btn btn-primary btn-small btn-header" id="dl-header" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download</a>
   </div>
 </header>
 
@@ -60,14 +64,15 @@
     <div class="wrap hero-grid">
       <div class="hero-copy">
         <p class="eyebrow">Free · Open source</p>
-        <h1 id="hero-title">Type Vietnamese<br><span class="h1-accent">on Windows and Mac</span></h1>
+        <h1 id="hero-title"><span class="type-line"><span class="type-ghost">Type Vietnamese</span><span class="type-live" aria-hidden="true"></span></span><br><span class="h1-accent">on Windows and&nbsp;Mac</span></h1>
         <p class="kicker">New: recognizes over 95% of common English words</p>
         <p class="pitch">VietKB supports Telex and VNI. English words, names, file names and code typed in Vietnamese text stay as you typed them, with no need to switch Vietnamese off. It runs in the background, with just a V/E icon in the system tray or the menu bar.</p>
+        <p class="how"><strong>How it works:</strong> type with Telex or VNI, and accented letters appear as you type.</p>
 
         <!-- Without JS: Windows is the main button and macOS a link below; both work.
              With JS: Mac visitors get macOS as the main button (see the script at the end). -->
         <div class="actions">
-          <a class="btn btn-primary" id="dl-primary" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">
+          <a class="btn btn-primary btn-xl" id="dl-primary" data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">
             <span class="dl-label">Download for Windows</span>
             <span class="btn-meta" data-release="installer">3.1 MB</span>
           </a>
@@ -108,15 +113,16 @@
       <figure class="board-wrap">
         <div class="board">
           <div class="screen">
-            <video class="hero-video" autoplay muted loop playsinline preload="metadata"
+            <!-- No autoplay in the HTML: hero.js starts the clip unless the visitor asks for less motion. Native controls let anyone pause it. -->
+            <video class="hero-video" muted loop playsinline controls preload="metadata"
                    poster="../assets/hero-poster.jpg" width="1280" height="720"
                    aria-label="31-second clip about VietKB: typing Vieetj gives Việt, a chat where zoom, fix and pass are typed without switching Vietnamese off, the main features, measurements on Windows, and the settings window on Windows and macOS.">
               <source src="../assets/hero-motion.mp4" type="video/mp4">
             </video>
           </div>
 
-          <div class="telex-demo" aria-hidden="true">
-            <span class="telex-raw">Việt</span><span class="telex-caret"></span>
+          <div class="telex-demo">
+            <span class="telex-raw" aria-hidden="true">Việt</span><span class="telex-caret" aria-hidden="true"></span>
             <button type="button" aria-label="Pause animation" aria-pressed="false">Ⅱ</button>
           </div>
 
@@ -128,6 +134,35 @@
           Type <code>Vieetj</code> to get <code>Việt</code>. The word updates after every key, so you never wait for the end of the word.
         </figcaption>
       </figure>
+    </div>
+  </section>
+
+  <section class="section start" id="start" aria-labelledby="start-title">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2 id="start-title">Get started in 3 steps</h2>
+          <p class="lead">Windows and Mac both use these three steps. Details for each computer are in the Install section.</p>
+        </div>
+      </div>
+
+      <ol class="quick">
+        <li class="quick-step">
+          <span class="qs-top"><span class="qs-num">1</span><svg class="qs-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></span>
+          <h3>Download</h3>
+          <p>Click the download button at the top. The page picks the right version for your computer.</p>
+        </li>
+        <li class="quick-step">
+          <span class="qs-top"><span class="qs-num">2</span><svg class="qs-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18"/></svg></span>
+          <h3>Open and install</h3>
+          <p>Open the file you downloaded and follow the steps. On a Mac, drag VietKB into Applications.</p>
+        </li>
+        <li class="quick-step">
+          <span class="qs-top"><span class="qs-num">3</span><svg class="qs-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></span>
+          <h3>Start typing</h3>
+          <p>Open any text box and type <code>Vieetj</code>. You get <strong>Việt</strong>. Click the V/E icon to turn Vietnamese on or off.</p>
+        </li>
+      </ol>
     </div>
   </section>
 
@@ -151,7 +186,6 @@
   <section class="section" id="features" aria-labelledby="features-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">01</span>
         <div>
           <h2 id="features-title">Features</h2>
           <p class="lead">Everything below works on both Windows and Mac, unless noted.</p>
@@ -223,7 +257,6 @@
   <section class="section" id="shortcuts" aria-labelledby="shortcuts-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">02</span>
         <div>
           <h2 id="shortcuts-title">Default shortcuts</h2>
           <p class="lead">On a Mac, F1, F2, F8, F9 and F11 control brightness, volume and Show Desktop, so VietKB leaves those actions unassigned. In the <em>Shortcuts…</em> window you can change the keys for Vietnamese on/off, Change typing method, Restore misspelled word and Open settings.</p>
@@ -239,43 +272,43 @@
           <tbody>
             <tr>
               <th scope="row">Vietnamese on/off</th>
-              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd></td>
-              <td><kbd>⌃⇧</kbd><span class="key-name">Control + Shift</span></td>
+              <td data-label="Windows"><kbd>Ctrl</kbd>+<kbd>Shift</kbd></td>
+              <td data-label="macOS"><kbd>⌃⇧</kbd><span class="key-name">Control + Shift</span></td>
             </tr>
             <tr>
               <th scope="row">Restore misspelled word</th>
-              <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
-              <td><kbd>⌃⇧Z</kbd><span class="key-name">Control + Shift + Z</span></td>
+              <td data-label="Windows"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td>
+              <td data-label="macOS"><kbd>⌃⇧Z</kbd><span class="key-name">Control + Shift + Z</span></td>
             </tr>
             <tr>
               <th scope="row">Open settings</th>
-              <td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td>
-              <td><kbd>⌃⌥S</kbd><span class="key-name">Control + Option + S</span></td>
+              <td data-label="Windows"><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td>
+              <td data-label="macOS"><kbd>⌃⌥S</kbd><span class="key-name">Control + Option + S</span></td>
             </tr>
             <tr>
               <th scope="row">Vietnamese on</th>
-              <td><kbd>F1</kbd></td>
-              <td class="unset">Not set</td>
+              <td data-label="Windows"><kbd>F1</kbd></td>
+              <td data-label="macOS" class="unset">Not set</td>
             </tr>
             <tr>
               <th scope="row">Vietnamese off</th>
-              <td><kbd>F2</kbd></td>
-              <td class="unset">Not set</td>
+              <td data-label="Windows"><kbd>F2</kbd></td>
+              <td data-label="macOS" class="unset">Not set</td>
             </tr>
             <tr>
               <th scope="row">Abbreviations</th>
-              <td><kbd>F8</kbd></td>
-              <td class="unset">Not set</td>
+              <td data-label="Windows"><kbd>F8</kbd></td>
+              <td data-label="macOS" class="unset">Not set</td>
             </tr>
             <tr>
               <th scope="row">Text expansion on/off</th>
-              <td><kbd>F9</kbd></td>
-              <td class="unset">Not set</td>
+              <td data-label="Windows"><kbd>F9</kbd></td>
+              <td data-label="macOS" class="unset">Not set</td>
             </tr>
             <tr>
               <th scope="row">Excluded apps on/off</th>
-              <td><kbd>F11</kbd></td>
-              <td class="unset">Not set</td>
+              <td data-label="Windows"><kbd>F11</kbd></td>
+              <td data-label="macOS" class="unset">Not set</td>
             </tr>
           </tbody>
         </table>
@@ -287,7 +320,6 @@
   <section class="section" id="interface" aria-labelledby="interface-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">03</span>
         <div>
           <h2 id="interface-title">Interface</h2>
           <p class="lead">The settings window holds the options you use most. Shortcuts, abbreviations and advanced options have windows of their own. The title bar has a VI | EN button for the language and a Light/Dark button. By default the look follows the system. The screenshots show the Vietnamese interface.</p>
@@ -308,7 +340,7 @@
 
         <figure>
           <div class="shot-frame">
-            <img src="../assets/main-dark.png" width="480" height="460"
+            <img src="../assets/main-dark.png" width="480" height="460" loading="lazy"
                  alt="VietKB settings window on Windows, dark mode, in Vietnamese, with the same options as the light screenshot.">
           </div>
           <figcaption>
@@ -346,7 +378,6 @@
   <section class="section" id="install" aria-labelledby="install-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">04</span>
         <div>
           <h2 id="install-title">Install</h2>
           <p class="lead">Three steps on each computer. Nothing else to install.</p>
@@ -373,7 +404,7 @@
       </ol>
 
       <div class="note">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/>
           <path d="M12 9.5v4M12 16.8h.01"/>
         </svg>
@@ -403,7 +434,7 @@
       </ol>
 
       <div class="note">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M10.3 4.3 2.6 17.6A2 2 0 0 0 4.3 20.6h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/>
           <path d="M12 9.5v4M12 16.8h.01"/>
         </svg>
@@ -417,7 +448,7 @@
       </div>
 
       <div class="note note-info">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <circle cx="12" cy="12" r="9"/>
           <path d="M12 11v5M12 7.8h.01"/>
         </svg>
@@ -432,7 +463,6 @@
   <section class="section" id="faq" aria-labelledby="faq-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">05</span>
         <div>
           <h2 id="faq-title">FAQ</h2>
           <p class="lead">Most of these come up right after installing on a Mac.</p>
@@ -483,7 +513,6 @@
   <section class="section" id="releases" aria-labelledby="releases-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="num" aria-hidden="true">06</span>
         <div>
           <h2 id="releases-title">Releases</h2>
           <p class="lead">Every release has a Windows installer and a <code>.dmg</code> for Mac. Release notes come from GitHub.</p>
@@ -512,7 +541,7 @@
             <h3>Release notes</h3>
             <span class="log-dot" aria-hidden="true"></span>
           </div>
-          <div id="changelog">
+          <div id="changelog" tabindex="0" role="region" aria-label="Release notes">
             <p class="log-empty">Couldn’t load the release notes. <a href="https://github.com/thnonl/vietkb/releases">Read them on GitHub</a>.</p>
           </div>
           <p class="log-foot">
@@ -530,7 +559,7 @@
   <div class="wrap footer-inner">
     <div class="footer-brand">
       <a class="brand" href="index.html">
-        <span class="brand-key"><img src="../assets/logo-v.png" alt="" width="22" height="22"></span>
+        <span class="brand-key"><img src="../assets/logo-v.png" alt="" width="28" height="28"></span>
         <span class="brand-name">VietKB</span>
       </a>
       <p class="footer-note">A free Vietnamese keyboard for Windows and macOS.</p>
