@@ -246,7 +246,7 @@ impl Engine {
             self.raw.capacity(),
             self.text.capacity(),
             self.composed.letters.capacity(),
-            LineHistory::footprint(),
+            std::mem::size_of::<LineHistory>(),
             correction.map_or(0, |c| c.shown.capacity() + c.alternate.capacity()),
             pending.map_or(0, |p| p.raw.capacity() + p.chain.capacity()),
             self.macros.len(),
@@ -596,23 +596,17 @@ impl Engine {
         let literal_from = entry.literal_from();
         let mut composed = Composed::default();
         method::compose(&keys, &self.options, literal_from, &mut composed);
+        // A tone pinned when the word was committed (A4 would place it elsewhere
+        // now) is part of the state the next key continues from: restore the pin
+        // with the word. The render with that pin must be the text on screen.
+        if let Some(slot) = entry.tone_slot() {
+            composed.tone_slot = Some(slot);
+        }
         let mut text = TextBuf::new();
         self.render_into(&composed.letters, composed.tone, composed.tone_slot, &mut text);
         if line::text_hash(&text) != entry.hash {
-            // The tone was pinned to a letter A4 would not choose any more: keep
-            // the pin the word had when it was committed.
-            let mut pinned = TextBuf::new();
-            let slot = entry.tone_slot();
-            if let Some(slot) = slot {
-                self.render_into(&composed.letters, composed.tone, Some(slot), &mut pinned);
-            }
-            if slot.is_some() && line::text_hash(&pinned) == entry.hash {
-                composed.tone_slot = slot;
-                text = pinned;
-            } else {
-                self.line.clear();
-                return;
-            }
+            self.line.clear();
+            return;
         }
         self.caps_pending = false;
         self.raw = keys;
@@ -1761,9 +1755,11 @@ impl VietnameseEngine for Engine {
     }
 
     fn set_options(&mut self, options: EngineOptions) {
+        // Any configuration change is a boundary for the line: the history was
+        // built under the old options and may not describe the next rebuild.
+        self.line.clear();
         if self.options.method != options.method || self.options.charset != options.charset {
             self.reset_word();
-            self.line.clear();
         }
         // Config change is a boundary for the armed flag: turning `raw_zone` off
         // (or changing anything else) must not freeze the next word (spec §A9 §7).
@@ -1796,9 +1792,12 @@ impl VietnameseEngine for Engine {
             return EngineAction::Noop;
         }
         if key.modifiers.ctrl || key.modifiers.alt || key.modifiers.win {
-            // A chord (Ctrl+Z, Ctrl+V ...) may change the text under us.
+            // A chord (Ctrl+Z, Ctrl+V ...) may change the text under us. The
+            // bare modifier press itself (Ctrl down, Alt down) changes nothing.
             self.back = None;
-            self.line.clear();
+            if !is_modifier_vk(key.vk) {
+                self.line.clear();
+            }
             self.correction = None;
             return EngineAction::Noop;
         }

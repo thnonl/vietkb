@@ -270,3 +270,76 @@ fn a_long_line_with_many_separators_never_panics() {
     assert_eq!(s.out, "");
     assert!(s.engine.buffer().is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// Review fixes: the bare modifier press, options changes, and pinned tones.
+// ---------------------------------------------------------------------------
+
+fn modifier_down(vk: u16, set: fn(&mut Modifiers)) -> KeyInput {
+    let mut modifiers = Modifiers::NONE;
+    set(&mut modifiers);
+    KeyInput { modifiers, ..KeyInput::key(vk, None) }
+}
+
+#[test]
+fn a_bare_ctrl_press_keeps_the_line() {
+    let mut s = Session::new(telex());
+    s.text("Tha ");
+    assert_eq!(s.key(modifier_down(0x11, |m| m.ctrl = true)), "Tha ");
+    assert_eq!(s.backspace(), "Tha");
+    assert_eq!(s.text("s"), "Thá");
+}
+
+#[test]
+fn a_bare_alt_press_keeps_the_line() {
+    let mut s = Session::new(telex());
+    s.text("Tha ");
+    assert_eq!(s.key(modifier_down(0x12, |m| m.alt = true)), "Tha ");
+    assert_eq!(s.backspace(), "Tha");
+    assert_eq!(s.text("s"), "Thá");
+}
+
+#[test]
+fn a_bare_win_press_keeps_the_line() {
+    let mut s = Session::new(telex());
+    s.text("Tha ");
+    assert_eq!(s.key(modifier_down(0x5B, |m| m.win = true)), "Tha ");
+    assert_eq!(s.backspace(), "Tha");
+    assert_eq!(s.text("s"), "Thá");
+}
+
+#[test]
+fn a_ctrl_chord_after_a_word_still_forgets_the_line() {
+    // Ctrl+V with the V key itself (not the bare Ctrl press) is a chord: forget.
+    let mut s = Session::new(telex());
+    s.text("Tha ");
+    s.key(modifier_down(0x56, |m| m.ctrl = true));
+    assert_eq!(s.backspace(), "Tha");
+    assert_eq!(s.text("s"), "Thas");
+}
+
+#[test]
+fn any_options_change_forgets_the_line() {
+    // The history was built under the old options: a changed option (here the
+    // spell check) is a boundary, so the Backspace over the space reopens nothing.
+    let mut s = Session::new(telex());
+    s.text("Tha ");
+    let mut changed = telex();
+    changed.spell_check = !changed.spell_check;
+    vkb_core::VietnameseEngine::set_options(&mut s.engine, changed);
+    assert_eq!(s.backspace(), "Tha");
+    assert_eq!(s.text("s"), "Thas");
+}
+
+#[test]
+fn a_pinned_tone_is_restored_with_its_word() {
+    // `toán` loses its last letter to `toá`, whose tone stays pinned to `a`. The
+    // word that comes back is that pinned word: the next tone key continues from
+    // it exactly as fresh typing of the kept keystrokes does.
+    let mut s = Session::new(telex());
+    assert_eq!(s.text("toans"), "toán");
+    assert_eq!(s.backspace(), "toá");
+    assert_eq!(s.text(" "), "toá ");
+    assert_eq!(s.backspace(), "toá");
+    assert_eq!(s.text("f"), simulate(telex(), "toasf"));
+}

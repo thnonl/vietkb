@@ -199,11 +199,6 @@ impl LineHistory {
         Some(entry)
     }
 
-    /// Storage the line occupies, as a constant: the rings are inline.
-    pub const fn footprint() -> usize {
-        LINE_KEYS + LINE_ENTRIES
-    }
-
     fn newest_index(&self) -> usize {
         (usize::from(self.head) + usize::from(self.count) - 1) % LINE_ENTRIES
     }
