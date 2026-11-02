@@ -823,6 +823,28 @@ fn apply_patch(cfg: &mut AppConfig, patch: &serde_json::Value) -> Result<(), Str
 // Commands
 // ---------------------------------------------------------------------------
 
+/// The three views the page asks for before its first paint, as a script that
+/// sets `window.__VKB_INIT__`. Each value is serialised the way the `get_settings`,
+/// `get_status` and `app_info` commands return it, so the page renders from the
+/// same shape it would get over IPC. Built per window, so it is current at build
+/// time; the page refreshes it over IPC right after the first paint.
+pub fn seed_script() -> String {
+    #[derive(Serialize)]
+    struct Seed {
+        settings: SettingsView,
+        status: StatusView,
+        info: AppInfoView,
+    }
+    let seed = Seed { settings: get_settings(), status: get_status(), info: app_info() };
+    match serde_json::to_string(&seed) {
+        Ok(json) => format!("window.__VKB_INIT__ = {json};"),
+        Err(error) => {
+            tracing::warn!(%error, "could not seed the settings page");
+            String::new()
+        }
+    }
+}
+
 #[tauri::command]
 pub fn get_settings() -> SettingsView {
     to_view(&config_cell().read())
@@ -1518,7 +1540,11 @@ pub fn accessibility_status() -> bool {
 pub fn input_monitoring_status() -> bool {
     #[cfg(target_os = "macos")]
     {
-        vkb_macos::has_input_monitoring_permission()
+        // Served from the cache, never a TCC query on the main thread; the
+        // refresh emits `vkb:input-monitoring` if the answer turns out stale.
+        let granted = crate::input_monitoring::granted();
+        crate::input_monitoring::refresh();
+        granted
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -1532,7 +1558,9 @@ pub fn input_monitoring_status() -> bool {
 pub fn request_input_monitoring() -> bool {
     #[cfg(target_os = "macos")]
     {
-        vkb_macos::request_input_monitoring_permission()
+        let granted = vkb_macos::request_input_monitoring_permission();
+        crate::input_monitoring::note(granted);
+        granted
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -1625,6 +1653,15 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(patch).unwrap();
         apply_patch(&mut cfg, &value).unwrap();
         cfg
+    }
+
+    #[test]
+    fn seed_script_carries_the_three_views() {
+        let script = seed_script();
+        assert!(script.starts_with("window.__VKB_INIT__ = {"), "{script}");
+        for key in ["\"settings\"", "\"status\"", "\"info\""] {
+            assert!(script.contains(key), "missing {key}: {script}");
+        }
     }
 
     #[test]

@@ -54,13 +54,15 @@ pub fn configured_window_theme() -> Option<tauri::Theme> {
 /// Script run before the page's own: hands the saved theme to `main.ts`, which
 /// otherwise guesses from a localStorage mirror that can lag the real setting
 /// (first run, config edited by hand, other profile) and paints the OS theme.
+/// It also carries the initial settings/status/app-info (`window.__VKB_INIT__`),
+/// so the first render needs no IPC round trip (see `commands::seed_script`).
 pub fn init_script() -> String {
     let name = match configured_theme() {
         Theme::Light => "light",
         Theme::Dark => "dark",
         Theme::System => "system",
     };
-    format!("window.__VKB_THEME__ = \"{name}\";")
+    format!("window.__VKB_THEME__ = \"{name}\";{}", crate::commands::seed_script())
 }
 
 /// Best guess before the window exists: the configured theme, or for `System`

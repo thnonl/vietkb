@@ -131,6 +131,16 @@ export const errorText = (error: unknown): string => {
   return t("common.unknownError");
 };
 
+/** The views the shell injected at build time (`commands::seed_script`). Read
+ *  once, then removed from the window. */
+function takeSeed(): { settings: SettingsView; status: StatusView; info: AppInfoView } | null {
+  const holder = window as unknown as { __VKB_INIT__?: { settings?: SettingsView; status?: StatusView; info?: AppInfoView } };
+  const seed = holder.__VKB_INIT__;
+  holder.__VKB_INIT__ = undefined;
+  if (!seed || !seed.settings || !seed.status || !seed.info) return null;
+  return { settings: seed.settings, status: seed.status, info: seed.info };
+}
+
 class Store {
   settings = $state<SettingsView | null>(null);
   status = $state<StatusView | null>(null);
@@ -220,6 +230,8 @@ class Store {
   async init(): Promise<void> {
     this.previewMode = !api.isTauri();
     this.startThemeBus();
+    let seeded = false;
+    let failed = false;
     try {
       // Not awaited: the user-agent guess is already the initial value, and the
       // settings load must not wait on one more IPC round trip.
@@ -233,16 +245,53 @@ class Store {
         this.applyTheme(demoSettings.system.theme);
         return;
       }
-      const [settings, status, info] = await Promise.all([
-        api.getSettings(),
-        api.getStatus(),
-        api.appInfo(),
-      ]);
-      this.settings = settings;
-      this.status = status;
-      this.info = info;
-      this.syncLang();
-      this.applyTheme(settings.system.theme);
+      // The shell put the three views into the page when it built the window
+      // (`window.__VKB_INIT__`): render from them, with no IPC before the first
+      // paint. `background` refreshes them right after.
+      const seed = takeSeed();
+      if (seed) {
+        seeded = true;
+        this.settings = seed.settings;
+        this.status = seed.status;
+        this.info = seed.info;
+        this.syncLang();
+        // No broadcast here: `background` sends it once the listeners are up.
+        this.applyTheme(seed.settings.system.theme, false);
+      } else {
+        await this.loadViews();
+      }
+    } catch (error) {
+      failed = true;
+      this.settings = demoSettings;
+      this.status = demoStatus;
+      this.info = demoInfo;
+      this.toast("error", t("toast.loadConfigFailed", { error: errorText(error) }), 0);
+    } finally {
+      this.loading = false;
+    }
+    if (!this.previewMode && !failed) void this.background(seeded);
+  }
+
+  /** The three views over IPC. The path taken when no seed was injected. */
+  private async loadViews(): Promise<void> {
+    const [settings, status, info] = await Promise.all([
+      api.getSettings(),
+      api.getStatus(),
+      api.appInfo(),
+    ]);
+    this.settings = settings;
+    this.status = status;
+    this.info = info;
+    this.syncLang();
+    this.applyTheme(settings.system.theme);
+  }
+
+  /** Work the first paint does not need, started after `init` resolved: the event
+   *  listeners (registered before the refresh, so no event falls in the gap), a
+   *  fresh read of the three views (the seed is from build time: hook state, theme
+   *  and language may have moved since), and the update status. */
+  private async background(seeded: boolean): Promise<void> {
+    try {
       this.unlisten = await listen<StatusView>("vkb:status", (event) => {
         this.status = event.payload;
         if (this.settings) {
@@ -270,12 +319,28 @@ class Store {
         },
       );
 
+      if (seeded) {
+        const [settings, status, info] = await Promise.all([
+          api.getSettings(),
+          api.getStatus(),
+          api.appInfo(),
+        ]);
+        this.status = status;
+        this.info = info;
+        // A local edit still on its way to the backend is newer than the read.
+        if (!this.inFlight && Object.keys(this.pending).length === 0) {
+          this.settings = settings;
+          this.syncLang();
+        }
+        this.applyTheme(settings.system.theme);
+      }
+
       // The update state is one object the backend owns: the 5 s startup check,
       // a manual check and the tray all write it. Every window follows the
       // event, so the title-bar badge and the tray item appear without a
       // restart.
       // The Store build has no updater: no command to ask, no event to follow.
-      if (!info.store) {
+      if (!this.info?.store) {
         this.update = await api.updateStatus().catch(() => null);
         await listen<UpdateStatus>("vkb:update", (event) => {
           this.update = event.payload;
@@ -286,12 +351,7 @@ class Store {
           .catch(() => {});
       }
     } catch (error) {
-      this.settings = demoSettings;
-      this.status = demoStatus;
-      this.info = demoInfo;
       this.toast("error", t("toast.loadConfigFailed", { error: errorText(error) }), 0);
-    } finally {
-      this.loading = false;
     }
   }
 

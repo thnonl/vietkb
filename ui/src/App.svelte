@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import Toast from "./components/Toast.svelte";
   import TitleBar from "./components/TitleBar.svelte";
   import Quick from "./screens/Quick.svelte";
@@ -8,6 +8,7 @@
   import Macros from "./screens/Macros.svelte";
   import About from "./screens/About.svelte";
   import { app } from "./lib/state.svelte";
+  import * as api from "./lib/api";
   import { closeCurrent } from "./lib/window.svelte";
   import { fitWindowToContent } from "./lib/fit";
   import { t } from "./lib/lang.svelte";
@@ -15,10 +16,31 @@
   const kind = new URLSearchParams(window.location.search).get("win") ?? "main";
   const modal = kind !== "main";
 
+  /** Two animation frames: the first frame that shows the committed content. */
+  const twoFrames = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+  /** Tell the shell the real content is on screen so it can show this window
+   *  (main.rs `window_ready`). The shell keeps its own fallback timer; the 50 ms
+   *  cap here is for a hidden window, which may run no animation frames at all.
+   *  macOS stages the window at alpha 0 instead of hiding it (macos_shell.rs), so
+   *  frames do run there and the report waits for a real painted frame: a cold
+   *  first frame can take longer than 50 ms, and the cap would then reveal a
+   *  window that has not painted yet. */
+  const reportPainted = async (): Promise<void> => {
+    await tick();
+    if (document.documentElement.dataset.platform === "macos") await twoFrames();
+    else await Promise.race([twoFrames(), new Promise<void>((resolve) => setTimeout(resolve, 50))]);
+    if (api.isTauri()) await api.windowReady().catch(() => {});
+  };
+
   onMount(() => {
     void app.init().then(() => {
-      // macOS: grow the window if the sheet is taller than the estimated height.
-      void document.fonts.ready.then(() => fitWindowToContent());
+      // After the first paint, never before: macOS grows the window if the sheet is
+      // taller than the estimated height, and it resizes a window the user sees.
+      void reportPainted()
+        .then(() => document.fonts.ready)
+        .then(() => fitWindowToContent());
       const theme = new URLSearchParams(window.location.search).get("theme");
       if (theme === "light" || theme === "dark") app.applyTheme(theme);
     });
