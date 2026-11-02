@@ -1340,7 +1340,12 @@ impl Engine {
             ascii &= typed.is_ascii_alphabetic();
             *slot = typed.to_ascii_lowercase() as u8;
         }
-        let english = if ascii { lexicon::english_word(&word[..self.raw.len()]) } else { None };
+        // A listed word, or an inflection of one (`boxers`, `dyes`) that the list does not carry.
+        let english = if ascii {
+            lexicon::english_word(&word[..self.raw.len()]).or_else(|| lexicon::inflected_english(&word[..self.raw.len()]))
+        } else {
+            None
+        };
         if matches!(ch, '_' | '@' | '(') {
             // `_`, `@` and a `(` glued to a word (`cos(x)`) are code shapes: a word that is not a
             // common Vietnamese syllable, or whose keys spell an English word

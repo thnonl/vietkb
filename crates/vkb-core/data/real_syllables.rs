@@ -5,7 +5,8 @@
 // (son1 = són, lai3 = lải, ma3 = mả, cho+ = chơ ...). A listed English word whose typed keys
 // compose a syllable NOT in this list is English (room -> rôm stays room). Owner principle, 2026-11-02:
 // a word comes out Vietnamese only if the composed text is a real Vietnamese word; doubt means Vietnamese.
-// Entries marked U in the review are doubtful and are listed here (doubt -> real).
+// Entries marked U are doubtful (doubt -> real); P are pinned Vietnamese by a test (tons, pins, tongs).
+// Compound-only syllables (trê, tủn, kên, vảy) are NOT here: alone they stay English (see the fixture).
 // Sorted by byte order (binary search). Keep the list sorted.
 pub static REAL_SYLLABLES: &[&str] = &[
     "a(n1",
@@ -71,7 +72,6 @@ pub static REAL_SYLLABLES: &[&str] = &[
     "hum1",
     "i2",
     "im1",
-    "ke^n",
     "kit1",
     "lai3",
     "lam1",
@@ -120,6 +120,7 @@ pub static REAL_SYLLABLES: &[&str] = &[
     "pe^",
     "peo1",
     "pet1",
+    "pin1",
     "po+",
     "po+1",
     "ram1",
@@ -161,15 +162,14 @@ pub static REAL_SYLLABLES: &[&str] = &[
     "thon1",
     "thong1",
     "to1",
+    "ton1",
+    "tong1",
     "top1",
     "tot1",
     "tram1",
-    "tre^",
     "tro+1",
-    "tun3",
     "un1",
     "un3",
-    "vay3",
     "ve^1",
     "veo1",
     "xeo1",

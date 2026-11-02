@@ -385,6 +385,51 @@ pub fn is_acronym(token: &[u8]) -> bool {
         || LOWER_ACRONYMS.iter().any(|a| a.as_bytes() == token)
 }
 
+/// Suffixes that make an inflected English word (`boxers`, `dyes`, `typing`), longest first.
+const INFLECTION_SUFFIXES: &[&str] = &["ers", "ing", "es", "ed", "er", "s"];
+
+/// An English word that the list does not carry but that is an inflection of a listed word:
+/// `boxers` of `box`, `dyes` of `dye` (the stem's final `e` may be dropped: `typing` of `type`).
+/// The stem must be listed, not a closed word, an identifier or a name. The level is the stem's
+/// plus two (the generator's rule: an inflected form is rarer than its base). Words that are
+/// listed themselves are not inflections here (`english_word` answers for them).
+pub fn inflected_english(word: &[u8]) -> Option<EnglishWord> {
+    // Only a word ending in a suffix letter can be an inflection. A doubled `ss` is the Telex
+    // undo idiom (`uss` types `us`, `ass` types `as`), never an English plural.
+    if !matches!(word.last()?, b's' | b'd' | b'r' | b'g') || word.ends_with(b"ss") || english_word(word).is_some() {
+        return None;
+    }
+    for suffix in INFLECTION_SUFFIXES {
+        let sfx = suffix.as_bytes();
+        if word.len() <= sfx.len() + 1 || !word.ends_with(sfx) {
+            continue;
+        }
+        let stem = &word[..word.len() - sfx.len()];
+        if let Some(base) = inflection_stem(stem) {
+            return Some(base);
+        }
+        // `typing` = `type` + `ing`: the stem with its final `e` restored.
+        if stem.len() + 1 <= 32 {
+            let mut with_e = [0u8; 33];
+            with_e[..stem.len()].copy_from_slice(stem);
+            with_e[stem.len()] = b'e';
+            if let Some(base) = inflection_stem(&with_e[..stem.len() + 1]) {
+                return Some(base);
+            }
+        }
+    }
+    None
+}
+
+/// The listed English word `stem` as an inflection base (see [`inflected_english`]).
+fn inflection_stem(stem: &[u8]) -> Option<EnglishWord> {
+    let base = english_word(stem)?;
+    if base.ident || base.name || stem.len() < 2 || is_closed_word(stem) {
+        return None;
+    }
+    Some(EnglishWord { level: (base.level + 2).min(7), loan: base.loan, tech: base.tech, ident: false, name: false })
+}
+
 /// Should the typed English word replace the composed text?
 ///
 /// The rule is conservative. **A plausible Vietnamese syllable wins** (in the
@@ -443,17 +488,19 @@ pub fn english_wins(
         }
     }
     // Owner (2026-11-02): `room` is English, there is no Vietnamese `rôm` (`meeting room`,
-    // `phòng room`, `room 5`). A common listed English word whose Vietnamese reading is
-    // absent from the syllable corpus is not a stand-alone Vietnamese word, so the typed
-    // keys win in every context. Threshold: count == 0, because the counts of the words
-    // that must stay Vietnamese overlap those that must not (corpus counts):
-    // room/rôm 0, soon/sôn 0, door/dổ 0, more/mỏe 0, tree/trê 0 flip to English;
-    // see/sê 2, tax/tã 2, box/bõ 1, bus/bú 1, max/mã 31, mix/mĩ 21, moon/môn 60,
-    // six/sĩ 173 stay Vietnamese (any count above 0 is "doubt -> Vietnamese").
-    // `gas`/`gá` is absent from the corpus but is a real word (`gá chồng`), so it is
-    // listed in `REAL_BUT_UNCOUNTED`. Only SCOWL level 1 (the commonest English words) qualifies: the level 3+ words (`sons`, `lair`, `chow`, `mar`) collide with real Vietnamese words the corpus also lacks (`són`, `lải`, `chơ`, `mả`).
-    // `nor`/`nỏ` is such a word too.
-    if count == 0 && !is_closed_word(typed) && word.level == 1 && !word.loan && !REAL_BUT_UNCOUNTED.contains(&typed)
+    // `phòng room`, `room 5`). A listed English word whose composed syllable is not a real
+    // Vietnamese syllable is English in every context. "Real" = the corpus attests it
+    // (count > 0, handled above) or the hand-curated inventory `real_syllables.rs` lists it.
+    // Owner principle: a word comes out Vietnamese only if the composed text is a real
+    // Vietnamese word; doubt means Vietnamese. Every SCOWL level qualifies, so `sons`, `lair`
+    // and `chow` are English unless their syllables (`són`, `lải`, `chơ`) are in the inventory.
+    // Loanwords (`teen`, `mix`) keep the 0.2.8 treatment.
+    // `gas`/`gá` and `nor`/`nỏ` are kept Vietnamese by `REAL_BUT_UNCOUNTED` and the inventory.
+    if count == 0
+        && !is_closed_word(typed)
+        && !word.loan
+        && !REAL_BUT_UNCOUNTED.contains(&typed)
+        && !real_syllable(vi_key)
     {
         return true;
     }
@@ -575,13 +622,13 @@ mod tests {
     #[test]
     fn real_syllable_examples() {
         // Owner examples: these composed syllables are real and stay Vietnamese.
-        for key in ["son1", "sun1", "lai3", "cho+", "ma3", "ga1", "no3", "tre^", "e^1", "hi1"] {
+        for key in ["son1", "sun1", "lai3", "cho+", "ma3", "ga1", "no3", "be^t1", "e^1", "hi1"] {
             assert!(real_syllable(key.as_bytes()), "{key}");
         }
         // Junk from the owner's list (rose, buses, rooms, doors, trees, moons, sees, mores,
         // sixes, bier, corer, cursors, dyes, boxer, mixer): not real, so the typed English stays.
         for key in ["roe1", "bue1", "dye1", "ro^m1", "do^1", "tre^1", "mo^n1", "so^n1", "se^1", "moe1", "sie1",
-            "bie3", "coe3", "cuo1", "boe3", "mie3"]
+            "bie3", "coe3", "cuo1", "boe3", "mie3", "tre^", "ke^n", "tun3", "vay3"]
         {
             assert!(!real_syllable(key.as_bytes()), "{key}");
         }

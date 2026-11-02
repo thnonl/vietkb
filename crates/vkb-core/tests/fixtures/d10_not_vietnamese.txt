@@ -1,589 +1,592 @@
-# D10 review (2026-11-02, Haiku engine dev for VietKB): syllable keys that are NOT Vietnamese, so a listed
-# English word that composes to one stays English. Format: key<TAB>typed words that compose to it.
-# Every key here is absent from data/vi.txt and absent from data/real_syllables.rs (test: not_vietnamese_fixture).
-a(y1	awrys
-a(y3	awry
-ba^1	baas
-bay1	bays
-be^ch1	beechs
-bie1	biers,bisers,bises
-bie3	bier,biser
-bie^1	bierers,bieres,biersers,bierses
-bie^3	bierer,bierser
-bin1	bins
-bo+e1	bowers,bowes,bowsers,bowses
-bo+e3	bower,bowser
-bo+e^1	bowerers,boweres,bowersers,bowerses
-bo+e^3	bowerer,bowerser
-bo^e1	booers,booes,boorers,boores
-bo^e3	booer,boorer,boorser,booser
-bo^m1	booms,bosom,bosoms,bosomss
-boa1	boars,boas,boraxs
-boa3	boar
-boa4	borax
-boat1	boats
-boe1	borers,bores,boxers,boxes
-boe3	bore,borer,boxer
-boe^1	boreers,borees,borerers,boreres
-boe^3	boreer,borerer,borerser,boreser
-bon3	born
-buay1	bursarys
-buay3	bursary
-bue1	burers,bures,bursers,burses
-bue3	burer,burser,buser
-bue^1	busesers,buseses
-bue^3	buseser
-bum1	bumfs,bums
-buom1	buxoms
-buom4	buxom
-buy1	burys,busy,busys,buys
-buy3	bury
-buye1	buryers,buryes,busyers,busyes
-buye3	buryer,busyer,buyer,buyser
-buye^1	buyerers,buyeres,buyersers,buyerses
-buye^3	buyerer,buyerser
-bye1	byes,byrers,byres
-bye3	byre,byrer
-bye^1	byesers,byeses,byreers,byrees
-bye^3	byeser,byreer,byreser
-ca(1	caws
-cham3	charm
-chap1	chaps
-che^3	cheer,chefer,chefser
-che^p1	cheeps
-chie1	chiefs,chisers,chises
-chie2	chief
-chie3	chiser
-chie^1	chiefers,chiefes,chiefsers,chiefses
-chie^3	chiefer,chiefser
-cho+e1	chowers,chowes,chowsers,chowses
-cho+e3	chower,chowser
-cho^e1	choose,choosers,chooses,choosess
-cho^e3	chooser
-cho^e^1	chooseers,choosees,chooserers,chooseres
-cho^e^3	chooseer,chooserer,chooserser,chooseser
-choe1	chorers,chores,chose,chosers
-choe3	chore,chorer,choser
-choe^1	choreers,chorees,choresers,choreses
-choe^3	choreer,choreser,choseer
-choen1	chosen,chosens
-choi3	choir
-co+e1	cowers,cowes,cowsers,cowses
-co+e3	cower,cowser
-co+e^1	cowerers,coweres,cowersers,cowerses
-co+e^3	cowerer,cowerser
-co4	cox
-co^e1	cooers,cooes,coosers,cooses
-co^e3	cooer,cooser
-co^n1	coons
-coa1	coaxs
-coa4	coax
-coai1	corsairs
-coai3	corsair
-coat1	coats
-coe1	corers,cores,cosers,coses
-coe3	core,corer,coser,coxer
-coe^1	coreers,corees,corerers,coreres
-coe^3	coreer,corerer,corerser,coreser
-coet1	corset,corsets,corsetss
-coi3	coir
-com1	corms
-com3	corm
-con1	cons,corns
-cu+e1	curfews
-cu+e2	curfew
-cu+e^1	curfewers,curfewes,curfewsers,curfewses
-cu+e^3	curfewer,curfewser
-cue1	cues,curers,cures,curse
-cue3	cure,curer,curser
-cue^1	cuesers,cueses,cureers,curees
-cue^3	cueser,cureer,curerer,curerser
-cuo1	cursors
-cuo3	cursor
-da(n	dawn
-da(n1	dawns
-dan3	darn
-day1	days
-de^3	deer,defer
-de^m1	deems
-de^p1	deeps
-de^t1	deserts
-den1	dens
-die1	dies,dirers,dires,disers
-die3	dire,direr,diser
-die^1	diesers,dieses,direers,direes
-die^3	dieser,direer,direrer
-diet1	diets
-dim1	dims
-din1	dins
-do+e1	dowers,dowse,dowsers,dowses
-do+e3	dower,dowser
-do+e^1	dowerers,doweres,dowersers,dowerses
-do+e^3	dowerer,dowerser,dowseer,dowserer
-do^1	doors
-do^3	door
-do^e1	doorers,doores,doorsers,doorses
-do^e3	doorer,doorser
-do^m	doom
-do^m1	dooms
-doe1	doers,does,dose,dosers
-doe3	doer,doser
-doe^1	doerers,doeres,doersers,doerses
-doe^3	doerer,doerser,doeser,doseer
-dom1	dorms
-don1	dons
-dot1	dots
-due1	dues
-due^1	duesers,dueses
-due^3	dueser
-duet1	duets
-dun1	duns
-dung1	dungs
-dye1	dyers,dyes
-dye3	dyer
-dye^1	dyerers,dyeres,dyersers,dyerses
-dye^3	dyerer,dyerser,dyeser
-e4	ex
-e^3	ere,erer,eser,exer
-e^c1	execs
-e^t1	exerts
-em1	emfs,ems
-ghe^3	gheer
-gin1	gins
-gioe1	giroers,giroes,girosers,giroses
-gioe3	giroer,giroser
-git1	gits
-go+n	gown
-go^e1	gooers,gooes,goofers,goofes
-go^e3	gooer,goofer,goofser,gooser
-go^e^1	gooseers,goosees,goosesers,gooseses
-go^e^3	gooseer,gooseser
-go^n1	goons
-go^p1	goops
-goat1	goats
-goe1	goers,goes,gofers,gorers
-goe3	goer,gofer,gore,gorer
-goe^1	goerers,goeres,goersers,goerses
-goe^3	goerer,goerser,goeser,goferer
-gong1	gongs
-gun1	guns
-guu1	gurus
-guu3	guru
-guy1	guys
-guye1	guysers,guyses
-guye3	guyser
-ha(	haw
-ha(1	haws
-ham3	harm
-hay1	hays
-he3	her
-he4	hex
-he^o1	hereofs
-he^o2	hereof
-hie1	hies,hirers,hires,hisers
-hie3	hire,hirer,hiser
-hie^1	hiesers,hieses,hireers,hirees
-hie^3	hieser,hireer,hireser
-him1	hims
-ho+e1	howers,howes,howsers,howses
-ho+e3	hower,howser
-ho^ay1	hoorays
-ho^ay3	hooray
-ho^e1	hoofers,hoofes,hoofsers,hoofses
-ho^e3	hoofer,hoofser
-ho^e^1	hooferers,hooferes,hoofersers,hooferses
-ho^e^3	hooferer,hooferser
-ho^p1	hoops
-hoa4	hoax
-hoay3	hoary
-hoe3	hoer,horser,hoser
-hoe^1	hoerers,hoeres,hoersers,hoerses
-hoe^3	hoerer,hoerser,hoeser,horseer
-hon1	hons,horns
-hue1	hues
-hue^3	hueser
-ie1	ifers,ifes,ifsers,ifses
-ie3	ifer,ifser,ire,irer
-ie^1	ireers,irees
-ie^3	ireer
-in1	ins
-ke^n1	keens
-la(	law
-la(1	laws
-la(n1	lawns
-lia3	liar,lira
-lie1	liefs,lies,lifers,lifes
-lie2	lief,life
-lie3	lifer,lire,lirer
-lie^1	liefers,liefes,liesers,lieses
-lie^3	liefer,lieser,lifeer,liferer
-lien1	liens
-lip1	lips
-lo+e1	lowers,lowes,lowsers,lowses
-lo+e3	lower,lowser
-lo+e^1	lowerers,loweres,lowersers,lowerses
-lo+e^3	lowerer,lowerser
-lo+et1	lowest,lowests
-lo^e1	looers,looes,loose,loosers
-lo^e3	looer,looser
-lo^e^1	looseers,loosees,looserers,looseres
-lo^e^3	looseer,looserer,looseser
-lo^en1	loosen,loosens,loosenss
-lo^et1	loosest,loosests
-lo^n1	loons
-loan1	loans
-loe3	lore,lorer,loser,loxer
-loe^1	loreers,lorees,loseers,losees
-loe^3	loreer,loseer,loserer,loserser
-lon1	lorns
-lon3	lorn
-lop1	lops
-lue1	lurers,lures,luxers,luxes
-lue3	lure,lurer,luxer
-lue^1	lureers,lurees,luresers,lureses
-lue^3	lureer,lureser
-lye1	lyrers,lyres
-lye3	lyre,lyrer
-lye^1	lyreers,lyrees,lyresers,lyreses
-lye^3	lyreer,lyreser
-lyn1	lynxs
-lyn4	lynx
-ma(1	maws
-mao3	major
-map1	maps
-me^3	mere,merer,meser
-me^t1	meets,merest,merests
-mic1	mics
-mie1	mirers,mires,misers,mixers
-mie3	mire,mirer,miser,mixer
-mie^1	mireers,mirees,miresers,mireses
-mie^3	mireer,mireser,miserer,miserser
-mien1	miens
-min1	minxs
-min4	minx
-mo+e1	mowers,mowes,mowsers,mowses
-mo+e3	mower,mowser
-mo+e^1	mowerers,moweres,mowersers,mowerses
-mo+e^3	mowerer,mowerser
-mo^e1	mooers,mooes,moorers,moores
-mo^e3	mooer,moorer,moorser,mooser
-mo^e^1	mooseers,moosees,moroseers,morosees
-mo^e^3	mooseer,moroseer
-mo^n1	moons,morons
-mo^n3	moron
-moan1	moans
-moat1	moats
-moay1	morays
-moay3	moray
-moe1	morers,mores
-moe3	more,morer
-moe^1	moreers,morees,moresers,moreses
-moe^3	moreer,moreser
-mon3	morn
-mue1	muse,musers,muses,musess
-mue3	muser
-mue^1	museers,musees,musesers,museses
-mue^3	museer,museser
-my1	mys
-mye1	mysers,myses
-mye3	myser
-neu1	nexus
-nie1	nixers,nixes
-nie3	nixer
-nie^1	nixesers,nixeses
-nie^3	nixeser
-nip1	nips
-no+ay	noway
-no+ay1	noways
-no+e1	nowers,nowes
-no+e3	nower
-no+t1	nowts
-no^e1	noose,noosers,nooses,noosess
-no^e3	nooser
-no^e^1	nooseers,noosees,noosesers,nooseses
-no^e^3	nooseer,nooseser
-no^n1	noons
-noe1	noes,norers,nores,nose
-noe3	norer,noser
-noe^1	noesers,noeses,noseers,nosees
-noe^3	noeser,noseer,noseser
-nom1	norms
-nom3	norm
-nue1	nurse,nursers,nurses,nursess
-nue3	nurser,nuser
-nue^1	nurseers,nursees,nurserers,nurseres
-nue^3	nurseer,nurserer,nurserser,nurseser
-o+e	owe
-o+e1	owers,owes
-o+e3	ower
-o+e^1	oweers,owees,owesers,oweses
-o+e^3	oweer,oweser
-o^e1	orzoers,orzoes
-o^e3	orzoer
-oa3	oar
-oe3	ore,orer,oxer
-oe^1	oreers,orees,oresers,oreses
-oe^3	oreer,oreser
-oen1	oxens
-oen4	oxen
-pa(	paw
-pa(1	paws
-pa(n	pawn
-pa(n1	pawns
-pa3	par
-pa^1	paras
-pa^m1	params
-pa^m3	param
-pai1	pairs
-pai3	pair
-pang1	pangs
-pap1	paps
-pat1	pats
-pay1	pays
-pe3	per
-pe^1	peers,pees,perers,peres
-pe^3	peer,perer
-pe^n	peen
-pe^n1	peens
-pe^p1	peeps
-pec1	pecs
-pem1	perms
-pem3	perm
-pen1	pens
-pep1	peps
-phie1	phisers,phises
-phie3	phiser
-pi1	pis,pixs
-pi4	pix
-pic1	pics
-pie1	piers,pies,pisers,pises
-pie3	pier,piser,pixer
-pie^1	pierers,pieres,piersers,pierses
-pie^3	pierer,pierser,pieser
-pin1	pins
-pip1	pips
-pit1	pits
-po+e1	powers,powes
-po+e3	power
-po+e^1	powerers,poweres,powersers,powerses
-po+e^3	powerer,powerser
-po1	poxs
-po4	pox
-po^1	poofs,poors,poos
-po^2	poof
-po^3	poor
-po^e1	pooers,pooes,poofers,poofes
-po^e3	pooer,poofer,poofser,poorer
-po^e^1	poorerers,pooreres
-po^e^3	poorerer
-po^et1	poorest,poorests
-po^p1	poops
-poe1	porers,pores,pose,posers
-poe3	pore,porer,poser,poxer
-poe^1	poreers,porees,poresers,poreses
-poe^3	poreer,poreser,poseer,poserer
-poet1	poets
-pom1	poms
-pon1	porns
-pon3	porn
-pong1	pongs
-pop1	pops
-pu1	pus
-pue1	purers,pures,purse,pursers
-pue3	pure,purer,purser,puser
-pue^1	pureers,purees,purerers,pureres
-pue^3	puree,pureer,purerer,purseer
-pun1	puns
-pup1	pups
-put1	puts
-py1	pyxs
-py4	pyx
-pye1	pyrers,pyres,pyxers,pyxes
-pye3	pyre,pyrer,pyxer
-pye^1	pyreers,pyrees,pyresers,pyreses
-pye^3	pyreer,pyreser,pyxeser
-qu4	qux
-qua^1	quasars
-qua^3	quasar
-quay1	quays
-que^1	queers
-que^3	queer
-que^n1	queens
-quie1	quirers,quires
-quie3	quire,quirer
-quie^1	quireers,quirees,quiresers,quireses
-quie^3	quireer,quireser
-quiet1	quiets
-quin1	quins
-quip1	quips
-ra(	raw
-ra(1	raws
-reo+1	resow,resows,resowss
-rie1	rifers,rifes,rise,risers
-rie2	rife
-rie3	rifer,riser
-rie^1	rifeers,rifees,riferers,riferes
-rie^3	rifeer,riferer,riseer,riserer
-rien1	risen,risens
-rim1	rims
-rip1	rips
-ro+an	rowan
-ro+an1	rowans
-ro+e1	rowers,rowes,rowsers,rowses
-ro+e3	rower,rowser
-ro+e^1	rowerers,roweres,rowersers,rowerses
-ro+e^3	rowerer,rowerser
-ro^1	roofs
-ro^e1	roofers,roofes,roofsers,roofses
-ro^e3	roofer,roofser
-ro^e^1	rooferers,rooferes,roofersers,rooferses
-ro^e^3	rooferer,rooferser
-ro^m	room
-ro^m1	rooms
-roa1	roars
-roa3	roar
-roam1	roams
-roan1	roans
-roay1	rosarys
-roay3	rosary
-roe1	roes,rose,rosers,roses
-roe3	roser
-roe^1	roesers,roeses,roseers,rosees
-roe^3	roeser,roseer,roseser
-rue1	rues,ruse,rusers,ruses
-rue3	ruser
-rue^1	ruesers,rueses,ruseers,rusees
-rue^3	rueser,ruseer,ruseser
-sa(	saw
-sa(1	saws
-sa^i1	safaris
-sa^i3	safari
-say1	says
-se^1	seers,sees,serers,seres
-se^3	seer,sere,serer,serfer
-se^m	seem
-se^m1	seems
-se^t1	serest,serests
-sic1	sics
-sie1	sirers,sires,sirsers,sirses
-sie3	sire,sirer,sirser,siser
-sie^1	sireers,sirees,siresers,sireses
-sie^3	sireer,sireser,siseser,sixeser
-sien1	sirens
-sien3	siren
-so+e1	sowers,sowes,sowsers,sowses
-so+e3	sower,sowser
-so+e^1	sowerers,soweres,sowersers,sowerses
-so+e^3	sowerer,sowerser
-so+n1	sowns
-so^n	soon
-so^n1	soons
-soa1	soars,sofas
-soa2	sofa
-soa3	soar
-soe1	sorers,sores
-soe3	sore,sorer
-soe^1	soreers,sorees,sorerers,soreres
-soe^3	soreer,sorerer,soreser
-sop1	sops
-sue1	sues,surers,sures,surfers
-sue3	sure,surer,surfer,surfser
-sue^1	suesers,sueses,sureers,surees
-sue^3	sueser,sureer,surerer,surferer
-sum1	sums
-sy1	sys
-ta^1	taxas
-ta^4	taxa
-tai4	taxi
-tau1	tarsus,tarsuss,taus
-te^m1	teems
-te^n1	teens
-tech1	techs
-tem3	term
-ten3	tern
-tha(	thaw
-tha(1	thaws
-the^o1	therefors,thereofs
-the^o2	thereof
-the^o3	therefor
-them1	therms
-thie1	thiefs,thisers,thises
-thie2	thief
-thie3	thiser
-thie^1	thiefers,thiefes
-thie^3	thiefer
-thin1	thins
-thoa4	thorax
-thoe1	those,thosers,thoses
-thoe3	thoser
-thoe^1	thoseers,thosees
-thoe^3	thoseer
-thon3	thorn
-thue1	thusers,thuses
-thue3	thuser
-tia^1	tiaras
-tia^3	tiara
-tic1	tics
-tie1	tiers,ties,tirers,tires
-tie3	tier,tire,tirer
-tie^1	tierers,tieres,tiersers,tierses
-tie^3	tierer,tierser,tieser,tireer
-to+e1	towers,towes,towsers,towses
-to+e3	tower,towser
-to+e^1	towerers,toweres,towersers,towerses
-to+e^3	towerer,towerser
-to+n	town
-to+n1	towns
-to^e1	tooers,tooes,torsoers,torsoes
-to^e3	tooer,torsoer,torsoser
-toe3	tore,torer,torser
-toe^1	toesers,toeses,toreers,torees
-toe^3	toeser,toreer
-ton1	tons,torns
-ton3	torn
-tong1	tongs
-tray1	trays
-tre^1	treers,trees
-tre^3	treer
-trie1	triers,tries
-trie3	trier
-trie^1	trierers,trieres,triersers,trierses
-trie^3	trierer,trierser,trieser
-trim1	trims
-trip1	trips
-tro+e1	trowers,trowes,trowsers,trowses
-tro+e3	trower,trowser
-tro^p1	troops
-true1	truers,trues
-true3	truer
-true^1	truerers,trueres,truesers,trueses
-true^3	truerer,trueser
-tu4	tux
-tue1	turfers,turfes,turfsers,turfses
-tue3	turfer,turfser,tuxer
-tue^3	tuxeser
-tue^n1	tureens
-tue^n3	tureen
-tun1	tuns,turns
-tuye1	turfyers,turfyes
-tuye3	turfyer
-ve^p1	veeps
-veu1	versus,versuss
-vie1	vies,vise,visers,vises
-vie3	viser
-vie^1	viesers,vieses,viseers,visees
-vie^3	vieser,viseer,viseser
-vien1	vixens
-vien4	vixen
-vo+e1	vowers,vowes,vowsers,vowses
-vo+e3	vower,vowser
-xie1	xisers,xises
-xie3	xiser
-xo^4	xoxo
-xo^e1	xoxoers,xoxoes
-xo^e3	xoxoer
-ye1	yers,yes
-ye3	yer
-ye^1	yerers,yeres,yesers,yeses
-ye^3	yerer,yeser
-yen1	yens
+# D10 review (2026-11-02): syllable keys that are NOT standalone Vietnamese words, so a listed English word that
+# composes to one stays English. Format: key<TAB>typed words that compose to it.
+# C = compound-only (real only inside a compound: cá trê, tủn mủn, kên kên, vảy nến); the compound is kept by
+# BACK_VI_PAIRS, VI_COLLOCATIONS or VI_AFTER_ENGLISH, so alone the key stays English (owner-pinned tree, turn, keen, vary).
+# Every key here is absent from data/vi.txt and from data/real_syllables.rs (unit test real_syllables_are_sorted_absent_from_corpus_and_reviewed).
+a(y1	N	awrys
+a(y3	N	awry
+ba^1	N	baas
+bay1	N	bays
+be^ch1	N	beechs
+bie1	N	biers,bisers,bises
+bie3	N	bier,biser
+bie^1	N	bierers,bieres,biersers,bierses
+bie^3	N	bierer,bierser
+bin1	N	bins
+bo+e1	N	bowers,bowes,bowsers,bowses
+bo+e3	N	bower,bowser
+bo+e^1	N	bowerers,boweres,bowersers,bowerses
+bo+e^3	N	bowerer,bowerser
+bo^e1	N	booers,booes,boorers,boores
+bo^e3	N	booer,boorer,boorser,booser
+bo^m1	N	booms,bosom,bosoms,bosomss
+boa1	N	boars,boas,boraxs
+boa3	N	boar
+boa4	N	borax
+boat1	N	boats
+boe1	N	borers,bores,boxers,boxes
+boe3	N	bore,borer,boxer
+boe^1	N	boreers,borees,borerers,boreres
+boe^3	N	boreer,borerer,borerser,boreser
+bon3	N	born
+buay1	N	bursarys
+buay3	N	bursary
+bue1	N	burers,bures,bursers,burses
+bue3	N	burer,burser,buser
+bue^1	N	busesers,buseses
+bue^3	N	buseser
+bum1	N	bumfs,bums
+buom1	N	buxoms
+buom4	N	buxom
+buy1	N	burys,busy,busys,buys
+buy3	N	bury
+buye1	N	buryers,buryes,busyers,busyes
+buye3	N	buryer,busyer,buyer,buyser
+buye^1	N	buyerers,buyeres,buyersers,buyerses
+buye^3	N	buyerer,buyerser
+bye1	N	byes,byrers,byres
+bye3	N	byre,byrer
+bye^1	N	byesers,byeses,byreers,byrees
+bye^3	N	byeser,byreer,byreser
+ca(1	N	caws
+cham3	N	charm
+chap1	N	chaps
+che^3	N	cheer,chefer,chefser
+che^p1	N	cheeps
+chie1	N	chiefs,chisers,chises
+chie2	N	chief
+chie3	N	chiser
+chie^1	N	chiefers,chiefes,chiefsers,chiefses
+chie^3	N	chiefer,chiefser
+cho+e1	N	chowers,chowes,chowsers,chowses
+cho+e3	N	chower,chowser
+cho^e1	N	choose,choosers,chooses,choosess
+cho^e3	N	chooser
+cho^e^1	N	chooseers,choosees,chooserers,chooseres
+cho^e^3	N	chooseer,chooserer,chooserser,chooseser
+choe1	N	chorers,chores,chose,chosers
+choe3	N	chore,chorer,choser
+choe^1	N	choreers,chorees,choresers,choreses
+choe^3	N	choreer,choreser,choseer
+choen1	N	chosen,chosens
+choi3	N	choir
+co+e1	N	cowers,cowes,cowsers,cowses
+co+e3	N	cower,cowser
+co+e^1	N	cowerers,coweres,cowersers,cowerses
+co+e^3	N	cowerer,cowerser
+co4	N	cox
+co^e1	N	cooers,cooes,coosers,cooses
+co^e3	N	cooer,cooser
+co^n1	N	coons
+coa1	N	coaxs
+coa4	N	coax
+coai1	N	corsairs
+coai3	N	corsair
+coat1	N	coats
+coe1	N	corers,cores,cosers,coses
+coe3	N	core,corer,coser,coxer
+coe^1	N	coreers,corees,corerers,coreres
+coe^3	N	coreer,corerer,corerser,coreser
+coet1	N	corset,corsets,corsetss
+coi3	N	coir
+com1	N	corms
+com3	N	corm
+con1	N	cons,corns
+cu+e1	N	curfews
+cu+e2	N	curfew
+cu+e^1	N	curfewers,curfewes,curfewsers,curfewses
+cu+e^3	N	curfewer,curfewser
+cue1	N	cues,curers,cures,curse
+cue3	N	cure,curer,curser
+cue^1	N	cuesers,cueses,cureers,curees
+cue^3	N	cueser,cureer,curerer,curerser
+cuo1	N	cursors
+cuo3	N	cursor
+da(n	N	dawn
+da(n1	N	dawns
+dan3	N	darn
+day1	N	days
+de^3	N	deer,defer
+de^m1	N	deems
+de^p1	N	deeps
+de^t1	N	deserts
+den1	N	dens
+die1	N	dies,dirers,dires,disers
+die3	N	dire,direr,diser
+die^1	N	diesers,dieses,direers,direes
+die^3	N	dieser,direer,direrer
+diet1	N	diets
+dim1	N	dims
+din1	N	dins
+do+e1	N	dowers,dowse,dowsers,dowses
+do+e3	N	dower,dowser
+do+e^1	N	dowerers,doweres,dowersers,dowerses
+do+e^3	N	dowerer,dowerser,dowseer,dowserer
+do^1	N	doors
+do^3	N	door
+do^e1	N	doorers,doores,doorsers,doorses
+do^e3	N	doorer,doorser
+do^m	N	doom
+do^m1	N	dooms
+doe1	N	doers,does,dose,dosers
+doe3	N	doer,doser
+doe^1	N	doerers,doeres,doersers,doerses
+doe^3	N	doerer,doerser,doeser,doseer
+dom1	N	dorms
+don1	N	dons
+dot1	N	dots
+due1	N	dues
+due^1	N	duesers,dueses
+due^3	N	dueser
+duet1	N	duets
+dun1	N	duns
+dung1	N	dungs
+dye1	N	dyers,dyes
+dye3	N	dyer
+dye^1	N	dyerers,dyeres,dyersers,dyerses
+dye^3	N	dyerer,dyerser,dyeser
+e4	N	ex
+e^3	N	ere,erer,eser,exer
+e^c1	N	execs
+e^t1	N	exerts
+em1	N	emfs,ems
+ghe^3	N	gheer
+gin1	N	gins
+gioe1	N	giroers,giroes,girosers,giroses
+gioe3	N	giroer,giroser
+git1	N	gits
+go+n	N	gown
+go^e1	N	gooers,gooes,goofers,goofes
+go^e3	N	gooer,goofer,goofser,gooser
+go^e^1	N	gooseers,goosees,goosesers,gooseses
+go^e^3	N	gooseer,gooseser
+go^n1	N	goons
+go^p1	N	goops
+goat1	N	goats
+goe1	N	goers,goes,gofers,gorers
+goe3	N	goer,gofer,gore,gorer
+goe^1	N	goerers,goeres,goersers,goerses
+goe^3	N	goerer,goerser,goeser,goferer
+gong1	N	gongs
+gun1	N	guns
+guu1	N	gurus
+guu3	N	guru
+guy1	N	guys
+guye1	N	guysers,guyses
+guye3	N	guyser
+ha(	N	haw
+ha(1	N	haws
+ham3	N	harm
+hay1	N	hays
+he3	N	her
+he4	N	hex
+he^o1	N	hereofs
+he^o2	N	hereof
+hie1	N	hies,hirers,hires,hisers
+hie3	N	hire,hirer,hiser
+hie^1	N	hiesers,hieses,hireers,hirees
+hie^3	N	hieser,hireer,hireser
+him1	N	hims
+ho+e1	N	howers,howes,howsers,howses
+ho+e3	N	hower,howser
+ho^ay1	N	hoorays
+ho^ay3	N	hooray
+ho^e1	N	hoofers,hoofes,hoofsers,hoofses
+ho^e3	N	hoofer,hoofser
+ho^e^1	N	hooferers,hooferes,hoofersers,hooferses
+ho^e^3	N	hooferer,hooferser
+ho^p1	N	hoops
+hoa4	N	hoax
+hoay3	N	hoary
+hoe3	N	hoer,horser,hoser
+hoe^1	N	hoerers,hoeres,hoersers,hoerses
+hoe^3	N	hoerer,hoerser,hoeser,horseer
+hon1	N	hons,horns
+hue1	N	hues
+hue^3	N	hueser
+ie1	N	ifers,ifes,ifsers,ifses
+ie3	N	ifer,ifser,ire,irer
+ie^1	N	ireers,irees
+ie^3	N	ireer
+in1	N	ins
+ke^n	C	keen
+ke^n1	N	keens
+la(	N	law
+la(1	N	laws
+la(n1	N	lawns
+lia3	N	liar,lira
+lie1	N	liefs,lies,lifers,lifes
+lie2	N	lief,life
+lie3	N	lifer,lire,lirer
+lie^1	N	liefers,liefes,liesers,lieses
+lie^3	N	liefer,lieser,lifeer,liferer
+lien1	N	liens
+lip1	N	lips
+lo+e1	N	lowers,lowes,lowsers,lowses
+lo+e3	N	lower,lowser
+lo+e^1	N	lowerers,loweres,lowersers,lowerses
+lo+e^3	N	lowerer,lowerser
+lo+et1	N	lowest,lowests
+lo^e1	N	looers,looes,loose,loosers
+lo^e3	N	looer,looser
+lo^e^1	N	looseers,loosees,looserers,looseres
+lo^e^3	N	looseer,looserer,looseser
+lo^en1	N	loosen,loosens,loosenss
+lo^et1	N	loosest,loosests
+lo^n1	N	loons
+loan1	N	loans
+loe3	N	lore,lorer,loser,loxer
+loe^1	N	loreers,lorees,loseers,losees
+loe^3	N	loreer,loseer,loserer,loserser
+lon1	N	lorns
+lon3	N	lorn
+lop1	N	lops
+lue1	N	lurers,lures,luxers,luxes
+lue3	N	lure,lurer,luxer
+lue^1	N	lureers,lurees,luresers,lureses
+lue^3	N	lureer,lureser
+lye1	N	lyrers,lyres
+lye3	N	lyre,lyrer
+lye^1	N	lyreers,lyrees,lyresers,lyreses
+lye^3	N	lyreer,lyreser
+lyn1	N	lynxs
+lyn4	N	lynx
+ma(1	N	maws
+mao3	N	major
+map1	N	maps
+me^3	N	mere,merer,meser
+me^t1	N	meets,merest,merests
+mic1	N	mics
+mie1	N	mirers,mires,misers,mixers
+mie3	N	mire,mirer,miser,mixer
+mie^1	N	mireers,mirees,miresers,mireses
+mie^3	N	mireer,mireser,miserer,miserser
+mien1	N	miens
+min1	N	minxs
+min4	N	minx
+mo+e1	N	mowers,mowes,mowsers,mowses
+mo+e3	N	mower,mowser
+mo+e^1	N	mowerers,moweres,mowersers,mowerses
+mo+e^3	N	mowerer,mowerser
+mo^e1	N	mooers,mooes,moorers,moores
+mo^e3	N	mooer,moorer,moorser,mooser
+mo^e^1	N	mooseers,moosees,moroseers,morosees
+mo^e^3	N	mooseer,moroseer
+mo^n1	N	moons,morons
+mo^n3	N	moron
+moan1	N	moans
+moat1	N	moats
+moay1	N	morays
+moay3	N	moray
+moe1	N	morers,mores
+moe3	N	more,morer
+moe^1	N	moreers,morees,moresers,moreses
+moe^3	N	moreer,moreser
+mon3	N	morn
+mue1	N	muse,musers,muses,musess
+mue3	N	muser
+mue^1	N	museers,musees,musesers,museses
+mue^3	N	museer,museser
+my1	N	mys
+mye1	N	mysers,myses
+mye3	N	myser
+neu1	N	nexus
+nie1	N	nixers,nixes
+nie3	N	nixer
+nie^1	N	nixesers,nixeses
+nie^3	N	nixeser
+nip1	N	nips
+no+ay	N	noway
+no+ay1	N	noways
+no+e1	N	nowers,nowes
+no+e3	N	nower
+no+t1	N	nowts
+no^e1	N	noose,noosers,nooses,noosess
+no^e3	N	nooser
+no^e^1	N	nooseers,noosees,noosesers,nooseses
+no^e^3	N	nooseer,nooseser
+no^n1	N	noons
+noe1	N	noes,norers,nores,nose
+noe3	N	norer,noser
+noe^1	N	noesers,noeses,noseers,nosees
+noe^3	N	noeser,noseer,noseser
+nom1	N	norms
+nom3	N	norm
+nue1	N	nurse,nursers,nurses,nursess
+nue3	N	nurser,nuser
+nue^1	N	nurseers,nursees,nurserers,nurseres
+nue^3	N	nurseer,nurserer,nurserser,nurseser
+o+e	N	owe
+o+e1	N	owers,owes
+o+e3	N	ower
+o+e^1	N	oweers,owees,owesers,oweses
+o+e^3	N	oweer,oweser
+o^e1	N	orzoers,orzoes
+o^e3	N	orzoer
+oa3	N	oar
+oe3	N	ore,orer,oxer
+oe^1	N	oreers,orees,oresers,oreses
+oe^3	N	oreer,oreser
+oen1	N	oxens
+oen4	N	oxen
+pa(	N	paw
+pa(1	N	paws
+pa(n	N	pawn
+pa(n1	N	pawns
+pa3	N	par
+pa^1	N	paras
+pa^m1	N	params
+pa^m3	N	param
+pai1	N	pairs
+pai3	N	pair
+pang1	N	pangs
+pap1	N	paps
+pat1	N	pats
+pay1	N	pays
+pe3	N	per
+pe^1	N	peers,pees,perers,peres
+pe^3	N	peer,perer
+pe^n	N	peen
+pe^n1	N	peens
+pe^p1	N	peeps
+pec1	N	pecs
+pem1	N	perms
+pem3	N	perm
+pen1	N	pens
+pep1	N	peps
+phie1	N	phisers,phises
+phie3	N	phiser
+pi1	N	pis,pixs
+pi4	N	pix
+pic1	N	pics
+pie1	N	piers,pies,pisers,pises
+pie3	N	pier,piser,pixer
+pie^1	N	pierers,pieres,piersers,pierses
+pie^3	N	pierer,pierser,pieser
+pip1	N	pips
+pit1	N	pits
+po+e1	N	powers,powes
+po+e3	N	power
+po+e^1	N	powerers,poweres,powersers,powerses
+po+e^3	N	powerer,powerser
+po1	N	poxs
+po4	N	pox
+po^1	N	poofs,poors,poos
+po^2	N	poof
+po^3	N	poor
+po^e1	N	pooers,pooes,poofers,poofes
+po^e3	N	pooer,poofer,poofser,poorer
+po^e^1	N	poorerers,pooreres
+po^e^3	N	poorerer
+po^et1	N	poorest,poorests
+po^p1	N	poops
+poe1	N	porers,pores,pose,posers
+poe3	N	pore,porer,poser,poxer
+poe^1	N	poreers,porees,poresers,poreses
+poe^3	N	poreer,poreser,poseer,poserer
+poet1	N	poets
+pom1	N	poms
+pon1	N	porns
+pon3	N	porn
+pong1	N	pongs
+pop1	N	pops
+pu1	N	pus
+pue1	N	purers,pures,purse,pursers
+pue3	N	pure,purer,purser,puser
+pue^1	N	pureers,purees,purerers,pureres
+pue^3	N	puree,pureer,purerer,purseer
+pun1	N	puns
+pup1	N	pups
+put1	N	puts
+py1	N	pyxs
+py4	N	pyx
+pye1	N	pyrers,pyres,pyxers,pyxes
+pye3	N	pyre,pyrer,pyxer
+pye^1	N	pyreers,pyrees,pyresers,pyreses
+pye^3	N	pyreer,pyreser,pyxeser
+qu4	N	qux
+qua^1	N	quasars
+qua^3	N	quasar
+quay1	N	quays
+que^1	N	queers
+que^3	N	queer
+que^n1	N	queens
+quie1	N	quirers,quires
+quie3	N	quire,quirer
+quie^1	N	quireers,quirees,quiresers,quireses
+quie^3	N	quireer,quireser
+quiet1	N	quiets
+quin1	N	quins
+quip1	N	quips
+ra(	N	raw
+ra(1	N	raws
+reo+1	N	resow,resows,resowss
+rie1	N	rifers,rifes,rise,risers
+rie2	N	rife
+rie3	N	rifer,riser
+rie^1	N	rifeers,rifees,riferers,riferes
+rie^3	N	rifeer,riferer,riseer,riserer
+rien1	N	risen,risens
+rim1	N	rims
+rip1	N	rips
+ro+an	N	rowan
+ro+an1	N	rowans
+ro+e1	N	rowers,rowes,rowsers,rowses
+ro+e3	N	rower,rowser
+ro+e^1	N	rowerers,roweres,rowersers,rowerses
+ro+e^3	N	rowerer,rowerser
+ro^1	N	roofs
+ro^e1	N	roofers,roofes,roofsers,roofses
+ro^e3	N	roofer,roofser
+ro^e^1	N	rooferers,rooferes,roofersers,rooferses
+ro^e^3	N	rooferer,rooferser
+ro^m	N	room
+ro^m1	N	rooms
+roa1	N	roars
+roa3	N	roar
+roam1	N	roams
+roan1	N	roans
+roay1	N	rosarys
+roay3	N	rosary
+roe1	N	roes,rose,rosers,roses
+roe3	N	roser
+roe^1	N	roesers,roeses,roseers,rosees
+roe^3	N	roeser,roseer,roseser
+rue1	N	rues,ruse,rusers,ruses
+rue3	N	ruser
+rue^1	N	ruesers,rueses,ruseers,rusees
+rue^3	N	rueser,ruseer,ruseser
+sa(	N	saw
+sa(1	N	saws
+sa^i1	N	safaris
+sa^i3	N	safari
+say1	N	says
+se^1	N	seers,sees,serers,seres
+se^3	N	seer,sere,serer,serfer
+se^m	N	seem
+se^m1	N	seems
+se^t1	N	serest,serests
+sic1	N	sics
+sie1	N	sirers,sires,sirsers,sirses
+sie3	N	sire,sirer,sirser,siser
+sie^1	N	sireers,sirees,siresers,sireses
+sie^3	N	sireer,sireser,siseser,sixeser
+sien1	N	sirens
+sien3	N	siren
+so+e1	N	sowers,sowes,sowsers,sowses
+so+e3	N	sower,sowser
+so+e^1	N	sowerers,soweres,sowersers,sowerses
+so+e^3	N	sowerer,sowerser
+so+n1	N	sowns
+so^n	N	soon
+so^n1	N	soons
+soa1	N	soars,sofas
+soa2	N	sofa
+soa3	N	soar
+soe1	N	sorers,sores
+soe3	N	sore,sorer
+soe^1	N	soreers,sorees,sorerers,soreres
+soe^3	N	soreer,sorerer,soreser
+sop1	N	sops
+sue1	N	sues,surers,sures,surfers
+sue3	N	sure,surer,surfer,surfser
+sue^1	N	suesers,sueses,sureers,surees
+sue^3	N	sueser,sureer,surerer,surferer
+sum1	N	sums
+sy1	N	sys
+ta^1	N	taxas
+ta^4	N	taxa
+tai4	N	taxi
+tau1	N	tarsus,tarsuss,taus
+te^m1	N	teems
+te^n1	N	teens
+tech1	N	techs
+tem3	N	term
+ten3	N	tern
+tha(	N	thaw
+tha(1	N	thaws
+the^o1	N	therefors,thereofs
+the^o2	N	thereof
+the^o3	N	therefor
+them1	N	therms
+thie1	N	thiefs,thisers,thises
+thie2	N	thief
+thie3	N	thiser
+thie^1	N	thiefers,thiefes
+thie^3	N	thiefer
+thin1	N	thins
+thoa4	N	thorax
+thoe1	N	those,thosers,thoses
+thoe3	N	thoser
+thoe^1	N	thoseers,thosees
+thoe^3	N	thoseer
+thon3	N	thorn
+thue1	N	thusers,thuses
+thue3	N	thuser
+tia^1	N	tiaras
+tia^3	N	tiara
+tic1	N	tics
+tie1	N	tiers,ties,tirers,tires
+tie3	N	tier,tire,tirer
+tie^1	N	tierers,tieres,tiersers,tierses
+tie^3	N	tierer,tierser,tieser,tireer
+to+e1	N	towers,towes,towsers,towses
+to+e3	N	tower,towser
+to+e^1	N	towerers,toweres,towersers,towerses
+to+e^3	N	towerer,towerser
+to+n	N	town
+to+n1	N	towns
+to^e1	N	tooers,tooes,torsoers,torsoes
+to^e3	N	tooer,torsoer,torsoser
+toe3	N	tore,torer,torser
+toe^1	N	toesers,toeses,toreers,torees
+toe^3	N	toeser,toreer
+ton3	N	torn
+tray1	N	trays
+tre^	C	tree
+tre^1	N	treers,trees
+tre^3	N	treer
+trie1	N	triers,tries
+trie3	N	trier
+trie^1	N	trierers,trieres,triersers,trierses
+trie^3	N	trierer,trierser,trieser
+trim1	N	trims
+trip1	N	trips
+tro+e1	N	trowers,trowes,trowsers,trowses
+tro+e3	N	trower,trowser
+tro^p1	N	troops
+true1	N	truers,trues
+true3	N	truer
+true^1	N	truerers,trueres,truesers,trueses
+true^3	N	truerer,trueser
+tu4	N	tux
+tue1	N	turfers,turfes,turfsers,turfses
+tue3	N	turfer,turfser,tuxer
+tue^3	N	tuxeser
+tue^n1	N	tureens
+tue^n3	N	tureen
+tun1	N	tuns,turns
+tun3	C	turn
+tuye1	N	turfyers,turfyes
+tuye3	N	turfyer
+vay3	C	vary
+ve^p1	N	veeps
+veu1	N	versus,versuss
+vie1	N	vies,vise,visers,vises
+vie3	N	viser
+vie^1	N	viesers,vieses,viseers,visees
+vie^3	N	vieser,viseer,viseser
+vien1	N	vixens
+vien4	N	vixen
+vo+e1	N	vowers,vowes,vowsers,vowses
+vo+e3	N	vower,vowser
+xie1	N	xisers,xises
+xie3	N	xiser
+xo^4	N	xoxo
+xo^e1	N	xoxoers,xoxoes
+xo^e3	N	xoxoer
+ye1	N	yers,yes
+ye3	N	yer
+ye^1	N	yerers,yeres,yesers,yeses
+ye^3	N	yerer,yeser
+yen1	N	yens
