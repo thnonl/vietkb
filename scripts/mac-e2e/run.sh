@@ -24,6 +24,7 @@ APP_PHASES=main,badlang,hidden,single,update,quit   # `tap` (direct exec, inheri
 IDLE_WAIT=300
 TARGETS_TELEX=textedit-plain,textedit-rich,notes,stickies,chrome-textarea,chrome-omnibox,vscode,terminal
 TARGETS_VNI=textedit-plain,textedit-rich,notes,stickies,chrome-textarea,vscode,terminal
+TARGETS_D10=textedit-plain,chrome-textarea,vscode,terminal
 DRY=0
 ONLY=""
 EXTRAS=1
@@ -44,7 +45,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 BIN=$APP/Contents/MacOS/vietkb
-TYPING=0; for ph in ${(s:,:)PHASES}; do case $ph in telex|vni|perapp) TYPING=1;; esac; done
+TYPING=0; for ph in ${(s:,:)PHASES}; do case $ph in telex|vni|perapp|d10) TYPING=1;; esac; done
 mkdir -p "$OUT"
 GLOG=$OUT/guardrail.log
 TMPD=$(mktemp -d /tmp/vkbe2e.XXXXXX)   # scratch: Chrome/VS Code profiles, fake HOME, built harness
@@ -191,9 +192,12 @@ EOF
   ls "$CFGDIR" | while read l; do glog "VIETKB config dir has: $l"; done
   local oa=(); [[ -n $ONLY ]] && oa=(--only $ONLY)
   [[ $name != telex ]] && export SKIP_IDLE_GATE=1   # later phases follow our own synthetic input; the watcher guards them
-  $H run --method $method --targets "$targets" --vk-pid $VKPID "${oa[@]}" "$@"
+  glog "RSS start pid=$VKPID $(ps -o rss= -p $VKPID | tr -d ' ') KB"
+  local hm=$method; [[ $name == d10 ]] && hm=d10   # D10 cases, telex config
+  $H run --method $hm --targets "$targets" --vk-pid $VKPID "${oa[@]}" "$@"
   local rc=$?
   glog "HARNESS exit code $rc"
+  glog "RSS end pid=$VKPID $(ps -o rss= -p $VKPID | tr -d ' ') KB"
   glog "KILL $(date +%H:%M:%S) pid=$VKPID path=$BIN reason=phase $name finished (launched by this script)"
   kill $VKPID; sleep 1; kill -9 $VKPID 2>/dev/null; VKPID=""
   cp "$CFGDIR/config.toml" "$OUT/config-after-$name.toml" 2>/dev/null
@@ -205,6 +209,7 @@ for ph in ${(s:,:)PHASES}; do
   case $ph in
     telex) run_phase telex telex "$( ((EXTRAS)) && echo gui,secure,gui-toggle,)$TARGETS_TELEX" || RC=$?;;
     vni)   run_phase vni vni "$( ((EXTRAS)) && echo secure,)$TARGETS_VNI" || RC=$?;;
+    d10)   run_phase d10 telex "$TARGETS_D10" || RC=$?;;
     perapp) run_phase perapp telex "textedit-plain,stickies" --perapp-raw stickies || RC=$?;;
     app)    glog "PHASE app dev-app=$DEVAPP phases=$APP_PHASES"
             E2E_REPO=$REPO $H appsuite --app "$DEVAPP" --phases "$APP_PHASES" || RC=$?

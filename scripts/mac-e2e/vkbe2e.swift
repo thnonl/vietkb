@@ -392,6 +392,35 @@ func nfc(_ s: String) -> String { s.precomposedStringWithCanonicalMapping }
 struct Case {
     var id: String; var keys: String; var expect: String
     var reps = 1; var sep = " "; var speed: Speed = .fast; var smoke = false; var note = ""
+    var expectCode: String? = nil   // D10: expected text in a code app (VS Code, Terminal) when it differs
+}
+// D10 "Tự nhận biết tiếng Anh và code" (0.2.8). Expected values from `vkb simulate --app neutral|code`;
+// the rows mirror the Windows real-app run (host-e2e8) plus a few owner examples.
+func d10Cases() -> [Case] {
+    return [
+        Case(id: "D10-01", keys: "user ", expect: "user "),
+        Case(id: "D10-02", keys: "Suwra user_id trong config.json ", expect: "Sửa user_id trong config.json "),
+        Case(id: "D10-03", keys: "the car ", expect: "the car ", note: "determiner rule"),
+        Case(id: "D10-04", keys: "the moon ", expect: "the moon ", note: "determiner rule"),
+        Case(id: "D10-05", keys: "Tooi hay mix nhacj ", expect: "Tôi hay mix nhạc ", note: "collocation"),
+        Case(id: "D10-06", keys: "tuooir teen ", expect: "tuổi teen ", note: "collocation"),
+        Case(id: "D10-07", keys: "Facebook Zalo JSON ", expect: "Facebook Zalo JSON "),
+        Case(id: "D10-08", keys: "Max speed ", expect: "Max speed ", note: "one word back"),
+        Case(id: "D10-09", keys: "Six pack ", expect: "Six pack ", note: "one word back"),
+        Case(id: "D10-10", keys: "cos ", expect: "có ", note: "Vietnamese first"),
+        Case(id: "D10-11", keys: "cos{CTRL+SHIFT+Z}", expect: "cos", note: "restore hotkey"),
+        Case(id: "D10-12", keys: "tieesng Vieetj ", expect: "tiếng Việt "),
+        Case(id: "D10-13", keys: "why order pass ", expect: "why order pass ", note: "mid-word switch"),
+        Case(id: "D10-14", keys: "getValue foo.bar a->b iOS ", expect: "getValue foo.bar a->b iOS ", note: "code shapes"),
+        Case(id: "D10-15", keys: "I like mix ", expect: "I like mix "),
+        Case(id: "D10-16", keys: "format is now ", expect: "format is now ", note: "is mid-sentence"),
+        Case(id: "D10-17", keys: "x = cos ", expect: "x = có ", note: "code app keeps cos", expectCode: "x = cos "),
+        Case(id: "D10-18", keys: "dduwowcj ", expect: "được "),
+        Case(id: "D10-19", keys: "Fix bug ", expect: "Fix bug ", note: "f at word start"),
+        Case(id: "D10-20", keys: "if x ", expect: "if x ", note: "if at line start"),
+        Case(id: "D10-21", keys: "twitter ", expect: "twitter "),
+        Case(id: "D10-22", keys: "Tooi ddang fix bug cho API, check log roi push code len GitHub. ", expect: "Tôi đang fix bug cho API, check log roi push code len GitHub. ", note: "mixed sentence"),
+    ]
 }
 func telexCases() -> [Case] {
     let sent = "Tieesng Vieetj raast ddepj."
@@ -411,7 +440,7 @@ func telexCases() -> [Case] {
         Case(id: "TX-E3a", keys: "ddeei{BS}{BS}{BS}ddeem", expect: "đêm", note: "delete fully, retype"),
         Case(id: "TX-E3b", keys: "ddeei{BS}{BS}{BS}ddeens", expect: "đến", note: "delete fully, retype"),
         Case(id: "TX-E4", keys: "ddeei{BS}{BS}eem", expect: "đêm", note: "delete back to first consonant, continue"),
-        Case(id: "TX-E5", keys: "pass{BS}{BS}{BS}dduwowcj", expect: "được", note: "wrong English word, delete, Vietnamese"),
+        Case(id: "TX-E5", keys: "pass{BS}{BS}{BS}{BS}dduwowcj", expect: "được", note: "wrong English word, delete, Vietnamese (0.2.8 D10: `pass` stays 4 letters, so 4 Backspaces)"),
         Case(id: "TX-E6", keys: "dduwowcjk{BS}", expect: "được", note: "D-BS-LIT-02"),
         Case(id: "TX-E7", keys: "gifk{BS}", expect: "gì", note: "D-BS-LIT-02"),
         Case(id: "TX-E8", keys: "test{BS}", expect: "té", note: "accepted re-judge consequence"),
@@ -508,8 +537,9 @@ func runCase(_ t: Target, _ c: Case, method: String, shotAlways: Bool = false) t
     let dur = Date().timeIntervalSince(started)
     let expectAll = Array(repeating: c.expect, count: c.reps).joined(separator: c.sep)
     var actual = actualRaw
-    if t.name == "terminal" { actual = actual.trimmingCharacters(in: .whitespaces) }
-    var pass = nfc(actual) == nfc(expectAll)
+    var expectCmp = expectAll
+    if t.name == "terminal" { actual = actual.trimmingCharacters(in: .whitespaces); expectCmp = expectAll.trimmingCharacters(in: .whitespaces) }
+    var pass = nfc(actual) == nfc(expectCmp)
     var extra: [String: Any] = [:]
     if c.reps > 1 {
         let words = nfc(actual).components(separatedBy: c.sep)
@@ -767,7 +797,7 @@ func openTerminal() throws -> Setup {
 var vkPidGlobal: Int32 = 0
 var perappRaw: Set<String> = []   // targets whose per-app rule disables VietKB: expect raw text
 func selectCases(_ method: String, smokeOnly: Bool, only: Set<String>? = nil) -> [Case] {
-    var cs = method == "vni" ? vniCases() : telexCases()
+    var cs = method == "d10" ? d10Cases() : method == "vni" ? vniCases() : telexCases()
     if smokeOnly { cs = cs.filter { $0.smoke } }
     if let o = only { cs = cs.filter { o.contains($0.id) } }
     return cs
@@ -802,7 +832,8 @@ func runTarget(_ name: String, method: String, only: Set<String>?) throws {
         try guardFront(t, "first batch")
         if name == "gui-toggle" { try guiToggle(vkPid: vkPidGlobal, t: t); setup.teardown(); return }
         let full = name.hasPrefix("textedit")
-        var cs = selectCases(method, smokeOnly: !full, only: only)
+        var cs = selectCases(method, smokeOnly: !full && method != "d10", only: only)
+        if name == "vscode" || name == "terminal" { cs = cs.map { var c = $0; if let e = c.expectCode { c.expect = e }; return c } }
         if perappRaw.contains(name) {
             cs = [Case(id: "PA-1", keys: "dduwowcj", expect: "dduwowcj", note: "per-app rule enabled=false -> raw"),
                   Case(id: "PA-2", keys: "Vieejt Nam", expect: "Vieejt Nam", note: "per-app rule enabled=false -> raw")]
