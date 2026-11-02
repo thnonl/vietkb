@@ -1197,9 +1197,24 @@ mod tests {
     /// The enabled flag is process-wide; keep these tests from racing.
     static LOCK: Mutex<()> = Mutex::new(());
 
+    /// Swallows every action: unit tests never call the real `SendInput`. A
+    /// refused injection (locked screen, an elevated window in front) makes the
+    /// runtime drop the word, so the result would depend on the desktop.
+    struct NullSink;
+
+    impl EngineSink for NullSink {
+        fn emit_with(&mut self, _: EngineAction, _: vkb_platform::plan::HeldKeys) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn active_app(&self) -> Option<vkb_platform::AppInfo> {
+            None
+        }
+    }
+
     fn runtime() -> HookRuntime {
         globals::store_enabled(true);
-        HookRuntime::new(None, None)
+        HookRuntime::new(None, Some(Box::new(NullSink)))
     }
 
     #[test]
@@ -1581,7 +1596,7 @@ toggle_mode = "release"
         globals::store_enabled(true);
         let mut cfg = AppConfig::default();
         cfg.system.notification_sound = false;
-        HookRuntime::new(Some(Arc::new(cfg)), None)
+        HookRuntime::new(Some(Arc::new(cfg)), Some(Box::new(NullSink)))
     }
 
     fn key(rt: &mut HookRuntime, vk: u16, down: bool) -> Decision {
