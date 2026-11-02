@@ -64,6 +64,9 @@ struct AssetJson {
     browser_download_url: String,
     #[serde(default)]
     size: u64,
+    /// GitHub's own digest of the asset, `sha256:<hex>`.
+    #[serde(default)]
+    digest: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +96,10 @@ pub struct UpdateInfo {
     pub asset_name: Option<String>,
     pub asset_url: Option<String>,
     pub asset_size: Option<u64>,
+    /// The installer's SHA-256 as GitHub reports it (`digest`); never sent to
+    /// the page.
+    #[serde(skip)]
+    pub asset_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -182,6 +189,9 @@ struct Downloaded {
     path: std::path::PathBuf,
     version: String,
     verified: bool,
+    /// The SHA-256 the file was proven against (macOS hands it to the helper,
+    /// which hashes again right before mounting).
+    sha256: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -429,6 +439,12 @@ fn parse_release_for(body: &str, macos: bool) -> Result<Option<UpdateInfo>, Stri
         asset_name: installer.map(|asset| asset.name.clone()),
         asset_url: installer.map(|asset| asset.url.clone()),
         asset_size: installer.map(|asset| asset.size),
+        asset_sha256: release
+            .assets
+            .iter()
+            .find(|raw| Some(raw.name.as_str()) == installer.map(|a| a.name.as_str()))
+            .and_then(|raw| raw.digest.as_deref())
+            .and_then(digest_sha256),
         assets,
     }))
 }
@@ -627,9 +643,35 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
         .clone()
         .unwrap_or_else(|| format!("VietKB_{}_x64-setup.exe", info.version));
     let changelog = info.changelog.clone();
+    let digest = info.asset_sha256.clone();
+
+    // macOS replaces the running app, so it only downloads what it can prove
+    // and only from this repository's release assets.
+    #[cfg(target_os = "macos")]
+    {
+        if !is_release_asset_url(&url) {
+            return Err(crate::i18n::t("err.update.assetUrl"));
+        }
+        if expected_sha256_mac(digest.as_deref(), &changelog, &name).is_none() {
+            tracing::info!("no SHA-256 known for the dmg; skipping the download");
+            *DOWNLOADED
+                .get_or_init(|| parking_lot::Mutex::new(None))
+                .lock() = Some(Downloaded {
+                path: std::path::PathBuf::new(),
+                version: info.version.clone(),
+                verified: false,
+                sha256: None,
+            });
+            return Ok(DownloadOutcome {
+                path: String::new(),
+                version: info.version,
+                verified: false,
+            });
+        }
+    }
 
     let outcome = tauri::async_runtime::spawn_blocking(move || {
-        download_to_temp(&url, &name, &changelog, &info.version)
+        download_to_temp(&url, &name, &changelog, digest.as_deref(), &info.version)
     })
     .await
     .unwrap_or_else(|error| Err(tf("err.update.downloadFailed", &[("error", &error.to_string())])))?;
@@ -673,12 +715,86 @@ fn update_script(installer: &std::path::Path, exe: &std::path::Path) -> String {
     )
 }
 
-/// macOS (M5): notify only. There is no silent self-replace until the app is
-/// signed and notarized, so `Cập nhật ngay` opens the release page, where the
-/// `.dmg` is. Nothing is downloaded or run from here.
+/// macOS: replace the running bundle with the one inside the downloaded `.dmg`,
+/// then relaunch. Returns `"installing"` once the helper script is running (the
+/// app quits right after), or `"page"` when this install cannot be replaced in
+/// place and the release page was opened instead. Everything the script needs is
+/// passed as arguments: no path is ever spliced into the script text.
 #[cfg(target_os = "macos")]
 #[tauri::command]
-pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+pub fn install_update(app: tauri::AppHandle) -> Result<&'static str, String> {
+    let downloaded = DOWNLOADED
+        .get_or_init(|| parking_lot::Mutex::new(None))
+        .lock()
+        .clone()
+        .ok_or_else(|| crate::i18n::t("err.update.notDownloaded"))?;
+    if available_version().as_deref() != Some(downloaded.version.as_str()) {
+        return Err(crate::i18n::t("err.update.notDownloaded"));
+    }
+    // Never replace the app with bytes that were not proven. Nothing was
+    // downloaded when the hash was unknown up front (empty path); a file that
+    // still ended up unverified is deleted.
+    let Some(sha256) = downloaded.sha256.clone().filter(|_| downloaded.verified) else {
+        let had_file = !downloaded.path.as_os_str().is_empty();
+        if had_file {
+            let _ = std::fs::remove_file(&downloaded.path);
+        }
+        open_release_page(&app)?;
+        return Ok(if had_file { "page-unverified" } else { "page" });
+    };
+    if !downloaded.path.exists() {
+        return Err(crate::i18n::t("err.update.installerGone"));
+    }
+
+    let exe = std::env::current_exe()
+        .map_err(|error| tf("err.update.exePath", &[("error", &error.to_string())]))?;
+    let Some(bundle) = bundle_from_exe(&exe) else {
+        return Err(crate::i18n::t("err.update.macNotBundle"));
+    };
+    let writable = bundle.parent().is_some_and(dir_is_writable);
+    if let Some(reason) = fallback_reason(&bundle, writable, true) {
+        tracing::info!(?reason, bundle = %bundle.display(), "in-place update not possible; opening the release page");
+        open_release_page(&app)?;
+        return Ok("page");
+    }
+
+    let dir = download_dir();
+    let script = dir.join("apply-update.sh");
+    std::fs::write(&script, MAC_UPDATE_SCRIPT)
+        .map_err(|error| tf("err.update.writeScript", &[("error", &error.to_string())]))?;
+    let log = dir.join("apply-update.log");
+    let args = mac_script_args(
+        std::process::id(),
+        &downloaded.path,
+        &bundle,
+        &downloaded.version,
+        &log,
+        &sha256,
+    );
+
+    // Its own process group and no stdio: it outlives this process, which
+    // exits below, and reopens VietKB once the bundle is replaced.
+    use std::os::unix::process::CommandExt;
+    std::process::Command::new("/bin/sh")
+        .arg(&script)
+        .args(&args)
+        .current_dir(std::env::temp_dir())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .process_group(0)
+        .spawn()
+        .map_err(|error| tf("err.update.runInstaller", &[("error", &error.to_string())]))?;
+
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        crate::quit(&app);
+    });
+    Ok("installing")
+}
+
+#[cfg(target_os = "macos")]
+fn open_release_page(app: &tauri::AppHandle) -> Result<(), String> {
     let url = available()
         .map(|info| info.html_url)
         .filter(|url| url.starts_with(REPO_URL))
@@ -688,6 +804,105 @@ pub fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         .open_url(url, None::<&str>)
         .map_err(|error| tf("err.update.openPage", &[("error", &error.to_string())]))
 }
+
+/// Only this repository's release downloads may be fetched and installed.
+#[cfg(any(target_os = "macos", test))]
+fn is_release_asset_url(url: &str) -> bool {
+    url.starts_with(&format!("{REPO_URL}/releases/download/"))
+}
+
+/// `.../VietKB.app/Contents/MacOS/vietkb` -> `.../VietKB.app`; `None` for
+/// anything that is not inside a `.app` bundle (a `cargo run` binary, say).
+#[cfg(any(target_os = "macos", test))]
+fn bundle_from_exe(exe: &std::path::Path) -> Option<std::path::PathBuf> {
+    let macos_dir = exe.parent()?;
+    let contents = macos_dir.parent()?;
+    let bundle = contents.parent()?;
+    let is_bundle = macos_dir.file_name()? == "MacOS"
+        && contents.file_name()? == "Contents"
+        && bundle.extension().is_some_and(|ext| ext == "app");
+    is_bundle.then(|| bundle.to_path_buf())
+}
+
+/// Why the bundle cannot be swapped under the running app.
+#[cfg(any(target_os = "macos", test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Fallback {
+    /// Gatekeeper's App Translocation copy: a read-only, randomised path, not
+    /// the bundle the user installed.
+    Translocated,
+    /// The folder holding the bundle cannot be written (the mounted `.dmg`, a
+    /// read-only volume, an admin-owned `/Applications`).
+    NotWritable,
+    /// No SHA-256 proved the dmg: never replace the app with unproven bytes.
+    Unverified,
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn is_translocated(bundle: &std::path::Path) -> bool {
+    bundle.components().any(|part| part.as_os_str() == "AppTranslocation")
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn fallback_reason(
+    bundle: &std::path::Path,
+    parent_writable: bool,
+    verified: bool,
+) -> Option<Fallback> {
+    if !verified {
+        Some(Fallback::Unverified)
+    } else if is_translocated(bundle) {
+        Some(Fallback::Translocated)
+    } else if !parent_writable {
+        Some(Fallback::NotWritable)
+    } else {
+        None
+    }
+}
+
+/// Whether a file can be created in `dir` (a read-only volume answers no even
+/// when the mode bits say yes).
+#[cfg(target_os = "macos")]
+fn dir_is_writable(dir: &std::path::Path) -> bool {
+    let probe = dir.join(format!(".vietkb-write-probe-{}", std::process::id()));
+    match std::fs::File::create(&probe) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// The helper's arguments. Paths travel as separate `argv` entries, so spaces
+/// and quotes in them cannot change what the shell runs.
+#[cfg(any(target_os = "macos", test))]
+fn mac_script_args(
+    pid: u32,
+    dmg: &std::path::Path,
+    bundle: &std::path::Path,
+    version: &str,
+    log: &std::path::Path,
+    sha256: &str,
+) -> Vec<std::ffi::OsString> {
+    vec![
+        pid.to_string().into(),
+        dmg.as_os_str().to_owned(),
+        bundle.as_os_str().to_owned(),
+        version.into(),
+        MAC_BUNDLE_ID.into(),
+        log.as_os_str().to_owned(),
+        sha256.into(),
+    ]
+}
+
+#[cfg(any(target_os = "macos", test))]
+const MAC_BUNDLE_ID: &str = "vn.vietkb.app";
+
+/// Static text, nothing interpolated. Usage:
+/// `apply-update.sh PID DMG BUNDLE VERSION BUNDLE_ID LOG SHA256`.
+#[cfg(any(target_os = "macos", test))]
+const MAC_UPDATE_SCRIPT: &str = include_str!("apply-update.sh");
 
 /// Launch the installer that `download_update` wrote, then leave cleanly.
 #[cfg(not(target_os = "macos"))]
@@ -788,6 +1003,7 @@ fn download_to_temp(
     url: &str,
     name: &str,
     changelog: &str,
+    digest: Option<&str>,
     version: &str,
 ) -> Result<Downloaded, String> {
     let dir = download_dir();
@@ -827,7 +1043,13 @@ fn download_to_temp(
         return Err(tf("err.update.finalize", &[("error", &error.to_string())]));
     }
 
-    let verified = match expected_sha256(changelog) {
+    let expected = if cfg!(target_os = "macos") {
+        expected_sha256_mac(digest, changelog, name)
+    } else {
+        expected_sha256(changelog)
+    };
+    let expected_hex = expected.clone();
+    let verified = match expected {
         Some(expected) => {
             let bytes = std::fs::read(&target)
                 .map_err(|error| tf("err.update.reread", &[("error", &error.to_string())]))?;
@@ -845,6 +1067,7 @@ fn download_to_temp(
         path: target,
         version: version.to_string(),
         verified,
+        sha256: expected_hex,
     })
 }
 
@@ -865,6 +1088,31 @@ fn expected_sha256(changelog: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// `sha256:<hex>` (GitHub's asset `digest`) -> the lowercase hex.
+fn digest_sha256(digest: &str) -> Option<String> {
+    let hex = digest.trim().strip_prefix("sha256:")?.to_ascii_lowercase();
+    (hex.len() == 64 && hex.chars().all(|ch| ch.is_ascii_hexdigit())).then_some(hex)
+}
+
+/// What the `.dmg` must hash to. GitHub's own digest of that very asset wins.
+/// Failing that, only a note line that names the file counts: the notes may
+/// carry the Windows installer's bare `SHA256:` line, which says nothing about
+/// the dmg and must never be compared against it.
+fn expected_sha256_mac(digest: Option<&str>, changelog: &str, asset: &str) -> Option<String> {
+    if let Some(hex) = digest.and_then(digest_sha256) {
+        return Some(hex);
+    }
+    let asset = asset.to_ascii_lowercase();
+    changelog
+        .lines()
+        .filter(|line| line.to_ascii_lowercase().contains(&asset))
+        .find_map(|line| {
+            line.split(|ch: char| !ch.is_ascii_hexdigit())
+                .find(|token| token.len() == 64)
+                .map(str::to_ascii_lowercase)
+        })
 }
 
 fn now_secs() -> u64 {
@@ -1193,6 +1441,140 @@ mod tests {
         let info = parse_release_for(body, false).expect("parses").expect("newer");
         assert!(info.asset_url.is_none());
         assert!(info.asset_name.is_none());
+    }
+
+    #[test]
+    fn bundle_is_derived_from_the_executable_path() {
+        use std::path::Path;
+        assert_eq!(
+            bundle_from_exe(Path::new("/Applications/VietKB.app/Contents/MacOS/vietkb")),
+            Some(Path::new("/Applications/VietKB.app").to_path_buf())
+        );
+        assert_eq!(
+            bundle_from_exe(Path::new("/Users/me/My Apps/Viet KB.app/Contents/MacOS/vietkb")),
+            Some(Path::new("/Users/me/My Apps/Viet KB.app").to_path_buf())
+        );
+        // A dev run, and look-alikes, are not bundles.
+        assert_eq!(bundle_from_exe(Path::new("/repo/target/debug/vietkb")), None);
+        assert_eq!(bundle_from_exe(Path::new("/Applications/VietKB.app/vietkb")), None);
+        assert_eq!(bundle_from_exe(Path::new("/x/VietKB/Contents/MacOS/vietkb")), None);
+        assert_eq!(bundle_from_exe(Path::new("/x/VietKB.app/Contents/Other/vietkb")), None);
+        assert_eq!(bundle_from_exe(Path::new("vietkb")), None);
+    }
+
+    #[test]
+    fn translocated_or_unwritable_bundles_fall_back_to_the_page() {
+        use std::path::Path;
+        let app = Path::new("/Applications/VietKB.app");
+        assert_eq!(fallback_reason(app, true, true), None);
+        assert_eq!(fallback_reason(app, false, true), Some(Fallback::NotWritable));
+        // Running from the mounted dmg: the volume is read-only.
+        assert_eq!(
+            fallback_reason(Path::new("/Volumes/VietKB/VietKB.app"), false, true),
+            Some(Fallback::NotWritable)
+        );
+        let moved = Path::new("/private/var/folders/ab/cd_ef/T/AppTranslocation/9A1B-22/d/VietKB.app");
+        assert!(is_translocated(moved));
+        // Translocation wins even if the probe says writable.
+        assert_eq!(fallback_reason(moved, true, true), Some(Fallback::Translocated));
+        assert!(!is_translocated(Path::new("/Users/me/AppTranslocationNotes/VietKB.app")));
+        // An unproven dmg is never installed, wherever the app lives.
+        assert_eq!(fallback_reason(app, true, false), Some(Fallback::Unverified));
+    }
+
+    #[test]
+    fn script_paths_travel_as_single_arguments() {
+        use std::path::Path;
+        let args = mac_script_args(
+            4242,
+            Path::new("/tmp/Viet KB update/VietKB_0.3.0_universal.dmg"),
+            Path::new("/Users/me/My Apps/Viet'KB \"x\" $(id).app"),
+            "0.3.0",
+            Path::new("/tmp/Viet KB update/apply-update.log"),
+            &"ab".repeat(32),
+        );
+        let args: Vec<String> = args.iter().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert_eq!(
+            args,
+            [
+                "4242",
+                "/tmp/Viet KB update/VietKB_0.3.0_universal.dmg",
+                "/Users/me/My Apps/Viet'KB \"x\" $(id).app",
+                "0.3.0",
+                "vn.vietkb.app",
+                "/tmp/Viet KB update/apply-update.log",
+                &"ab".repeat(32),
+            ]
+        );
+    }
+
+    #[test]
+    fn only_this_repos_release_assets_are_fetched_on_mac() {
+        assert!(is_release_asset_url(
+            "https://github.com/thnonl/vietkb/releases/download/v1.0.0/VietKB_1.0.0_universal.dmg"
+        ));
+        assert!(!is_release_asset_url("https://github.com/thnonl/vietkb-evil/releases/download/v1/a.dmg"));
+        assert!(!is_release_asset_url("https://github.com/other/vietkb/releases/download/v1/a.dmg"));
+        assert!(!is_release_asset_url("http://github.com/thnonl/vietkb/releases/download/v1/a.dmg"));
+        assert!(!is_release_asset_url("https://x/a.dmg"));
+    }
+
+    #[test]
+    fn the_mac_script_is_static_and_reads_its_arguments_once() {
+        assert!(MAC_UPDATE_SCRIPT.starts_with("#!/bin/sh"));
+        for needle in [
+            "kill -0",
+            "hdiutil attach -nobrowse -readonly",
+            "CFBundleIdentifier",
+            "CFBundleShortVersionString",
+            "ditto",
+            "xattr -dr com.apple.quarantine",
+            "hdiutil detach",
+            "shasum -a 256",
+            "trap",
+            "open \"$BUNDLE\"",
+        ] {
+            assert!(MAC_UPDATE_SCRIPT.contains(needle), "script lacks {needle}");
+        }
+        // Positional arguments are only ever copied into variables.
+        for line in MAC_UPDATE_SCRIPT
+            .lines()
+            .filter(|l| !l.trim_start().starts_with('#'))
+            .filter(|l| l.contains("$1") || l.contains("$2") || l.contains("$3"))
+        {
+            assert!(line.contains('='), "positional argument used directly: {line}");
+        }
+    }
+
+    #[test]
+    fn mac_digest_comes_from_github_or_a_line_naming_the_dmg() {
+        let hex = "ab".repeat(32);
+        let other = "cd".repeat(32);
+        // GitHub's digest of the asset wins.
+        assert_eq!(
+            expected_sha256_mac(Some(&format!("sha256:{}", hex.to_uppercase())), "SHA256: nothing", "a.dmg"),
+            Some(hex.clone())
+        );
+        // The Windows installer's bare line is never taken for the dmg.
+        assert_eq!(expected_sha256_mac(None, &format!("SHA256: {other}"), "a.dmg"), None);
+        let notes = format!("- SHA256: {other}  VietKB_1_x64-setup.exe\n- SHA256: {hex}  VietKB_1_universal.dmg\n");
+        assert_eq!(expected_sha256_mac(None, &notes, "VietKB_1_universal.dmg"), Some(hex));
+        assert_eq!(digest_sha256("md5:abc"), None);
+        assert_eq!(digest_sha256("sha256:short"), None);
+    }
+
+    #[test]
+    fn the_dmg_asset_carries_githubs_digest() {
+        let hex = "0f".repeat(32);
+        let other = "11".repeat(32);
+        let body = format!(
+            r#"{{"tag_name":"v99.0.0","assets":[
+            {{"name":"VietKB_99.0.0_x64-setup.exe","browser_download_url":"https://x/s.exe","size":1,"digest":"sha256:{other}"}},
+            {{"name":"VietKB_99.0.0_universal.dmg","browser_download_url":"https://x/a.dmg","size":2,"digest":"sha256:{hex}"}}]}}"#
+        );
+        let mac = parse_release_for(&body, true).unwrap().unwrap();
+        assert_eq!(mac.asset_url.as_deref(), Some("https://x/a.dmg"));
+        assert_eq!(mac.asset_sha256, Some(hex));
     }
 
     #[test]
