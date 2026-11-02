@@ -58,8 +58,11 @@ pub fn granted() -> bool {
 
 /// Re-read the status on a background thread. Never blocks the caller.
 pub fn refresh() {
+    // Flag the request before trying to claim the worker: a worker that is just
+    // finishing then either sees the flag and reads again, or has already
+    // released the claim, in which case this call claims it and spawns.
+    AGAIN.store(true, Ordering::Release);
     if REFRESHING.swap(true, Ordering::AcqRel) {
-        AGAIN.store(true, Ordering::Release);
         return;
     }
     let spawned = std::thread::Builder::new()

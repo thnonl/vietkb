@@ -5,19 +5,36 @@
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSWindow};
 
-/// Run `f` on the window's `NSWindow`. Main thread only (AppKit); every caller
-/// (window build, `reveal`) already runs there, so off it this does nothing.
-fn with_ns_window(window: &tauri::WebviewWindow, f: impl FnOnce(&NSWindow)) {
-    if MainThreadMarker::new().is_none() {
-        tracing::warn!("NSWindow access off the main thread; skipped");
+/// Run `f` on the window's `NSWindow`, on the main thread (AppKit). Every
+/// window build and `reveal` already runs there (`show_settings` / `show_aux`
+/// hop to it first), so `f` runs in the caller's turn. A caller off the main
+/// thread still gets `f` applied, one turn later, never skipped: skipping the
+/// alpha-1 step would leave an invisible key window.
+fn with_ns_window(window: &tauri::WebviewWindow, f: impl FnOnce(&NSWindow) + Send + 'static) {
+    if MainThreadMarker::new().is_some() {
+        apply_on_main(window, f);
         return;
     }
+    tracing::warn!("NSWindow access off the main thread; dispatched to it");
+    let target = window.clone();
+    if let Err(error) = window.run_on_main_thread(move || apply_on_main(&target, f)) {
+        tracing::warn!(%error, "could not reach the main thread for an NSWindow change");
+    }
+}
+
+/// `f` on the window's `NSWindow`. Main thread only.
+fn apply_on_main(window: &tauri::WebviewWindow, f: impl FnOnce(&NSWindow)) {
     let Ok(ptr) = window.ns_window() else { return };
     // SAFETY: `ns_window()` is the live NSWindow behind this Tauri window, and
-    // we are on the main thread, where AppKit objects may be used.
+    // this only runs on the main thread, where AppKit objects may be used.
     if let Some(ns_window) = unsafe { (ptr as *const NSWindow).as_ref() } {
         f(ns_window);
     }
+}
+
+/// Whether the caller is on the main (AppKit) thread.
+pub fn on_main_thread() -> bool {
+    MainThreadMarker::new().is_some()
 }
 
 /// Put a freshly built (hidden) window on screen fully transparent, without

@@ -256,8 +256,13 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
         // created on, and `outer_size()` answers in that monitor's DPI. Moving it
         // to the cursor's monitor first, then centring again, measures the size it
         // actually has there (94 px off on a 125% -> 100% pair otherwise).
-        centre_on_launch_monitor(&window);
-        centre_on_launch_monitor(&window);
+        // macOS placed it already while staging it (`hold_until_ready`), on screen
+        // at alpha 0, so the sizes were real there.
+        #[cfg(not(target_os = "macos"))]
+        {
+            centre_on_launch_monitor(&window);
+            centre_on_launch_monitor(&window);
+        }
         // macOS: the staged window turns opaque in place, already painted.
         #[cfg(target_os = "macos")]
         macos_shell::reveal_staged(&window);
@@ -269,6 +274,8 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
         if let Err(error) = window.show() {
             tracing::warn!(%error, "could not show the modal");
         }
+        // macOS placed it already while staging it (`hold_until_ready`).
+        #[cfg(not(target_os = "macos"))]
         match owner.as_ref() {
             Some(parent) => centre_on_parent(&window, Some(parent)),
             // Opened from the tray: no parent to centre on, so centre on the screen
@@ -411,6 +418,17 @@ fn leave_foreground_if_idle(_app: &tauri::AppHandle, _destroyed: &tauri::Window)
 /// the WebView2 stack down (charter P3) instead of hiding it, so this is also
 /// where it comes back.
 pub fn show_settings(app: &tauri::AppHandle) {
+    // macOS: build, staging (alpha 0) and order-in must happen in one main-thread
+    // turn. Callers off it (hotkeys on the backend worker, a second launch from
+    // the single-instance plugin's task) hop over first.
+    #[cfg(target_os = "macos")]
+    if !macos_shell::on_main_thread() {
+        let handle = app.clone();
+        if let Err(error) = app.run_on_main_thread(move || open_settings(&handle)) {
+            tracing::warn!(%error, "could not open the settings window on the main thread");
+        }
+        return;
+    }
     open_settings(app);
 }
 
@@ -420,7 +438,7 @@ pub fn show_settings(app: &tauri::AppHandle) {
 pub fn show_about(app: &tauri::AppHandle) {
     if let Err(error) = show_aux(app, "about") {
         tracing::warn!(%error, "could not open the About window");
-        open_settings(app);
+        show_settings(app);
     }
 }
 
@@ -487,6 +505,28 @@ fn open_settings(app: &tauri::AppHandle) {
 /// (`set_enabled(false)`) for as long as the modal lives. The modal is centred
 /// on the main window rather than on the monitor.
 pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
+    // macOS: same rule as `show_settings`. The page's buttons reach this through
+    // the async `open_window` command, on a runtime worker: hop to the main
+    // thread so the modal is staged in the turn `addChildWindow:` orders it in.
+    #[cfg(target_os = "macos")]
+    if !macos_shell::on_main_thread() {
+        if !AUX_LABELS.contains(&kind) {
+            return Err(i18n::tf("rwin.invalid", &[("kind", kind)]));
+        }
+        let handle = app.clone();
+        let kind = kind.to_string();
+        return app
+            .run_on_main_thread(move || {
+                if let Err(error) = show_aux_here(&handle, &kind) {
+                    tracing::warn!(%error, kind, "could not open the window");
+                }
+            })
+            .map_err(|error| error.to_string());
+    }
+    show_aux_here(app, kind)
+}
+
+fn show_aux_here(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
     // Height is the content height rounded up to the 4 px grid, never a
     // guessed constant — the same rule the main window uses. Each value is
     // measured from the screen it opens:
