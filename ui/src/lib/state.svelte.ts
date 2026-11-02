@@ -445,20 +445,13 @@ class Store {
     }
   }
 
-  /** `Cập nhật ngay`: download into %TEMP%, then hand off to the installer.
-   *  macOS (M5): notify only, so this opens the release page instead. */
+  /** `Cập nhật ngay`: download into the temp folder, then hand off to the
+   *  installer. On macOS the backend swaps the .app; when it cannot (running
+   *  from the dmg, translocated, folder not writable) it opens the release page
+   *  and answers `"page"`. */
   async installUpdate(): Promise<void> {
     if (this.previewMode) {
       this.updateNote = t("update.note.previewNoDownload");
-      return;
-    }
-    if (isMacOS()) {
-      try {
-        await api.installUpdate();
-        this.updateNote = t("update.note.macOpened");
-      } catch (error) {
-        this.updateNote = errorText(error);
-      }
       return;
     }
     this.updateBusy = "downloading";
@@ -469,7 +462,8 @@ class Store {
         ? t("update.note.verified", { version: done.version })
         : t("update.note.downloaded", { version: done.version });
       this.updateBusy = "installing";
-      await api.installUpdate();
+      const result = await api.installUpdate();
+      if (isMacOS() && result === "page") this.updateNote = t("update.note.macOpened");
     } catch (error) {
       this.updateNote = errorText(error);
     } finally {

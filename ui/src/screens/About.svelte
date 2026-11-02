@@ -121,8 +121,6 @@
                 {t("about.downloading")}
               {:else if app.updateBusy === "installing"}
                 {t("about.installing")}
-              {:else if platformState.mac}
-                {t("about.openDownload")}
               {:else}
                 {t("about.updateNow")}
               {/if}

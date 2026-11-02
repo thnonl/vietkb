@@ -98,7 +98,7 @@ export const quitApp = () => invoke<void>("quit_app");
 export const checkUpdate = () => invoke<UpdateStatus>("check_update");
 export const updateStatus = () => invoke<UpdateStatus>("update_status");
 export const downloadUpdate = () => invoke<DownloadOutcome>("download_update");
-export const installUpdate = () => invoke<void>("install_update");
+export const installUpdate = () => invoke<string | null>("install_update");
 
 /** Opens one of the allow-listed links (repo, issues, Ko-fi) in the browser. */
 export const openUrl = (url: string) => invoke<void>("open_url", { url });
