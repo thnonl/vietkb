@@ -5,6 +5,19 @@
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSWindow, NSWindowOcclusionState};
 
+/// Whether the window server reports any part of the window visible
+/// (`NSWindowOcclusionStateVisible`). WebKit throttles the page of a window that
+/// is not: no animation frames, no painting. Main thread only; `false` off it.
+pub fn occlusion_visible(window: &tauri::WebviewWindow) -> bool {
+    if MainThreadMarker::new().is_none() {
+        return false;
+    }
+    let Ok(ptr) = window.ns_window() else { return false };
+    // SAFETY: the live NSWindow of this Tauri window, on the main thread.
+    unsafe { (ptr as *const NSWindow).as_ref() }
+        .is_some_and(|ns_window| ns_window.occlusionState().contains(NSWindowOcclusionState::Visible))
+}
+
 /// Run `f` on the window's `NSWindow`, on the main thread (AppKit). Every
 /// window build and `reveal` already runs there (`show_settings` / `show_aux`
 /// hop to it first), so `f` runs in the caller's turn. A caller off the main
@@ -63,19 +76,6 @@ pub fn reveal_staged(window: &tauri::WebviewWindow) {
         ns_window.setIgnoresMouseEvents(false);
         ns_window.setAlphaValue(1.0);
     });
-}
-
-/// Whether the window server reports any part of the window visible
-/// (`NSWindowOcclusionStateVisible`). WebKit holds back the page of a window
-/// that is not. Main thread only; `false` off it.
-pub fn occlusion_visible(window: &tauri::WebviewWindow) -> bool {
-    if MainThreadMarker::new().is_none() {
-        return false;
-    }
-    let Ok(ptr) = window.ns_window() else { return false };
-    // SAFETY: the live NSWindow of this Tauri window, on the main thread.
-    unsafe { (ptr as *const NSWindow).as_ref() }
-        .is_some_and(|ns_window| ns_window.occlusionState().contains(NSWindowOcclusionState::Visible))
 }
 
 /// Activate VietKB so its windows come in front of every other app. Runs on the

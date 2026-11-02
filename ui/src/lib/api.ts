@@ -60,9 +60,6 @@ export const restartApp = () => invoke<void>("restart_app");
 export const appInfo = () => invoke<AppInfoView>("app_info");
 /** Tells the shell this window has painted its content; it shows the window then. */
 export const windowReady = () => invoke<void>("window_ready");
-/** macOS: the page's script runs, so the shell keeps its staged window waiting
- *  for `windowReady` instead of showing it early (main.rs `page_alive`). */
-export const pageAlive = () => invoke<void>("page_alive");
 
 /** Additive: the `Run` key itself, read back after every write so the switch
  *  can never claim an autostart Windows does not have. */

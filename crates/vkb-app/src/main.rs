@@ -165,11 +165,6 @@ struct Pending {
     started: Instant,
     /// Modals: the window they were opened from (centring and modality).
     owner: Option<String>,
-    /// macOS: the page's script has started (`page_alive`). A staged page that
-    /// has not by `EARLY_REVEAL_MS` is being held back by WebKit and is shown
-    /// at once instead (see `hold_until_ready`). Never read off macOS.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-    alive: bool,
 }
 
 static PENDING: parking_lot::Mutex<Vec<Pending>> = parking_lot::Mutex::new(Vec::new());
@@ -179,17 +174,18 @@ static NEXT_PENDING_ID: AtomicU64 = AtomicU64::new(1);
 /// reports (a script error, a lost IPC reply) must not leave an invisible window.
 const READY_FALLBACK_MS: u64 = 1500;
 
-/// macOS: how long after staging a page gets to report that its script runs
-/// (`page_alive`). In a fresh process the staged (alpha 0) window sometimes
-/// never becomes occlusion-visible (the app does not finish activating, so the
-/// window never turns key), and WebKit then holds the page until the window is
-/// shown: waiting for the fallback would leave nothing on screen for ~1.8 s.
-/// Past this mark the window is shown as it is, blank until the page paints,
-/// which is never worse than showing it at build (`schedule_early_check`).
-/// Measured on cold opens: the window turns occlusion-visible 90-170 ms after
-/// staging when all is well, and the script pings 250-470 ms after it.
+/// macOS: how often the shell checks that a staged (alpha 0) window is
+/// occlusion-visible, the first check this long after staging. WebKit runs no
+/// animation frames and no painting for a window the window server reports as
+/// occluded, so its page can never report ready. That happens when the app
+/// does not finish activating (seen on fresh processes activated without a user
+/// action): the window never turns key and stays occluded until shown. Such a
+/// window is shown at once (`cause=early`), blank until it paints, which is
+/// never worse than showing it at build. Measured on cold opens: a healthy
+/// staged window turns occlusion-visible 70-170 ms after staging (once 400 ms,
+/// which this shows early, blank for ~100 ms: the price of the bound).
 #[cfg(target_os = "macos")]
-const EARLY_REVEAL_MS: u64 = 350;
+const OCCLUSION_CHECK_MS: u64 = 300;
 
 /// Keep the main window hidden this many seconds after the user closes it, so a
 /// quick reopen shows it without a rebuild. 0 (shipped) destroys it at once, as
@@ -232,13 +228,13 @@ fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner
     }
 
     let id = NEXT_PENDING_ID.fetch_add(1, Ordering::SeqCst);
-    PENDING.lock().push(Pending { label: label.to_string(), id, started, owner, alive: false });
+    PENDING.lock().push(Pending { label: label.to_string(), id, started, owner });
     tracing::info!(window = label, build_ms = millis_since(started), "window.built");
 
-    // macOS safety net: a staged page that WebKit is holding back is shown now
+    // macOS safety net: a staged window that WebKit is throttling is shown now
     // rather than at the fallback.
     #[cfg(target_os = "macos")]
-    schedule_early_check(app, label, id, false);
+    schedule_occlusion_check(app, label, id);
 
     let app = app.clone();
     let label = label.to_string();
@@ -249,31 +245,26 @@ fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner
     });
 }
 
-/// macOS: `EARLY_REVEAL_MS` after staging, decide whether WebKit is running the
-/// staged page. It is when the page's script has pinged (`page_alive`) or when
-/// the window is occlusion-visible (the throttle trigger is gone; a slow cold
-/// compile gets one more `EARLY_REVEAL_MS` to ping). Otherwise the window is
-/// shown now, blank until it paints.
+/// macOS: every `OCCLUSION_CHECK_MS` while the window is still staged, show it
+/// at once if the window server reports it occluded.
 #[cfg(target_os = "macos")]
-fn schedule_early_check(app: &tauri::AppHandle, label: &str, id: u64, second: bool) {
+fn schedule_occlusion_check(app: &tauri::AppHandle, label: &str, id: u64) {
     let app = app.clone();
     let label = label.to_string();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(EARLY_REVEAL_MS));
+        std::thread::sleep(Duration::from_millis(OCCLUSION_CHECK_MS));
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || {
-            let silent = PENDING
-                .lock()
-                .iter()
-                .any(|pending| pending.label == label && pending.id == id && !pending.alive);
-            if !silent {
+            let staged = PENDING.lock().iter().any(|pending| pending.label == label && pending.id == id);
+            if !staged {
                 return;
             }
-            let unthrottled = handle
+            let visible = handle
                 .get_webview_window(&label)
                 .is_some_and(|window| macos_shell::occlusion_visible(&window));
-            if unthrottled && !second {
-                schedule_early_check(&handle, &label, id, true);
+            if visible {
+                // Keep watching: the window can still lose the state.
+                schedule_occlusion_check(&handle, &label, id);
             } else {
                 reveal(&handle, &label, Some(id), "early");
             }
@@ -351,16 +342,6 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
     }
 
     tracing::info!(window = label, cause, since_build_ms = millis_since(pending.started), "window.shown");
-}
-
-/// The page calls this as its script starts (macOS, `main.ts`): WebKit is
-/// running it, so the staged window may keep waiting for `window_ready`.
-#[tauri::command]
-fn page_alive(window: tauri::WebviewWindow) {
-    let label = window.label();
-    if let Some(pending) = PENDING.lock().iter_mut().find(|pending| pending.label == label) {
-        pending.alive = true;
-    }
 }
 
 /// The page calls this once its real content is on screen (`App.svelte`). Shows
@@ -1131,7 +1112,6 @@ fn main() {
             commands::request_input_monitoring,
             commands::open_privacy_pane,
             window_ready,
-            page_alive,
             #[cfg(not(feature = "store"))]
             update::check_update,
             #[cfg(not(feature = "store"))]
@@ -1204,7 +1184,6 @@ mod tests {
             id: 900_001,
             started: Instant::now(),
             owner: None,
-            alive: false,
         });
         assert!(take_pending("t-other", None).is_none());
         assert!(take_pending("t-held", Some(900_002)).is_none(), "a stale timer must not show it");
