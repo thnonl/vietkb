@@ -201,7 +201,7 @@ jobs:
           codesign --verify --deep --strict "$app"
           requirement="$(codesign -d -r- "$app" 2>&1)"
           echo "$requirement"
-          grep -q 'identifier "vn.vietkb.app" and certificate root = H"26f051435796e579c526eb1e981bfab98210064e"' <<< "$requirement"
+          grep -qF 'identifier "vn.vietkb.app" and certificate root = H"26f051435796e579c526eb1e981bfab98210064e"' <<< "$requirement"
 
       - name: Locate the .dmg
         shell: bash

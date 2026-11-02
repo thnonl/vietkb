@@ -74,7 +74,7 @@ label → "Mở cùng macOS" (same `system.start_with_windows` key).
   more. Local `tauri.macos.conf.json` stays `"-"` (dev builds are ad-hoc). Still not notarized.
 - Local QA builds on the owner's Mac (owner, 2026-10-31): signed with the existing
   "Apple Development" identity in the owner's keychain, so the Accessibility grant survives
-  rebuilds. Local only — release/CI builds stay ad-hoc. Never export or copy the identity.
+  rebuilds. Local only — release/CI builds use the project's self-signed certificate (see above). Never export or copy the identity.
 - In-app updater on macOS: notify only — shows the new version and opens the release page.
   Silent self-replace waits until the app is signed and notarized.
 - CI: `macos-latest` job (test + clippy). Release: macOS job builds the `.dmg` and uploads it
