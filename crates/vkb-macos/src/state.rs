@@ -504,6 +504,7 @@ impl Runtime {
         }
 
         // 2. Shortcut chords are never text.
+        let mut cmd_end = false;
         if self.mods.has_shortcut_modifier() {
             self.stage = "shortcut";
             if is_modifier {
@@ -515,8 +516,14 @@ impl Runtime {
             if self.hotkeys.awaiting_release() && self.engine_can_restore() {
                 return Decision::SWALLOW;
             }
-            self.reset_engine();
-            return Decision::PASS;
+            // Cmd+Right (Cmd alone) is End on macOS: it falls through to step 4, which
+            // tells the engine, after the same app / IME gates as any other key.
+            if vk == keys::VK_RIGHT && self.mods.win && !self.mods.shift && !self.mods.alt && !self.mods.ctrl {
+                cmd_end = true;
+            } else {
+                self.reset_engine();
+                return Decision::PASS;
+            }
         }
 
         // 3. Per-app enablement.
@@ -544,8 +551,27 @@ impl Runtime {
         }
         self.stage = "engine";
 
-        // 4. Caret movement and other commands end the current word.
-        if keys::is_caret_mover(vk) {
+        // 4. Caret movement and other commands end the current word. Plain Left/Right/End
+        // (and Cmd+Right, which is End) go to the engine instead: it follows the caret inside
+        // the line it remembers, so a tone key after a word there re-tones it ("gõ dấu đè").
+        // The key itself always passes and the engine's answer is dropped (it is a Noop).
+        // Shift extends a selection, so it resets like every other caret key.
+        if enabled
+            && !self.mods.shift
+            && (cmd_end || matches!(vk, keys::VK_LEFT | keys::VK_RIGHT | keys::VK_END))
+        {
+            let vk_in = if cmd_end { keys::VK_END } else { vk };
+            let _ = self.process(KeyInput {
+                vk: vk_in,
+                scan: ev.keycode,
+                ch: None,
+                modifiers: Modifiers::NONE,
+                down: true,
+                repeat,
+            });
+            return Decision::PASS;
+        }
+        if cmd_end || keys::is_caret_mover(vk) {
             self.reset_engine();
             return Decision::PASS;
         }
@@ -1255,6 +1281,83 @@ mod tests {
         assert_eq!(rig.rt.on_event(&left), Decision::PASS);
         assert_eq!(press(&mut rig.rt, 's'), Decision::PASS);
         assert!(rig.log.lock().replaced.is_empty());
+    }
+
+    fn arrow(rt: &mut Runtime, keycode: u16, flags: u64) -> Decision {
+        let down = RawEvent::key(EventKind::KeyDown, keycode, flags, None);
+        let decision = rt.on_event(&down);
+        rt.on_event(&RawEvent::key(EventKind::KeyUp, keycode, flags, None));
+        decision
+    }
+
+    const LEFT: u16 = 123;
+    const RIGHT: u16 = 124;
+    const HOME: u16 = 115;
+    const CMD: u64 = flags::COMMAND | flags::DEV_LCMD;
+
+    fn type_str(rt: &mut Runtime, text: &str) {
+        for ch in text.chars() {
+            press(rt, ch);
+        }
+    }
+
+    #[test]
+    fn left_then_a_tone_key_re_tones_the_remembered_word() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        type_str(&mut rig.rt, "nha ");
+        let before = rig.log.lock().replaced.len();
+        assert_eq!(arrow(&mut rig.rt, LEFT, 0), Decision::PASS);
+        assert_eq!(rig.log.lock().replaced.len(), before, "the arrow emits no text");
+        assert!(press(&mut rig.rt, 's').swallow);
+        let log = rig.log.lock();
+        assert_eq!(log.replaced.len(), before + 1);
+        assert_eq!(log.replaced.last().unwrap().1, "nhá", "nha re-toned to nhá");
+    }
+
+    #[test]
+    fn cmd_right_is_end_for_the_engine() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        type_str(&mut rig.rt, "nha ");
+        arrow(&mut rig.rt, LEFT, 0);
+        let before = rig.log.lock().replaced.len();
+        assert_eq!(arrow(&mut rig.rt, RIGHT, CMD), Decision::PASS);
+        assert_eq!(rig.log.lock().replaced.len(), before, "the chord emits no text");
+        // The engine treats it exactly like End: the old line is not describable any more
+        // (as on Windows), so the tone key is a plain letter here ...
+        arrow(&mut rig.rt, LEFT, 0);
+        assert_eq!(press(&mut rig.rt, 's'), Decision::PASS);
+        assert_eq!(rig.log.lock().replaced.len(), before);
+        // ... and a word typed after it is remembered again.
+        arrow(&mut rig.rt, RIGHT, CMD);
+        type_str(&mut rig.rt, "tot ");
+        arrow(&mut rig.rt, LEFT, 0);
+        assert!(press(&mut rig.rt, 's').swallow);
+        assert!(rig.log.lock().replaced.last().unwrap().1.ends_with("ót"));
+    }
+
+    #[test]
+    fn selecting_and_jumping_arrows_reset() {
+        let _guard = globals::TEST_LOCK.lock();
+        let shift = flags::SHIFT | flags::DEV_LSHIFT;
+        let cases: [(&str, u16, u64); 6] = [
+            ("shift+left", LEFT, shift),
+            ("home", HOME, 0),
+            ("cmd+left", LEFT, CMD),
+            ("option+left", LEFT, flags::ALTERNATE | flags::DEV_LALT),
+            ("ctrl+left", LEFT, flags::CONTROL | flags::DEV_LCTRL),
+            ("cmd+shift+right", RIGHT, CMD | shift),
+        ];
+        for (name, code, fl) in cases {
+            let mut rig = rig(None);
+            type_str(&mut rig.rt, "nha ");
+            let before = rig.log.lock().replaced.len();
+            assert_eq!(arrow(&mut rig.rt, code, fl), Decision::PASS, "{name}");
+            arrow(&mut rig.rt, LEFT, 0);
+            assert_eq!(press(&mut rig.rt, 's'), Decision::PASS, "{name}: s is a plain letter");
+            assert_eq!(rig.log.lock().replaced.len(), before, "{name}");
+        }
     }
 
     #[test]
