@@ -44,6 +44,7 @@ buye1	N	buryers,buryes,busyers,busyes
 buye3	N	buryer,busyer,buyer,buyser
 buye^1	N	buyerers,buyeres,buyersers,buyerses
 buye^3	N	buyerer,buyerser
+by1	N	
 bye1	N	byes,byrers,byres
 bye3	N	byre,byrer
 bye^1	N	byesers,byeses,byreers,byrees
@@ -156,6 +157,7 @@ gioe1	N	giroers,giroes,girosers,giroses
 gioe3	N	giroer,giroser
 git1	N	gits
 go+n	N	gown
+go1	N	
 go^e1	N	gooers,gooes,goofers,goofes
 go^e3	N	gooer,goofer,goofser,gooser
 go^e^1	N	gooseers,goosees,goosesers,gooseses
@@ -215,6 +217,7 @@ ke^n1	N	keens
 la(	N	law
 la(1	N	laws
 la(n1	N	lawns
+le1	N	
 lia3	N	liar,lira
 lie1	N	liefs,lies,lifers,lifes
 lie2	N	lief,life
@@ -269,6 +272,7 @@ mo+e1	N	mowers,mowes,mowsers,mowses
 mo+e3	N	mower,mowser
 mo+e^1	N	mowerers,moweres,mowersers,mowerses
 mo+e^3	N	mowerer,mowerser
+mo1	N	
 mo^e1	N	mooers,mooes,moorers,moores
 mo^e3	N	mooer,moorer,moorser,mooser
 mo^e^1	N	mooseers,moosees,moroseers,morosees
@@ -422,6 +426,7 @@ quip1	N	quips
 ra(	N	raw
 ra(1	N	raws
 reo+1	N	resow,resows,resowss
+ri1	N	
 rie1	N	rifers,rifes,rise,risers
 rie2	N	rife
 rie3	N	rifer,riser
@@ -479,6 +484,7 @@ so+e3	N	sower,sowser
 so+e^1	N	sowerers,soweres,sowersers,sowerses
 so+e^3	N	sowerer,sowerser
 so+n1	N	sowns
+so1	N	
 so^n	N	soon
 so^n1	N	soons
 soa1	N	soars,sofas
@@ -544,6 +550,7 @@ toe^1	N	toesers,toeses,toreers,torees
 toe^3	N	toeser,toreer
 ton3	N	torn
 tray1	N	trays
+tre1	N	
 tre^	C	tree
 tre^1	N	treers,trees
 tre^3	N	treer

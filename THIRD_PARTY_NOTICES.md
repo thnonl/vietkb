@@ -284,7 +284,7 @@ computed over the Vietnamese sentences of the Tatoeba project
 
 Word pairs (0.2.9): `bigrams.rs` also uses the Vietnamese sentences above (Tatoeba, and the
 Common Voice list of section 3). Only 32-bit hashes of adjacent syllable pairs, where one of the two is a Vietnamese reading of an
-English word (`mã`, `bõ`, `rôm` ...), were kept; no sentence or word can be read back from them.
+English word (`mã`, `bõ`, `rôm` ...), were kept. The hashes reveal which listed-word pairs co-occur in the sentences; no sentence text is stored, and no sentence can be rebuilt from them.
 
 ## 2b. Tatoeba (English sentences, 0.2.9)
 
