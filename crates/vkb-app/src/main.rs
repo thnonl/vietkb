@@ -702,7 +702,7 @@ fn main() {
 
             tray::install(&handle)?;
 
-            // Five seconds after launch, off the UI thread, honouring
+            // Five seconds after launch, then every 12 h, off the UI thread, honouring
             // `system.check_updates`. A failure stays silent; the About window
             // shows the reason when the owner opens it.
             // The Store build never reaches the network: Store updates it.

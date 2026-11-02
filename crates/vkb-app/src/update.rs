@@ -10,6 +10,7 @@
 //! dependency this feature adds.
 
 use std::io::Write;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -28,6 +29,8 @@ const USER_AGENT: &str = concat!(
 );
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 const STARTUP_DELAY: Duration = Duration::from_secs(5);
+/// How often the running app asks GitHub again after the startup check.
+const CHECK_INTERVAL: Duration = Duration::from_secs(12 * 60 * 60);
 /// i18n key shown when the release has no installer asset for this platform
 /// (no Windows x64 installer, or no `.dmg` on macOS).
 #[cfg(not(target_os = "macos"))]
@@ -187,6 +190,26 @@ struct Downloaded {
 
 static STATUS: OnceLock<parking_lot::RwLock<UpdateStatus>> = OnceLock::new();
 static DOWNLOADED: OnceLock<parking_lot::Mutex<Option<Downloaded>>> = OnceLock::new();
+
+/// Manual checks and downloads currently running. The periodic timer skips its
+/// tick while this is non-zero, so it never races them for the shared state.
+static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+
+/// Marks an update operation as running until dropped (also on panic/cancel).
+struct InFlight;
+
+impl InFlight {
+    fn begin() -> Self {
+        IN_FLIGHT.fetch_add(1, Ordering::SeqCst);
+        InFlight
+    }
+}
+
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+    }
+}
 
 fn state() -> &'static parking_lot::RwLock<UpdateStatus> {
     STATUS.get_or_init(|| parking_lot::RwLock::new(UpdateStatus::idle()))
@@ -414,22 +437,57 @@ pub fn publish(app: &tauri::AppHandle, status: UpdateStatus) {
     }
 }
 
-/// Five seconds after launch, on a worker thread. Silent on failure — the
-/// About window will show the reason the next time it is opened.
+/// What one timer tick should do. Pure, so it is testable without a network.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Tick {
+    /// `system.check_updates` is off: do nothing, ask again next tick.
+    SkipDisabled,
+    /// A manual check or a download is running: leave it alone.
+    SkipBusy,
+    Check,
+}
+
+fn decide_tick(check_updates: bool, in_flight: bool) -> Tick {
+    if !check_updates {
+        Tick::SkipDisabled
+    } else if in_flight {
+        Tick::SkipBusy
+    } else {
+        Tick::Check
+    }
+}
+
+/// One tick: decide, then (maybe) run the check through the same
+/// `run_check` + `publish` path as the manual button. An error is stored and
+/// shown by the About window like before; the next tick simply tries again
+/// (this covers 403/429 as well: no retry in between).
+fn run_tick(app: &tauri::AppHandle) {
+    let enabled = crate::commands::config_cell().read().system.check_updates;
+    let busy = IN_FLIGHT.load(Ordering::SeqCst) > 0;
+    if decide_tick(enabled, busy) != Tick::Check {
+        return;
+    }
+    let _busy = InFlight::begin();
+    let status = run_check();
+    if status.state == UpdateState::Available {
+        tracing::info!(
+            version = status.update.as_ref().map(|i| i.version.as_str()).unwrap_or(""),
+            "update available"
+        );
+    }
+    publish(app, status);
+}
+
+/// One sleeping worker thread for the life of the app: a check five seconds
+/// after launch, then one every `CHECK_INTERVAL`. The setting is read at each
+/// tick, so toggling it needs no restart. Never touches the hook/UI threads.
 pub fn schedule_startup_check(app: tauri::AppHandle) {
     tauri::async_runtime::spawn_blocking(move || {
         std::thread::sleep(STARTUP_DELAY);
-        if !crate::commands::config_cell().read().system.check_updates {
-            return;
+        loop {
+            run_tick(&app);
+            std::thread::sleep(CHECK_INTERVAL);
         }
-        let status = run_check();
-        if status.state == UpdateState::Available {
-            tracing::info!(
-                version = status.update.as_ref().map(|i| i.version.as_str()).unwrap_or(""),
-                "update available"
-            );
-        }
-        publish(&app, status);
     });
 }
 
@@ -439,6 +497,7 @@ pub fn schedule_startup_check(app: tauri::AppHandle) {
 
 #[tauri::command]
 pub async fn check_update(app: tauri::AppHandle) -> UpdateStatus {
+    let _busy = InFlight::begin();
     // Paint `Đang kiểm tra…` before the request goes out.
     publish(&app, UpdateStatus::checking());
     let status = tauri::async_runtime::spawn_blocking(run_check)
@@ -455,6 +514,7 @@ pub fn update_status() -> UpdateStatus {
 
 #[tauri::command]
 pub async fn download_update() -> Result<DownloadOutcome, String> {
+    let _busy = InFlight::begin();
     let Some(info) = available() else {
         return Err(crate::i18n::t("err.update.nothingToDownload"));
     };
@@ -797,6 +857,43 @@ fn sha256_hex(data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn periodic_interval_is_twelve_hours() {
+        assert_eq!(CHECK_INTERVAL, Duration::from_secs(43_200));
+    }
+
+    #[test]
+    fn tick_is_skipped_when_the_setting_is_off() {
+        assert_eq!(decide_tick(false, false), Tick::SkipDisabled);
+        assert_eq!(decide_tick(false, true), Tick::SkipDisabled);
+    }
+
+    #[test]
+    fn tick_is_skipped_while_a_check_or_download_runs() {
+        assert_eq!(decide_tick(true, true), Tick::SkipBusy);
+        assert_eq!(decide_tick(true, false), Tick::Check);
+    }
+
+    #[test]
+    fn in_flight_guard_counts_and_releases() {
+        let before = IN_FLIGHT.load(Ordering::SeqCst);
+        {
+            let _a = InFlight::begin();
+            let _b = InFlight::begin();
+            assert_eq!(IN_FLIGHT.load(Ordering::SeqCst), before + 2);
+        }
+        assert_eq!(IN_FLIGHT.load(Ordering::SeqCst), before);
+    }
+
+    #[test]
+    fn an_error_tick_leaves_the_next_tick_free_to_check() {
+        // run_check turns any failure (including 403/429) into an error state,
+        // never a retry loop; the decision for the next tick is independent.
+        let status = UpdateStatus::error("x");
+        assert_eq!(status.state, UpdateState::Error);
+        assert_eq!(decide_tick(true, false), Tick::Check);
+    }
 
     #[test]
     fn versions_parse_and_order_like_semver() {
