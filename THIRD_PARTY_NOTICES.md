@@ -282,6 +282,24 @@ computed over the Vietnamese sentences of the Tatoeba project
 - Changes: the sentences were split into syllables and only counts were kept.
   VietKB does not contain, and cannot reproduce, any sentence.
 
+Word pairs (0.2.9): `bigrams.rs` also uses the Vietnamese sentences above. Only 32-bit
+hashes of adjacent syllable pairs, where one of the two is a Vietnamese reading of an
+English word (`mã`, `bõ`, `rôm` ...), were kept; no sentence or word can be read back from them.
+
+## 2b. Tatoeba (English sentences, 0.2.9)
+
+The English word-pair table in `bigrams.rs` was computed over the English sentences of
+Tatoeba (`eng_sentences_detailed.tsv`, downloaded on 2026-11-02; bz2 file sha256
+`7d8a98a1322c63eb62199b0e928efc5b9afbf8f4bb9bc4b60ebde1ea99a30cda`).
+
+- Source: Tatoeba, <https://tatoeba.org>
+- Credit: Tatoeba contributors (<https://tatoeba.org/en/sentences/show_all_in/eng/none>).
+- Licence: Creative Commons Attribution 2.0 France (CC BY 2.0 FR),
+  <https://creativecommons.org/licenses/by/2.0/fr/>. Some sentences are CC0.
+- Changes: sentences were split into words; only 32-bit hashes of adjacent word pairs that
+  contain a word of `english.txt` and were seen at least three times were kept. VietKB does
+  not contain, and cannot reproduce, any sentence.
+
 ## 3. Mozilla Common Voice (Vietnamese sentence list)
 
 The same counts also use `server/data/vi/sentence-collector.txt` of

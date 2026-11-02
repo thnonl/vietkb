@@ -90,6 +90,11 @@ struct Back {
     /// The typed keys, lowercase.
     typed: [u8; MAX_WORD],
     typed_len: usize,
+    /// FNV state after `vietnamese syllable key + " "`, so the Vietnamese pair hash with the
+    /// next word's key is one `fnv_extend` away.
+    vi_hash: u32,
+    /// `shown` is the typed English word (`alternate` is the Vietnamese reading).
+    shown_english: bool,
 }
 
 /// What the break that just ended a word left behind, for the one-word-back check.
@@ -103,6 +108,9 @@ struct Scratch {
     /// The typed keys of the word, lowercase ASCII letters (empty otherwise).
     right_raw: [u8; MAX_WORD],
     right_len: usize,
+    /// Syllable key of the word's Vietnamese reading (`right_key_len` = 0: none).
+    right_key: [u8; 48],
+    right_key_len: usize,
 }
 
 /// The last automatic correction, kept until the next key so the restore hotkey
@@ -1377,14 +1385,12 @@ impl Engine {
     }
 
     /// Record what the word that just ended means for the next word
-    /// (`scratch`) and, after a space, keep it as a one-word-back candidate when
-    /// the call was close (amendment 4). `restored`: the typed keys are now on
-    /// screen; otherwise the composed word is.
-    fn note_boundary(&mut self, ch: char, score: Option<f32>, restored: bool, old_len: usize) {
-        let candidate = ch == ' ' && !restored && !self.raw.is_empty() && score.is_some();
-        // `room` kept English may still become `rôm` before `rả` / `sảy`.
-        let reverse = ch == ' ' && restored && self.raw_is_back_vi_first();
-        if !self.want_scratch && !candidate && !reverse {
+    /// (`scratch`) and, after a space, keep an ambiguous word (its keys spell a listed
+    /// English word and compose a Vietnamese syllable) as a one-word-back candidate.
+    /// `restored`: the typed keys are now on screen; otherwise the composed word is.
+    fn note_boundary(&mut self, ch: char, _score: Option<f32>, restored: bool, old_len: usize) {
+        let ambiguous = if ch == ' ' { self.ambiguous_word(restored) } else { None };
+        if !self.want_scratch && ambiguous.is_none() {
             return;
         }
         let mut raw_text = TextBuf::new();
@@ -1403,6 +1409,8 @@ impl Engine {
         }
         if self.want_scratch {
             let right = self.summarize_word(restored);
+            let mut right_key = [0u8; 48];
+            let right_key_len = self.composed_key(&mut right_key).unwrap_or(0);
             self.scratch = Some(Scratch {
                 old_len,
                 old_text: composed_text.clone(),
@@ -1410,36 +1418,42 @@ impl Engine {
                 right,
                 right_raw: lower,
                 right_len: lower_len,
+                right_key,
+                right_key_len,
             });
         }
-        if candidate {
-            self.back = Some(Back {
-                shown: composed_text,
-                alternate: raw_text,
-                typed: lower,
-                typed_len: lower_len,
-            });
-        } else if reverse {
-            self.back = Some(Back {
-                shown: raw_text,
-                alternate: composed_text,
-                typed: lower,
-                typed_len: lower_len,
-            });
+        if let Some(vi_hash) = ambiguous {
+            let (shown, alternate) = if restored { (raw_text, composed_text) } else { (composed_text, raw_text) };
+            self.back = Some(Back { shown, alternate, typed: lower, typed_len: lower_len, vi_hash, shown_english: restored });
         }
     }
 
-    /// The word that just ended was typed as a word that has a Vietnamese compound
-    /// reading (`room`): lowercase ASCII letters only, no allocation.
-    fn raw_is_back_vi_first(&self) -> bool {
-        let mut lower = [0u8; MAX_WORD];
-        if self.raw.len() > MAX_WORD || !self.raw.iter().all(char::is_ascii_alphabetic) {
-            return false;
+    /// The word that just ended is ambiguous: its keys (ASCII letters only, not a function
+    /// word or determiner) spell a listed English word and compose a Vietnamese syllable that
+    /// is a real word (or, when the English word is on screen, any valid syllable). Returns the
+    /// FNV state after the syllable key and a space. No allocation.
+    fn ambiguous_word(&self, restored: bool) -> Option<u32> {
+        if self.raw.len() < 2 || self.raw.len() > MAX_WORD || !self.raw_differs() {
+            return None;
         }
+        let mut lower = [0u8; MAX_WORD];
         for (slot, &typed) in lower.iter_mut().zip(self.raw.iter()) {
+            if !typed.is_ascii_alphabetic() {
+                return None;
+            }
             *slot = typed.to_ascii_lowercase() as u8;
         }
-        lexicon::back_vi_first(&lower[..self.raw.len()])
+        let word = &lower[..self.raw.len()];
+        let english = lexicon::english_word(word)?;
+        if english.ident || lexicon::is_closed_word(word) {
+            return None;
+        }
+        let mut key = [0u8; 48];
+        let len = self.composed_key(&mut key)?;
+        if !restored && lexicon::vi_count(&key[..len]) == 0 && !lexicon::real_but_uncounted(word) {
+            return None;
+        }
+        Some(lexicon::fnv_extend(lexicon::fnv_extend(lexicon::FNV_BASIS, &key[..len]), b" "))
     }
 
     /// Amendment 4: the word before the one that just ended may be rewritten, once,
@@ -1457,8 +1471,17 @@ impl Engine {
         // evidence; neither is anything else.
         let right = &scratch.right_raw[..scratch.right_len];
         let first = &back.typed[..back.typed_len];
-        let rewrite = (scratch.right.kind == PrevKind::English && lexicon::back_pair(first, right))
-            || (scratch.right.kind != PrevKind::English && lexicon::back_vi_pair(first, right));
+        // Vietnamese pair `key1 key2` and English pair `word1 word2` attested in the corpora;
+        // a hit on both goes to Vietnamese (owner: for now).
+        let vi_attested = scratch.right_key_len > 0
+            && lexicon::vi_pair(lexicon::fnv_extend(back.vi_hash, &scratch.right_key[..scratch.right_key_len]));
+        let rewrite = if back.shown_english {
+            vi_attested || (scratch.right.kind != PrevKind::English && lexicon::back_vi_pair(first, right))
+        } else {
+            let english_right =
+                matches!(scratch.right.kind, PrevKind::English | PrevKind::Function | PrevKind::Determiner);
+            english_right && !vi_attested && !right.is_empty() && !first.is_empty() && (lexicon::en_pair_of(first, right) || lexicon::back_pair(first, right))
+        };
         if !rewrite {
             return action;
         }

@@ -735,3 +735,48 @@ fn room_compounds_are_still_typeable() {
         ],
     );
 }
+
+// Owner (2026-11-02): an ambiguous word (its keys spell a listed English word and compose a
+// real Vietnamese syllable) is decided by the words on both sides, through pair tables built
+// from Tatoeba English / Vietnamese sentences and Common Voice (`scripts/gen_bigrams.py`).
+// An attested English pair -> English; an attested Vietnamese pair -> Vietnamese; neither ->
+// the word's current default (Vietnamese for a real word). The next-word side is the
+// existing one-word-back Replace.
+#[test]
+fn attested_english_pairs_switch_to_english_on_either_side() {
+    check(
+        telex(),
+        &[
+            // The right neighbour settles it (one word back).
+            ("mail box ", "mail box "),
+            ("box office ", "box office "),
+            ("bus stop ", "bus stop "),
+            ("tax return ", "tax return "),
+            ("see you ", "see you "),
+            ("gas station ", "gas station "),
+            ("Max speed ", "Max speed "),
+            ("six pack ", "six pack "),
+            // Not attested -> Vietnamese stays (owner: "file max" has no meaning).
+            ("file max ", "file mã "),
+            ("fix bug max ", "fix bug mã "),
+            ("max so ", "mã so "),
+            ("mix tape ", "mĩ tape "),
+            // Attested Vietnamese pair.
+            ("max nguoonf ", "mã nguồn "),
+            ("tooi thichs mix nhacj ", "tôi thích mix nhạc "),
+            // Alone, the default.
+            ("max ", "mã "),
+            ("box ", "bõ "),
+            ("moon ", "môn "),
+        ],
+    );
+}
+
+#[test]
+fn closed_class_words_keep_the_old_behaviour_next_to_pairs() {
+    // Function words and the like: Vietnamese by default, English only with English on the left.
+    check(
+        telex(),
+        &[("as ", "á "), ("has ", "há "), ("us ", "ú "), ("too ", "tô "), ("or ", "ỏ "), ("there ", "thể "), ("these ", "thế "), ("this ", "thí ")],
+    );
+}
