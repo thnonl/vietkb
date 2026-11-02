@@ -45,6 +45,29 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
+# Desktop lock preflight: another session may hold ~/.claude/desktop-qa.lock. Abort before touching anything unless it is ours
+# (session "Phiên bản vietkb cho Mac") or stale (its "until" is more than 10 min in the past).
+LOCK=$HOME/.claude/desktop-qa.lock
+if [[ -f $LOCK ]]; then
+  LOCKMSG=$(python3 -I - "$LOCK" <<'PYEOF'
+import json, sys, datetime
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception as e:
+    print("ABORT unreadable lock: %s" % e); sys.exit(0)
+if d.get("session") == "Phiên bản vietkb cho Mac":
+    sys.exit(0)
+try:
+    until = datetime.datetime.strptime(d["until"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+    if (datetime.datetime.now(datetime.timezone.utc) - until).total_seconds() > 600:
+        sys.exit(0)
+except Exception:
+    pass
+print("ABORT desktop locked by session %r until %s" % (d.get("session"), d.get("until")))
+PYEOF
+)
+  if [[ -n $LOCKMSG ]]; then echo "$LOCKMSG (lock file $LOCK). Nothing touched."; exit 7; fi
+fi
 BIN=$APP/Contents/MacOS/vietkb
 TYPING=0; for ph in ${(s:,:)PHASES}; do case $ph in telex|vni|perapp|d10|drop|droptx) TYPING=1;; esac; done
 mkdir -p "$OUT"
@@ -136,7 +159,7 @@ idle_s() { ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {printf "%d", $NF/100000000
 IDLE=$(idle_s)
 glog "HID idle ${IDLE}s"
 # Owner present and asked to run now (2026-11-02): skip the idle gate; the physical-input watcher still aborts on any real key or click.
-if [[ -n $VKB_E2E_NO_IDLE ]]; then glog "IDLE GATE skipped at owner's request (VKB_E2E_NO_IDLE); watcher stays armed"; IDLE=999; export SKIP_IDLE_GATE=1; fi
+if [[ -n ${VKB_E2E_NO_IDLE:-} ]]; then glog "IDLE GATE skipped at owner's request (VKB_E2E_NO_IDLE); watcher stays armed"; IDLE=999; export SKIP_IDLE_GATE=1; fi
 # wait (up to 5 min) for the owner to be idle >= 60 s; nothing has been touched yet
 for i in {1..$(( IDLE_WAIT / 5 ))}; do (( IDLE >= 60 )) && break; sleep 5; IDLE=$(idle_s); done
 glog "HID idle ${IDLE}s at gate"
@@ -181,7 +204,7 @@ language = "vi"
 theme = "dark"
 $EXTRA
 EOF
-  if [[ -n $VKB_E2E_CONFIG ]]; then cp "$VKB_E2E_CONFIG" "$CFGDIR/config.toml"; glog "CONFIG copied from $VKB_E2E_CONFIG"; fi
+  if [[ -n ${VKB_E2E_CONFIG:-} ]]; then cp "$VKB_E2E_CONFIG" "$CFGDIR/config.toml"; glog "CONFIG copied from $VKB_E2E_CONFIG"; fi
   glog "CONFIG (test copy, $CFGDIR) sha256=$(shasum -a 256 "$CFGDIR/config.toml" | cut -d' ' -f1)"
   HOME=$HOMEDIR "$BIN" > "$OUT/vietkb-$name.log" 2>&1 &
   VKPID=$!
