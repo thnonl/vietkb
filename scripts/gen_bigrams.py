@@ -85,15 +85,23 @@ def main():
             if vi_count.get(key, 0) > 0 or levels[w] == "1":
                 ambiguous.setdefault(w, set()).add(key)
     # Words the engine keeps Vietnamese although the corpus lacks them (lexicon.rs REAL_BUT_UNCOUNTED).
-    keep_vietnamese = {"gas", "nor", "here"}
+    # The words the engine keeps Vietnamese although the corpus lacks the reading (lexicon.rs).
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(repo, "crates/vkb-core/src/lexicon.rs"), encoding="utf-8") as f:
+        lexicon_src = f.read()
+    block = re.search(r"static REAL_BUT_UNCOUNTED[^=]*=\s*&\[(.*?)\];", lexicon_src, re.S)
+    assert block, "REAL_BUT_UNCOUNTED not found in lexicon.rs"
+    keep_vietnamese = set(re.findall(r'b"([a-z]+)"', block.group(1)))
+    assert keep_vietnamese, "REAL_BUT_UNCOUNTED is empty"
     amb_keys = {k for ks in ambiguous.values() for k in ks}
     # English is already the default for a word with no corpus count (`room`): its English pairs
     # decide nothing. Only words that are real Vietnamese syllables need them.
     # Rarer English forms (SCOWL level 3+, plurals) keep the old rule: Vietnamese wins.
+    # A loanword, name, identifier or tech tag (a letter) always counts; a SCOWL digit counts
+    # only at levels 1 and 2. (The earlier two-clause form had the same truth table.)
     real = (keep_vietnamese & set(ambiguous)) | {
         w for w, ks in ambiguous.items()
-        if (any(vi_count.get(k, 0) > 0 for k in ks) and not levels[w].isdigit())
-        or (levels[w] in "12" and any(vi_count.get(k, 0) > 0 for k in ambiguous[w]))}
+        if any(vi_count.get(k, 0) > 0 for k in ks) and (not levels[w].isdigit() or levels[w] in "12")}
     print(f"ambiguous words: {len(ambiguous)}, keys: {len(amb_keys)}", file=sys.stderr)
 
     # English pairs.
