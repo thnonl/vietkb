@@ -88,7 +88,7 @@ Author: QA (test design), 2026-10-31. Read-only on product code; nothing was lau
 
 | Item | Tests |
 |---|---|
-| Menu-bar icon: V (on) / E (off) template image, tooltip | MAC-DOC-04; MAC-INS-13; MAC-MBR-01/03/09/10/12/13/14/15/16/17 |
+| Menu-bar icon: coloured Windows keycap V (on) / E (off), Windows update badge, tooltip | MAC-DOC-04; MAC-INS-13; MAC-MBR-01/03/09/10/12/13/14/15/16/17 |
 | Menu item `Bật/tắt tiếng Việt` (check mark) | MAC-PRM-14; MAC-MBR-02/03/11/16 |
 | Menu submenu `Kiểu gõ` Telex / VNI (check marks) | MAC-MBR-02/04 |
 | Menu item `Mở cài đặt…` | MAC-MBR-02/05; MAC-WIN-01 |
@@ -224,7 +224,7 @@ Static checks on `site/`, README and the Mac release notes. All are doc-vs-produ
 | MAC-INS-10 | P1 | Uninstall: drag to Trash | VietKB with autostart on | Quit; Trash the app; log out/in | No process starts; LaunchAgent plist is left behind and points to a missing exe (document how to remove, or give an uninstall helper). Config dir stays | manual-owner | crates/vkb-macos/src/autostart.rs:97-105 |
 | MAC-INS-11 | P2 | Run on Intel (Rosetta) and Apple silicon, minimum OS | Intel Mac or Rosetta-launched app; macOS 11/12 | Launch; type; open all windows | Same behaviour; macOS 11 (stated minimum) renders windows and the tap works. If untestable, raise the minimum in release notes | manual-owner | crates/vkb-app/tauri.macos.conf.json:12; release-notes-mac-draft.md:3 |
 | MAC-INS-12 | P2 | Version string consistency | Release candidate | Compare dmg file name, About `version`, `CFBundleShortVersionString`, tag, site `data-release=version` | All equal | harness needs new capability: CAP-18 | crates/vkb-app/src/commands.rs:1172-1178; ui/src/screens/About.svelte:23 |
-| MAC-INS-13 | P2 | App icon and menu-bar template images | dmg | View icon in Finder, Dock (when shown), Cmd+Tab; view menu-bar icon in light and dark menu bars | Keycap V icon is sharp at all sizes; menu-bar glyph is monochrome template, readable on both | manual-owner | crates/vkb-app/src/tray.rs:42-50 |
+| MAC-INS-13 | P2 | App icon and menu-bar icon | dmg | View icon in Finder, Dock (when shown), Cmd+Tab; view menu-bar icon in light and dark menu bars, with and without an update available | Keycap V icon is sharp at all sizes; menu-bar icon is the coloured Windows keycap (V on / E off, same as the Windows tray), readable on both; with an update it carries the Windows badge (accent disc, white arrow, white halo) bottom-right | manual-owner | crates/vkb-app/src/tray.rs:24-94 |
 | MAC-INS-14 | P1 | First run when `~/Library/Application Support` is read-only or the disk is full | Config dir not writable | Launch; change a setting | App stays up; error toast `Không đổi được ...`/save failure shown; no crash loop | manual-owner | crates/vkb-config/src/lib.rs:101-125; ui/src/lib/state.svelte.ts (fail toast) |
 | MAC-INS-15 | P2 | Second Mac user account installs the same /Applications copy | Two macOS users | Each user launches VietKB; separate configs and LaunchAgents | Per-user config under each `~/Library`; Accessibility grants are per user | manual-owner | crates/vkb-config/src/paths.rs:13-23 |
 
