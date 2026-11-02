@@ -45,7 +45,9 @@ Modifier naming on macOS: `Ctrl`=⌃ Control, `Alt`=⌥ Option, `Win`=⌘ Comman
 The UI shows the Mac symbols.
 
 ## M3 — App shell
-- Menu-bar extra (Tauri tray icon, template image). **Revised (owner, 2026-10-31):** the app
+- Menu-bar extra (Tauri tray icon). **Owner ruling 2026-11-02:** the menu-bar icon is the same
+  coloured logo as the Windows tray (`tray-{on,off}-32.png`, non-template), not a monochrome
+  template image. **Revised (owner, 2026-10-31):** the app
   shows a Dock icon while any VietKB window is open (`ActivationPolicy::Regular`, app activated
   so windows come to the front), and returns to menu-bar-only (`Accessory`) when the last window
   closes/hides. Owner report: no Dock icon when the GUI opened, and settings modals opened hidden
@@ -106,11 +108,12 @@ Owner, verbatim: "Hãy nhớ rằng app này là singleton. Và khi có update c
   it hands over to the running one (which shows its settings window) and exits.
 - Agents and the QA harness keep at most one dev-channel instance alive and quit it gracefully.
 - Update available on macOS shows the same signals as Windows: the menu-bar icon carries an update
-  badge (template image keeps the glyph; the badge is a coloured dot drawn as a non-template overlay,
-  or a dedicated badged image — whatever renders legibly in light and dark menu bars), the title-bar
+  badge (since the owner ruling 2026-11-02, the same accent disc with a white arrow and white halo
+  as Windows, drawn on the coloured 32 px icon), the title-bar
   area/top-right row of the settings window shows the same update badge/button as Windows, and the
   menu has the update item. Supersedes the M5/Dev-B choice "no update badge on mac".
-- macOS menu-bar badge is monochrome in the template alpha (menu-bar tint follows the wallpaper); see 70-impl-notes-macos.md.
+- Owner ruling 2026-11-02: the menu bar uses the coloured Windows logo and the Windows badge; the
+  earlier monochrome template icon and alpha-only dot are gone. See 70-impl-notes-macos.md.
 - Owner, 2026-10-31, on 2-state vs adding a "system" state: "Làm theo Windows, khi mở lần đầu thì theo hệ thống, khi user toggle thì lưu user setting." → keep the 2-state toggle as implemented (no third state); the way back to following the system is "Đặt lại tất cả".
 
 ## M9 — Title-bar controls on macOS like Windows (owner, 2026-10-31)

@@ -924,7 +924,7 @@ func phaseUpdate(_ c: AppCtx) throws {
     let texts = windowTexts(c, (findWin(c, "main", lang: "en") ?? w).el)
     let hit = texts.filter { $0.range(of: #"[Uu]pdate (v\d|available)|cập nhật"#, options: .regularExpression) != nil }
     row("APP-70", "MAC-UPD-01", "update badge in the settings window (fake update feed)", hit.isEmpty ? nil : true,
-        hit.isEmpty ? "SKIP: the app exposes no update indicator in the settings window yet (labels read: \(texts.count)); the menu-bar icon badge is a template image and is not AX-readable" : "labels: \(hit)", evidence: hit.isEmpty ? "" : shot(w.id, "theme-toggle-5-update-button"))
+        hit.isEmpty ? "SKIP: the app exposes no update indicator in the settings window yet (labels read: \(texts.count)); the menu-bar icon badge is drawn into the icon bitmap and is not AX-readable" : "labels: \(hit)", evidence: hit.isEmpty ? "" : shot(w.id, "theme-toggle-5-update-button"))
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
