@@ -713,7 +713,7 @@ pub fn install_update(app: tauri::AppHandle) -> Result<&'static str, String> {
         return Err(crate::i18n::t("err.update.macNotBundle"));
     };
     let writable = bundle.parent().is_some_and(dir_is_writable);
-    if let Some(reason) = fallback_reason(&bundle, writable) {
+    if let Some(reason) = fallback_reason(&bundle, writable, downloaded.verified) {
         tracing::info!(?reason, bundle = %bundle.display(), "in-place update not possible; opening the release page");
         open_release_page(&app)?;
         return Ok("page");
@@ -782,6 +782,8 @@ enum Fallback {
     /// The folder holding the bundle cannot be written (the mounted `.dmg`, a
     /// read-only volume, an admin-owned `/Applications`).
     NotWritable,
+    /// No SHA-256 proved the dmg: never replace the app with unproven bytes.
+    Unverified,
 }
 
 #[cfg(any(target_os = "macos", test))]
@@ -790,8 +792,14 @@ fn is_translocated(bundle: &std::path::Path) -> bool {
 }
 
 #[cfg(any(target_os = "macos", test))]
-fn fallback_reason(bundle: &std::path::Path, parent_writable: bool) -> Option<Fallback> {
-    if is_translocated(bundle) {
+fn fallback_reason(
+    bundle: &std::path::Path,
+    parent_writable: bool,
+    verified: bool,
+) -> Option<Fallback> {
+    if !verified {
+        Some(Fallback::Unverified)
+    } else if is_translocated(bundle) {
         Some(Fallback::Translocated)
     } else if !parent_writable {
         Some(Fallback::NotWritable)
@@ -1402,18 +1410,20 @@ mod tests {
     fn translocated_or_unwritable_bundles_fall_back_to_the_page() {
         use std::path::Path;
         let app = Path::new("/Applications/VietKB.app");
-        assert_eq!(fallback_reason(app, true), None);
-        assert_eq!(fallback_reason(app, false), Some(Fallback::NotWritable));
+        assert_eq!(fallback_reason(app, true, true), None);
+        assert_eq!(fallback_reason(app, false, true), Some(Fallback::NotWritable));
         // Running from the mounted dmg: the volume is read-only.
         assert_eq!(
-            fallback_reason(Path::new("/Volumes/VietKB/VietKB.app"), false),
+            fallback_reason(Path::new("/Volumes/VietKB/VietKB.app"), false, true),
             Some(Fallback::NotWritable)
         );
         let moved = Path::new("/private/var/folders/ab/cd_ef/T/AppTranslocation/9A1B-22/d/VietKB.app");
         assert!(is_translocated(moved));
         // Translocation wins even if the probe says writable.
-        assert_eq!(fallback_reason(moved, true), Some(Fallback::Translocated));
+        assert_eq!(fallback_reason(moved, true, true), Some(Fallback::Translocated));
         assert!(!is_translocated(Path::new("/Users/me/AppTranslocationNotes/VietKB.app")));
+        // An unproven dmg is never installed, wherever the app lives.
+        assert_eq!(fallback_reason(app, true, false), Some(Fallback::Unverified));
     }
 
     #[test]
