@@ -178,13 +178,14 @@ const MAC_RESERVED: Record<string, string> = {
   "Win+H": "hk.sys.hide",
   "Win+M": "hk.sys.minimize",
   "Win+,": "hk.sys.settings",
-  "Win+Tab": "hk.sys.appSwitcher",
-  "Shift+Win+Tab": "hk.sys.appSwitcher",
+  "Win+`": "hk.sys.switchWindows",
   "Win+Space": "hk.common.spotlight",
   "Ctrl+Space": "hk.common.macKeyboard",
   "Ctrl+Alt+Space": "hk.common.macKeyboard",
   "Ctrl+Win+Q": "hk.sys.lockScreen",
-  "Alt+Win+Escape": "hk.sys.forceQuit",
+  "Ctrl+Win+Space": "hk.sys.characterViewer",
+  "Shift+Win+Q": "hk.sys.logOut",
+  "Ctrl+Win+F": "hk.sys.fullScreen",
   "Shift+Win+3": "hk.sys.screenshot",
   "Shift+Win+4": "hk.sys.screenshot",
   "Shift+Win+5": "hk.sys.screenshot",
@@ -278,11 +279,15 @@ const macKeyFromCode = (code: string): string | null | undefined => {
   return undefined;
 };
 
+/** macOS: a keypad or ISO/JIS extra key, which cannot be a hotkey. */
+export const isUnusableMacKey = (event: KeyboardEvent): boolean =>
+  isMacOS() && macKeyFromCode(event.code ?? "") === null;
+
 /** Key token for a keydown event, or null when the key cannot end a combo. */
 export const keyToken = (event: KeyboardEvent): string | null => {
   // macOS (S-08): Option turns letters into composed characters (ß, ∑, dead
   // keys) in `event.key`, so a chord like ⌃⌥S could never be captured. The tap
-  // matches physical US key positions anyway, so the physical code is the truth.
+  // matches physical US key positions anyway, so the physical keycode is the truth.
   // Windows keeps `event.key`: its hook matches layout-based virtual keys.
   if (isMacOS()) {
     const mapped = macKeyFromCode(event.code ?? "");

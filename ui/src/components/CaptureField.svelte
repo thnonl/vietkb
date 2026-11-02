@@ -4,7 +4,7 @@
   import Icon from "./Icon.svelte";
   import Keycap from "./Keycap.svelte";
   import { t } from "../lib/lang.svelte";
-  import { canonicalize, comboFromEvent, hotkeyHazard, keyToken, prettyHotkey } from "../lib/hotkey";
+  import { canonicalize, comboFromEvent, hotkeyHazard, isUnusableMacKey, keyToken, prettyHotkey } from "../lib/hotkey";
   import { isMacOS } from "../lib/platform.svelte";
   import type { HotkeyActionField } from "../lib/catalog";
 
@@ -287,6 +287,12 @@
       if (!run.includes(token)) run = [...run, token];
       held = chordOf();
       if (held) draft = held;
+      return;
+    }
+    if (isUnusableMacKey(event)) {
+      event.preventDefault();
+      error = t("hk.err.unusableKey");
+      setProblem();
       return;
     }
     if (!keyToken(event)) return;
