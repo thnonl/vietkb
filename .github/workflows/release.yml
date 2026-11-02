@@ -2,8 +2,9 @@ name: release
 
 # Builds and publishes the Windows installer and the macOS universal .dmg to the
 # same GitHub release. scripts/verify-update.ps1 verifies the Windows update on a
-# real machine or in Windows Sandbox. The macOS app is ad-hoc signed, not
-# notarized (docs/evkey-clone-work/27-mac-decisions.md M5).
+# real machine or in Windows Sandbox. The macOS app is signed with the
+# project's self-signed certificate, not notarized
+# (docs/evkey-clone-work/27-mac-decisions.md M5).
 
 on:
   push:
@@ -163,11 +164,44 @@ jobs:
       - name: Install UI dependencies
         run: npm --prefix ui ci
 
-      # Ad-hoc signed (`signingIdentity: "-"` in tauri.macos.conf.json), so the
-      # Accessibility grant sticks to the bundle. Not notarized.
+      # Signed with the project's own self-signed certificate (secrets
+      # MACOS_SIGNING_P12, base64, and MACOS_SIGNING_PASSWORD). macOS keys the
+      # Accessibility / Input Monitoring grants to the designated requirement;
+      # with this certificate that is `identifier + certificate root`, the same
+      # for every release, so an update keeps the grants. An ad-hoc signature
+      # pins the cdhash instead and every update asked for the grants again.
+      # Not notarized (27-mac-decisions.md M5).
+      - name: Import the signing certificate
+        shell: bash
+        env:
+          P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+        run: |
+          [ -n "$P12" ] && [ -n "$P12_PASSWORD" ] || { echo "signing secrets are missing" >&2; exit 1; }
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          kc_password="$(openssl rand -hex 16)"
+          printf %s "$P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$kc_password" "$keychain"
+          security set-keychain-settings "$keychain"
+          security unlock-keychain -p "$kc_password" "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/signing.p12"
+
       - name: Build the universal .app and .dmg
         working-directory: crates/vkb-app
-        run: ../../ui/node_modules/.bin/tauri build --target universal-apple-darwin --features custom-protocol
+        run: ../../ui/node_modules/.bin/tauri build --target universal-apple-darwin --features custom-protocol --config '{"bundle":{"macOS":{"signingIdentity":"VietKB"}}}'
+
+      # Fail rather than ship an ad-hoc build: the grants would reset again.
+      - name: Check the signature
+        shell: bash
+        run: |
+          app="target/universal-apple-darwin/release/bundle/macos/VietKB.app"
+          codesign --verify --deep --strict "$app"
+          requirement="$(codesign -d -r- "$app" 2>&1)"
+          echo "$requirement"
+          grep -qF 'identifier "vn.vietkb.app" and certificate root = H"26f051435796e579c526eb1e981bfab98210064e"' <<< "$requirement"
 
       - name: Locate the .dmg
         shell: bash

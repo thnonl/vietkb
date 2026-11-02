@@ -66,9 +66,17 @@ label → "Mở cùng macOS" (same `system.start_with_windows` key).
 - Universal `.app` + `.dmg` (`universal-apple-darwin`), ad-hoc signed (`signingIdentity: "-"`)
   so Accessibility permission sticks to the bundle. Not notarized in the first release; release
   notes explain right-click → Open / `xattr -dr com.apple.quarantine`.
+- **Revised (owner, 2026-11-02, "Cách 1, tự ký"):** release builds are signed with the project's
+  own self-signed certificate (CN `VietKB`, SHA-1 26F05143…064E, valid to 2046), stored as the
+  repo secrets `MACOS_SIGNING_P12` / `MACOS_SIGNING_PASSWORD`; release.yml imports it into a
+  temporary keychain and fails if the bundle's designated requirement is not
+  `identifier "vn.vietkb.app" and certificate root = H"26f0…064e"`. Reason: an ad-hoc signature
+  pins the cdhash, so every update looked like a new app and macOS asked for Accessibility /
+  Input Monitoring again. The certificate must never change: a new one resets the grants once
+  more. Local `tauri.macos.conf.json` stays `"-"` (dev builds are ad-hoc). Still not notarized.
 - Local QA builds on the owner's Mac (owner, 2026-10-31): signed with the existing
   "Apple Development" identity in the owner's keychain, so the Accessibility grant survives
-  rebuilds. Local only — release/CI builds stay ad-hoc. Never export or copy the identity.
+  rebuilds. Local only — release/CI builds use the project's self-signed certificate (see above). Never export or copy the identity.
 - In-app updater on macOS: notify only — shows the new version and opens the release page.
   Silent self-replace waits until the app is signed and notarized.
 - CI: `macos-latest` job (test + clippy). Release: macOS job builds the `.dmg` and uploads it
