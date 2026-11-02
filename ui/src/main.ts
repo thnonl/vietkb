@@ -1,6 +1,7 @@
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { detectOS } from "./lib/platform.svelte";
+import { isTauri, pageAlive } from "./lib/api";
 import "./styles/tokens.css";
 import "./styles/kit.css";
 import "./styles/v4.css";
@@ -27,6 +28,10 @@ document.documentElement.dataset.theme = firstTheme;
 // Platform before first paint too (user-agent guess; the `platform` command
 // confirms it once the app initialises).
 document.documentElement.dataset.platform = detectOS();
+
+// macOS: tell the shell the script runs, before the first mount. A staged
+// window whose page stays silent is shown early (main.rs `EARLY_REVEAL_MS`).
+if (detectOS() === "macos" && isTauri()) void pageAlive().catch(() => {});
 
 const target = document.getElementById("app");
 if (!target) throw new Error("missing #app root");

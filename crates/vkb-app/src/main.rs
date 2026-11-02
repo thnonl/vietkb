@@ -165,6 +165,11 @@ struct Pending {
     started: Instant,
     /// Modals: the window they were opened from (centring and modality).
     owner: Option<String>,
+    /// macOS: the page's script has started (`page_alive`). A staged page that
+    /// has not by `EARLY_REVEAL_MS` is being held back by WebKit and is shown
+    /// at once instead (see `hold_until_ready`). Never read off macOS.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    alive: bool,
 }
 
 static PENDING: parking_lot::Mutex<Vec<Pending>> = parking_lot::Mutex::new(Vec::new());
@@ -173,6 +178,17 @@ static NEXT_PENDING_ID: AtomicU64 = AtomicU64::new(1);
 /// Longest a built window stays hidden waiting for its page. A page that never
 /// reports (a script error, a lost IPC reply) must not leave an invisible window.
 const READY_FALLBACK_MS: u64 = 1500;
+
+/// macOS: how long after staging a page gets to report that its script runs
+/// (`page_alive`). In a fresh process the staged (alpha 0) window sometimes
+/// never becomes occlusion-visible (the app does not finish activating, so the
+/// window never turns key), and WebKit then holds the page until the window is
+/// shown: waiting for the fallback would leave nothing on screen for ~1.8 s.
+/// Past this mark the window is shown as it is, blank until the page paints,
+/// which is never worse than showing it at build. Healthy cold opens start
+/// their script 120-200 ms after staging.
+#[cfg(target_os = "macos")]
+const EARLY_REVEAL_MS: u64 = 350;
 
 /// Keep the main window hidden this many seconds after the user closes it, so a
 /// quick reopen shows it without a rebuild. 0 (shipped) destroys it at once, as
@@ -215,8 +231,27 @@ fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner
     }
 
     let id = NEXT_PENDING_ID.fetch_add(1, Ordering::SeqCst);
-    PENDING.lock().push(Pending { label: label.to_string(), id, started, owner });
+    PENDING.lock().push(Pending { label: label.to_string(), id, started, owner, alive: false });
     tracing::info!(window = label, build_ms = millis_since(started), "window.built");
+
+    // macOS safety net: a staged page whose script has not started is being held
+    // back by WebKit; show the window now rather than at the fallback.
+    #[cfg(target_os = "macos")]
+    {
+        let app = app.clone();
+        let label = label.to_string();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(EARLY_REVEAL_MS));
+            let silent = PENDING
+                .lock()
+                .iter()
+                .any(|pending| pending.label == label && pending.id == id && !pending.alive);
+            if silent {
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || reveal(&handle, &label, Some(id), "early"));
+            }
+        });
+    }
 
     let app = app.clone();
     let label = label.to_string();
@@ -297,6 +332,16 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
     }
 
     tracing::info!(window = label, cause, since_build_ms = millis_since(pending.started), "window.shown");
+}
+
+/// The page calls this as its script starts (macOS, `main.ts`): WebKit is
+/// running it, so the staged window may keep waiting for `window_ready`.
+#[tauri::command]
+fn page_alive(window: tauri::WebviewWindow) {
+    let label = window.label();
+    if let Some(pending) = PENDING.lock().iter_mut().find(|pending| pending.label == label) {
+        pending.alive = true;
+    }
 }
 
 /// The page calls this once its real content is on screen (`App.svelte`). Shows
@@ -1067,6 +1112,7 @@ fn main() {
             commands::request_input_monitoring,
             commands::open_privacy_pane,
             window_ready,
+            page_alive,
             #[cfg(not(feature = "store"))]
             update::check_update,
             #[cfg(not(feature = "store"))]
@@ -1139,6 +1185,7 @@ mod tests {
             id: 900_001,
             started: Instant::now(),
             owner: None,
+            alive: false,
         });
         assert!(take_pending("t-other", None).is_none());
         assert!(take_pending("t-held", Some(900_002)).is_none(), "a stale timer must not show it");
