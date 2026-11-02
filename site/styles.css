@@ -441,13 +441,11 @@ section[id] { scroll-margin-top: 80px; }
   margin-top: 20px;
 }
 
-/* Buttons are as wide as their label; they wrap onto a new row only when the row is full. */
+/* The row is capped so the buttons stay compact; each button grows to fill the
+   row it lands on, so a wrapped row (Store + GitHub on a phone) is flush too. */
+.actions { max-width: 620px; }
 .actions .btn-xl,
-.actions .btn-ghost { flex: 0 0 auto; }
-/* Very narrow phones (under 340px): the main download alone on its row. */
-@media (max-width: 339px) {
-  .actions .btn-xl { flex: 1 1 100%; }
-}
+.actions .btn-ghost { flex: 1 1 auto; }
 
 /* Link tải cho nền tảng còn lại, ngay dưới nút chính. */
 .alt-dl {
