@@ -80,6 +80,37 @@ jobs:
         working-directory: crates/vkb-app
         run: "& ../../ui/node_modules/.bin/tauri.cmd build --no-bundle"
 
+  # The x86 and arm64 Windows release builds (release.yml cross-compiles them
+  # the same way); also keeps their caches warm.
+  build-cross:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - target: i686-pc-windows-msvc
+            cache: release-x86
+          - target: aarch64-pc-windows-msvc
+            cache: release-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.cache }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install UI dependencies
+        run: npm --prefix ui ci
+      - name: Release build (no installer)
+        working-directory: crates/vkb-app
+        run: "& ../../ui/node_modules/.bin/tauri.cmd build --no-bundle --target ${{ matrix.target }}"
+
   # macOS: engine/app tests and clippy in one job (the Mac runner is the slow,
   # scarce one). Same commands as the Windows jobs above. No installer here; the
   # universal .dmg is built by release.yml.

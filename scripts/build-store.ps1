@@ -1,6 +1,7 @@
 # Builds the Microsoft Store (MSIX) package.
 #
 #   scripts\build-store.ps1                      unsigned .msix (what Partner Center takes)
+#   scripts\build-store.ps1 -Arch arm64          same for Windows on Arm (x64, x86, arm64)
 #   scripts\build-store.ps1 -Sign                same, signed with a local self-signed cert
 #   scripts\build-store.ps1 -Sign -CertPath x.pfx -CertPassword (Read-Host -AsSecureString)
 #
@@ -11,7 +12,9 @@
 # (`target-store`), so a store exe never lands in `target\release` where the NSIS
 # build (build-prod.ps1, release.yml) takes its exe from.
 #
-# Output: target-store\store\VietKB_<version>_x64.msix (staging dir: target-store\store\stage).
+# Output: target-store\store\VietKB_<version>_<arch>.msix (staging dir: target-store\store\stage).
+# x86 and arm64 cross-compile (`--target`); arm64 needs the MSVC ARM64 build tools.
+# Partner Center takes one .msix per architecture in the same submission.
 #
 # Store submission is UNSIGNED: the Store signs the package itself. -Sign is only
 # for installing the package locally (Add-AppxPackage) to test it. A self-signed
@@ -19,6 +22,8 @@
 
 [CmdletBinding()]
 param(
+    [ValidateSet('x64', 'x86', 'arm64')]
+    [string]$Arch = 'x64',
     [switch]$Sign,
     [string]$CertPath,
     [securestring]$CertPassword,
@@ -34,6 +39,9 @@ $targetDir = Join-Path $root 'target-store'
 $outDir = Join-Path $targetDir 'store'
 $stage = Join-Path $outDir 'stage'
 $exeName = 'vietkb.exe'
+# x64 builds for the host as before (exe in target-store\release); the others
+# cross-compile into target-store\<triple>\release.
+$triple = @{ x64 = $null; x86 = 'i686-pc-windows-msvc'; arm64 = 'aarch64-pc-windows-msvc' }[$Arch]
 
 # Same publisher as AppxManifest.xml; a signing cert must carry this exact subject.
 $manifestTemplate = Get-Content (Join-Path $packaging 'AppxManifest.xml') -Raw -Encoding UTF8
@@ -64,7 +72,8 @@ if (-not $SkipBuild) {
     $env:CARGO_TARGET_DIR = $targetDir
     Push-Location (Join-Path $root 'crates\vkb-app')
     try {
-        & $tauri build --features custom-protocol,store --no-bundle
+        $targetArgs = if ($triple) { @('--target', $triple) } else { @() }
+        & $tauri build --features custom-protocol,store --no-bundle @targetArgs
         if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
     } finally {
         Pop-Location
@@ -72,7 +81,7 @@ if (-not $SkipBuild) {
     }
 }
 
-$exe = Join-Path $targetDir "release\$exeName"
+$exe = if ($triple) { Join-Path $targetDir "$triple\release\$exeName" } else { Join-Path $targetDir "release\$exeName" }
 if (-not (Test-Path $exe)) { throw "built exe not found: $exe" }
 
 # --- stage ---------------------------------------------------------------------
@@ -82,7 +91,7 @@ Copy-Item $exe $stage
 # Licence notices of the embedded data (same file the NSIS/macOS bundles carry as a resource).
 Copy-Item (Join-Path $root 'THIRD_PARTY_NOTICES.md') $stage
 Copy-Item (Join-Path $packaging 'Assets') (Join-Path $stage 'Assets') -Recurse
-$manifest = $manifestTemplate.Replace('__VERSION__', $version)
+$manifest = $manifestTemplate.Replace('__VERSION__', $version).Replace('__ARCH__', $Arch)
 # UTF-8 without BOM, as makeappx expects.
 [System.IO.File]::WriteAllText((Join-Path $stage 'AppxManifest.xml'), $manifest, (New-Object System.Text.UTF8Encoding($false)))
 
@@ -99,7 +108,7 @@ function Find-SdkTool([string]$name) {
     return $found
 }
 
-$msix = Join-Path $outDir "VietKB_${version}_x64.msix"
+$msix = Join-Path $outDir "VietKB_${version}_${Arch}.msix"
 if (Test-Path $msix) { Remove-Item $msix -Force }
 $makeappx = Find-SdkTool 'makeappx.exe'
 Write-Host "makeappx: $makeappx"

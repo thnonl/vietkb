@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   VietKB, Microsoft Store (MSIX) package manifest. scripts/build-store.ps1
-  copies this next to vietkb.exe, replaces __VERSION__ and runs makeappx.
+  copies this next to vietkb.exe, replaces __VERSION__ and __ARCH__ (x64, x86
+  or arm64) and runs makeappx.
 
   Identity comes from Partner Center (Store ID 9N5TNMLCZNT5); do not edit it
   by hand. The Store re-signs the package, so the submission is unsigned.
@@ -17,7 +18,7 @@
     Name="40278Noamo.VietKB"
     Publisher="CN=FE739770-637C-437D-B2B9-DAA2E2EA56F1"
     Version="__VERSION__"
-    ProcessorArchitecture="x64" />
+    ProcessorArchitecture="__ARCH__" />
 
   <Properties>
     <DisplayName>VietKB</DisplayName>

@@ -23,10 +23,10 @@ Không có: bảng mã cũ (TCVN3, VNI-Windows, VISCII…), VIQR, công cụ chu
 
 ## Cài
 
-**Windows** (Windows 10 1809+ và Windows 11, x64):
+**Windows** (Windows 10 1809+ và Windows 11; x64, x86 và ARM64):
 
 1. **Khuyên dùng: [Microsoft Store](https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS).** Bản Store được ký số và tự cập nhật.
-2. Hoặc tải `VietKB_<version>_x64-setup.exe` ở mục Releases rồi chạy. Bản `.exe` này **chưa ký số**, Windows sẽ hỏi xác nhận.
+2. Hoặc tải bộ cài ở mục Releases rồi chạy: `VietKB_<version>_x64-setup.exe` cho hầu hết máy, `_arm64-setup.exe` cho máy Windows ARM (Snapdragon), `_x86-setup.exe` cho Windows 32-bit. Bản `.exe` này **chưa ký số**, Windows sẽ hỏi xác nhận.
 
 **macOS** (macOS 11 trở lên, Apple silicon và Intel):
 
@@ -46,7 +46,7 @@ cargo test --workspace
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-prod.ps1
 ```
 
-Installer ra ở `target\release\bundle\nsis\`.
+Installer ra ở `target\release\bundle\nsis\`. Bản x86/ARM64: `rustup target add i686-pc-windows-msvc aarch64-pc-windows-msvc` rồi `tauri build --target <triple>` (ARM64 cần MSVC ARM64 build tools); gói Store: `scripts\build-store.ps1 -Arch x64|x86|arm64`.
 
 Bản dev chạy song song, cấu hình riêng: `scripts\build-dev.ps1` → `target-dev\` (`VietKB Dev`).
 

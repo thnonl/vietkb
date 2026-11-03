@@ -352,7 +352,7 @@ export const en: Record<string, string> = {
   "err.rule.noProcess": "the app name can't be empty",
   "err.method.invalid": "invalid typing method",
   "err.openFolder": "couldn't open the folder: {error}",
-  "err.update.noInstaller": "This release has no installer for Windows x64",
+  "err.update.noInstaller": "This release has no installer for this Windows device",
   "err.update.noDmg": "This release has no .dmg file for macOS",
   "err.update.connect": "Couldn't reach the update server: {error}",
   "err.update.rateLimited": "GitHub is rate-limiting update checks (HTTP {status}). Try again in a few minutes.",

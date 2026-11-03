@@ -1,7 +1,8 @@
 name: release
 
-# Builds and publishes the Windows installer and the macOS universal .dmg to the
-# same GitHub release. scripts/verify-update.ps1 verifies the Windows update on a
+# Builds and publishes the Windows installers (x64, x86, arm64) and the macOS
+# universal .dmg to the same GitHub release, and the Store .msix packages as
+# workflow artifacts. scripts/verify-update.ps1 verifies the Windows update on a
 # real machine or in Windows Sandbox. The macOS app is signed with the
 # project's self-signed certificate, not notarized
 # (docs/evkey-clone-work/27-mac-decisions.md M5).
@@ -77,17 +78,37 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+  # One NSIS installer per Windows architecture. x64 builds for the host as it
+  # always has (target/release); x86 and arm64 cross-compile with --target. Each
+  # app's updater downloads the setup named for its own architecture (update.rs).
   build:
     needs: meta
     runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            target: ""
+            out: target/release
+            cache: release
+          - arch: x86
+            target: i686-pc-windows-msvc
+            out: target/i686-pc-windows-msvc/release
+            cache: release-x86
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+            out: target/aarch64-pc-windows-msvc/release
+            cache: release-arm64
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: release
+          shared-key: ${{ matrix.cache }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - uses: actions/setup-node@v4
@@ -101,13 +122,18 @@ jobs:
 
       - name: Build the NSIS installer
         working-directory: crates/vkb-app
-        run: "& ../../ui/node_modules/.bin/tauri.cmd build"
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $targetArgs = if ($env:TARGET) { @('--target', $env:TARGET) } else { @() }
+          & ../../ui/node_modules/.bin/tauri.cmd build @targetArgs
+          if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
 
       - name: Locate the installer
         id: installer
         shell: pwsh
         run: |
-          $file = Get-ChildItem target/release/bundle/nsis/*x64-setup.exe |
+          $file = Get-ChildItem ${{ matrix.out }}/bundle/nsis/*_${{ matrix.arch }}-setup.exe |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $file) { throw "no installer was produced" }
           "path=$($file.FullName)" >> $env:GITHUB_OUTPUT
@@ -117,8 +143,43 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: installer
-          path: target/release/bundle/nsis/*x64-setup.exe
+          name: installer-${{ matrix.arch }}
+          path: ${{ matrix.out }}/bundle/nsis/*_${{ matrix.arch }}-setup.exe
+          if-no-files-found: error
+
+  # Microsoft Store packages, one unsigned .msix per architecture (the Store
+  # signs them). Kept as workflow artifacts for the Partner Center upload, never
+  # attached to the GitHub release.
+  store:
+    needs: meta
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, x86, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch == 'x86' && 'i686-pc-windows-msvc' || matrix.arch == 'arm64' && 'aarch64-pc-windows-msvc' || '' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm --prefix ui ci
+
+      - name: Build the .msix
+        shell: pwsh
+        run: ./scripts/build-store.ps1 -Arch ${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msix-${{ matrix.arch }}
+          path: target-store/store/VietKB_*_${{ matrix.arch }}.msix
           if-no-files-found: error
 
   # macOS: tests + clippy, then the universal .dmg. `--features custom-protocol`
@@ -225,12 +286,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: installer
+          pattern: installer-*
+          merge-multiple: true
           path: dist
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*x64-setup.exe
+          files: dist/*-setup.exe
           name: VietKB ${{ needs.meta.outputs.version }}
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true

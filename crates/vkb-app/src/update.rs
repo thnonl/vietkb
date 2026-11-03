@@ -1,4 +1,4 @@
-﻿//! Update check, download and install.
+//! Update check, download and install.
 //!
 //! Source of truth is the GitHub Releases API for the public `thnonl/vietkb`
 //! repository. Nothing here may block the UI thread or take the app down: every
@@ -31,8 +31,19 @@ const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 const STARTUP_DELAY: Duration = Duration::from_secs(5);
 /// How often the running app asks GitHub again after the startup check.
 const CHECK_INTERVAL: Duration = Duration::from_secs(12 * 60 * 60);
+/// Name suffix of the installer asset this build downloads: the `.dmg` on
+/// macOS, the NSIS setup built for this Windows architecture elsewhere
+/// (`VietKB_<version>_x64-setup.exe`, `_x86-setup.exe`, `_arm64-setup.exe`).
+#[cfg(target_os = "macos")]
+const INSTALLER_SUFFIX: &str = ".dmg";
+#[cfg(all(not(target_os = "macos"), target_arch = "x86"))]
+const INSTALLER_SUFFIX: &str = "_x86-setup.exe";
+#[cfg(all(not(target_os = "macos"), target_arch = "aarch64"))]
+const INSTALLER_SUFFIX: &str = "_arm64-setup.exe";
+#[cfg(all(not(target_os = "macos"), not(any(target_arch = "x86", target_arch = "aarch64"))))]
+const INSTALLER_SUFFIX: &str = "_x64-setup.exe";
 /// i18n key shown when the release has no installer asset for this platform
-/// (no Windows x64 installer, or no `.dmg` on macOS).
+/// (no installer for this Windows architecture, or no `.dmg` on macOS).
 #[cfg(not(target_os = "macos"))]
 pub const NO_INSTALLER: &str = "err.update.noInstaller";
 #[cfg(target_os = "macos")]
@@ -384,22 +395,17 @@ fn fetch_latest() -> Result<Option<UpdateInfo>, String> {
 }
 
 fn parse_release(body: &str) -> Result<Option<UpdateInfo>, String> {
-    parse_release_for(body, cfg!(target_os = "macos"))
+    parse_release_for(body, INSTALLER_SUFFIX)
 }
 
-/// Whether `name` is the installer asset this platform would download: the NSIS
-/// setup on Windows, the universal `.dmg` on macOS. `latest.json` and `.sig`
-/// files never match either.
-fn is_installer_asset(name: &str, macos: bool) -> bool {
-    let lower = name.to_ascii_lowercase();
-    if macos {
-        lower.ends_with(".dmg")
-    } else {
-        lower.ends_with("x64-setup.exe")
-    }
+/// Whether `name` is the installer asset this build would download: it ends
+/// with `suffix` (the NSIS setup for this Windows architecture, or `.dmg` on
+/// macOS). `latest.json` and `.sig` files never match.
+fn is_installer_asset(name: &str, suffix: &str) -> bool {
+    name.to_ascii_lowercase().ends_with(suffix)
 }
 
-fn parse_release_for(body: &str, macos: bool) -> Result<Option<UpdateInfo>, String> {
+fn parse_release_for(body: &str, installer_suffix: &str) -> Result<Option<UpdateInfo>, String> {
     let release: ReleaseJson = serde_json::from_str(body)
         .map_err(|error| tf("err.update.parse", &[("error", &error.to_string())]))?;
 
@@ -427,7 +433,7 @@ fn parse_release_for(body: &str, macos: bool) -> Result<Option<UpdateInfo>, Stri
 
     let installer = assets
         .iter()
-        .find(|asset| is_installer_asset(&asset.name, macos));
+        .find(|asset| is_installer_asset(&asset.name, installer_suffix));
 
     Ok(Some(UpdateInfo {
         version: version.clone(),
@@ -642,7 +648,7 @@ pub async fn download_update() -> Result<DownloadOutcome, String> {
     let name = info
         .asset_name
         .clone()
-        .unwrap_or_else(|| format!("VietKB_{}_x64-setup.exe", info.version));
+        .unwrap_or_else(|| format!("VietKB_{}{INSTALLER_SUFFIX}", info.version));
     let changelog = info.changelog.clone();
     let digest = info.asset_sha256.clone();
 
@@ -1317,7 +1323,7 @@ mod tests {
                 {"name": "VietKB_99.0.0_X64-SETUP.EXE", "browser_download_url": "https://x/setup.exe", "size": 42}
             ]
         }"#;
-        let info = parse_release_for(body, false).expect("parses").expect("is newer");
+        let info = parse_release_for(body, "_x64-setup.exe").expect("parses").expect("is newer");
         assert_eq!(info.version, "99.0.0");
         assert_eq!(info.tag, "v99.0.0");
         assert_eq!(info.changelog, "- nhanh hơn");
@@ -1379,7 +1385,7 @@ mod tests {
         #[cfg(not(target_os = "macos"))]
         assert_eq!(
             crate::i18n::tr(crate::i18n::Lang::Vi, NO_INSTALLER),
-            "Bản phát hành không có bộ cài cho Windows x64"
+            "Bản phát hành không có bộ cài cho loại máy Windows này"
         );
         #[cfg(target_os = "macos")]
         assert_eq!(
@@ -1399,12 +1405,34 @@ mod tests {
                 {"name": "VietKB_99.0.0_universal.dmg", "browser_download_url": "https://x/a.dmg", "size": 77}
             ]
         }"#;
-        let mac = parse_release_for(body, true).expect("parses").expect("newer");
+        let mac = parse_release_for(body, ".dmg").expect("parses").expect("newer");
         assert_eq!(mac.asset_name.as_deref(), Some("VietKB_99.0.0_universal.dmg"));
-        let win = parse_release_for(body, false).expect("parses").expect("newer");
+        let win = parse_release_for(body, "_x64-setup.exe").expect("parses").expect("newer");
         assert_eq!(win.asset_name.as_deref(), Some("VietKB_99.0.0_x64-setup.exe"));
         // The version comparison itself is platform-independent.
         assert_eq!(mac.version, win.version);
+    }
+
+    #[test]
+    fn each_windows_architecture_picks_its_own_setup() {
+        let body = r#"{
+            "tag_name": "v99.0.0",
+            "html_url": "https://github.com/thnonl/vietkb/releases/tag/v99.0.0",
+            "assets": [
+                {"name": "VietKB_99.0.0_arm64-setup.exe", "browser_download_url": "https://x/arm64.exe", "size": 1},
+                {"name": "VietKB_99.0.0_x64-setup.exe", "browser_download_url": "https://x/x64.exe", "size": 2},
+                {"name": "VietKB_99.0.0_x86-setup.exe", "browser_download_url": "https://x/x86.exe", "size": 3}
+            ]
+        }"#;
+        for arch in ["x64", "x86", "arm64"] {
+            let suffix = format!("_{arch}-setup.exe");
+            let info = parse_release_for(body, &suffix).expect("parses").expect("newer");
+            assert_eq!(info.asset_name, Some(format!("VietKB_99.0.0{suffix}")));
+        }
+        // An older release with only the x64 setup has nothing for x86 or arm64.
+        let x64_only = body.replace("_arm64-setup", "_x64-setup").replace("_x86-setup", "_x64-setup");
+        let info = parse_release_for(&x64_only, "_arm64-setup.exe").expect("parses").expect("newer");
+        assert_eq!(info.asset_url, None);
     }
 
     #[test]
@@ -1439,7 +1467,7 @@ mod tests {
         let body = r#"{"tag_name":"v9.9.9","assets":[
             {"name":"latest.json","browser_download_url":"https://x/latest.json","size":879},
             {"name":"VietKB_9.9.9_x64-setup.exe.sig","browser_download_url":"https://x/a.sig","size":755}]}"#;
-        let info = parse_release_for(body, false).expect("parses").expect("newer");
+        let info = parse_release_for(body, "_x64-setup.exe").expect("parses").expect("newer");
         assert!(info.asset_url.is_none());
         assert!(info.asset_name.is_none());
     }
@@ -1573,7 +1601,7 @@ mod tests {
             {{"name":"VietKB_99.0.0_x64-setup.exe","browser_download_url":"https://x/s.exe","size":1,"digest":"sha256:{other}"}},
             {{"name":"VietKB_99.0.0_universal.dmg","browser_download_url":"https://x/a.dmg","size":2,"digest":"sha256:{hex}"}}]}}"#
         );
-        let mac = parse_release_for(&body, true).unwrap().unwrap();
+        let mac = parse_release_for(&body, ".dmg").unwrap().unwrap();
         assert_eq!(mac.asset_url.as_deref(), Some("https://x/a.dmg"));
         assert_eq!(mac.asset_sha256, Some(hex));
     }

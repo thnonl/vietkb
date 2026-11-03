@@ -352,7 +352,7 @@ export const vi: Record<string, string> = {
   "err.rule.noProcess": "tên tiến trình không được để trống",
   "err.method.invalid": "kiểu gõ không hợp lệ",
   "err.openFolder": "không mở được thư mục: {error}",
-  "err.update.noInstaller": "Bản phát hành không có bộ cài cho Windows x64",
+  "err.update.noInstaller": "Bản phát hành không có bộ cài cho loại máy Windows này",
   "err.update.noDmg": "Bản phát hành không có tệp .dmg cho macOS",
   "err.update.connect": "Không kết nối được máy chủ cập nhật: {error}",
   "err.update.rateLimited": "GitHub đang giới hạn lượt kiểm tra (HTTP {status}). Thử lại sau vài phút.",
