@@ -103,7 +103,7 @@
 
         <p class="fineprint">
           <span data-release="latest">Bản mới nhất trên GitHub</span>
-          <span class="tag">Windows 10/11 · x64</span>
+          <span class="tag">Windows 10/11 · x64, ARM64, x86</span>
           <span class="tag">macOS 11+ · Apple silicon và Intel</span>
           <span class="tag">Bản .exe chưa ký số</span>
         </p>
@@ -399,7 +399,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Tải bộ cài</h4>
-          <p>Nên <a href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">cài từ Microsoft Store</a>: cài và cập nhật tự động, không có cảnh báo ứng dụng chưa ký số. Hoặc bấm <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải cho Windows</a> để cài bằng tệp <code>.exe</code>.</p>
+          <p>Nên <a href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">cài từ Microsoft Store</a>: cài và cập nhật tự động, không có cảnh báo ứng dụng chưa ký số. Hoặc bấm <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Tải cho Windows</a> để cài bằng tệp <code>.exe</code>. Máy Windows ARM (Snapdragon) dùng <a data-dl="win-arm64" href="https://github.com/thnonl/vietkb/releases/download/v0.3.1/VietKB_0.3.1_arm64-setup.exe">bộ cài ARM64</a>, Windows 32-bit dùng <a data-dl="win-x86" href="https://github.com/thnonl/vietkb/releases/download/v0.3.1/VietKB_0.3.1_x86-setup.exe">bộ cài x86</a>.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -705,13 +705,15 @@
   }
 
   function apply(rel) {
-    var exe = asset(rel, /\.exe$/i);
+    var exe = asset(rel, /_x64-setup\.exe$/i);
     var dmg = asset(rel, /\.dmg$/i);
 
     setAll('version', rel.tag_name);
     setAll('latest', 'Bản mới nhất: ' + rel.tag_name);
     /* Link tải trỏ thẳng vào tệp của bản mới nhất, không qua trang phát hành. */
     setHref('win', exe);
+    setHref('win-arm64', asset(rel, /_arm64-setup\.exe$/i));
+    setHref('win-x86', asset(rel, /_x86-setup\.exe$/i));
     setHref('mac', dmg);
     if (exe && exe.size) setAll('installer', sizeLabel(exe.size));
     if (dmg && dmg.size) {

@@ -33,17 +33,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          exe=$(gh api repos/${{ github.repository }}/releases/latest --jq '[.assets[] | select(.name | endswith("_x64-setup.exe"))][0].browser_download_url')
-          dmg=$(gh api repos/${{ github.repository }}/releases/latest --jq '[.assets[] | select(.name | endswith("_universal.dmg"))][0].browser_download_url')
-          echo "exe: $exe"
-          echo "dmg: $dmg"
-          for f in site/index.html site/en/index.html; do
-            if [ -n "$exe" ] && [ "$exe" != null ]; then
-              sed -i -E "s#https://github\.com/[^\"]+/releases/download/[^\"]+_x64-setup\.exe#$exe#g" "$f"
-            fi
-            if [ -n "$dmg" ] && [ "$dmg" != null ]; then
-              sed -i -E "s#https://github\.com/[^\"]+/releases/download/[^\"]+_universal\.dmg#$dmg#g" "$f"
-            fi
+          release=$(gh api repos/${{ github.repository }}/releases/latest)
+          # One link per asset suffix: the x64, arm64 and x86 setups and the .dmg.
+          for suffix in _x64-setup.exe _arm64-setup.exe _x86-setup.exe _universal.dmg; do
+            url=$(jq -r --arg s "$suffix" '[.assets[] | select(.name | endswith($s))][0].browser_download_url' <<< "$release")
+            echo "$suffix: $url"
+            [ -n "$url" ] && [ "$url" != null ] || continue
+            pattern="https://github\.com/[^\"]+/releases/download/[^\"]+${suffix//./\\.}"
+            for f in site/index.html site/en/index.html; do
+              sed -i -E "s#$pattern#$url#g" "$f"
+            done
           done
           grep -h -o 'releases/download/[^"]*' site/index.html site/en/index.html | sort | uniq -c
       - uses: actions/configure-pages@v5

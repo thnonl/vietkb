@@ -101,7 +101,7 @@
 
         <p class="fineprint">
           <span data-release="latest">Latest release on GitHub</span>
-          <span class="tag">Windows 10/11 · x64</span>
+          <span class="tag">Windows 10/11 · x64, ARM64, x86</span>
           <span class="tag">macOS 11+ · Apple silicon and Intel</span>
           <span class="tag">GitHub .exe not code-signed</span>
         </p>
@@ -397,7 +397,7 @@
         <li class="step">
           <span class="step-num" aria-hidden="true">1</span>
           <h4>Download the installer</h4>
-          <p>We recommend <a href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">getting it from Microsoft Store</a>: it installs and updates automatically, with no unsigned-app warning. Or click <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download for Windows</a> to use the <code>.exe</code> installer.</p>
+          <p>We recommend <a href="https://apps.microsoft.com/store/detail/9N5TNMLCZNT5?cid=DevShareMCLPCS">getting it from Microsoft Store</a>: it installs and updates automatically, with no unsigned-app warning. Or click <a data-dl="win" href="https://github.com/thnonl/vietkb/releases/download/v0.2.7/VietKB_0.2.7_x64-setup.exe">Download for Windows</a> to use the <code>.exe</code> installer. On Windows on Arm (Snapdragon), use the <a data-dl="win-arm64" href="https://github.com/thnonl/vietkb/releases/download/v0.3.1/VietKB_0.3.1_arm64-setup.exe">ARM64 installer</a>; on 32-bit Windows, the <a data-dl="win-x86" href="https://github.com/thnonl/vietkb/releases/download/v0.3.1/VietKB_0.3.1_x86-setup.exe">x86 installer</a>.</p>
         </li>
         <li class="step">
           <span class="step-num" aria-hidden="true">2</span>
@@ -703,13 +703,15 @@
   }
 
   function apply(rel) {
-    var exe = asset(rel, /\.exe$/i);
+    var exe = asset(rel, /_x64-setup\.exe$/i);
     var dmg = asset(rel, /\.dmg$/i);
 
     setAll('version', rel.tag_name);
     setAll('latest', 'Latest: ' + rel.tag_name);
     /* Download links point straight at the latest release's files, not the release page. */
     setHref('win', exe);
+    setHref('win-arm64', asset(rel, /_arm64-setup\.exe$/i));
+    setHref('win-x86', asset(rel, /_x86-setup\.exe$/i));
     setHref('mac', dmg);
     if (exe && exe.size) setAll('installer', sizeLabel(exe.size));
     if (dmg && dmg.size) {
