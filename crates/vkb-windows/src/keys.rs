@@ -396,6 +396,20 @@ mod tests {
         assert!(!held.has_shortcut_modifier());
     }
 
+    /// Alt+Shift right after an unlock: Win is stale, the Alt being pressed is
+    /// not in the OS state yet and must survive.
+    #[test]
+    fn modifier_key_down_keeps_itself_and_drops_stale_win() {
+        let mut held = ModifierState::default();
+        held.apply(VK_LWIN, true); // its key-up was lost on the lock screen
+        held.apply(VK_LMENU, true); // the key being pressed now
+        let mut os = ModifierState::default(); // the OS has neither yet
+        os.apply(VK_LMENU, true); // what the hook adds for the current key
+        held.drop_released(&os);
+        assert!(held.alt && !held.win);
+        assert!(held.has_shortcut_modifier());
+    }
+
     #[test]
     fn drop_released_never_adds_a_modifier() {
         let mut held = ModifierState::default();

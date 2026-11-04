@@ -399,9 +399,16 @@ impl HookRuntime {
         // A modifier key-up can happen where the hook never sees it (Win+L: the
         // Win release lands on the lock screen). Before a key is read as a
         // chord, drop any held modifier the OS says is up. Only runs while one
-        // is believed held, so plain typing pays nothing.
-        if down && !is_modifier && self.mods.any_held() {
-            self.mods.drop_released(&keys::os_held());
+        // is believed held, so plain typing pays nothing. A modifier key-down
+        // runs it too, so a modifier-only hotkey (Alt+Shift) pressed first after
+        // an unlock is not read as Win+Alt+Shift; the key being pressed is kept,
+        // because inside the hook the OS has not recorded its own press yet.
+        if down && self.mods.any_held() {
+            let mut os = keys::os_held();
+            if is_modifier {
+                os.apply(vk, true);
+            }
+            self.mods.drop_released(&os);
         }
         let modifiers = self.mods.modifiers();
         trace.mods(modifiers, self.mods.caps_lock);
