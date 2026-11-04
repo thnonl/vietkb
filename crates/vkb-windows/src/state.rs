@@ -396,6 +396,13 @@ impl HookRuntime {
         let was_down = self.is_down(vk);
         self.set_down(vk, down);
         self.mods.apply(vk, down);
+        // A modifier key-up can happen where the hook never sees it (Win+L: the
+        // Win release lands on the lock screen). Before a key is read as a
+        // chord, drop any held modifier the OS says is up. Only runs while one
+        // is believed held, so plain typing pays nothing.
+        if down && !is_modifier && self.mods.any_held() {
+            self.mods.drop_released(&keys::os_held());
+        }
         let modifiers = self.mods.modifiers();
         trace.mods(modifiers, self.mods.caps_lock);
         let repeat = down && was_down;

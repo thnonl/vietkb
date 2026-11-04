@@ -141,10 +141,54 @@ impl ModifierState {
         self.ctrl || self.alt || self.win
     }
 
+    /// Any of Ctrl, Alt, Shift or Win is believed down.
+    pub fn any_held(&self) -> bool {
+        self.ctrl || self.alt || self.shift || self.win
+    }
+
+    /// Clear every modifier the OS says is up. Never sets one: presses come
+    /// from the hook stream only. A key-up the hook never saw (the lock screen
+    /// takes `Win+L`'s Win release on the secure desktop) would otherwise leave
+    /// the modifier stuck until restart, turning every key into a shortcut.
+    pub fn drop_released(&mut self, os: &ModifierState) {
+        self.ctrl &= os.ctrl;
+        self.alt &= os.alt;
+        self.win &= os.win;
+        // Our generic bit survives any OS Shift; a side-less OS Shift (only
+        // `VK_SHIFT` reads down) cannot say which side is up, so keep both.
+        let keep = if os.shift_keys & SHIFT_ANY != 0 {
+            SHIFT_L | SHIFT_R | SHIFT_ANY
+        } else {
+            os.shift_keys | if os.shift { SHIFT_ANY } else { 0 }
+        };
+        self.shift_keys &= keep;
+        self.shift = self.shift_keys != 0;
+    }
+
     /// Forget everything. Used when the hook is re-installed and the physical
     /// state is unknown; the OS is re-read once via [`seed_from_os`].
     pub fn reset(&mut self) {
         *self = ModifierState::default();
+    }
+}
+
+/// Held modifiers as the OS reports them now (Caps Lock left off). Under the
+/// zero-focus harness and in unit tests the OS state belongs to the owner, not
+/// to the fed events, so every modifier reads held and nothing is dropped.
+#[cfg(not(any(test, feature = "e2e-harness")))]
+pub fn os_held() -> ModifierState {
+    ModifierState { caps_lock: false, ..seed_from_os() }
+}
+
+#[cfg(any(test, feature = "e2e-harness"))]
+pub fn os_held() -> ModifierState {
+    ModifierState {
+        ctrl: true,
+        alt: true,
+        shift: true,
+        shift_keys: SHIFT_L | SHIFT_R | SHIFT_ANY,
+        win: true,
+        caps_lock: false,
     }
 }
 
@@ -338,6 +382,46 @@ pub fn scan_for_vk(vk: u16) -> u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Win+L: the hook sees Win go down, the lock screen eats its key-up.
+    #[test]
+    fn modifier_released_unseen_is_dropped() {
+        let mut held = ModifierState::default();
+        held.apply(VK_LWIN, true);
+        held.apply(VK_LSHIFT, true);
+        let os = ModifierState { shift: true, shift_keys: SHIFT_L, ..Default::default() };
+        held.drop_released(&os);
+        assert!(!held.win, "Win is up per the OS");
+        assert!(held.shift && held.shift_keys == SHIFT_L, "a held Shift stays");
+        assert!(!held.has_shortcut_modifier());
+    }
+
+    #[test]
+    fn drop_released_never_adds_a_modifier() {
+        let mut held = ModifierState::default();
+        let os = ModifierState {
+            ctrl: true,
+            alt: true,
+            shift: true,
+            shift_keys: SHIFT_L | SHIFT_R,
+            win: true,
+            caps_lock: false,
+        };
+        held.drop_released(&os);
+        assert_eq!(held, ModifierState::default());
+    }
+
+    #[test]
+    fn side_less_os_shift_keeps_both_sides() {
+        let mut held = ModifierState::default();
+        held.apply(VK_RSHIFT, true);
+        let os = ModifierState { shift: true, shift_keys: SHIFT_ANY, ..Default::default() };
+        held.drop_released(&os);
+        assert_eq!(held.shift_keys, SHIFT_R);
+        let up = ModifierState::default();
+        held.drop_released(&up);
+        assert!(!held.shift && held.shift_keys == 0);
+    }
 
     #[test]
     fn letters_follow_shift_and_caps() {
