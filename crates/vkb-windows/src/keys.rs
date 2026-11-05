@@ -192,6 +192,33 @@ pub fn os_held() -> ModifierState {
     }
 }
 
+/// Caps Lock as the OS has it now. The hook stream misses a Caps Lock press the
+/// OS handled without the hook (a timed-out hook call during a window switch),
+/// and a stale value turns every rewritten word upper case. `None` under the
+/// zero-focus harness: there the OS state is the owner's, not the fed events'.
+#[cfg(not(any(test, feature = "e2e-harness")))]
+pub fn os_caps_lock() -> Option<bool> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
+    Some((unsafe { GetKeyState(VK_CAPITAL as i32) } & 1) != 0)
+}
+
+#[cfg(feature = "e2e-harness")]
+#[cfg(not(test))]
+pub fn os_caps_lock() -> Option<bool> {
+    None
+}
+
+#[cfg(test)]
+thread_local! {
+    /// What [`os_caps_lock`] reports in unit tests (`None` = keep the stream's).
+    pub static TEST_OS_CAPS: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub fn os_caps_lock() -> Option<bool> {
+    TEST_OS_CAPS.with(|caps| caps.get())
+}
+
 /// Physical state at hook install time, so a modifier already held when the app
 /// starts is not mistaken for "released".
 pub fn seed_from_os() -> ModifierState {

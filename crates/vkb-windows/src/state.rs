@@ -150,6 +150,8 @@ pub struct HookRuntime {
     word_context: Option<WordContext>,
     app_name: String,
     app_checked: Instant,
+    /// When Caps Lock was last re-read from the OS ([`Self::resync_caps_lock`]).
+    caps_checked: Instant,
     ime_active: bool,
     ime_checked: Instant,
     resolved: Option<EffectiveSettings>,
@@ -195,6 +197,7 @@ impl HookRuntime {
             word_context: None,
             app_name: String::new(),
             app_checked: Instant::now() - APP_TTL,
+            caps_checked: Instant::now(),
             ime_active: false,
             ime_checked: Instant::now() - IME_TTL,
             resolved: None,
@@ -551,7 +554,9 @@ impl HookRuntime {
         }
 
         // 3. Per-app enablement and IME composition.
+        let hwnd_before = self.app.hwnd;
         self.refresh_app();
+        self.resync_caps_lock(vk, self.app.hwnd != hwnd_before);
         // A different foreground window (or a changed exclusion/override) must
         // not inherit the half-typed word. `refresh_app` just refreshed the
         // cache, so this is only an integer + flag comparison on the common path.
@@ -1004,6 +1009,26 @@ impl HookRuntime {
         }
     }
 
+    /// Caps Lock comes from the hook stream, which can miss a press (a hook call
+    /// that timed out while windows switched); the stale value then makes every
+    /// rewritten word upper case until a restart. Re-read the OS state when the
+    /// foreground window changed, and otherwise at most once per [`APP_TTL`], so
+    /// plain typing pays one `GetKeyState` every 1.5 s. Never on Caps Lock's own
+    /// key-down: inside the hook the OS has not toggled it yet.
+    fn resync_caps_lock(&mut self, vk: u16, switched: bool) {
+        if vk == keys::VK_CAPITAL {
+            return;
+        }
+        let now = Instant::now();
+        if !switched && now.saturating_duration_since(self.caps_checked) < APP_TTL {
+            return;
+        }
+        self.caps_checked = now;
+        if let Some(on) = keys::os_caps_lock() {
+            self.mods.caps_lock = on;
+        }
+    }
+
     fn refresh_ime(&mut self, now: Instant, hwnd: isize) {
         if now.saturating_duration_since(self.ime_checked) >= IME_TTL {
             self.ime_active = ime::composition_active(hwnd);
@@ -1282,6 +1307,48 @@ mod tests {
             dwExtraInfo: 0,
         };
         assert_eq!(rt.on_event(WM_KEYDOWN, &info), Decision::PASS);
+    }
+
+    /// Owner's report: after Alt+Tab every rewritten word came out upper case
+    /// until VietKB restarted. The stream's Caps Lock was on, the OS's off.
+    #[test]
+    fn stale_caps_lock_is_re_read_from_the_os() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        rt.mods.caps_lock = true;
+        keys::TEST_OS_CAPS.with(|caps| caps.set(Some(false)));
+
+        // Same window, within the TTL: no OS read on every key.
+        rt.caps_checked = Instant::now();
+        rt.resync_caps_lock(0x56, false);
+        assert!(rt.mods.caps_lock);
+        // Caps Lock's own key-down: the OS has not toggled yet.
+        rt.resync_caps_lock(keys::VK_CAPITAL, true);
+        assert!(rt.mods.caps_lock);
+        // A window switch re-reads it.
+        rt.resync_caps_lock(0x56, true);
+        assert!(!rt.mods.caps_lock);
+        assert_eq!(rt.char_for(0x56, 0), Some('v'));
+
+        // Through the hook: a letter after the TTL fixes the stale value.
+        rt.mods.caps_lock = true;
+        rt.caps_checked = Instant::now() - APP_TTL;
+        let info = KBDLLHOOKSTRUCT {
+            vkCode: 0x56,
+            scanCode: 0x2F,
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        };
+        rt.on_event(WM_KEYDOWN, &info);
+        assert!(!rt.mods.caps_lock);
+
+        // A real Caps Lock (the OS says on) is kept.
+        keys::TEST_OS_CAPS.with(|caps| caps.set(Some(true)));
+        rt.caps_checked = Instant::now() - APP_TTL;
+        rt.on_event(WM_KEYDOWN, &info);
+        assert!(rt.mods.caps_lock);
+        keys::TEST_OS_CAPS.with(|caps| caps.set(None));
     }
 
     #[test]
