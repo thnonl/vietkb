@@ -363,7 +363,9 @@ pub fn reconcile_ascii(vk: u16, typed: char, shift: bool, caps: bool) -> char {
         return typed;
     }
     if plain.is_ascii_alphabetic() {
-        return if shift ^ caps { shifted } else { plain };
+        // macOS: Shift does not undo Caps Lock (Caps Lock + Shift still types
+        // capitals), unlike Windows' Shift xor Caps Lock.
+        return if shift || caps { shifted } else { plain };
     }
     // Digits and punctuation: only the stale-shift direction. A string equal to
     // the key's plain US character is never promoted to the shifted one, because
@@ -624,11 +626,13 @@ mod tests {
 
     #[test]
     fn reconcile_follows_flags_for_the_keys_own_us_characters() {
-        // Letters: case from Shift xor Caps Lock, whatever the string says.
+        // Letters: case from Shift, whatever the string says.
         assert_eq!(reconcile_ascii(0x56, 'v', true, false), 'V');
         assert_eq!(reconcile_ascii(0x56, 'V', false, false), 'v');
+        // Caps Lock: capitals, with or without Shift (macOS, not Shift xor Caps).
         assert_eq!(reconcile_ascii(0x56, 'v', false, true), 'V');
-        assert_eq!(reconcile_ascii(0x56, 'V', true, true), 'v');
+        assert_eq!(reconcile_ascii(0x56, 'v', true, true), 'V');
+        assert_eq!(reconcile_ascii(0x56, 'V', true, true), 'V');
         // Digits: a stale shifted string with clean flags is the digit again.
         assert_eq!(reconcile_ascii(0x36, '^', false, false), '6');
         assert_eq!(reconcile_ascii(0x35, '%', false, true), '5', "Caps Lock leaves digits alone");

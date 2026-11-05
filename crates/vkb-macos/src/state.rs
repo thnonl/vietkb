@@ -843,7 +843,8 @@ impl Runtime {
             keys::VK_TAB => Some('\t'),
             keys::VK_RETURN => Some('\r'),
             // The event carried no string for a letter: take the US character.
-            0x41..=0x5A => keys::us_char(vk, self.mods.shift, self.mods.caps_lock),
+            // macOS: Caps Lock + Shift is still a capital.
+            0x41..=0x5A => keys::us_char(vk, self.mods.shift || self.mods.caps_lock, false),
             _ => None,
         }
     }
@@ -1992,16 +1993,39 @@ mod tests {
         }
     }
 
+    /// Caps Lock + Shift on macOS still types capitals (real-app QA TX-C5 /
+    /// VN-C5, 2026-11-05). Shift xor Caps Lock made the engine compose lowercase
+    /// while the app showed capitals, so the rewritten letters came out small.
+    #[test]
+    fn caps_lock_with_shift_composes_capitals() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut cfg = quiet_config();
+        cfg.input.method = InputMethod::Vni;
+        let mut rig = rig(Some(cfg));
+        let both = flags::ALPHA_SHIFT | flags::SHIFT | flags::DEV_LSHIFT;
+        for ch in "VIE6T5".chars() {
+            let code = mac_code(ch.to_ascii_lowercase());
+            // The string a synthetic sender gives: Shift ignored, lowercase.
+            let typed = ch.to_ascii_lowercase();
+            let fl = if ch.is_ascii_alphabetic() { both } else { flags::ALPHA_SHIFT };
+            rig.rt.on_event(&RawEvent::key(EventKind::KeyDown, code, fl, Some(typed)));
+            rig.rt.on_event(&RawEvent::key(EventKind::KeyUp, code, fl, Some(typed)));
+        }
+        let replaced = rig.log.lock().replaced.clone();
+        assert_eq!(replaced, vec![(1, "Ê".to_string()), (2, "ỆT".to_string())]);
+    }
+
     #[test]
     fn char_for_follows_flags_when_the_string_disagrees() {
         let _guard = globals::TEST_LOCK.lock();
         let mut rig = rig(None);
         let rt = &mut rig.rt;
-        // Caps Lock on, string says `v`: the engine sees `V`; Shift+Caps is lowercase again.
+        // Caps Lock on, string says `v`: the engine sees `V`; Shift+Caps stays `V` on macOS.
         rt.mods.sync(flags::ALPHA_SHIFT);
         assert_eq!(rt.char_for(0x56, Some('v')), Some('V'));
         rt.mods.sync(flags::ALPHA_SHIFT | flags::SHIFT);
-        assert_eq!(rt.char_for(0x56, Some('V')), Some('v'));
+        assert_eq!(rt.char_for(0x56, Some('v')), Some('V'));
+        assert_eq!(rt.char_for(0x56, None), Some('V'));
         // Clean flags, stale shifted string: the digit.
         rt.mods.sync(0);
         assert_eq!(rt.char_for(0x36, Some('^')), Some('6'));
