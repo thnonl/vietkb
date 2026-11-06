@@ -150,7 +150,7 @@ pub struct HookRuntime {
     word_context: Option<WordContext>,
     app_name: String,
     app_checked: Instant,
-    /// When Caps Lock was last re-read from the OS ([`Self::resync_caps_lock`]).
+    /// When Caps Lock and the modifiers were last re-read from the OS ([`Self::resync_with_os`]).
     caps_checked: Instant,
     ime_active: bool,
     ime_checked: Instant,
@@ -556,7 +556,13 @@ impl HookRuntime {
         // 3. Per-app enablement and IME composition.
         let hwnd_before = self.app.hwnd;
         self.refresh_app();
-        self.resync_caps_lock(vk, self.app.hwnd != hwnd_before);
+        self.resync_with_os(vk, self.app.hwnd != hwnd_before);
+        if !is_modifier && self.mods.has_shortcut_modifier() {
+            // The re-read found a Ctrl, Alt or Win the stream missed: a chord.
+            trace.stage("shortcut-os");
+            self.reset_engine();
+            return Decision::PASS;
+        }
         // A different foreground window (or a changed exclusion/override) must
         // not inherit the half-typed word. `refresh_app` just refreshed the
         // cache, so this is only an integer + flag comparison on the common path.
@@ -949,8 +955,16 @@ impl HookRuntime {
 
     /// The Shift keys and Caps Lock the user holds at the event being handled.
     fn held(&self) -> input::Held {
+        // Only on the way to an injection: a Shift the stream missed must not be
+        // released by the Shift pair a capital in the text would otherwise add.
+        let mut shift = self.mods.shift_keys;
+        if shift == 0 {
+            if let Some(os) = keys::os_pressed().filter(|os| os.shift) {
+                shift = if os.shift_keys != 0 { os.shift_keys } else { keys::SHIFT_ANY };
+            }
+        }
         input::Held {
-            shift: self.mods.shift_keys,
+            shift,
             caps: self.mods.caps_lock,
         }
     }
@@ -1015,7 +1029,7 @@ impl HookRuntime {
     /// foreground window changed, and otherwise at most once per [`APP_TTL`], so
     /// plain typing pays one `GetKeyState` every 1.5 s. Never on Caps Lock's own
     /// key-down: inside the hook the OS has not toggled it yet.
-    fn resync_caps_lock(&mut self, vk: u16, switched: bool) {
+    fn resync_with_os(&mut self, vk: u16, switched: bool) {
         if vk == keys::VK_CAPITAL {
             return;
         }
@@ -1026,6 +1040,11 @@ impl HookRuntime {
         self.caps_checked = now;
         if let Some(on) = keys::os_caps_lock() {
             self.mods.caps_lock = on;
+        }
+        // The same gap loses a modifier press: Ctrl held through it turned
+        // Ctrl+S into a tone key and the injected Backspaces into Ctrl+Backspace.
+        if let Some(os) = keys::os_pressed() {
+            self.mods.adopt_pressed(&os);
         }
     }
 
@@ -1320,13 +1339,13 @@ mod tests {
 
         // Same window, within the TTL: no OS read on every key.
         rt.caps_checked = Instant::now();
-        rt.resync_caps_lock(0x56, false);
+        rt.resync_with_os(0x56, false);
         assert!(rt.mods.caps_lock);
         // Caps Lock's own key-down: the OS has not toggled yet.
-        rt.resync_caps_lock(keys::VK_CAPITAL, true);
+        rt.resync_with_os(keys::VK_CAPITAL, true);
         assert!(rt.mods.caps_lock);
         // A window switch re-reads it.
-        rt.resync_caps_lock(0x56, true);
+        rt.resync_with_os(0x56, true);
         assert!(!rt.mods.caps_lock);
         assert_eq!(rt.char_for(0x56, 0), Some('v'));
 
@@ -1349,6 +1368,41 @@ mod tests {
         rt.on_event(WM_KEYDOWN, &info);
         assert!(rt.mods.caps_lock);
         keys::TEST_OS_CAPS.with(|caps| caps.set(None));
+    }
+
+    /// Bug hunt 2026-11-06 (W2): a Ctrl press the stream missed (hook stalled or
+    /// re-installed) left `s` read as a Telex tone key under Ctrl+S.
+    #[test]
+    fn missed_ctrl_press_is_adopted_from_the_os() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        keys::TEST_OS_PRESSED.with(|os| os.set(Some(keys::ModifierState { ctrl: true, ..Default::default() })));
+        rt.caps_checked = Instant::now() - APP_TTL;
+        let info = KBDLLHOOKSTRUCT {
+            vkCode: 0x53,
+            scanCode: 0x1F,
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        };
+        assert_eq!(rt.on_event(WM_KEYDOWN, &info), Decision::PASS);
+        assert!(rt.mods.ctrl, "the OS Ctrl is adopted");
+        keys::TEST_OS_PRESSED.with(|os| os.set(None));
+    }
+
+    /// Bug hunt 2026-11-06 (W1): with the user's Shift missed by the stream, a
+    /// capital in a Replace must not add its own Shift pair (its key-up released
+    /// the user's Shift).
+    #[test]
+    fn injection_sees_a_shift_the_stream_missed() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let rt = runtime();
+        assert_eq!(rt.held().shift, 0);
+        keys::TEST_OS_PRESSED.with(|os| {
+            os.set(Some(keys::ModifierState { shift: true, shift_keys: keys::SHIFT_L, ..Default::default() }))
+        });
+        assert_eq!(rt.held().shift, keys::SHIFT_L);
+        keys::TEST_OS_PRESSED.with(|os| os.set(None));
     }
 
     #[test]

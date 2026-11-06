@@ -1,0 +1,7 @@
+id	spec	expected
+HC1	{CAPS_ON}{WAIT:2500}vieejt {WAIT:2500}dduwowngf{CAPS_OFF}	VIỆT ĐƯỜNG
+HC2	{CAPS_ON}{WAIT:300}{CAPS_OFF}{WAIT:2500}vieejt {WAIT:2500}dduwowngf	việt đường
+HC3	{CAPS_ON}{WAIT:2500}{SHIFTDOWN}vieejt{SHIFTUP} {WAIT:2500}Tieengs{CAPS_OFF}	việt tIẾNG
+HC4	{CAPS_ON}{CAPS_OFF}{CAPS_ON}vieejt {WAIT:1700}nawm{CAPS_OFF} {WAIT:1700}vieejt	VIỆT NĂM việt
+HE1	tuowwn	tuown
+HE2	thuoww	thuow

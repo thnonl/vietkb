@@ -404,7 +404,9 @@ fn apply_w(out: &mut Composed, raw: &[char], i: usize, key: char, options: &Engi
                 .iter()
                 .rposition(|letter| letter.base() == 'u')
             {
-                if out.letters[u].mark == Mark::Horn && out.letters[idx].mark == Mark::Horn {
+                // A `w` on an `o` that already has its horn escapes, also when the `u`
+                // kept no horn (open `uơ`, `quơ`): `uoww` = `uow`, `tuowwn` = `tuown`.
+                if out.letters[idx].mark == Mark::Horn {
                     let drop = drop_for(raw, i, key, out.mark_at);
                     escape_to_raw(out, raw, i, drop);
                     return;
@@ -627,6 +629,18 @@ fn mark_vni_horn(out: &mut Composed, raw: &[char], i: usize, key: char) {
             return;
         }
     }
+    // The 7 again right after an open `uơ` or `quơ` escapes like any doubled
+    // digit (`uo77` = `uo7`, `muo77` = `muo7`) instead of horning the `u`.
+    let open_uo = letters.iter().enumerate().any(|(o, letter)| {
+        letter.base() == 'o' && letter.mark == Mark::Horn && o >= 1 && letters[o - 1].base() == 'u' && letters[o - 1].mark == Mark::None
+    });
+    if open_uo {
+        let drop = drop_for(raw, i, key, out.mark_at);
+        if drop.is_some() {
+            escape_to_raw(out, raw, i, drop);
+            return;
+        }
+    }
     // `buu7` = `bưu`, `cuu71` = `cứu`: the rime is `ưu`, never `uư`.
     let n = out.letters.len();
     if n >= 2
@@ -706,6 +720,19 @@ mod tests {
         assert_eq!(marks("uow"), (Mark::None, Mark::Horn));
         assert_eq!(marks("uown"), (Mark::Horn, Mark::Horn));
         assert_eq!(marks("uonw"), (Mark::Horn, Mark::Horn));
+    }
+
+    #[test]
+    fn doubled_horn_key_on_open_uo_escapes() {
+        // Bug hunt 2026-11-06 (E1): the second key was swallowed (`tuowwn` = `tươn`).
+        let telex = EngineOptions::default();
+        for (keys, want) in [("uoww", "uow"), ("thuoww", "thuow"), ("tuowwn", "tuown"), ("quoww", "quow"), ("quoiwwf", "quoiwf")] {
+            assert_eq!(render(&telex, keys), want, "{keys}");
+        }
+        let vni = EngineOptions { method: InputMethod::Vni, ..EngineOptions::default() };
+        for (keys, want) in [("uo77", "uo7"), ("muo77", "muo7"), ("quo77", "quo7"), ("tuo7ng", "tương"), ("thuo7", "thuơ")] {
+            assert_eq!(render(&vni, keys), want, "{keys}");
+        }
     }
 
     #[test]
