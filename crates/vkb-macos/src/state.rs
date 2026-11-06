@@ -503,6 +503,14 @@ impl Runtime {
             return Decision::PASS;
         }
 
+        // 2a. Fn / Globe + a text key is a system shortcut (Fn+E emoji picker,
+        // Fn+F fullscreen): never text. Arrows and F-keys are not text keys.
+        if self.mods.fn_chord(vk) {
+            self.stage = "shortcut";
+            self.reset_engine();
+            return Decision::PASS;
+        }
+
         // 2. Shortcut chords are never text.
         let mut cmd_end = false;
         if self.mods.has_shortcut_modifier() {
@@ -1149,6 +1157,90 @@ mod tests {
         let decision = rt.on_event(&down);
         rt.on_event(&RawEvent::key(EventKind::KeyUp, code, 0, Some(ch)));
         decision
+    }
+
+    fn press_flags(rt: &mut Runtime, ch: char, fl: u64) -> Decision {
+        let code = mac_code(ch);
+        let down = RawEvent::key(EventKind::KeyDown, code, fl, Some(ch));
+        let decision = rt.on_event(&down);
+        rt.on_event(&RawEvent::key(EventKind::KeyUp, code, fl, Some(ch)));
+        decision
+    }
+
+    #[test]
+    fn fn_e_after_word_passes_for_the_emoji_picker() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        press(&mut rig.rt, 'k');
+        press(&mut rig.rt, 'e');
+        let before = rig.log.lock().replaced.len();
+        let d = press_flags(&mut rig.rt, 'e', flags::SECONDARY_FN);
+        assert_eq!(d, Decision::PASS);
+        assert_eq!(rig.log.lock().replaced.len(), before, "no Replace");
+    }
+
+    #[test]
+    fn fn_f_passes_and_resets_the_word() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        for ch in "toi".chars() {
+            press(&mut rig.rt, ch);
+        }
+        assert_eq!(press_flags(&mut rig.rt, 'f', flags::SECONDARY_FN), Decision::PASS);
+        assert_eq!(press(&mut rig.rt, 's'), Decision::PASS, "word was reset");
+        assert!(rig.log.lock().replaced.is_empty());
+    }
+
+    #[test]
+    fn bare_fn_tap_keeps_the_word() {
+        let _guard = globals::TEST_LOCK.lock();
+        let mut rig = rig(None);
+        for ch in "toi".chars() {
+            press(&mut rig.rt, ch);
+        }
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_FUNCTION, flags::SECONDARY_FN, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::FlagsChanged, keys::MAC_FUNCTION, 0, None));
+        let d = press(&mut rig.rt, 's');
+        assert!(d.swallow);
+        assert_eq!(rig.log.lock().replaced.last(), Some(&(2, "ói".to_string())));
+    }
+
+    /// `toi`, then a navigation key with `fl`, then `s`: what the key and the
+    /// `s` decided, and what was injected.
+    fn nav_outcome(code: u16, fl: u64) -> (Decision, Decision, Vec<(u32, String)>) {
+        let mut rig = rig(None);
+        for ch in "toi".chars() {
+            press(&mut rig.rt, ch);
+        }
+        let key = rig.rt.on_event(&RawEvent::key(EventKind::KeyDown, code, fl, None));
+        rig.rt.on_event(&RawEvent::key(EventKind::KeyUp, code, fl, None));
+        let s_key = press(&mut rig.rt, 's');
+        let replaced = rig.log.lock().replaced.clone();
+        (key, s_key, replaced)
+    }
+
+    #[test]
+    fn fn_navigation_keys_behave_as_before() {
+        let _guard = globals::TEST_LOCK.lock();
+        let fn_numpad = flags::SECONDARY_FN | 0x0020_0000;
+        // Left, Right, Up, Down (fn + numpad), Home, End, PgUp, PgDn, fwd-delete.
+        for (code, fl) in [
+            (0x7Bu16, fn_numpad),
+            (0x7C, fn_numpad),
+            (0x7E, fn_numpad),
+            (0x7D, fn_numpad),
+            (0x73, flags::SECONDARY_FN),
+            (0x77, flags::SECONDARY_FN),
+            (0x74, flags::SECONDARY_FN),
+            (0x79, flags::SECONDARY_FN),
+            (0x75, flags::SECONDARY_FN),
+        ] {
+            let with_fn = nav_outcome(code, fl);
+            let numpad_only = fl & !flags::SECONDARY_FN;
+            let without = nav_outcome(code, numpad_only);
+            assert_eq!(with_fn, without, "keycode {code:#x}");
+            assert_eq!(with_fn.0, Decision::PASS, "keycode {code:#x} passes");
+        }
     }
 
     #[test]

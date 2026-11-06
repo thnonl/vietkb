@@ -82,6 +82,8 @@ pub mod flags {
     pub const CONTROL: u64 = 0x0004_0000;
     pub const ALTERNATE: u64 = 0x0008_0000;
     pub const COMMAND: u64 = 0x0010_0000;
+    /// `maskSecondaryFn`: the Fn / Globe key is held.
+    pub const SECONDARY_FN: u64 = 0x0080_0000;
     // Device-dependent (IOKit `NX_DEVICE*KEYMASK`) bits: which physical side.
     pub const DEV_LCTRL: u64 = 0x0000_0001;
     pub const DEV_LSHIFT: u64 = 0x0000_0002;
@@ -286,6 +288,12 @@ pub fn modifier_key_down(keycode: u16, event_flags: u64) -> bool {
     }
 }
 
+/// A letter, digit-row or punctuation key (Windows VK space).
+#[inline]
+pub fn is_text_key(vk: u16) -> bool {
+    matches!(vk, 0x30..=0x39 | 0x41..=0x5A | VK_OEM_1..=VK_OEM_3 | VK_OEM_4..=VK_OEM_7)
+}
+
 /// Bits of [`ModifierState::shift_keys`].
 pub const SHIFT_L: u8 = 1;
 pub const SHIFT_R: u8 = 2;
@@ -302,6 +310,8 @@ pub struct ModifierState {
     /// Command (the `Win` slot of the shared config: decision M2).
     pub win: bool,
     pub caps_lock: bool,
+    /// Fn / Globe held (`SecondaryFn`). Arrows and F-keys carry it too.
+    pub fn_key: bool,
 }
 
 impl ModifierState {
@@ -312,6 +322,7 @@ impl ModifierState {
         self.alt = event_flags & ALTERNATE != 0;
         self.win = event_flags & COMMAND != 0;
         self.caps_lock = event_flags & ALPHA_SHIFT != 0;
+        self.fn_key = event_flags & SECONDARY_FN != 0;
         self.shift = event_flags & SHIFT != 0;
         if !self.shift {
             self.shift_keys = 0;
@@ -336,6 +347,15 @@ impl ModifierState {
     /// A shortcut chord: the engine must not see these keys as text.
     pub fn has_shortcut_modifier(&self) -> bool {
         self.ctrl || self.alt || self.win
+    }
+
+    /// Fn / Globe held with a text key (letter, digit, punctuation) is a system
+    /// shortcut (Fn+E emoji picker, Fn+F fullscreen), never text. Arrows,
+    /// Home/End, F-keys and the like carry the flag legitimately and are not
+    /// text keys, so they are unaffected.
+    #[inline]
+    pub fn fn_chord(&self, vk: u16) -> bool {
+        self.fn_key && is_text_key(vk)
     }
 }
 
@@ -583,6 +603,24 @@ mod tests {
         assert_eq!(m.modifiers(), Modifiers::NONE);
         assert_eq!(m.shift_keys, 0);
         assert!(!m.has_shortcut_modifier());
+    }
+
+    #[test]
+    fn fn_bit_follows_flags_and_only_text_keys_chord() {
+        use flags::*;
+        let mut m = ModifierState::default();
+        m.sync(SECONDARY_FN);
+        assert!(m.fn_key);
+        assert!(!m.has_shortcut_modifier(), "fn is not ctrl/alt/cmd");
+        assert!(m.fn_chord(0x45) && m.fn_chord(0x31) && m.fn_chord(VK_OEM_COMMA));
+        for vk in [VK_LEFT, VK_RIGHT, VK_HOME, VK_END, VK_PRIOR, VK_DELETE, VK_F1, VK_BACK, VK_RETURN, VK_TAB, VK_SPACE, VK_ESCAPE] {
+            assert!(!m.fn_chord(vk), "vk {vk:#x}");
+        }
+        m.sync(0);
+        assert!(!m.fn_key && !m.fn_chord(0x45));
+        m.sync(SECONDARY_FN | SHIFT);
+        m.sync(SHIFT);
+        assert!(!m.fn_key, "dropped when the flags drop it");
     }
 
     #[test]
