@@ -80,6 +80,10 @@ pub struct KeyInput {
     pub modifiers: Modifiers,
     pub down: bool,
     pub repeat: bool,
+    /// Caps Lock is on at this key. A capital it makes without Shift is not a
+    /// deliberate capital (`tIEENGS` with Shift on the first letter is a Caps
+    /// Lock accident, not `iPhone`).
+    pub caps_lock: bool,
 }
 
 impl KeyInput {
@@ -92,6 +96,7 @@ impl KeyInput {
             modifiers: Modifiers::NONE,
             down: true,
             repeat: false,
+            caps_lock: false,
         }
     }
 
@@ -104,6 +109,7 @@ impl KeyInput {
             modifiers: Modifiers::NONE,
             down: true,
             repeat: false,
+            caps_lock: false,
         }
     }
 

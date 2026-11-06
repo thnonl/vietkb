@@ -165,6 +165,18 @@ impl ModifierState {
         self.shift = self.shift_keys != 0;
     }
 
+    /// Add any modifier the OS reports pressed that the stream missed. Never
+    /// clears one (that is [`Self::drop_released`]); Caps Lock is left alone.
+    pub fn adopt_pressed(&mut self, os: &ModifierState) {
+        self.ctrl |= os.ctrl;
+        self.alt |= os.alt;
+        self.win |= os.win;
+        if os.shift && !self.shift {
+            self.shift_keys |= if os.shift_keys != 0 { os.shift_keys } else { SHIFT_ANY };
+            self.shift = true;
+        }
+    }
+
     /// Forget everything. Used when the hook is re-installed and the physical
     /// state is unknown; the OS is re-read once via [`seed_from_os`].
     pub fn reset(&mut self) {
@@ -206,6 +218,31 @@ pub fn os_caps_lock() -> Option<bool> {
 #[cfg(not(test))]
 pub fn os_caps_lock() -> Option<bool> {
     None
+}
+
+/// Modifiers the OS reports pressed now, used to adopt a press the hook stream
+/// missed (a hook call that timed out, the gap of a hook re-install). `None`
+/// under the zero-focus harness, where the OS state is the owner's.
+#[cfg(not(any(test, feature = "e2e-harness")))]
+pub fn os_pressed() -> Option<ModifierState> {
+    Some(seed_from_os())
+}
+
+#[cfg(feature = "e2e-harness")]
+#[cfg(not(test))]
+pub fn os_pressed() -> Option<ModifierState> {
+    None
+}
+
+#[cfg(test)]
+thread_local! {
+    /// What [`os_pressed`] reports in unit tests (`None` = no OS reading).
+    pub static TEST_OS_PRESSED: std::cell::Cell<Option<ModifierState>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub fn os_pressed() -> Option<ModifierState> {
+    TEST_OS_PRESSED.with(|os| os.get())
 }
 
 #[cfg(test)]

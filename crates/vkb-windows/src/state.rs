@@ -150,7 +150,12 @@ pub struct HookRuntime {
     word_context: Option<WordContext>,
     app_name: String,
     app_checked: Instant,
-    /// When Caps Lock was last re-read from the OS ([`Self::resync_caps_lock`]).
+    /// Keyboard layout of the window in front (`HKL`), read with the app.
+    layout: isize,
+    /// The layout may have changed (app refresh, a modifier-only chord such as
+    /// Alt+Shift): read it again before the next text key.
+    layout_dirty: bool,
+    /// When Caps Lock and the modifiers were last re-read from the OS ([`Self::resync_with_os`]).
     caps_checked: Instant,
     ime_active: bool,
     ime_checked: Instant,
@@ -197,6 +202,8 @@ impl HookRuntime {
             word_context: None,
             app_name: String::new(),
             app_checked: Instant::now() - APP_TTL,
+            layout: 0,
+            layout_dirty: true,
             caps_checked: Instant::now(),
             ime_active: false,
             ime_checked: Instant::now() - IME_TTL,
@@ -371,6 +378,7 @@ impl HookRuntime {
                 modifiers,
                 down: true,
                 repeat: false,
+                caps_lock: self.mods.caps_lock,
             };
             let action = self.process(key);
             trace.action(&action);
@@ -537,7 +545,9 @@ impl HookRuntime {
             if is_modifier {
                 // A modifier on its own types nothing and may still be half of a
                 // chord whose key needs the word (`restore_word`), so the word
-                // survives until the chord's key arrives.
+                // survives until the chord's key arrives. Alt+Shift / Ctrl+Shift
+                // may switch the input language: check it at the next text key.
+                self.layout_dirty = true;
                 trace.stage("modifier");
                 return Decision::PASS;
             }
@@ -556,7 +566,14 @@ impl HookRuntime {
         // 3. Per-app enablement and IME composition.
         let hwnd_before = self.app.hwnd;
         self.refresh_app();
-        self.resync_caps_lock(vk, self.app.hwnd != hwnd_before);
+        self.resync_with_os(vk, self.app.hwnd != hwnd_before);
+        self.sync_layout(self.app.hwnd != hwnd_before);
+        if !is_modifier && self.mods.has_shortcut_modifier() {
+            // The re-read found a Ctrl, Alt or Win the stream missed: a chord.
+            trace.stage("shortcut-os");
+            self.reset_engine();
+            return Decision::PASS;
+        }
         // A different foreground window (or a changed exclusion/override) must
         // not inherit the half-typed word. `refresh_app` just refreshed the
         // cache, so this is only an integer + flag comparison on the common path.
@@ -578,7 +595,7 @@ impl HookRuntime {
         // after a word there re-tones it ("gõ dấu đè", owner 2026-11-03).
         if matches!(vk, keys::VK_LEFT | keys::VK_RIGHT | keys::VK_END) && !modifiers.shift {
             trace.stage("caret-in-line");
-            let _ = self.process(KeyInput { vk, scan: info.scanCode as u16, ch: None, modifiers, down: true, repeat });
+            let _ = self.process(KeyInput { vk, scan: info.scanCode as u16, ch: None, modifiers, down: true, repeat, caps_lock: self.mods.caps_lock });
             return Decision::PASS;
         }
         if keys::is_caret_mover(vk) {
@@ -610,6 +627,7 @@ impl HookRuntime {
             modifiers,
             down: true,
             repeat,
+            caps_lock: self.mods.caps_lock,
         };
         let action = self.process(key);
         trace.action(&action);
@@ -949,8 +967,16 @@ impl HookRuntime {
 
     /// The Shift keys and Caps Lock the user holds at the event being handled.
     fn held(&self) -> input::Held {
+        // Only on the way to an injection: a Shift the stream missed must not be
+        // released by the Shift pair a capital in the text would otherwise add.
+        let mut shift = self.mods.shift_keys;
+        if shift == 0 {
+            if let Some(os) = keys::os_pressed().filter(|os| os.shift) {
+                shift = if os.shift_keys != 0 { os.shift_keys } else { keys::SHIFT_ANY };
+            }
+        }
         input::Held {
-            shift: self.mods.shift_keys,
+            shift,
             caps: self.mods.caps_lock,
         }
     }
@@ -987,6 +1013,7 @@ impl HookRuntime {
             return;
         }
         self.app_checked = now;
+        self.layout_dirty = true;
         if hwnd == 0 {
             self.app = AppKey::default();
             self.app_name.clear();
@@ -1015,7 +1042,7 @@ impl HookRuntime {
     /// foreground window changed, and otherwise at most once per [`APP_TTL`], so
     /// plain typing pays one `GetKeyState` every 1.5 s. Never on Caps Lock's own
     /// key-down: inside the hook the OS has not toggled it yet.
-    fn resync_caps_lock(&mut self, vk: u16, switched: bool) {
+    fn resync_with_os(&mut self, vk: u16, switched: bool) {
         if vk == keys::VK_CAPITAL {
             return;
         }
@@ -1027,6 +1054,26 @@ impl HookRuntime {
         if let Some(on) = keys::os_caps_lock() {
             self.mods.caps_lock = on;
         }
+        // The same gap loses a modifier press: Ctrl held through it turned
+        // Ctrl+S into a tone key and the injected Backspaces into Ctrl+Backspace.
+        if let Some(os) = keys::os_pressed() {
+            self.mods.adopt_pressed(&os);
+        }
+    }
+
+    /// Re-read the foreground keyboard layout when it may have changed. A new
+    /// layout in the same window (Alt+Shift, Win+Space) ends the word, as an
+    /// input-source switch does on macOS.
+    fn sync_layout(&mut self, switched: bool) {
+        if !self.layout_dirty && !switched {
+            return;
+        }
+        self.layout_dirty = false;
+        let next = ime::foreground_layout(self.app.hwnd);
+        if !switched && self.layout != 0 && next != self.layout {
+            self.boundary_engine();
+        }
+        self.layout = next;
     }
 
     fn refresh_ime(&mut self, now: Instant, hwnd: isize) {
@@ -1138,6 +1185,16 @@ impl HookRuntime {
     }
 
     fn char_for(&mut self, vk: u16, scan: u16) -> Option<char> {
+        let letter = (0x41..=0x5A).contains(&vk);
+        if !letter && !ime::is_us_layout(self.layout) {
+            // A non-US layout (AZERTY digits are `&é"'`, German `ß`): the key's
+            // character comes from that layout, not from the US table.
+            if (0x60..=0x69).contains(&vk) || matches!(vk, 0x5D | 0xAD..=0xB7) {
+                return None;
+            }
+            let state = ime::keyboard_state(&self.mods);
+            return ime::to_unicode_on(vk, scan, &state, self.layout);
+        }
         if let Some(ch) = keys::us_char(vk, self.mods.shift, self.mods.caps_lock) {
             return Some(ch);
         }
@@ -1320,13 +1377,13 @@ mod tests {
 
         // Same window, within the TTL: no OS read on every key.
         rt.caps_checked = Instant::now();
-        rt.resync_caps_lock(0x56, false);
+        rt.resync_with_os(0x56, false);
         assert!(rt.mods.caps_lock);
         // Caps Lock's own key-down: the OS has not toggled yet.
-        rt.resync_caps_lock(keys::VK_CAPITAL, true);
+        rt.resync_with_os(keys::VK_CAPITAL, true);
         assert!(rt.mods.caps_lock);
         // A window switch re-reads it.
-        rt.resync_caps_lock(0x56, true);
+        rt.resync_with_os(0x56, true);
         assert!(!rt.mods.caps_lock);
         assert_eq!(rt.char_for(0x56, 0), Some('v'));
 
@@ -1349,6 +1406,41 @@ mod tests {
         rt.on_event(WM_KEYDOWN, &info);
         assert!(rt.mods.caps_lock);
         keys::TEST_OS_CAPS.with(|caps| caps.set(None));
+    }
+
+    /// Bug hunt 2026-11-06 (W2): a Ctrl press the stream missed (hook stalled or
+    /// re-installed) left `s` read as a Telex tone key under Ctrl+S.
+    #[test]
+    fn missed_ctrl_press_is_adopted_from_the_os() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        keys::TEST_OS_PRESSED.with(|os| os.set(Some(keys::ModifierState { ctrl: true, ..Default::default() })));
+        rt.caps_checked = Instant::now() - APP_TTL;
+        let info = KBDLLHOOKSTRUCT {
+            vkCode: 0x53,
+            scanCode: 0x1F,
+            flags: Default::default(),
+            time: 0,
+            dwExtraInfo: 0,
+        };
+        assert_eq!(rt.on_event(WM_KEYDOWN, &info), Decision::PASS);
+        assert!(rt.mods.ctrl, "the OS Ctrl is adopted");
+        keys::TEST_OS_PRESSED.with(|os| os.set(None));
+    }
+
+    /// Bug hunt 2026-11-06 (W1): with the user's Shift missed by the stream, a
+    /// capital in a Replace must not add its own Shift pair (its key-up released
+    /// the user's Shift).
+    #[test]
+    fn injection_sees_a_shift_the_stream_missed() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let rt = runtime();
+        assert_eq!(rt.held().shift, 0);
+        keys::TEST_OS_PRESSED.with(|os| {
+            os.set(Some(keys::ModifierState { shift: true, shift_keys: keys::SHIFT_L, ..Default::default() }))
+        });
+        assert_eq!(rt.held().shift, keys::SHIFT_L);
+        keys::TEST_OS_PRESSED.with(|os| os.set(None));
     }
 
     #[test]
@@ -1532,6 +1624,60 @@ mod tests {
         fn active_app(&self) -> Option<vkb_platform::AppInfo> {
             None
         }
+    }
+
+    /// Bug hunt 2026-11-06 (W3): an input-language switch (Ctrl+Shift, Alt+Shift)
+    /// in the same window ends the word, as on macOS.
+    #[test]
+    fn layout_switch_ends_the_word() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let cfg = AppConfig::from_toml("version = 1
+[input]
+enabled = true
+method = \"telex\"
+[hotkeys]
+toggle = \"Ctrl+Alt+F12\"
+cycle_method = \"\"
+").unwrap();
+        let mut rt = HookRuntime::new(Some(Arc::new(cfg)), Some(Box::new(Recorder(Arc::clone(&seen)))));
+        globals::store_enabled(true);
+        ime::TEST_LAYOUT.with(|l| l.set(ime::US_LAYOUT));
+        rt.sync_layout(true);
+        type_chars(&mut rt, "toi");
+        // Ctrl+Shift (a modifier-only chord) marks the layout for a re-read.
+        rt.on_event(WM_KEYDOWN, &kb(0xA2, 0x1D));
+        rt.on_event(WM_KEYDOWN, &kb(0xA0, 0x2A));
+        rt.on_event(WM_KEYUP, &kb(0xA0, 0x2A));
+        rt.on_event(WM_KEYUP, &kb(0xA2, 0x1D));
+        assert!(rt.layout_dirty);
+        ime::TEST_LAYOUT.with(|l| l.set(0x040C_040C));
+        rt.sync_layout(false);
+        type_chars(&mut rt, "s");
+        let replaced = seen.lock().unwrap().iter().any(|action| matches!(action, EngineAction::Replace { .. }));
+        assert!(!replaced, "`s` after a layout switch must not re-tone `toi`");
+        // Control: the same keys without a switch re-tone the word.
+        rt.sync_layout(false);
+        type_chars(&mut rt, " toi");
+        type_chars(&mut rt, "s");
+        assert!(seen.lock().unwrap().iter().any(|action| matches!(action, EngineAction::Replace { .. })));
+        ime::TEST_LAYOUT.with(|l| l.set(ime::US_LAYOUT));
+    }
+
+    /// Bug hunt 2026-11-06 (W4): on a non-US layout a digit-row key types the
+    /// layout's character (AZERTY `2` key = `é`), not the US digit.
+    #[test]
+    fn non_us_layout_maps_non_letters_through_the_layout() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rt = runtime();
+        rt.layout = 0x040C_040C;
+        ime::TEST_LAYOUT_CHAR.with(|c| c.set(Some('é')));
+        assert_eq!(rt.char_for(0x32, 0x03), Some('é'));
+        assert_eq!(rt.char_for(0x41, 0x10), Some('a'), "letters keep their VK");
+        assert_eq!(rt.char_for(0x62, 0x50), None, "numpad stays non-text");
+        rt.layout = 0x0409_042A;
+        assert_eq!(rt.char_for(0x32, 0x03), Some('2'), "Vietnamese language on the US keyboard is US");
+        ime::TEST_LAYOUT_CHAR.with(|c| c.set(None));
     }
 
     fn kb(vk: u32, scan: u32) -> KBDLLHOOKSTRUCT {

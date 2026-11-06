@@ -198,6 +198,8 @@ pub struct Engine {
     path_from_start: bool,
     /// The word is the part after an inner-capital split: capitals never act as keys here.
     split_token: bool,
+    /// The key being handled is a capital Caps Lock made (Caps Lock on, no Shift).
+    caps_lock_capital: bool,
     /// A close call at the last space, valid until the next word ends.
     back: Option<Back>,
     scratch: Option<Scratch>,
@@ -237,6 +239,7 @@ impl Engine {
             path_segments: 0,
             path_from_start: false,
             split_token: false,
+            caps_lock_capital: false,
             back: None,
             scratch: None,
             want_scratch: false,
@@ -486,7 +489,15 @@ impl Engine {
     fn wants_vietnamese(&self, ch: char) -> bool {
         let key = match self.options.method {
             InputMethod::Vni => ch.is_ascii_digit(),
-            _ => matches!(ch.to_ascii_lowercase(), 's' | 'f' | 'r' | 'x' | 'j' | 'w' | 'z'),
+            _ => {
+                let lower = ch.to_ascii_lowercase();
+                // A doubled `aa`/`ee`/`oo`/`dd` is a Telex key too (`tooo` + space
+                // + BS BS BS + `o` = `tô`); only right after its own letter.
+                let doubles = matches!(lower, 'a' | 'e' | 'o' | 'd')
+                    && self.raw.len() >= 2
+                    && self.raw[self.raw.len() - 2].eq_ignore_ascii_case(&ch);
+                doubles || matches!(lower, 's' | 'f' | 'r' | 'x' | 'j' | 'w' | 'z')
+            }
         };
         if !key {
             return false;
@@ -595,6 +606,9 @@ impl Engine {
             && self.literal_from == usize::MAX
             && self.raw.last().is_some_and(|last| last.is_ascii_lowercase())
             && !self.caps_word_with_a_lowercase_key()
+            // Caps Lock made this capital: Shift on the first letter turned it
+            // small (`tIEENGS` = `tIẾNG`, owner 2026-11-06), not code.
+            && !self.caps_lock_capital
         {
             if self.split_token {
                 // Already after a split: capitals are letters here, never keys.
@@ -1287,8 +1301,10 @@ impl Engine {
             }
             // The restored word stays reachable like any committed word: a Backspace over the
             // separator reopens it as its raw English text, so `room` BS `rar` joins as
-            // `roomrar` (as with D10 off), not as a composed Vietnamese word.
-            if auto && is_reopening_separator(ch) {
+            // `roomrar` (as with D10 off), not as a composed Vietnamese word. A word
+            // `restore_wrong_word` put back is reachable the same way: VNI `vi22` +
+            // space shows `vi22`, and BS BS BS + `2` must give `vì` (owner, 2026-11-06).
+            if is_reopening_separator(ch) {
                 let screen: TextBuf = insert.iter().take(raw_units).copied().collect();
                 self.note_committed_word(0, None, &screen);
             } else {
@@ -1994,7 +2010,13 @@ impl Engine {
         if raw_matches(&self.raw, COMPAT_RESTORE_RAW) {
             return true;
         }
-        !spell::is_valid_syllable(&self.composed.letters, self.options.jfwz_as_consonant)
+        // An open `ă` (`dă`) is a prefix while typing but never a finished word.
+        let open_breve = self
+            .composed
+            .letters
+            .last()
+            .is_some_and(|last| last.base() == 'a' && last.mark == crate::letters::Mark::Breve);
+        open_breve || !spell::is_valid_syllable(&self.composed.letters, self.options.jfwz_as_consonant)
     }
 }
 
@@ -2058,6 +2080,7 @@ impl VietnameseEngine for Engine {
         if !key.down {
             return EngineAction::Noop;
         }
+        self.caps_lock_capital = key.caps_lock && !key.modifiers.shift;
         if key.modifiers.ctrl || key.modifiers.alt || key.modifiers.win {
             // A chord (Ctrl+Z, Ctrl+V ...) may change the text under us. The
             // bare modifier press itself (Ctrl down, Alt down) changes nothing.

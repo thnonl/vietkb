@@ -58,6 +58,9 @@ pub fn is_valid_syllable(letters: &[Letter], allow_jfwz: bool) -> bool {
     if letters.is_empty() {
         return true;
     }
+    if !marks_agree(letters) {
+        return false;
+    }
     let mut buf = [0u8; 32];
     let mut len = 0usize;
     for letter in letters {
@@ -257,6 +260,45 @@ pub fn english_stop_cluster(raw: &[char], letters: &[Letter]) -> bool {
     // is exempt; whether the result is a syllable is still the spell check's
     // call (`D-BS-LIT-01`).
     stop && !raw[pos].eq_ignore_ascii_case(&'j')
+}
+
+/// The vowel marks fit a Vietnamese rime whatever is typed next (bug hunt
+/// 2026-11-06, E2: the base-letter check let `daư`, `coăi`, `đêư` through):
+/// `ă` takes no vowel after it, `â` only `u`/`y`, `ê` only `u`, `ô` only `i`,
+/// `ơ` only `i`/`u`; `ư` follows no vowel and `ơ` only `u`/`ư` (`ươ`, `uơ`).
+/// A plain `u` after a marked vowel must be plain (`êu`, not `êư`).
+fn marks_agree(letters: &[Letter]) -> bool {
+    // The `i` of a `gi` onset and the `u` of `qu` belong to the onset (`giới`,
+    // `giữ`, `quơ`), not to the rime.
+    let onset_vowel = letters.len() > 2
+        && letters[2].is_vowel()
+        && matches!((letters[0].base(), letters[1].base()), ('g', 'i') | ('q', 'u'));
+    for (idx, letter) in letters.iter().enumerate() {
+        if !letter.is_vowel() {
+            continue;
+        }
+        let next = letters.get(idx + 1).filter(|next| next.is_vowel());
+        let prev = idx
+            .checked_sub(1)
+            .filter(|&p| !(onset_vowel && p == 1))
+            .map(|p| &letters[p])
+            .filter(|prev| prev.is_vowel());
+        let ok_next = |allowed: &[char]| next.map_or(true, |n| n.mark == Mark::None && allowed.contains(&n.base()));
+        let ok = match (letter.base(), letter.mark) {
+            ('a', Mark::Breve) => next.is_none(),
+            ('a', Mark::Circumflex) => ok_next(&['u', 'y']),
+            ('e', Mark::Circumflex) => ok_next(&['u']),
+            ('o', Mark::Circumflex) => ok_next(&['i']),
+            // `ươu` (`hươu`): the `u` after `ơ` is plain.
+            ('o', Mark::Horn) => ok_next(&['i', 'u']) && prev.map_or(true, |p| p.base() == 'u'),
+            ('u', Mark::Horn) => prev.is_none(),
+            _ => true,
+        };
+        if !ok {
+            return false;
+        }
+    }
+    true
 }
 
 /// `rest` starts where the onset ended. An empty `rest` means the user is still
