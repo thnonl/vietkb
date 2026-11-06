@@ -54,3 +54,18 @@ Candidate SHA-256 6783D81B…, 8 774 656 B. Real app, Chrome + Terminal on the s
 - human Telex (first 12 scenarios): all PASS in Chrome; Terminal PASS on the single-line rows.
 - human VNI: aborted on a physical mouse click (guard), NOT RUN.
 Teardown clean each time; owner VietKB relaunched, lock released.
+
+## Round 2 (owner: "Fix luôn bug đó đi, đây là round fix bug nên có bug là phải fix")
+
+Fixed on `typing-hunt` ba53569, CI run 42176941872 green (6/6 jobs):
+- Owner bug: with `restore_wrong_word` on, VNI `vi22` + space + BS BS BS + `2` gave `vi2`; now `vì` (Telex `viff`, `tooo`; VNI `to66`, `ba11` the same). Sweep test `reopen_escaped_tail.rs`: 46 cases, 22 failed before the fix.
+- HC3 (ruling recorded): `KeyInput::caps_lock`; Caps Lock + Shift `Tieengs` = `tIẾNG`. Test `caps_lock_shift.rs`.
+- E2: vowel-mark spell check (`daư`, `coăi`, `đêư` stay raw; `giới`, `giữ`, `hươu`, `quân` unchanged); open `ă` at the word end restores with `restore_wrong_word`.
+- W3: input-language switch ends the word (layout re-read after a modifier-only chord). W4: non-letter keys on a non-US layout use `ToUnicodeEx` (flag 4) with that layout.
+- D10 eval run-033 vs run-032: EN 10k 97.46 -> 97.49 %, VI 97.59 -> 97.61 %, code 99.5 % unchanged; every changed row an improvement except `phêrô` (wrong before and after).
+
+Real app, candidate SHA-256 ED3A3956…: human Telex 23/23 PASS (Chrome + Terminal), human VNI Chrome 14/14 PASS. The hunt sets and VNI Terminal aborted (the owner moved the mouse, then a game took the foreground): NOT RUN, to rerun when the desktop is free. W3/W4 real-app NOT RUN (only en-US installed; adding a layout changes system settings).
+
+Round 3 rerun (same candidate ED3A3956…, 2026-11-06 13:56-14:09): hunt Telex 23/23 PASS in Chrome and Terminal, incl. HC3 `tIẾNG`, HR1 `viff` + space + BS×3 + `f` = `vì`, HR2 `tô`, HS1/HS2 raw, HE1/HE2. hunt VNI and human VNI Terminal aborted again (a physical click, then Torchlight Infinite in front): NOT RUN on Windows. Mac real app on ba53569 ran the VNI rows (vi22 = vì, to66 = tô, ba11 = bá, muo77 = muo7): PASS.
+
+Round 4, VNI only (same candidate, 14:39-14:50): hunt VNI 17/19 PASS in Chrome and Terminal: HR1 `vi22` + space + BS×3 + `2` = `vì`, HR2 `tô`, HR3 `bá`, HE1 `muo7`, Caps rows. The two HC3 FAILs are a fixture fault: the row held Shift over `vie65t`, so the digits typed `^%` (`vie^%t`), as on any keyboard; the `tIẾNG` half passed in both apps. Row corrected to `{CAPS_ON}Tie6ng1{CAPS_OFF}` = `tIẾNG`. human VNI 23/23 PASS (Chrome 14, Terminal 9). Edge took the focus once and the harness recovered.
