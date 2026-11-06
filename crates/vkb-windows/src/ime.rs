@@ -46,6 +46,69 @@ pub fn to_unicode(vk: u16, scan: u16, state: &[u8; 256]) -> Option<char> {
     char::from_u32(buffer[0] as u32).filter(|ch| !ch.is_control())
 }
 
+/// The keyboard layout of the window in front (`HKL` as an integer), or 0 when
+/// it cannot be read. Unit tests and the zero-focus harness read a US layout.
+#[cfg(not(any(test, feature = "e2e-harness")))]
+pub fn foreground_layout(hwnd: isize) -> isize {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayout;
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+    if hwnd == 0 {
+        return 0;
+    }
+    let thread = unsafe { GetWindowThreadProcessId(HWND(hwnd as _), None) };
+    unsafe { GetKeyboardLayout(thread) }.0 as isize
+}
+
+#[cfg(test)]
+thread_local! {
+    /// What [`foreground_layout`] reports in unit tests.
+    pub static TEST_LAYOUT: std::cell::Cell<isize> = const { std::cell::Cell::new(US_LAYOUT) };
+}
+
+#[cfg(test)]
+pub fn foreground_layout(_hwnd: isize) -> isize {
+    TEST_LAYOUT.with(|layout| layout.get())
+}
+
+#[cfg(feature = "e2e-harness")]
+#[cfg(not(test))]
+pub fn foreground_layout(_hwnd: isize) -> isize {
+    US_LAYOUT
+}
+
+/// English (US) language with the US keyboard.
+pub const US_LAYOUT: isize = 0x0409_0409;
+
+/// The physical layout is US (the high word), whatever the language: Vietnamese
+/// with the US keyboard is `0x0409042A`. Unknown (0) counts as US, as before.
+pub fn is_us_layout(hkl: isize) -> bool {
+    hkl == 0 || (hkl as usize >> 16) & 0xFFFF == 0x0409
+}
+
+/// The character `vk` types on layout `hkl`, without touching the thread's
+/// dead-key state (flag 4, Windows 10 1607+).
+#[cfg(not(test))]
+pub fn to_unicode_on(vk: u16, scan: u16, state: &[u8; 256], hkl: isize) -> Option<char> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{ToUnicodeEx, HKL};
+    let mut buffer = [0u16; 8];
+    let length = unsafe { ToUnicodeEx(vk as u32, scan as u32, state, &mut buffer, 4, HKL(hkl as _)) };
+    if length != 1 {
+        return None;
+    }
+    char::from_u32(buffer[0] as u32).filter(|ch| !ch.is_control())
+}
+
+#[cfg(test)]
+thread_local! {
+    /// What [`to_unicode_on`] types in unit tests for a non-US layout.
+    pub static TEST_LAYOUT_CHAR: std::cell::Cell<Option<char>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub fn to_unicode_on(_vk: u16, _scan: u16, _state: &[u8; 256], _hkl: isize) -> Option<char> {
+    TEST_LAYOUT_CHAR.with(|ch| ch.get())
+}
+
 /// Keyboard state array for `ToUnicode`.
 pub fn keyboard_state(mods: &crate::keys::ModifierState) -> [u8; 256] {
     let mut state = [0u8; 256];

@@ -881,5 +881,10 @@ fn restored_word_after_backspace_is_pinned() {
     let cfg = Cfg { vni: false, spell: true, restore: true };
     assert_eq!(run(cfg, &format!("pass {BS}")).out, "pass");
     assert_eq!(run(cfg, &format!("pass {BS}s")).out, "passs");
-    assert_eq!(run(cfg, &format!("pass {BS}{BS}ddeem")).out, "pasđêm");
+    // Owner ruling 2026-11-06 (reopen a restored wrong word): the restored word
+    // is reachable like a D10-restored one (`room` BS `rar` = `roomrar`), so keys
+    // that cannot make it Vietnamese join it as typed. Was `pasđêm` while the
+    // restored word was dropped from the history.
+    assert_eq!(run(cfg, &format!("pass {BS}{BS}ddeem")).out, "pasddeem");
+    assert_eq!(run(cfg, &format!("viff {BS}{BS}{BS}f")).out, "vì");
 }

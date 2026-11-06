@@ -5,3 +5,7 @@ HC3	{CAPS_ON}{WAIT:2500}{SHIFTDOWN}vieejt{SHIFTUP} {WAIT:2500}Tieengs{CAPS_OFF}	
 HC4	{CAPS_ON}{CAPS_OFF}{CAPS_ON}vieejt {WAIT:1700}nawm{CAPS_OFF} {WAIT:1700}vieejt	VIỆT NĂM việt
 HE1	tuowwn	tuown
 HE2	thuoww	thuow
+HR1	viff {BACKSPACE}{BACKSPACE}{BACKSPACE}f	vì
+HR2	tooo {BACKSPACE}{BACKSPACE}{BACKSPACE}o	tô
+HS1	dauw	dauw
+HS2	coaiw	coaiw

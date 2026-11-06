@@ -568,6 +568,7 @@ impl Runtime {
                 modifiers: Modifiers::NONE,
                 down: true,
                 repeat,
+                caps_lock: self.mods.caps_lock,
             });
             return Decision::PASS;
         }
@@ -594,6 +595,7 @@ impl Runtime {
             modifiers,
             down: true,
             repeat,
+            caps_lock: self.mods.caps_lock,
         };
         let action = self.process(key);
 
