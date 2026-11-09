@@ -1,6 +1,6 @@
 [package]
 name = "vkb-app"
-version = "0.3.6"
+version = "1.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
