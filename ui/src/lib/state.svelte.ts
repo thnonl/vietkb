@@ -91,7 +91,7 @@ const demoSettings: SettingsView = {
     freeTone: true,
     jfwzAsConsonant: true,
     autoCapitalize: false,
-    spellCheck: true,
+    spellCheck: false,
     restoreWrongWord: false,
     sendStandard: false,
     useClipboard: false,

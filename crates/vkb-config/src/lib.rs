@@ -127,6 +127,7 @@ mod tests {
     #[test]
     fn default_matches_documented_toml() {
         let cfg = AppConfig::default();
+        assert!(!cfg.typing.spell_check, "spell check is off on a new install (owner, 2026-11-09)");
         let text = cfg.to_toml().unwrap();
         let back = AppConfig::from_toml(&text).unwrap();
         assert_eq!(cfg.typing.modern_tone, back.typing.modern_tone);
@@ -161,7 +162,7 @@ charset = "unicode"
         assert_eq!(cfg.input.method, InputMethod::Vni);
         assert_eq!(cfg.input.charset, Charset::Unicode);
         assert!(!cfg.system.start_with_windows);
-        assert!(cfg.typing.spell_check);
+        assert!(!cfg.typing.spell_check, "a file without the key gets the default (off)");
 
         let saved = cfg.to_toml().unwrap();
         assert!(!saved.contains("run_as_admin"));

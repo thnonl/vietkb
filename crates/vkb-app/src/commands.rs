@@ -1669,7 +1669,7 @@ mod tests {
         let cfg = patched(r#"{"typing":{"modernTone":false},"input":{"method":"vni"}}"#);
         assert!(!cfg.typing.modern_tone);
         assert_eq!(cfg.input.method, InputMethod::Vni);
-        assert!(cfg.typing.spell_check, "untouched fields keep their value");
+        assert!(!cfg.typing.spell_check, "untouched fields keep their value");
     }
 
     #[test]

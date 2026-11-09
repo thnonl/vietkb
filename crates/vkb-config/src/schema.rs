@@ -87,7 +87,7 @@ pub struct TypingConfig {
     pub jfwz_as_consonant: bool,
     /// `Tự động viết hoa sau "Enter . ! ?"`.
     pub auto_capitalize: bool,
-    /// `Bật kiểm tra chính tả`.
+    /// `Bật kiểm tra chính tả`. Off on a new install (owner, 2026-11-09).
     pub spell_check: bool,
     /// `Tự động khôi phục phím với từ sai` (only meaningful with `spell_check`).
     pub restore_wrong_word: bool,
@@ -118,7 +118,7 @@ impl Default for TypingConfig {
             free_tone: true,
             jfwz_as_consonant: true,
             auto_capitalize: false,
-            spell_check: true,
+            spell_check: false,
             restore_wrong_word: false,
             send_standard: false,
             use_clipboard: false,

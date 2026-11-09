@@ -151,7 +151,7 @@ modern_tone = true              # true = kiểu mới (hòa, thúy) · false = k
 free_tone = true                # "Đặt dấu tự do"
 jfwz_as_consonant = true        # "Cho phép 'f j w z' làm phụ âm"
 auto_capitalize = false         # "Tự động viết hoa sau Enter . ! ?"
-spell_check = true              # "Bật kiểm tra chính tả"
+spell_check = false             # "Bật kiểm tra chính tả" (off on a new install, owner 2026-11-09)
 restore_wrong_word = false      # "Tự động khôi phục phím với từ sai"
 disable_on_non_us_layout = true # "Tắt TV khi Layout bàn phím khác US"
 suggestion_fix_1 = true         # "Sửa lỗi dấu của Gợi ý 1"

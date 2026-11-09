@@ -158,7 +158,7 @@
       <div class="l"><b>{t("quick.spellCheck")}</b></div>
       <div class="c">
         <Toggle
-          checked={settings?.typing.spellCheck ?? true}
+          checked={settings?.typing.spellCheck ?? false}
           label={t("quick.spellCheck")}
           onchange={(next) => app.patch({ typing: { spellCheck: next } })} />
       </div>
