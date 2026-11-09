@@ -8,7 +8,7 @@
   import { isMacOS } from "../lib/platform.svelte";
   import type { HotkeyActionField } from "../lib/catalog";
 
-  // The capture well: focus, press a chord, Enter commits, Esc cancels,
+  // The capture well: click (or Enter / Space) to record, press a chord, Enter commits, Esc cancels,
   // Backspace clears. Shows the exact canonical string the backend stores.
   let {
     field,
@@ -172,12 +172,13 @@
     seq++;
   };
 
-  /** Esc ends the capture but keeps the focus, so a click on the same field is
-   *  not a focus event: it must arm the capture again. */
+  /** Recording starts on a click, or on Enter / Space (the button's own click),
+   *  never on focus alone: a keyboard user tabbing through the page must pass the
+   *  field without arming it (owner: "Sửa ngay trước khi phát hành", K5, 2026-11-10).
+   *  Esc ends the capture but keeps the focus; the next click arms it again. */
   const rearm = (event: MouseEvent) => {
-    // WebKit (macOS) does not focus a <button> on click, so `focus` never
-    // fires and keys would go to <body>. Focus it here (a no-op where the
-    // click already focused it): onfocus runs `begin`, keys reach this button.
+    // WebKit (macOS) does not focus a <button> on click, so keys would go to
+    // <body>. Focus it here (a no-op where the click already focused it).
     (event.currentTarget as HTMLElement).focus({ preventScroll: true });
     if (!editing) begin();
   };
@@ -344,7 +345,6 @@
     class="capa"
     id={`cap-${field}`}
     aria-label={t("capture.aria", { label, value: ariaValue })}
-    onfocus={begin}
     onblur={reset}
     onclick={rearm}
     onkeydown={onkeydown}
