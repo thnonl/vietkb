@@ -542,12 +542,6 @@
 </Modal>
 
 <style>
-  .tr.head {
-    height: 24px;
-    font: 600 12px/18px var(--sm);
-    color: var(--t3);
-    box-shadow: inset 0 -1px 0 var(--line-2);
-  }
   .empty {
     display: flex;
     flex-direction: column;
@@ -576,37 +570,6 @@
   }
   .empty b {
     font: 600 16px/24px var(--ui);
-  }
-  .empty p {
-    max-width: 420px;
-    font: 400 13px/20px var(--ui);
-    color: var(--t2);
-  }
-  .samples {
-    display: flex;
-    gap: 8px;
-    margin: 4px 0 6px;
-  }
-  .sample-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 8px;
-    box-shadow: inset 0 0 0 1px var(--line-2);
-    font: 400 13px/20px var(--ui);
-    color: var(--t2);
-  }
-  .sample-row:hover {
-    background: var(--hover);
-    color: var(--t1);
-  }
-  .empty .inline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
   }
   .tr {
     position: relative;
@@ -650,70 +613,11 @@
     background: var(--t3);
     background-clip: padding-box;
   }
-  .rowmenu {
-    position: absolute;
-    right: 8px;
-    top: 38px;
-    z-index: 20;
-    width: 148px;
-    padding: 4px;
-    border-radius: 10px;
-    background: var(--float);
-    box-shadow: var(--e2);
-    display: flex;
-    flex-direction: column;
-  }
-  .rowmenu button {
-    height: 30px;
-    padding: 0 10px;
-    border-radius: 7px;
-    text-align: left;
-    font: 500 13px/20px var(--ui);
-    color: var(--t1);
-  }
-  .rowmenu button:hover {
-    background: var(--hover);
-  }
-  .rowmenu button.danger {
-    color: var(--bad);
-  }
-  .lnk {
-    padding: 0;
-    color: var(--acc-text);
-    font: 500 12px/18px var(--sm);
-  }
   .form {
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 8px 0 4px;
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font: 500 13px/20px var(--ui);
-    color: var(--t2);
-  }
-  .field .input {
-    padding: 0 10px;
-    color: var(--t1);
-    font: 400 13px/20px var(--ui);
-  }
-  textarea.input {
-    display: block;
-    height: 72px;
-    padding: 8px 10px;
-    resize: vertical;
-    color: var(--t1);
-  }
-  .hint {
-    font: 400 12px/18px var(--sm);
-    color: var(--t3);
-  }
-  .form-error {
-    font: 400 12px/18px var(--sm);
-    color: var(--bad);
   }
   .muted {
     color: var(--t3);

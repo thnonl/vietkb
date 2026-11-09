@@ -53,7 +53,7 @@
     copy: '<rect x="7.5" y="7.5" width="8.5" height="8.5" rx="1.75"/><path d="M12.25 4.5H5.5A1.5 1.5 0 0 0 4 6v6.75"/>',
     sliders:
       '<path d="M3.25 6.5h7M13.5 6.5h3.25M3.25 13.5h3.5M10 13.5h6.75"/><circle cx="12" cy="6.5" r="1.65"/><circle cx="8.5" cy="13.5" r="1.65"/>',
-    updown: '<path d="M7 8.25 10 5.25l3 3M7 11.75l3 3 3-3"/>',
+    updown: '<path d="M5 8.2 10 3.6l5 4.6M5 11.8l5 4.6 5-4.6"/>',
     apps:
       '<rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1.4"/><rect x="11" y="3.5" width="5.5" height="5.5" rx="1.4"/><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.4"/><rect x="11" y="11" width="5.5" height="5.5" rx="1.4"/>',
   };

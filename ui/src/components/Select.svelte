@@ -27,5 +27,5 @@
       <option value={option.value}>{option.label}</option>
     {/each}
   </select>
-  <Icon name="updown" small />
+  <span class="sel-cap" aria-hidden="true"><Icon name="updown" /></span>
 </span>

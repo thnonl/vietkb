@@ -73,7 +73,7 @@
           label={t("adv.jfwz")}
           onchange={(next) => setTyping({ jfwzAsConsonant: next })} />
       </div>
-      <div class="v4row" class:dis={!settings?.typing.spellCheck}>
+      <div class="v4row" class:dis={!settings?.typing.spellCheck} aria-disabled={!settings?.typing.spellCheck}>
         <div class="l"><b>{t("adv.restoreWrong")}</b></div>
         <Toggle
           checked={settings?.typing.restoreWrongWord ?? false}
@@ -88,7 +88,7 @@
           label={t("adv.autoEnglish")}
           onchange={(next) => setTyping({ autoRestoreEnglish: next })} />
       </div>
-      <div class="v4row" class:dis={!settings?.typing.macroEnabled}>
+      <div class="v4row" class:dis={!settings?.typing.macroEnabled} aria-disabled={!settings?.typing.macroEnabled}>
         <div class="l"><b>{t("adv.macroWhenOff")}</b></div>
         <Toggle
           checked={settings?.typing.macroWhenDisabled ?? false}

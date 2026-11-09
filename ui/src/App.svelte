@@ -88,9 +88,21 @@
       }
     };
     window.addEventListener("keydown", onKey);
+
+    // A click on a row's label flips that row's switch (SPEC 9): the label is text,
+    // so this finds the switch in the same row instead of wiring every row.
+    const onRowLabel = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || target.closest("button, a, input, select, textarea")) return;
+      const label = target.closest(".v4row > .l, .row > .lbl");
+      const sw = label?.parentElement?.querySelector<HTMLButtonElement>('[role="switch"]');
+      if (sw && !sw.disabled) sw.click();
+    };
+    document.addEventListener("click", onRowLabel);
     return () => {
       disposed = true;
       stopTabs?.();
+      document.removeEventListener("click", onRowLabel);
       window.removeEventListener("keydown", onKey);
       app.dispose();
     };

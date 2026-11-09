@@ -31,13 +31,13 @@
   /* Text: 1 / 2 / 3 / 4 (3 and 4 are secondary hints, still >= 4.5:1 on --raised) */
   --t1: #1d1d1f;
   --t2: rgba(60, 60, 67, 0.78);
-  --t3: rgba(60, 60, 67, 0.42);
+  --t3: rgba(60, 60, 67, 0.76);
   --t4: rgba(60, 60, 67, 0.3);
 
   /* Accent: Xanh logo, "Sáng hơn" step (owner rulings 2026-11-09). */
   --acc: #2876d2;
-  --acc-hover: #2572cc;
-  --acc-press: #1f6fca;
+  --acc-hover: #2169bd;
+  --acc-press: #1b5dab;
   --acc-switch: #3d8be0;
   --acc-text: #1c6cc6;
   --acc-tint: #e0f1fd;
@@ -65,7 +65,7 @@
   --ctl-edge: rgba(0, 0, 0, 0.15);
   --inset-edge: rgba(0, 0, 0, 0.09);
   --bad-fill: #d92d20;
-  --tg-off: rgba(120, 120, 128, 0.3);
+  --tg-off: rgba(120, 120, 128, 0.45);
   --kbd: #ffffff;
   --well: rgba(0, 0, 0, 0.05);
   --key-top: #ffffff;
@@ -121,12 +121,12 @@
 
   --t1: #f5f5f7;
   --t2: rgba(235, 235, 245, 0.72);
-  --t3: rgba(235, 235, 245, 0.34);
+  --t3: rgba(235, 235, 245, 0.62);
   --t4: rgba(235, 235, 245, 0.25);
 
   --acc: #2876d2;
-  --acc-hover: #2572cc;
-  --acc-press: #1f6fca;
+  --acc-hover: #3a85dc;
+  --acc-press: #4c97e6;
   --acc-switch: #5aa2ee;
   --acc-text: #6ab0f2;
   --acc-tint: rgba(90, 162, 238, 0.2);
@@ -190,12 +190,12 @@
 
     --t1: #f5f5f7;
     --t2: rgba(235, 235, 245, 0.72);
-    --t3: rgba(235, 235, 245, 0.34);
+    --t3: rgba(235, 235, 245, 0.62);
     --t4: rgba(235, 235, 245, 0.25);
 
     --acc: #2876d2;
-    --acc-hover: #2572cc;
-    --acc-press: #1f6fca;
+    --acc-hover: #3a85dc;
+    --acc-press: #4c97e6;
     --acc-switch: #5aa2ee;
     --acc-text: #6ab0f2;
     --acc-tint: rgba(90, 162, 238, 0.2);

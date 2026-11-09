@@ -137,7 +137,7 @@
   height: 14px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.4;
+  stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -147,7 +147,7 @@
   margin-right: 2px;
 }
 /* The update slot: a 7 px accent dot when a newer version exists (SPEC 8.5). */
-.cap-bar .tslot.upd::before {
+.cap-bar .tslot.upd::after {
   content: "";
   display: block;
   width: 7px;
@@ -215,7 +215,7 @@
   height: 20px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.5;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -228,7 +228,7 @@
   color: var(--t1);
 }
 .tab[aria-selected="true"] svg {
-  color: var(--acc-switch);
+  color: var(--acc-text);
 }
 .tab.dot::after {
   content: "";

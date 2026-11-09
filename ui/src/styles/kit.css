@@ -175,19 +175,6 @@ button:focus-visible,
   background: var(--float);
   color: var(--t1);
 }
-.sel-wrap > .i {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 16px;
-  height: 24px;
-  padding: 3px 2px;
-  border-radius: 0 6px 6px 0;
-  background: var(--acc);
-  color: var(--on-acc);
-  stroke-width: 2.2;
-  pointer-events: none;
-}
 
 /* ---- segmented control: 18 high inside a 2 px tray ---- */
 .seg {
@@ -198,7 +185,7 @@ button:focus-visible,
   background: var(--seg-bg);
 }
 .seg > button {
-  height: 18px;
+  height: 20px;
   padding: 0 10px;
   border-radius: 6px;
   font: 400 12px/16px var(--ui);
@@ -312,7 +299,7 @@ textarea.input {
   justify-content: space-between;
   gap: 10px;
   min-height: 28px;
-  padding: 3px 12px;
+  padding: 2px 12px;
 }
 .row + .row::before,
 .v4row + .v4row::before {
@@ -422,7 +409,7 @@ textarea.input {
   background: var(--raised);
   border-radius: 8px;
   box-shadow: 0 0 0 1px var(--line-1);
-  overflow: hidden;
+  overflow: visible;
 }
 .grp h6 {
   margin: 0 0 4px 4px;
@@ -566,7 +553,7 @@ textarea.input {
   align-items: center;
   gap: 8px;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 12px;
   flex: none;
 }
 .tr + .tr::before {
@@ -875,7 +862,7 @@ dialog.sheetdlg::backdrop {
   flex: none;
 }
 .langtg button {
-  height: 18px;
+  height: 22px;
   padding: 0 6px;
   border-radius: 5px;
   font: 500 11px/18px var(--ui);
@@ -906,4 +893,279 @@ svg.i.s16 {
   width: 16px;
   height: 16px;
   stroke-width: 1.875;
+}
+
+/* ===== Control audit fix round (design/macos-style/control-audit.md) =====
+ * Appended on purpose: later rules win at equal specificity, so each fix below
+ * overrides the earlier rule it names. */
+
+/* Hover and press lay an overlay ON TOP of the control colour (B1, S2). The base
+ * colour stays --ctl-bg; the translucent plane tints it, so dark mode lightens. */
+.btn:hover {
+  background: linear-gradient(var(--hover-plane), var(--hover-plane)), var(--ctl-bg);
+}
+.btn:active {
+  background: linear-gradient(var(--press), var(--press)), var(--ctl-bg);
+}
+.btn.ghost:active {
+  background: var(--press);
+}
+.sel:hover {
+  background: linear-gradient(var(--hover-plane), var(--hover-plane)), var(--ctl-bg);
+}
+.sel:disabled {
+  opacity: var(--dis);
+  pointer-events: none;
+}
+.sel {
+  color-scheme: inherit;
+}
+
+/* Focus ring (F1, F2, G3, H4): explicit selectors that beat the filled states'
+ * own box-shadow. Ring = 1 px gap in the surface colour + 3 px --focus. */
+.btn:focus-visible,
+.btn.pri:focus-visible,
+.btn.ghost:focus-visible,
+.seg > button:focus-visible,
+.seg > button.on:focus-visible,
+.langtg button:focus-visible,
+.langtg button.on:focus-visible,
+.sel:focus-visible,
+.wbtn:focus-visible,
+.tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--raised), 0 0 0 3px var(--focus);
+}
+.wbtn:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+.input.err:focus-within {
+  box-shadow: inset 0 0 0 2px var(--bad), 0 0 0 3px var(--focus);
+}
+
+/* Primary button hover and press: a visible step (B2), white text stays >= 4.5:1. */
+.btn.pri:hover {
+  background: var(--acc-hover);
+}
+.btn.pri:active {
+  background: var(--acc-press);
+}
+
+/* Switch (T-2, X1): press squashes the knob; a disabled row dims once, at the row. */
+.tg:active::after {
+  width: 18px;
+}
+.tg.on:active::after {
+  left: 16px;
+}
+.v4row.dis .tg,
+.row.dis .tg {
+  opacity: 1;
+}
+
+/* Segmented (G1, G2, G6) and language switch (H3): 24 high trays, >= 24 hit areas. */
+.seg > button {
+  position: relative;
+}
+.seg > button::before {
+  content: "";
+  position: absolute;
+  inset: -2px -3px;
+}
+.seg > button:active:not(.on) {
+  background: var(--press);
+}
+.langtg button {
+  position: relative;
+  min-width: 26px;
+}
+.langtg button::before {
+  content: "";
+  position: absolute;
+  inset: -3px -2px;
+}
+.tab:active {
+  background: var(--press);
+}
+
+/* Hit areas of 24 px (SPEC 9, B4, N1, H1, H2, M2, X-5): the visual stays put, a
+ * transparent ::before extends the target. */
+.btn.sm,
+.btn.icon.sm,
+.cb,
+.tslot,
+.toast .x,
+.toast .link {
+  position: relative;
+}
+.btn.sm::before,
+.btn.icon.sm::before,
+.toast .x::before,
+.toast .link::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+}
+.cb::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+.tslot::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+}
+.cap-bar .tslot svg {
+  stroke-width: 1.7;
+}
+.tab svg {
+  stroke-width: 1.8;
+}
+/* Tab glyphs in light mode: --acc-text reads >= 3:1 on the toolbar (TB2). */
+.tab[aria-selected="true"] svg {
+  color: var(--acc-text);
+}
+
+/* Select cap (S1): a wrapper that fills the control's full height. */
+.sel-cap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--acc);
+  color: var(--on-acc);
+  border-radius: 0 6px 6px 0;
+  pointer-events: none;
+}
+.sel-cap .i {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.8;
+}
+
+/* Capture well (K1, K2, K4): the inner button fills the well and takes the clicks. */
+.cap .capa {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: default;
+}
+.cap .capa:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.cap .caret {
+  display: inline-block;
+  flex: none;
+  width: 1px;
+  height: 14px;
+}
+.cap .end {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Table and bulk bar (C1, U1, U2, R4): centred checkbox, one-line bulk label. */
+.tr > .c0 {
+  display: flex;
+  align-items: center;
+}
+.tr:hover {
+  background: var(--hover);
+}
+.bulk .n {
+  white-space: nowrap;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+}
+.bulk .n small {
+  font-size: 12px;
+}
+
+/* Row menu (M5): the shared menu look, not a local one. */
+.rowmenu {
+  position: absolute;
+  right: 8px;
+  top: 38px;
+  z-index: 20;
+  width: 148px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--float);
+  box-shadow: var(--e2);
+  display: flex;
+  flex-direction: column;
+}
+.rowmenu button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 5px;
+  text-align: left;
+  font: 400 13px/16px var(--ui);
+  color: var(--t1);
+}
+.rowmenu button:hover {
+  background: var(--hover-plane);
+}
+.rowmenu button.danger {
+  color: var(--bad);
+}
+
+/* Toast (N2, N3): icon at the first line of a two-line message; link hit area. */
+.toast {
+  align-items: flex-start;
+}
+.toast .gi {
+  padding-top: 2px;
+}
+.toast .link {
+  padding: 4px;
+}
+
+/* Disabled rows (X1, R6): dimmed once, by the row; the row says so to assistive tech. */
+.row[aria-disabled="true"],
+.v4row[aria-disabled="true"] {
+  pointer-events: none;
+}
+
+/* Keycap: 10.5 px in the small size keeps the 11 px floor close (K0). */
+.k.sm {
+  font-size: 10.5px;
+}
+
+/* Checkbox hit area (C2): the 16 px box is the visual, the cell is the target. */
+.cb {
+  flex: none;
+}
+
+/* Select press (S2), update-dot hit area (H1), switch hit area (X-5). */
+.sel:active {
+  background: linear-gradient(var(--press), var(--press)), var(--ctl-bg);
+}
+.tslot.upd::before {
+  inset: -5px;
+}
+.tg {
+  position: relative;
+}
+.tg::before {
+  content: "";
+  position: absolute;
+  inset: -2px 0;
 }

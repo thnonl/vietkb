@@ -146,6 +146,8 @@ fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant) {
     if let Some(window) = app.get_webview_window(label) {
         macos_shell::stage_transparent(&window);
         // MAC-REVIEW: only the main window is staged now.
+        // Centred twice on purpose (DPI re-measure): the first move can land on a
+        // monitor with another scale factor, which changes the outer size.
         centre_on_launch_monitor(&window);
         centre_on_launch_monitor(&window);
     }
