@@ -362,14 +362,14 @@ fn fake_source() -> Option<String> {
 }
 
 const FAKE_RELEASE: &str = r#"{
-  "tag_name": "v0.9.9",
-  "name": "VietKB 0.9.9",
+  "tag_name": "v99.0.0",
+  "name": "VietKB 99.0.0",
   "published_at": "2026-10-20T09:00:00Z",
-  "html_url": "https://github.com/thnonl/vietkb/releases/tag/v0.9.9",
-  "body": "VietKB 0.9.9 (bản thử cập nhật)\n\n- Kiểm tra cập nhật từ GitHub Releases\n- Huy hiệu cập nhật trên thanh tiêu đề và khay hệ thống\n- Cửa sổ Giới thiệu có nhật ký thay đổi\n- Tải và chạy trình cài đặt ngay trong app\n",
+  "html_url": "https://github.com/thnonl/vietkb/releases/tag/v99.0.0",
+  "body": "VietKB 99.0.0 (bản thử cập nhật)\n\n- Kiểm tra cập nhật từ GitHub Releases\n- Huy hiệu cập nhật trên thanh tiêu đề và khay hệ thống\n- Cửa sổ Giới thiệu có nhật ký thay đổi\n- Tải và chạy trình cài đặt ngay trong app\n",
   "assets": [
-    { "name": "latest.json", "browser_download_url": "https://github.com/thnonl/vietkb/releases/download/v0.9.9/latest.json", "size": 879 },
-    { "name": "VietKB_0.9.9_x64-setup.exe", "browser_download_url": "https://github.com/thnonl/vietkb/releases/download/v0.9.9/VietKB_0.9.9_x64-setup.exe", "size": 3145728 }
+    { "name": "latest.json", "browser_download_url": "https://github.com/thnonl/vietkb/releases/download/v99.0.0/latest.json", "size": 879 },
+    { "name": "VietKB_99.0.0_x64-setup.exe", "browser_download_url": "https://github.com/thnonl/vietkb/releases/download/v99.0.0/VietKB_99.0.0_x64-setup.exe", "size": 3145728 }
   ]
 }"#;
 
@@ -1631,8 +1631,8 @@ mod tests {
             status.state, info.version, info.tag, info.asset_name, info.changelog
         );
         assert_eq!(status.state, UpdateState::Available);
-        assert_eq!(info.version, "0.9.9");
-        assert_eq!(info.asset_name.as_deref(), Some("VietKB_0.9.9_x64-setup.exe"));
+        assert_eq!(info.version, "99.0.0");
+        assert_eq!(info.asset_name.as_deref(), Some("VietKB_99.0.0_x64-setup.exe"));
         assert!(info.changelog.contains("Huy hiệu cập nhật"));
     }
 }
