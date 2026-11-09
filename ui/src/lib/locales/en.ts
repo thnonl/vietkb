@@ -257,7 +257,7 @@ export const en: Record<string, string> = {
   "update.note.downloaded": "Version {version} downloaded. Updating; VietKB will reopen on its own.",
 
   // Macros window: The macro (gõ tắt) table: a short trigger expands into longer text when followed by a space. Sample macros such as dc → được are Vietnamese content and stay as they are.
-  "macros.search": "Search abbreviations or expansions",
+  "macros.search": "Search abbreviations",
   "macros.import": "Import from file…",
   "macros.export": "Export to file…",
   "macros.exportShort": "Export…",

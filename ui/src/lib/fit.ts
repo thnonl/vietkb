@@ -1,15 +1,15 @@
 // Window height follows the page (SPEC "B final", section 3): every page's natural
 // height, capped at 560 px, and the window is set to it in both directions, on
-// macOS and Windows alike. The width is always 560.
+// macOS and Windows alike. The width is always 480 (the old main window width; owner, 2026-11-09).
 //
 // Measured on the DOM, not the window: the body's scrollHeight is its full content
 // even when the window is shorter, so the answer is the same at any current size.
-// Pinned pages (Gõ tắt, `data-fixed`) always ask for the full 560.
+// Pinned pages (`data-fixed`) always ask for the full 560 height.
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { isNative } from "./window.svelte";
 
-/** Keep equal to `--win-w` / `--win-h` in ui/src/styles/v4.css and MAIN_WIDTH / the 560 cap in main.rs. */
-export const WIDTH = 560;
+/** Keep equal to `--win-w` / `--win-h` in ui/src/styles/v4.css and MAIN_WIDTH and the 560 height cap in main.rs. */
+export const WIDTH = 480;
 export const MAX_HEIGHT = 560;
 
 /** Height the page needs, in CSS pixels, or null when the page is not on screen. */

@@ -7,7 +7,7 @@
 
 :root {
   --chrome-h: 36px;
-  --win-w: 560px;
+  --win-w: 480px;
   --win-h: 560px;
 }
 :root[data-platform="macos"] {

@@ -87,9 +87,9 @@
   --serif: "Sitka Text", "Sitka", Cambria, Georgia, serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 
-  /* Rhythm (B final, section 4): window 560, toolbar 52, footer 40. The title bar is
+  /* Rhythm (B final, section 4): window 480 wide (560 high cap), toolbar 52, footer 40. The title bar is
    * 28 on macOS and 36 on Windows (set in v4.css / mac.css). */
-  --app-w: 560px;
+  --app-w: 480px;
   --app-h: 560px;
   --strip-h: 52px;
   --foot-h: 40px;

@@ -257,7 +257,7 @@ export const vi: Record<string, string> = {
   "update.note.downloaded": "Đã tải bản {version}. Đang cập nhật, ứng dụng sẽ tự mở lại.",
 
   // Macros window: The macro (gõ tắt) table: a short trigger expands into longer text when followed by a space. Sample macros such as dc → được are Vietnamese content and stay as they are.
-  "macros.search": "Tìm từ tắt hoặc nội dung",
+  "macros.search": "Tìm từ tắt, nội dung",
   "macros.import": "Nhập từ tệp…",
   "macros.export": "Xuất ra tệp…",
   "macros.exportShort": "Xuất…",

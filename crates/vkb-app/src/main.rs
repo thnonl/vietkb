@@ -63,7 +63,7 @@ fn content_height(windows_height: f64) -> f64 {
 }
 
 /// Inner width of the single settings window.
-const MAIN_WIDTH: f64 = 560.0;
+const MAIN_WIDTH: f64 = 480.0;
 
 /// Initial content height; the page fits its own height on load.
 fn main_content_height() -> f64 {
@@ -422,7 +422,7 @@ fn open_settings(app: &tauri::AppHandle) {
 }
 
 
-/// Build the settings window from scratch: same label, same fixed 560-wide
+/// Build the settings window from scratch: same label, same fixed 480-wide
 /// frameless shell, centred on the launch monitor as it appears.
 fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let started = std::time::Instant::now();
