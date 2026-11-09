@@ -1,87 +1,16 @@
 /* macOS overrides, keyed on `data-platform="macos"` (set by lib/platform.svelte.ts).
- *
- * The window has an overlay title bar (traffic lights over the page, the page
- * draws the caption row) and the system draws its own edge and corners, so the custom ring, radius and caption divider go. The
- * page follows System Settings > Appearance by default (`data-theme="system"`)
- * and the Light / Dark choice of the theme button otherwise. */
+ * The window has an overlay title bar: the system draws the traffic lights and the
+ * window corners, so the page draws neither. The page follows System Settings >
+ * Appearance by default (`data-theme="system"`). Layout for both platforms is in v4.css
+ * (`--chrome-h` is 28 px here). */
 :root[data-platform="macos"] .v4win {
   border-radius: 0;
 }
 :root[data-platform="macos"] .v4win::after {
   display: none;
 }
-:root[data-platform="macos"] .v4sheet,
-:root[data-platform="macos"] .sheet {
-  border-top: 0;
-}
-
-/* Accessibility banner (main window only). 72 px tall plus an 8 px top margin
- * = 80 px of window height: keep AX_BANNER_PX in
- * components/AccessibilityBanner.svelte and BANNER_PX in crates/vkb-app/src/main.rs
- * equal to that. */
-.axbanner {
-  flex: none;
-  box-sizing: border-box;
-  height: 72px;
-  margin: 8px 0 0;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-radius: 8px;
-  background: var(--warn-tint);
-  box-shadow: inset 0 0 0 1px var(--warn-line);
-}
-.axbanner .ico {
-  flex: none;
-  color: var(--warn);
-  display: grid;
-  place-items: center;
-}
-.axbanner .t {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.axbanner .t b {
-  font: 600 13px/20px var(--ui);
-  color: var(--t1);
-}
-.axbanner .t span {
-  font: 400 12px/18px var(--ui);
-  color: var(--t2);
-}
-
-/* Overlay title bar (macOS): the page draws the caption row under the native
- * traffic lights. 28 pt, same tokens and controls as the Windows caption
- * (.cap-bar in v4.css); keep MAC_CAPTION_PX in crates/vkb-app/src/main.rs equal. */
-:root[data-platform="macos"] .cap-bar.mac {
-  height: 28px;
-  padding-left: 78px;
-  padding-right: 12px;
-}
-
-/* Secure-input hint (main window, S-18): 28 px line + 8 px top margin = 36 px of
- * window height. Keep HINT_PX in components/SecureInputHint.svelte equal. */
-.sechint {
-  flex: none;
-  box-sizing: border-box;
-  height: 28px;
-  margin: 8px 0 0;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 6px;
-  background: var(--warn-tint);
-  box-shadow: inset 0 0 0 1px var(--warn-line);
-  font: 400 12px/18px var(--ui);
-  color: var(--t2);
-}
-.sechint .ico {
-  flex: none;
-  color: var(--warn);
-  display: grid;
-  place-items: center;
+/* Transparent-looking title strip: the system window background shows through the
+ * overlay, so the bar takes the same plane colour as the toolbar. */
+:root[data-platform="macos"] .cap-bar {
+  background: var(--plane);
 }

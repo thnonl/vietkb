@@ -1,56 +1,44 @@
 <script lang="ts">
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { app } from "../lib/state.svelte";
-  import { openWindow } from "../lib/window.svelte";
+  import { openTab, isNative } from "../lib/window.svelte";
   import { platformState } from "../lib/platform.svelte";
   import { t } from "../lib/lang.svelte";
+  import { tabs } from "../lib/tabs.svelte";
+  import { tabLabel } from "../lib/tab-labels";
   import LangToggle from "./LangToggle.svelte";
   import { effectiveTheme } from "../lib/theme.svelte";
-  // Product mark, identical in every window: the keycap `V` (Vietnamese on)
-  // from the approved set (design/logo11/keycap/v-20.png). The title bar never
-  // switches to `E` — the tray icon carries the on/off state.
+  // Product mark: the keycap V (Vietnamese on) from the approved set. The title bar
+  // never switches to E; the tray icon carries the on/off state.
   import markSrc from "../assets/keycap-v-20.png";
 
-  // Frameless caption shared by all three windows. Tauri 2's
-  // `data-tauri-drag-region` only drags when the press lands on the exact
-  // element and maximises on double click; the fixed windows must never
-  // maximise, so the bar starts the drag itself and ignores the second click.
+  // The one settings window's title bar (SPEC sections 3 and 7). macOS: overlay title
+  // bar, the traffic lights are native at the left and the current page name sits in
+  // the middle. Windows: frameless; logo and "VietKB" at the left, caption buttons at
+  // the right. Both carry the update dot, the theme toggle and VI | EN.
   //
-  // The modal windows pass `showMark={false}` (the product mark belongs to the
-  // main window only) and `showMinimize={false}` (a modal is not a free window).
-  let {
-    title,
-    subtitle = "",
-    showMark = true,
-    showMinimize = true,
-  }: { title: string; subtitle?: string; showMark?: boolean; showMinimize?: boolean } = $props();
+  // Tauri 2's data-tauri-drag-region only drags on the exact element and maximises on
+  // double click; this window must never maximise, so the bar starts the drag itself.
+  const mac = $derived(platformState.mac);
 
-  // Theme cycle — same write path as the Advanced screen (`app.patch`), which
-  // persists `settings.system.theme` and broadcasts it to every open window.
+  // Theme cycle: same write path as before (app.patch), broadcast to every open view.
   const ORDER = ["light", "dark"] as const;
   type Theme = (typeof ORDER)[number];
   const LABEL_KEY: Record<Theme, string> = {
     light: "titlebar.theme.light",
     dark: "titlebar.theme.dark",
   };
-  // The button shows the EFFECTIVE state: with `system` (the default) that is
-  // whatever the OS is using right now. A click stores the opposite explicitly.
   const theme = $derived<Theme>(effectiveTheme(app.settings?.system.theme));
   const label = $derived(t(LABEL_KEY[theme]));
-  // The icon shows what the click will do, not what is on now: sun when the
-  // next click selects light, moon when it selects dark. The tooltip/aria-label
-  // keep naming the current state, which is what a hover is asking about.
   const nextTheme = $derived(ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length]);
 
-  const showUpdate = $derived(showMark && app.showUpdateUi && app.updateAvailable);
+  const showUpdate = $derived(app.showUpdateUi && app.updateAvailable);
 
   const cycleTheme = () => {
     app.patch({ system: { theme: nextTheme } });
   };
 
-  const win = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-    ? getCurrentWindow()
-    : null;
+  const win = isNative() ? getCurrentWindow() : null;
 
   const CONTROL = 'button, a, input, select, textarea, label, [role="button"], [data-no-drag]';
 
@@ -71,21 +59,22 @@
   const close = () => void win?.close();
 </script>
 
-<!-- Windows: the custom caption is the whole frame. -->
-{#if !platformState.mac}
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<header class="cap-bar" onmousedown={onPointerDown} ondblclick={(event) => event.preventDefault()}>
-  {#if showMark}
-    <span class="mark">
-      <img src={markSrc} alt="VietKB" width="20" height="20" />
-    </span>
+<header
+  class="cap-bar"
+  class:mac
+  onmousedown={onPointerDown}
+  ondblclick={(event) => event.preventDefault()}>
+  {#if mac}
+    <span class="ttl">{tabLabel(tabs.current)}</span>
+  {:else}
+    <span class="mark"><img src={markSrc} alt="" width="14" height="14" /></span>
+    <span class="ttl">VietKB</span>
   {/if}
-  <span class="ttl">{title}{#if subtitle}<small>— {subtitle}</small>{/if}</span>
   <span class="drag"></span>
   <div class="wc">
-    <!-- The update slot keeps its 24 × 24 place in the row even when there is
-         no update (hidden, out of the a11y tree), so the theme, minimize and
-         close buttons never shift. -->
+    <!-- The update slot keeps its place when there is no update (hidden), so the
+         theme and language toggles never shift. It shows a dot, not an arrow. -->
     <button
       type="button"
       class="tslot upd"
@@ -94,13 +83,7 @@
       tabindex={showUpdate ? 0 : -1}
       aria-label={showUpdate ? t("titlebar.update.aria") : undefined}
       title={showUpdate ? t("titlebar.update.title", { version: app.updateVersion ?? "" }) : undefined}
-      onclick={() => openWindow("about")}>
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
-        <path d="M3 13.1h10" />
-      </svg>
-    </button>
-    <LangToggle />
+      onclick={() => openTab("about")}></button>
     <button
       type="button"
       class="tslot"
@@ -119,7 +102,8 @@
         </svg>
       {/if}
     </button>
-    {#if showMinimize}
+    <LangToggle />
+    {#if !mac}
       <button
         type="button"
         class="wbtn"
@@ -129,60 +113,15 @@
         onclick={minimize}>
         <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" /></svg>
       </button>
+      <button
+        type="button"
+        class="wbtn x"
+        aria-label={t("titlebar.close")}
+        title={t("titlebar.close")}
+        disabled={!win}
+        onclick={close}>
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M.5.5l9 9M9.5.5l-9 9" /></svg>
+      </button>
     {/if}
-    <button
-      type="button"
-      class="wbtn x"
-      aria-label={t("titlebar.close")}
-      title={t("titlebar.close")}
-      disabled={!win}
-      onclick={close}>
-      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M.5.5l9 9M9.5.5l-9 9" /></svg>
-    </button>
   </div>
 </header>
-{:else}
-  <!-- macOS: overlay title bar (traffic lights stay native, the page draws the
-       row). Same controls, order, classes and icons as the Windows caption,
-       minus minimize/close, which the traffic lights provide. -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <header class="cap-bar mac" onmousedown={onPointerDown} ondblclick={(event) => event.preventDefault()}>
-    <span class="ttl">{title}{#if subtitle}<small>— {subtitle}</small>{/if}</span>
-    <span class="drag"></span>
-    <div class="wc">
-      <button
-        type="button"
-        class="tslot upd"
-        class:off={!showUpdate}
-        aria-hidden={!showUpdate}
-        tabindex={showUpdate ? 0 : -1}
-        aria-label={showUpdate ? t("titlebar.update.aria") : undefined}
-        title={showUpdate ? t("titlebar.update.title", { version: app.updateVersion ?? "" }) : undefined}
-        onclick={() => openWindow("about")}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 2.9v7M4.9 7 8 10.1 11.1 7" />
-          <path d="M3 13.1h10" />
-        </svg>
-      </button>
-      <LangToggle />
-      <button
-        type="button"
-        class="tslot"
-        aria-label={t("titlebar.theme.aria", { theme: label })}
-        title={t("titlebar.theme.title", { theme: label })}
-        onclick={cycleTheme}>
-        {#if nextTheme === "light"}
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <circle cx="8" cy="8" r="3.1" />
-            <path
-              d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.15 1.15M11.65 11.65l1.15 1.15M12.8 3.2l-1.16 1.16M4.35 11.65L3.2 12.8" />
-          </svg>
-        {:else}
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M12.4 9.9a5.6 5.6 0 1 1-6.3-8.3 4.6 4.6 0 0 0 6.3 8.3z" />
-          </svg>
-        {/if}
-      </button>
-    </div>
-  </header>
-{/if}

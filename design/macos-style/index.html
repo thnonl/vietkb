@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VietKB – 3 hướng giao diện kiểu macOS</title>
+<style>
+:root{--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+ --pg:#f2f2f4;--pgt:#1d1d1f;--pgs:#5c5c63;--card:#fff;--cardb:#dcdce0}
+@media (prefers-color-scheme:dark){:root{--pg:#161618;--pgt:#f2f2f4;--pgs:#a0a0a8;--card:#232326;--cardb:#38383c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pg);color:var(--pgt);font:15px/1.5 var(--ui)}
+.page{max-width:1240px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:24px;margin:0 0 4px}
+h2{font-size:20px;margin:0 0 6px}
+.lead{color:var(--pgs);margin:0 0 14px}
+.bar{position:static;top:0;z-index:50;display:flex;flex-wrap:wrap;gap:8px 24px;padding:10px 0;background:var(--pg);border-bottom:1px solid var(--cardb);margin-bottom:20px}
+@media (min-width:900px){.bar{position:sticky}}
+.bar label{font-size:13px;color:var(--pgs);display:flex;gap:8px;align-items:center}
+.tg{display:inline-flex;border:1px solid var(--cardb);border-radius:8px;overflow:hidden}
+.tg button{font:13px var(--ui);padding:5px 12px;border:0;background:var(--card);color:var(--pgt);cursor:pointer}
+.tg button[aria-pressed=true]{background:#007aff;color:#fff}.tg{flex-wrap:wrap}
+section.dir{background:var(--card);border:1px solid var(--cardb);border-radius:14px;padding:18px;margin:0 0 28px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:10px 0 16px}
+.cols>div{font-size:13.5px;border:1px solid var(--cardb);border-radius:10px;padding:10px 12px}
+.cols h4{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--pgs)}
+.cols ul{margin:0;padding-left:18px}
+.tag{display:inline-block;font-size:14px;padding:0 9px;border-radius:99px;background:#007aff22;color:#007aff;margin-right:8px}
+.frames{display:flex;flex-wrap:wrap;gap:22px 26px;align-items:flex-start}
+.frames figure{margin:0}
+.frames figcaption{font-size:12.5px;color:var(--pgs);margin:8px 0 0;max-width:520px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+td,th{border-top:1px solid var(--cardb);padding:6px 8px;text-align:left;vertical-align:top}
+.tw{overflow-x:auto}
+
+/* ====== themes for mock windows ====== */
+.th-light{--win:#f5f5f7;--side:#e8e8ec;--grp:#fff;--sep:rgba(0,0,0,.09);--t1:#1d1d1f;--t2:rgba(60,60,67,.65);--t3:rgba(60,60,67,.4);
+ --ctl:#fff;--ctl-bd:rgba(0,0,0,.15);--seg-bg:rgba(0,0,0,.06);--seg-on:#fff;--off:rgba(120,120,128,.3);--tool:#e4e4e8;--edge:rgba(0,0,0,.2);--kbd:#fff;--well:rgba(0,0,0,.05);--warn:#9a5b00;--warnbg:#fdf0d5;--hl:rgba(0,0,0,.07)}
+.th-dark{--win:#1e1e1e;--side:#2a2a2d;--grp:#2c2c2e;--sep:rgba(255,255,255,.1);--t1:#f5f5f7;--t2:rgba(235,235,245,.62);--t3:rgba(235,235,245,.34);
+ --ctl:#4a4a4d;--ctl-bd:rgba(255,255,255,.1);--seg-bg:rgba(255,255,255,.09);--seg-on:#666669;--off:rgba(120,120,128,.5);--tool:#2d2d30;--edge:rgba(255,255,255,.16);--kbd:#48484b;--well:rgba(255,255,255,.07);--warn:#ffcc66;--warnbg:#4a3a14;--hl:rgba(255,255,255,.1)}
+body[data-acc=sys][data-br=g] .th-light{--acc:#007aff;--on:#ffffff;--acct:#0062cc;--acc2:#007aff;--acc2t:#0062cc}
+body[data-acc=sys][data-br=g] .th-dark{--acc:#0a84ff;--on:#ffffff;--acct:#4da3ff;--acc2:#0a84ff;--acc2t:#4da3ff}
+body[data-acc=moc][data-br=g] .th-light{--acc:#5844c8;--on:#ffffff;--acct:#4c38bc;--acc2:#5844c8;--acc2t:#4c38bc}
+body[data-acc=moc][data-br=g] .th-dark{--acc:#8b79ee;--on:#ffffff;--acct:#a99af5;--acc2:#8b79ee;--acc2t:#a99af5}
+body[data-acc=sys][data-br=s] .th-light{--acc:#007aff;--on:#ffffff;--acct:#0062cc;--acc2:#007aff;--acc2t:#0062cc}
+body[data-acc=sys][data-br=s] .th-dark{--acc:#0a84ff;--on:#ffffff;--acct:#4da3ff;--acc2:#0a84ff;--acc2t:#4da3ff}
+body[data-acc=moc][data-br=s] .th-light{--acc:#5844c8;--on:#ffffff;--acct:#4c38bc;--acc2:#5844c8;--acc2t:#4c38bc}
+body[data-acc=moc][data-br=s] .th-dark{--acc:#8b79ee;--on:#ffffff;--acct:#a99af5;--acc2:#8b79ee;--acc2t:#a99af5}
+body[data-acc=pink][data-br=g] .th-light{--acc:#F06D95;--on:#ffffff;--acct:#1C1C1A;--acc2:#F06D95;--acc2t:#1C1C1A}
+body[data-acc=pink][data-br=g] .th-dark{--acc:#F27FA3;--on:#ffffff;--acct:#F27FA3;--acc2:#F27FA3;--acc2t:#F27FA3}
+body[data-acc=orange][data-br=g] .th-light{--acc:#D97A1C;--on:#ffffff;--acct:#1C1C1A;--acc2:#D97A1C;--acc2t:#1C1C1A}
+body[data-acc=orange][data-br=g] .th-dark{--acc:#E8923A;--on:#ffffff;--acct:#E8923A;--acc2:#E8923A;--acc2t:#E8923A}
+body[data-acc=blue][data-br=g] .th-light{--acc:#1C6CC6;--on:#ffffff;--acct:#1C6CC6;--acc2:#1C6CC6;--acc2t:#1C6CC6}
+body[data-acc=blue][data-br=g] .th-dark{--acc:#4A97E8;--on:#ffffff;--acct:#4A97E8;--acc2:#4A97E8;--acc2t:#4A97E8}
+body[data-acc=logov][data-br=g] .th-light{--acc:#F06D95;--on:#ffffff;--acct:#1C1C1A;--acc2:#D97A1C;--acc2t:#1C1C1A}
+body[data-acc=logov][data-br=g] .th-dark{--acc:#F27FA3;--on:#ffffff;--acct:#F27FA3;--acc2:#E8923A;--acc2t:#E8923A}
+body[data-acc=pink][data-br=s] .th-light{--acc:#F77FA3;--on:#ffffff;--acct:#1C1C1A;--acc2:#F77FA3;--acc2t:#1C1C1A}
+body[data-acc=pink][data-br=s] .th-dark{--acc:#F992B0;--on:#ffffff;--acct:#F992B0;--acc2:#F992B0;--acc2t:#F992B0}
+body[data-acc=orange][data-br=s] .th-light{--acc:#F28F2C;--on:#ffffff;--acct:#1C1C1A;--acc2:#F28F2C;--acc2t:#1C1C1A}
+body[data-acc=orange][data-br=s] .th-dark{--acc:#F6A040;--on:#ffffff;--acct:#F6A040;--acc2:#F6A040;--acc2t:#F6A040}
+body[data-acc=blue][data-br=s] .th-light{--acc:#3D8BE0;--on:#ffffff;--acct:#1C6CC6;--acc2:#3D8BE0;--acc2t:#1C6CC6}
+body[data-acc=blue][data-br=s] .th-dark{--acc:#5AA2EE;--on:#ffffff;--acct:#5AA2EE;--acc2:#5AA2EE;--acc2t:#5AA2EE}
+body[data-acc=logov][data-br=s] .th-light{--acc:#F77FA3;--on:#ffffff;--acct:#1C1C1A;--acc2:#F28F2C;--acc2t:#1C1C1A}
+body[data-acc=logov][data-br=s] .th-dark{--acc:#F992B0;--on:#ffffff;--acct:#F992B0;--acc2:#F6A040;--acc2t:#F6A040}
+body[data-os=win] .om,body[data-os=mac] .ow{display:none!important}
+
+/* ====== shared mock controls ====== */
+.win{position:relative;overflow:hidden;background:var(--win);color:var(--t1);font:13px/1.3 var(--ui);-webkit-font-smoothing:antialiased}
+body[data-os=mac] .win{border-radius:10px;box-shadow:0 0 0 .5px var(--edge),0 18px 40px rgba(0,0,0,.28)}
+body[data-os=win] .win{border-radius:8px;box-shadow:0 0 0 1px var(--edge),0 10px 30px rgba(0,0,0,.25)}
+.g{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tb{position:absolute;left:0;right:0;top:0;height:28px;display:flex;align-items:center;z-index:5;pointer-events:none}
+.tl{display:flex;gap:8px;padding-left:12px}.tl i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2)}
+.tl i:nth-child(2){background:#febc2e}.tl i:nth-child(3){background:#28c840}
+.cap{margin-left:auto;display:flex}.cap span{width:44px;height:28px;display:grid;place-items:center;color:var(--t1)}
+.cap .g{width:12px;height:12px;stroke-width:1.3}
+.mark{width:14px;height:14px;border-radius:4px;background:var(--acc);color:var(--on);text-shadow:0 .5px 0 rgba(0,0,0,.18);font:700 9px/14px var(--ui);text-align:center;margin:0 6px 0 10px}
+.sw{display:inline-block;width:38px;height:22px;border-radius:11px;background:var(--off);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.btn{display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 1px rgba(0,0,0,.08);white-space:nowrap;font-size:13px}
+.btn.pri{background:var(--acc);color:var(--on);font-weight:600;text-shadow:0 .5px 0 rgba(0,0,0,.18);box-shadow:0 1px 1px rgba(0,0,0,.15)}
+.pop{position:relative;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 4px 0 9px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 1px rgba(0,0,0,.08);white-space:nowrap}
+.pop .ud{width:12px;height:12px;stroke-width:2;color:var(--t2)}
+.menu{position:absolute;right:-6px;top:26px;min-width:120px;padding:4px;border-radius:8px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd),0 8px 24px rgba(0,0,0,.28);z-index:9}
+.th-dark .menu{background:#3c3c3f}
+.menu div{height:22px;padding:0 8px 0 20px;border-radius:5px;display:flex;align-items:center;position:relative}
+.menu div.sel{background:var(--acc);color:var(--on);font-weight:600;text-shadow:0 .5px 0 rgba(0,0,0,.18)}.menu div.ck::before{content:"✓";position:absolute;left:6px;font-size:11px}
+.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--seg-bg)}
+.seg b{font-weight:400;padding:0 12px;height:20px;line-height:20px;border-radius:6px;white-space:nowrap}
+.seg b.on{background:var(--seg-on);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 2px rgba(0,0,0,.15)}
+.seg.full{display:flex}.seg.full b{flex:1;text-align:center}
+.row{position:relative;display:flex;align-items:center;gap:10px;min-height:var(--rh,34px);padding:4px 12px}
+.row+.row::before{content:"";position:absolute;left:12px;right:0;top:0;height:1px;background:var(--sep)}
+.row .l{flex:1;min-width:0;line-height:1.3}.row .l b{font-weight:400}
+.row .l small{font-size:11px;color:var(--t2)}.row .l small.in{margin-left:7px;white-space:nowrap}.row .l small:not(.in){display:block;margin-top:1px}
+.row .l small.serif{font:15px "Sitka Text",Cambria,Georgia,serif}
+.row .c{display:flex;align-items:center;gap:8px;flex:none}
+.nw .l b{display:block;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rows{background:var(--grp);border-radius:10px}
+.grp h6{margin:0 0 4px 4px;font:600 11px var(--ui);color:var(--t2)}
+kbd{font:11px var(--ui);display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:4px;background:var(--kbd);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 0 rgba(0,0,0,.12);color:var(--t1)}
+.keys{display:inline-flex;gap:3px;vertical-align:middle}
+small .keys kbd{height:16px;font-size:10px}
+.well{display:flex;align-items:center;gap:3px;min-width:104px;height:24px;padding:0 6px;border-radius:6px;background:var(--well);box-shadow:inset 0 0 0 1px var(--ctl-bd)}
+.well.empty{color:var(--t3);font-size:12px}
+.well.cap2{background:var(--grp);box-shadow:inset 0 0 0 2px var(--acc2);color:var(--acc2t);font-size:12px;min-width:130px}
+.chip{font-size:11px;padding:1px 6px;border-radius:99px;background:var(--warnbg);color:var(--warn);white-space:nowrap}
+.note{font-size:11px;color:var(--t2)}
+.fade{-webkit-mask-image:linear-gradient(#000 calc(100% - 22px),transparent);mask-image:linear-gradient(#000 calc(100% - 22px),transparent)}
+
+/* ====== A: System Settings ====== */
+.A{display:flex}
+.A .sb{width:148px;flex:none;background:var(--side);padding:40px 8px 8px;display:flex;flex-direction:column;gap:2px;border-right:1px solid var(--sep)}
+body[data-os=win] .A .sb{padding-top:36px}
+.A .si{display:flex;align-items:center;gap:8px;height:28px;padding:0 6px;border-radius:6px}
+.A .si .ic{width:20px;height:20px;border-radius:5px;display:grid;place-items:center;color:#fff;flex:none}
+.A .si .ic .g{width:12px;height:12px;stroke-width:2}
+.A .si.on{background:var(--acc);color:var(--on);font-weight:600;text-shadow:0 .5px 0 rgba(0,0,0,.18)}
+.A .sb .sp{flex:1}
+.A .mn{flex:1;min-width:0;display:flex;flex-direction:column;padding-top:28px}
+.A .mh{font:700 15px/34px var(--ui);padding:0 16px}
+.A .sc{flex:1;overflow:hidden;padding:0 16px 12px;display:flex;flex-direction:column;gap:14px}
+.A .intro{font-size:11px;color:var(--t2);margin:-4px 4px -4px}
+
+/* ====== B: toolbar prefs ====== */
+.B{display:flex;flex-direction:column}
+.B .tb{position:relative;flex:none;background:var(--tool)}
+.B .tb .ttl{position:absolute;left:0;right:0;text-align:center;font-weight:600;font-size:13px;color:var(--t1)}
+.B .tools{flex:none;height:56px;background:var(--tool);display:flex;justify-content:center;gap:4px;padding:2px 8px 0;border-bottom:1px solid var(--sep)}
+.B .tl2{width:68px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0 3px;border-radius:7px;color:var(--t2);font-size:11px;margin-bottom:3px}
+.B .tl2 .g{width:22px;height:22px;stroke-width:1.5}
+.B .tl2.on{background:var(--hl);color:var(--t1)}.B .tl2.on .g{color:var(--acc)}
+.B .sc{flex:1;min-height:0;overflow:hidden;padding:12px 16px 0;display:flex;flex-direction:column;gap:12px}
+.B .rows{box-shadow:0 0 0 1px var(--sep);border-radius:8px}
+.B .row{--rh:30px;padding:3px 12px}
+.B .pop{padding:0}.B .pop .pt{padding:0 8px 0 9px}
+.B .pop .ud{height:22px;width:16px;padding:2px;background:var(--acc);color:var(--on);border-radius:0 6px 6px 0;stroke-width:2.2}
+.B .foot{flex:none;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-top:1px solid var(--sep)}
+.B .foot .btn{height:24px}
+
+/* ====== C: menu-bar popover ====== */
+.scene{position:relative;width:380px;height:488px;border-radius:10px;overflow:hidden;color:var(--t1);font:13px/1.3 var(--ui)}
+.th-light.scene{background:linear-gradient(140deg,#a9c3ff,#efd9ff 60%,#ffe0c8)}
+.th-dark.scene{background:linear-gradient(140deg,#161a3a,#3a2860 60%,#1c1c2c)}
+.scene .mbar{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:0 10px;font-size:12px}
+body[data-os=mac] .scene .mbar{top:0;height:24px;background:rgba(255,255,255,.45)}
+body[data-os=mac] .th-dark.scene .mbar{background:rgba(0,0,0,.35)}
+body[data-os=win] .scene .mbar{bottom:0;height:40px;background:rgba(243,243,243,.85)}
+body[data-os=win] .th-dark.scene .mbar{background:rgba(32,32,32,.88)}
+.mbar .ti{width:20px;height:16px;border-radius:4px;background:var(--hl);display:grid;place-items:center;font:700 11px var(--ui)}
+.mbar .ti.hot{background:var(--acc);color:var(--on);text-shadow:0 .5px 0 rgba(0,0,0,.18)}
+.C{position:absolute;right:14px;width:340px;height:424px;overflow:hidden;padding:10px;display:flex;flex-direction:column;gap:8px;
+ background:rgba(246,246,248,.74);-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);
+ box-shadow:0 0 0 .5px rgba(0,0,0,.25),0 16px 40px rgba(0,0,0,.3);border-radius:12px}
+.th-dark .C{background:rgba(40,40,44,.74);box-shadow:0 0 0 .5px rgba(255,255,255,.18),0 16px 40px rgba(0,0,0,.5)}
+@supports not (backdrop-filter:blur(1px)){.C{background:var(--win)}}
+body[data-os=mac] .C{top:30px}
+body[data-os=win] .C{bottom:48px;border-radius:8px}
+.C .rows{background:rgba(255,255,255,.62);box-shadow:0 0 0 .5px var(--sep)}
+.th-dark .C .rows{background:rgba(255,255,255,.08)}
+.C .row{--rh:32px;padding:3px 10px}
+.C .row+.row::before{left:10px}
+.C .hd{--rh:44px}.C .hd .l b{font-weight:600;font-size:14px}
+.C .hd .mk{width:28px;height:28px;border-radius:8px;background:var(--acc);color:var(--on);display:grid;place-items:center;font:700 15px var(--ui)}
+.C .foot{margin-top:auto;display:flex;align-items:center;gap:6px;height:30px}
+.C .foot .sp{flex:1}
+.C .dim{position:absolute;inset:0;background:rgba(0,0,0,.18);z-index:3}
+.C .sheet{position:absolute;left:0;right:0;top:30px;bottom:0;z-index:4;background:var(--win);border-radius:12px 12px 0 0;padding:10px 10px 8px;display:flex;flex-direction:column;gap:8px;box-shadow:0 -6px 20px rgba(0,0,0,.25)}
+.th-light .C .sheet{background:#f6f6f8}
+.C .sheet .sh{display:flex;align-items:center;height:26px}
+.C .sheet .sh b{flex:1;text-align:center;font-size:13px}
+.C .sheet .sh span.s{width:48px}
+.C .sheet .sh .ok{width:48px;text-align:right;color:var(--acct);font-weight:600}
+.C .sheet .rows{background:var(--grp)}
+.C .well{min-width:92px}
+</style>
+</head>
+<body data-os="mac" data-acc="blue" data-br="s">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></symbol>
+<symbol id="i-kbd" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></symbol>
+<symbol id="i-sl" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></symbol>
+<symbol id="i-pwr" viewBox="0 0 24 24"><path d="M12 3.5v8M6.7 6.9a7.5 7.5 0 1 0 10.6 0"/></symbol>
+<symbol id="i-ud" viewBox="0 0 24 24"><path d="M8 10l4-4 4 4M8 14l4 4 4-4"/></symbol>
+<symbol id="i-min" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+</defs></svg>
+
+<div class="page">
+<h1>VietKB – 3 hướng giao diện kiểu macOS</h1>
+<p class="lead">Mockup tĩnh, đúng kích thước cửa sổ thật (cửa sổ chính 480 × 460, Phím tắt 520 × 460, Nâng cao 560 × 496 theo DESIGN-SPEC). Chữ tiếng Việt lấy từ <code>vi.ts</code>. Mỗi hướng có bản Sáng, Tối và một màn phụ. Dùng hai nút bên dưới để xem trên macOS hoặc Windows, và đổi màu nhấn.</p>
+<div style="border:2px solid #3D8BE0;border-radius:12px;padding:12px 16px;margin:0 0 20px;background:var(--card)"><b>Đã chọn (2026-11-09):</b> hướng <b>B</b> với màu nhấn <b>Xanh logo</b>. Bản hoàn chỉnh để triển khai: <a href="B-final.html">B-final.html</a> và mục “B final” trong <code>SPEC.md</code>. Hướng B ở đây giữ để tham chiếu; A và C bên dưới là lịch sử, không triển khai.</div>
+<div class="bar">
+ <label>Hệ điều hành:
+  <span class="tg" id="tg-os"><button data-v="mac" aria-pressed="true">macOS</button><button data-v="win" aria-pressed="false">Windows</button></span></label>
+ <label>Màu nhấn:
+  <span class="tg" id="tg-acc"><button data-v="sys" aria-pressed="false">Xanh hệ thống</button><button data-v="moc" aria-pressed="false">Tím Móc</button><button data-v="pink" aria-pressed="false">Hồng logo</button><button data-v="orange" aria-pressed="false">Cam logo</button><button data-v="blue" aria-pressed="true">Xanh logo</button><button data-v="logov" aria-pressed="false">Logo V (hồng + cam)</button><button data-v="follow" aria-pressed="false">Theo chế độ gõ</button></span></label>
+ <label>Độ sáng màu logo:
+  <span class="tg" id="tg-br"><button data-v="s" aria-pressed="true">Sáng hơn</button><button data-v="g" aria-pressed="false">Logo gốc</button></span></label>
+ <label id="lb-mode" hidden>Chế độ gõ (demo, cần chủ sở hữu duyệt):
+  <span class="tg" id="tg-mode"><button data-v="v" aria-pressed="true">V tiếng Việt</button><button data-v="e" aria-pressed="false">E tiếng Anh</button></span></label>
+</div>
+
+<section class="dir" id="dirB">
+<h2><span class="tag">B</span>Thanh công cụ cổ điển (Preferences)</h2>
+<p>Thanh công cụ trên đầu có các tab biểu tượng cộng nhãn như Cài đặt Safari hoặc System Preferences đời cũ, nội dung bên dưới là các hộp nhóm. Giữ đúng 480 × 460 như hiện nay nên ít xáo trộn nhất. Nút “Thoát hẳn” và “Đóng” vẫn ở hàng cuối, người dùng EVKey/UniKey không lạc.</p>
+<div class="cols">
+ <div><h4>Ưu điểm</h4><ul><li>Giữ chiều rộng 480 và hàng Đóng/Thoát quen thuộc</li><li>Tab ngang, không tốn bề ngang như thanh bên</li><li>Dễ làm nhất: Quick/Hotkeys/Advanced thành tab</li></ul></div>
+ <div><h4>Nhược điểm</h4><ul><li>Kiểu hơi cũ (Apple bỏ dần từ Ventura)</li><li>Chiều cao nội dung chỉ còn khoảng 332 px nên Nâng cao phải cuộn</li><li>Tối đa khoảng 5-6 tab</li></ul></div>
+ <div><h4>Chi phí và Windows</h4><ul><li>RAM: thấp nhất, thuần CSS, không blur.</li><li>Mac: đèn giao thông thật, tên tab hiện giữa thanh tiêu đề.</li><li>Windows: thanh công cụ giữ nguyên; thanh tiêu đề thành logo Móc + “VietKB”, nút thu nhỏ/đóng bên phải.</li></ul></div>
+</div>
+<div class="frames" id="fB"></div>
+</section>
+
+<section class="dir" id="dirA">
+<h2><span class="tag">A</span>System Settings (Ventura / Sonoma)</h2>
+<p>Thanh bên trái có biểu tượng ô vuông bo góc nhiều màu, bên phải là các nhóm danh sách bo tròn, ngăn cách bằng đường mảnh. Giống nhất với “Cài đặt hệ thống”, người dùng Mac nhận ra ngay. Chung, Phím tắt, Gõ tắt, Nâng cao, Giới thiệu là năm trang trong cùng một cửa sổ, không cần mở cửa sổ phụ.</p>
+<div class="cols">
+ <div><h4>Ưu điểm</h4><ul><li>Quen mắt nhất, thêm mục sau này dễ</li><li>Gom 4 cửa sổ hiện nay vào một cửa sổ</li><li>Nhóm rõ, hint hai dòng vẫn gọn</li></ul></div>
+ <div><h4>Nhược điểm</h4><ul><li>Rộng hơn (520 thay vì 480) vì có thanh bên</li><li>Thêm một bước điều hướng so với UniKey/EVKey (một màn)</li><li>Đổi nhiều code: điều hướng trong một cửa sổ</li></ul></div>
+ <div><h4>Chi phí và Windows</h4><ul><li>RAM: không blur, không ảnh, chỉ CSS và SVG nhỏ. Thanh bên đặc, không vibrancy.</li><li>Mac: đèn giao thông thật (overlay title bar) đè lên thanh bên.</li><li>Windows: không vẽ đèn giao thông; thu nhỏ và đóng bên phải 44 × 28; logo Móc và “VietKB” ở đầu thanh bên.</li></ul></div>
+</div>
+<div class="frames" id="fA"></div>
+</section>
+
+<section class="dir" id="dirC">
+<h2><span class="tag">C</span>Popover thanh menu / khay (kiểu Control Center)</h2>
+<p>Màn chính là một bảng nhỏ 340 × 424 hiện ngay dưới biểu tượng thanh menu (hoặc phía trên khay trên Windows), nền mờ, nút chia đoạn Telex | VNI. Phím tắt và Nâng cao là một sheet trượt xuống trên cùng bảng đó. Hợp thói quen “chỉ mở khi cần” của bộ gõ, nhưng là thay đổi lớn nhất về cách cửa sổ hoạt động.</p>
+<div class="cols">
+ <div><h4>Ưu điểm</h4><ul><li>Nhỏ gọn nhất (340 px), đúng tinh thần bộ gõ nằm trên thanh menu</li><li>Chia đoạn: đổi Telex/VNI một lần bấm</li><li>Đóng khi bấm ra ngoài, không cần nút “Đóng”</li></ul></div>
+ <div><h4>Nhược điểm</h4><ul><li>Không còn cửa sổ thường, cần code định vị cạnh biểu tượng</li><li>Phím tắt và Nâng cao chật hơn trong 340 px</li><li>Banner Trợ năng (+80 px) làm bảng cao hơn</li></ul></div>
+ <div><h4>Chi phí và Windows</h4><ul><li>Mờ nền là hiệu ứng tốn nhất trong 3 hướng. Mac dùng NSVisualEffectView của hệ thống (rẻ, hệ thống tự vẽ). Không dùng <code>backdrop-filter</code> CSS khi phát hành (tính lại mỗi khung hình); mock dùng để minh hoạ. Phương án rẻ: nền đặc alpha 0.94.</li><li>Windows: không đèn giao thông, không thanh tiêu đề; flyout kiểu Win11 bo 8 px nằm trên khay, nền Mica/Acrylic hoặc nền đặc, đóng bằng Esc hoặc bấm ra ngoài.</li></ul></div>
+</div>
+<div class="frames" id="fC"></div>
+</section>
+
+<section class="dir">
+<h2>So sánh nhanh</h2>
+<div class="tw"><table>
+<tr><th></th><th>A System Settings</th><th>B Toolbar</th><th>C Popover</th></tr>
+<tr><td>Cửa sổ chính</td><td>520 × 460</td><td>480 × 460 (như nay)</td><td>340 × 424</td></tr>
+<tr><td>Số cửa sổ</td><td>1 (5 trang)</td><td>1 (5 tab)</td><td>1 popover + sheet</td></tr>
+<tr><td>Hiệu ứng tốn</td><td>Không</td><td>Không</td><td>Mờ nền (nên dùng nền đặc hoặc vibrancy hệ thống)</td></tr>
+<tr><td>Độ lệch so với code hiện nay</td><td>Vừa</td><td>Nhỏ nhất</td><td>Lớn nhất</td></tr>
+<tr><td>Cảm giác macOS</td><td>Cao nhất</td><td>Cao (kiểu cổ)</td><td>Cao (menu extra)</td></tr>
+</table></div>
+</section>
+</div>
+
+<script>
+const I=(n,c='g')=>`<svg class="${c}" viewBox="0 0 24 24"><use href="#i-${n}"/></svg>`;
+const sw=on=>`<i class="sw${on?' on':''}"></i>`;
+const pop=(t,open)=>`<span class="pop"><span class="pt">${t}</span>${I('ud','g ud')}${open?`<span class="menu"><div class="ck sel">Telex</div><div>VNI</div></span>`:''}</span>`;
+const btn=(t,p)=>`<span class="btn${p?' pri':''}">${t}</span>`;
+const seg=(o,s,f)=>`<span class="seg${f?' full':''}">${o.map((x,i)=>`<b class="${i===s?'on':''}">${x}</b>`).join('')}</span>`;
+const om=(m,w)=>`<span class="om">${m}</span><span class="ow">${w}</span>`;
+const key=(...k)=>`<span class="keys">${k.map(x=>`<kbd>${om(x[0],x[1])}</kbd>`).join('')}</span>`;
+const row=(l,h,c,o={})=>`<div class="row${o.nw?' nw':''}${o.cls?' '+o.cls:''}"><div class="l"><b>${l}</b>${h?`<small class="${o.inline?'in':''}${o.serif?' serif':''}">${h}</small>`:''}</div><div class="c">${c}</div></div>`;
+const grp=(rows,t)=>`<section class="grp">${t?`<h6>${t}</h6>`:''}<div class="rows">${rows.join('')}</div></section>`;
+const CT=[['⌃','Ctrl'],['⇧','Shift']],CA=['⌥','Alt'];
+
+function quick(o={}){
+ const g1=[];
+ if(!o.noEnable)g1.push(row('Bật tiếng Việt',key(...CT),sw(1),{inline:1}));
+ g1.push(row('Kiểu gõ','',o.seg?seg(['Telex','VNI'],0):pop('Telex',o.open)));
+ return [
+ grp(g1),
+ grp([
+  row('Đặt dấu kiểu mới','hòa, thúy',sw(1),{inline:1,serif:1}),
+  row('Kiểm tra chính tả','',sw(0)),
+  row('Cho phép gõ tắt','',btn('Bảng gõ tắt…')+sw(1)),
+  row('Loại trừ ứng dụng','6 ứng dụng',btn('Danh sách ứng dụng…'),{inline:1})]),
+ grp([
+  row(om('Mở cùng macOS','Khởi động cùng Windows'),om('Chạy ngay khi đăng nhập macOS','Chạy ngay khi đăng nhập Windows'),sw(1)),
+  row('Chạy ẩn',om('Mở lên không hiện cửa sổ, chỉ nằm trên thanh menu','Mở lên không hiện cửa sổ, chỉ nằm trong khay'),sw(0))])
+ ];}
+function hotkeys(){return [
+ grp([
+  row('Bật/tắt tiếng Việt','',`<span class="well">${key(...CT)}</span>`,{nw:1}),
+  row('Đổi kiểu gõ','',`<span class="well cap2">Nhấn tổ hợp phím…</span>`,{nw:1}),
+  row('Khôi phục từ gõ sai','',`<span class="well">${key(['⌃','Ctrl'],CA,['Z','Z'])}</span>`,{nw:1}),
+  row('Mở cài đặt','',`<span class="well">${key(['⌃','Ctrl'],CA,['V','V'])}</span>`,{nw:1}),
+  row('Bảng gõ tắt','',`<span class="well empty">Chưa đặt</span>`,{nw:1}),
+  row('Bật / tắt gõ tắt','',`<span class="chip">Dễ trùng</span><span class="well">${key(['⌘','Win'],['⇧','Shift'],['M','M'])}</span>`,{nw:1})]),
+ grp([row('Kiểu chuyển bật/tắt','',seg(['Khi nhả phím','Khi nhấn phím'],0))])
+];}
+function advanced(){const r=(l,on)=>row(l,'',sw(on));return [
+ grp([r('Gõ dấu ở cuối từ',0),r('Tự sửa ưo thành ươ',1),r('Viết hoa đầu câu',1),r('Cho phép f j w z làm phụ âm',0),r('Tự động khôi phục từ gõ sai',1),r('Tự nhận biết tiếng Anh và code',1)],'Gõ'),
+ grp([r('Vẫn dùng gõ tắt khi đã tắt tiếng Việt',0),r('Viết hoa theo từ tắt',1),r('Gửi chữ qua Clipboard',0)],'Tương thích'),
+ grp([r('Âm thanh khi bật/tắt',0),r('Tự kiểm tra cập nhật',1),row('Đặt lại tất cả…','',btn('Đặt lại…'))],'Hệ thống')
+];}
+
+const WINCAP=`<span class="ow mark">V</span><span class="ow" style="font-size:12px">VietKB</span><span class="ow cap"><span>${I('min')}</span><span>${I('x')}</span></span>`;
+
+const A_ITEMS=[['gear','#8e8e93','Chung'],['kbd','#5e5ce6','Phím tắt'],['bolt','#ff9f0a','Gõ tắt'],['sl','#30b0c7','Nâng cao'],['info','#34c759','Giới thiệu']];
+function winA(th,page,title,body,extra=''){
+ return `<div class="win A ${th}" style="width:520px;height:460px"><div class="tb"><span class="om tl"><i></i><i></i><i></i></span>${WINCAP}</div>
+ <aside class="sb">${A_ITEMS.map(([g,c,l],i)=>`<div class="si${i===page?' on':''}"><span class="ic" style="background:${c}">${I(g)}</span>${l}</div>`).join('')}<div class="sp"></div><div class="si"><span class="ic" style="background:#ff453a">${I('pwr')}</span>Thoát hẳn</div></aside>
+ <main class="mn"><div class="mh">${title}</div><div class="sc">${extra}${body.join('')}</div></main></div>`;}
+
+const B_TABS=[['gear','Chung'],['kbd','Phím tắt'],['bolt','Gõ tắt'],['sl','Nâng cao'],['info','Giới thiệu']];
+function winB(th,page,body,tall){
+ return `<div class="win B ${th}" style="width:480px;height:460px"><div class="tb"><span class="om tl"><i></i><i></i><i></i></span><span class="om ttl">${B_TABS[page][1]}</span>${WINCAP}</div>
+ <nav class="tools">${B_TABS.map(([g,l],i)=>`<div class="tl2${i===page?' on':''}">${I(g)}<span>${l}</span></div>`).join('')}</nav>
+ <div class="sc${tall?' fade':''}">${body.join('')}</div>
+ <div class="foot"><span style="color:var(--t2)">Thoát hẳn</span>${btn('Đóng',1)}</div></div>`;}
+
+function popC(th,inner,sheet){
+ return `<div class="scene ${th}"><div class="mbar"><span class="ti">E</span><span class="ti hot">V</span><span class="om">Th 4 9:41</span><span class="ow">9:41</span></div><div class="C">${inner}${sheet?'<div class="dim"></div>':''}${sheet||''}</div></div>`;}
+function quickC(th,sheet){
+ const q=quick({seg:1,noEnable:1});
+ const hd=`<div class="rows"><div class="row hd"><span class="mk">V</span><div class="l"><b>Bật tiếng Việt</b><small class="in">${key(...CT)}</small></div><div class="c">${sw(1)}</div></div></div>`;
+ return popC(th,hd+q[0]+q[1]+q[2]+`<div class="foot">${btn('Phím tắt…')}${btn('Nâng cao…')}<span class="sp"></span><span style="color:var(--t2)">Thoát hẳn</span></div>`,sheet);}
+function sheetC(){return `<div class="sheet"><div class="sh"><span class="s"></span><b>Phím tắt</b><span class="ok">Đóng</span></div><div class="note" style="padding:0 4px">Bấm vào ô, nhấn tổ hợp mới. Esc để bỏ, Backspace để xoá phím tắt.</div>${hotkeys().join('')}<div class="note" style="padding:0 4px;color:var(--acct)">Đặt lại tất cả</div></div>`;}
+
+const fig=(h,cap)=>`<figure><div class="fit">${h}</div><figcaption>${cap}</figcaption></figure>`;
+document.getElementById('fA').innerHTML=
+ fig(winA('th-light',0,'Chung',quick()),'A · Màn chính · Sáng (toggle bật/tắt, pop-up Kiểu gõ, hint xuống dòng)')+
+ fig(winA('th-dark',0,'Chung',quick()),'A · Màn chính · Tối')+
+ fig(winA('th-light',1,'Phím tắt',hotkeys(),'<div class="intro">Bấm vào ô, nhấn tổ hợp mới. Esc để bỏ, Backspace để xoá phím tắt.</div>'),'A · Phím tắt · Sáng (đang ghi, chưa đặt, dễ trùng)');
+document.getElementById('fB').innerHTML=
+ fig(winB('th-light',0,quick({open:1})),'B · Màn chính · Sáng (pop-up đang mở, nút Đóng nổi bật)')+
+ fig(winB('th-dark',0,quick()),'B · Màn chính · Tối')+
+ fig(winB('th-light',3,advanced(),1),'B · Nâng cao · Sáng (nội dung cuộn, mờ dần ở đáy)');
+document.getElementById('fC').innerHTML=
+ fig(quickC('th-light'),'C · Màn chính · Sáng (nền mờ, nút chia đoạn)')+
+ fig(quickC('th-dark'),'C · Màn chính · Tối')+
+ fig(quickC('th-light',sheetC()),'C · Sheet Phím tắt · Sáng');
+
+const body=document.body;
+function bind(id,attr){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{body.setAttribute(attr,b.dataset.v);document.querySelectorAll('#'+id+' button').forEach(x=>x.setAttribute('aria-pressed',x===b));fit();});}
+function fit(){document.querySelectorAll('.frames').forEach(f=>{const avail=f.clientWidth;f.querySelectorAll('.fit').forEach(el=>{el.style.zoom=1;const w=el.firstElementChild.offsetWidth;el.style.zoom=Math.min(1,avail/w);});});}
+let ACC='blue',MODE='v';
+function applyAcc(){body.setAttribute('data-acc',ACC==='follow'?(MODE==='v'?'logov':'blue'):ACC);document.getElementById('lb-mode').hidden=ACC!=='follow';}
+function bind2(id,set){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{set(b.dataset.v);document.querySelectorAll('#'+id+' button').forEach(x=>x.setAttribute('aria-pressed',x===b));applyAcc();});}
+bind('tg-os','data-os');bind('tg-br','data-br');bind2('tg-acc',v=>ACC=v);bind2('tg-mode',v=>MODE=v);
+addEventListener('resize',fit);addEventListener('load',fit);fit();
+</script>
+</body>
+</html>

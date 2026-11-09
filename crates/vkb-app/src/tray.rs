@@ -541,6 +541,6 @@ mod tests {
             .filter(|label| !label.is_empty())
             .collect();
         labels.sort_unstable();
-        assert_eq!(labels, ["about", "advanced", "hotkeys", "macros", "main"]);
+        assert_eq!(labels, ["main"]);
     }
 }

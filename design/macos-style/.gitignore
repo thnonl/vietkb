@@ -1,0 +1,9 @@
+qa/
+_review-shots/
+_impl-shots/
+impl-progress.txt
+_impl-vite.pid
+*.pid
+_audit-shots/
+_*.txt
+_*.log

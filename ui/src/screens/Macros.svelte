@@ -29,6 +29,14 @@
   let selected = $state<string[]>([]);
   let busy = $state(false);
   let menuFor = $state<string | null>(null);
+  // The list's own element, and whether it scrolls: the footer names scrolling only then.
+  let listEl = $state<HTMLElement | null>(null);
+  let overflowing = $state(false);
+  $effect(() => {
+    void rows;
+    const el = listEl;
+    overflowing = el ? el.scrollHeight > el.clientHeight + 1 : false;
+  });
 
   const local = $derived(!api.isTauri());
   const macroOn = $derived(app.settings?.typing.macroEnabled ?? true);
@@ -294,6 +302,8 @@
 
 <svelte:window onkeydown={onKey} />
 
+<div class="screen" data-screen>
+<div class="body" data-body>
 <div class="tb">
   <div class="input">
     <Icon name="search" />
@@ -304,19 +314,16 @@
       placeholder={t("macros.search")}
       aria-label={t("macros.search")}
       spellcheck="false" />
-    <span class="kk">
-      <Keycap text={platformState.mac ? "Win" : "Ctrl"} small />
-      <span class="plus">+</span>
-      <Keycap text="F" small />
-    </span>
   </div>
-  <button type="button" class="btn" onclick={importFile}>
+  <!-- Short labels leave the search field room for its placeholder (Windows 125%); the
+       full wording stays in the tooltip and the accessible name. -->
+  <button type="button" class="btn" onclick={importFile} title={t("macros.import")} aria-label={t("macros.import")}>
     <Icon name="download" />
-    {t("macros.import")}
+    {t("macros.importShort")}
   </button>
-  <button type="button" class="btn" onclick={exportFile} disabled={total === 0}>
+  <button type="button" class="btn" onclick={exportFile} disabled={total === 0} title={t("macros.export")} aria-label={t("macros.export")}>
     <Icon name="upload" />
-    {t("macros.export")}
+    {t("macros.exportShort")}
   </button>
   <button type="button" class="btn pri" onclick={openNew}>
     <Icon name="plus" />
@@ -325,6 +332,49 @@
 </div>
 
 <div class="tbl">
+  {#if !macroOn}
+    <!-- Off: a warning bar above the table, the header stays visible below it. -->
+    <div class="bulk off">
+      <span class="n">
+        {t("macros.off")}
+        <button type="button" class="lnk" onclick={() => app.patch({ typing: { macroEnabled: true } })}>{t("macros.turnOn")}</button>
+      </span>
+    </div>
+  {/if}
+  {#if selected.length > 0}
+    <div class="bulk">
+      <span class="n">
+        <button
+          type="button"
+          class="cb mix"
+          aria-label={t("macros.deselectAll")}
+          onclick={() => (selected = [])}>
+          <svg viewBox="0 0 12 12"><path d="M3 6h6" /></svg>
+        </button>
+        <span>{t("macros.selected")} <span class="num">{formatNumber(selected.length)}</span> <small>{t("macros.selectedOf")} <span class="num">{formatNumber(total)}</span></small></span>
+      </span>
+      <button
+        type="button"
+        class="btn ghost sm"
+        disabled={selected.length !== 1}
+        onclick={() => selectedRows[0] && openEdit(selectedRows[0])}>
+        <Icon name="edit" small />
+        {t("common.edit")}
+      </button>
+      <button type="button" class="btn ghost sm" onclick={exportFile}>
+        <Icon name="upload" small />
+        {t("macros.exportShort")}
+      </button>
+      <button type="button" class="btn ghost sm danger" onclick={() => doDelete(selectedRows)}>
+        <Icon name="trash" small />
+        {t("common.delete")}
+      </button>
+      <span class="vsep"></span>
+      <button type="button" class="btn ghost sm" onclick={() => (selected = [])}>
+        {t("macros.deselect")} <Keycap text="Esc" small />
+      </button>
+    </div>
+  {/if}
   {#if loading}
     <div class="tr"><span style="grid-column:1/-1;padding-left:16px" class="muted">{t("common.loading")}</span></div>
   {:else if loadError}
@@ -372,46 +422,6 @@
         </button>
       </span>
     </div>
-  {:else if selected.length > 0}
-    <div class="bulk">
-      <span class="n">
-        <button
-          type="button"
-          class="cb mix"
-          aria-label={t("macros.deselectAll")}
-          onclick={() => (selected = [])}>
-          <svg viewBox="0 0 12 12"><path d="M3 6h6" /></svg>
-        </button>
-        <span>{t("macros.selected")} <span class="num">{formatNumber(selected.length)}</span> <small>{t("macros.selectedOf")} <span class="num">{formatNumber(total)}</span></small></span>
-      </span>
-      <button
-        type="button"
-        class="btn ghost sm"
-        disabled={selected.length !== 1}
-        onclick={() => selectedRows[0] && openEdit(selectedRows[0])}>
-        <Icon name="edit" small />
-        {t("common.edit")}
-      </button>
-      <button type="button" class="btn ghost sm" onclick={exportFile}>
-        <Icon name="upload" small />
-        {t("macros.exportShort")}
-      </button>
-      <button type="button" class="btn ghost sm danger" onclick={() => doDelete(selectedRows)}>
-        <Icon name="trash" small />
-        {t("common.delete")}
-      </button>
-      <span class="vsep"></span>
-      <button type="button" class="btn ghost sm" onclick={() => (selected = [])}>
-        {t("macros.deselect")} <Keycap text="Esc" small />
-      </button>
-    </div>
-  {:else if !macroOn}
-    <div class="bulk">
-      <span class="n" style="font-weight:400">
-        {t("macros.off")}
-        <button type="button" class="lnk" onclick={() => app.patch({ typing: { macroEnabled: true } })}>{t("macros.turnOn")}</button>
-      </span>
-    </div>
   {:else}
     <div class="tr head">
       <span class="c0"></span>
@@ -422,7 +432,7 @@
   {/if}
 
   {#if !loading && !loadError && rows.length > 0}
-    <div class="tblbody">
+    <div class="tblbody" bind:this={listEl}>
       {#each rows as row (row.trigger)}
         <div class="tr" class:on={selected.includes(row.trigger)}>
           <span class="c0">
@@ -473,24 +483,26 @@
   {/if}
 </div>
 
-<div class="mfoot">
-  <span>
-    {#if total === 1 && !query.trim()}
+</div>
+
+<footer class="v4foot" data-foot>
+  <span class="note">
+    {#if total === 0}
+      {t("macros.empty.title")}
+    {:else if total === 1 && !query.trim()}
       {t("macros.footer.one")}
     {:else if query.trim()}
       <span class="num">{formatNumber(rows.length)}</span> {t("macros.footer.results")}
-      <span class="num">{formatNumber(total)}</span> {t("macros.footer.entries")}
+      <span class="num">{formatNumber(total)}</span> {t("macros.footer.entriesOnly")}{#if overflowing} · {t("macros.footer.scroll")}{/if}
     {:else}
-      <span class="num">{formatNumber(total)}</span> {t("macros.footer.entries")}
+      <span class="num">{formatNumber(total)}</span> {t("macros.footer.entriesOnly")}{#if overflowing} · {t("macros.footer.scroll")}{/if}
     {/if}
   </span>
-  <button
-    type="button"
-    class="btn ghost sm"
-    title={t("titlebar.close")}
-    onclick={closeCurrent}>
+  <span class="sp"></span>
+  <button type="button" class="btn pri" title={t("titlebar.close")} onclick={closeCurrent}>
     {t("common.close")}
   </button>
+</footer>
 </div>
 
 <Modal
@@ -530,12 +542,6 @@
 </Modal>
 
 <style>
-  .tr.head {
-    height: 36px;
-    font: 600 12px/18px var(--sm);
-    color: var(--t3);
-    box-shadow: inset 0 -1px 0 var(--line-2);
-  }
   .empty {
     display: flex;
     flex-direction: column;
@@ -545,6 +551,7 @@
     /* Fills the table box the window is sized for — a fixed minimum left a
      * band under the illustration once the window matched its content. */
     flex: 1 1 auto;
+    min-height: 200px;
     padding: 18px 24px;
   }
   .illustration {
@@ -564,37 +571,6 @@
   .empty b {
     font: 600 16px/24px var(--ui);
   }
-  .empty p {
-    max-width: 420px;
-    font: 400 13px/20px var(--ui);
-    color: var(--t2);
-  }
-  .samples {
-    display: flex;
-    gap: 8px;
-    margin: 4px 0 6px;
-  }
-  .sample-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 8px;
-    box-shadow: inset 0 0 0 1px var(--line-2);
-    font: 400 13px/20px var(--ui);
-    color: var(--t2);
-  }
-  .sample-row:hover {
-    background: var(--hover);
-    color: var(--t1);
-  }
-  .empty .inline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-  }
   .tr {
     position: relative;
   }
@@ -603,16 +579,19 @@
   .tbl {
     display: flex;
     flex-direction: column;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
     /* 9 px instead of the kit's 10: the sheet's 16 px bottom pad plus this
      * margin is what makes the window height land exactly on the 4 px grid
      * (see `macros` in crates/vkb-app/src/main.rs). */
     margin-bottom: 9px;
   }
+  /* The list follows its content: at least four rows, at most about 336 px so the
+   * window stays under its 560 px cap; longer lists scroll inside. */
   .tblbody {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 0 0 auto;
+    min-height: 56px;
+    max-height: 336px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-gutter: stable;
@@ -634,73 +613,18 @@
     background: var(--t3);
     background-clip: padding-box;
   }
-  .rowmenu {
-    position: absolute;
-    right: 8px;
-    top: 38px;
-    z-index: 20;
-    width: 148px;
-    padding: 4px;
-    border-radius: 10px;
-    background: var(--float);
-    box-shadow: var(--e2);
-    display: flex;
-    flex-direction: column;
-  }
-  .rowmenu button {
-    height: 30px;
-    padding: 0 10px;
-    border-radius: 7px;
-    text-align: left;
-    font: 500 13px/20px var(--ui);
-    color: var(--t1);
-  }
-  .rowmenu button:hover {
-    background: var(--hover);
-  }
-  .rowmenu button.danger {
-    color: var(--bad);
-  }
-  .lnk {
-    padding: 0;
-    color: var(--acc-text);
-    font: 500 12px/18px var(--sm);
-  }
   .form {
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 8px 0 4px;
   }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font: 500 13px/20px var(--ui);
-    color: var(--t2);
-  }
-  .field .input {
-    padding: 0 10px;
-    color: var(--t1);
-    font: 400 13px/20px var(--ui);
-  }
-  textarea.input {
-    display: block;
-    height: 72px;
-    padding: 8px 10px;
-    resize: vertical;
-    color: var(--t1);
-  }
-  .hint {
-    font: 400 12px/18px var(--sm);
-    color: var(--t3);
-  }
-  .form-error {
-    font: 400 12px/18px var(--sm);
-    color: var(--bad);
-  }
   .muted {
     color: var(--t3);
     font: 400 13px/20px var(--ui);
+  }
+  /* Narrower button padding gives the search field the room its placeholder needs (review R9). */
+  .tb .btn {
+    padding: 0 8px;
   }
 </style>

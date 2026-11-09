@@ -32,11 +32,11 @@
   } = $props();
 </script>
 
-<div class="row" class:gb={group} class:dis={disabled} class:tall class:s={short}>
+<div class="row" class:gb={group} class:dis={disabled} class:tall class:s={short} class:h={!!note}>
   <div class="lbl">
     <b>{#if icon}<Icon name={icon} small />{/if}{label}</b>
     {#if note || link}
-      <span>
+      <small>
         {#if note}{@render note()}{/if}
         {#if link}
           {#if note} · {/if}
@@ -47,7 +47,7 @@
             onclick={onLink}
             style="background:none;padding:0;font:inherit;text-align:left">{link}</button>
         {/if}
-      </span>
+      </small>
     {/if}
     {#if extra}{@render extra()}{/if}
   </div>

@@ -16,6 +16,9 @@ export const vi: Record<string, string> = {
   "win.hotkeys.title": "Phím tắt",
   "win.advanced.title": "Nâng cao",
   "win.about.title": "Giới thiệu",
+  "win.settings.label": "Cài đặt VietKB",
+  "tab.general": "Chung",
+  "tab.macros": "Gõ tắt",
 
   // Title bar and language toggle: Windows caption bar buttons; the VI | EN toggle also appears at the top right of every window on macOS.
   "titlebar.update.aria": "Có bản cập nhật — mở Giới thiệu",
@@ -254,10 +257,13 @@ export const vi: Record<string, string> = {
   "update.note.downloaded": "Đã tải bản {version}. Đang cập nhật, ứng dụng sẽ tự mở lại.",
 
   // Macros window: The macro (gõ tắt) table: a short trigger expands into longer text when followed by a space. Sample macros such as dc → được are Vietnamese content and stay as they are.
-  "macros.search": "Tìm từ tắt hoặc nội dung",
+  "macros.search": "Tìm từ tắt, nội dung",
   "macros.import": "Nhập từ tệp…",
   "macros.export": "Xuất ra tệp…",
   "macros.exportShort": "Xuất…",
+  "macros.importShort": "Nhập…",
+  "macros.footer.entriesOnly": "mục",
+  "macros.footer.scroll": "cuộn để xem hết",
   "macros.add": "Thêm",
   "macros.empty.title": "Chưa có gõ tắt nào",
   "macros.empty.body": "Gõ dc rồi bấm dấu cách sẽ ra “được”. Thêm vài mục mẫu để thử:",

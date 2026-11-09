@@ -16,6 +16,9 @@ export const en: Record<string, string> = {
   "win.hotkeys.title": "Shortcuts",
   "win.advanced.title": "Advanced",
   "win.about.title": "About",
+  "win.settings.label": "VietKB settings",
+  "tab.general": "General",
+  "tab.macros": "Macros",
 
   // Title bar and language toggle: Windows caption bar buttons; the VI | EN toggle also appears at the top right of every window on macOS.
   "titlebar.update.aria": "Update available — open About",
@@ -254,10 +257,13 @@ export const en: Record<string, string> = {
   "update.note.downloaded": "Version {version} downloaded. Updating; VietKB will reopen on its own.",
 
   // Macros window: The macro (gõ tắt) table: a short trigger expands into longer text when followed by a space. Sample macros such as dc → được are Vietnamese content and stay as they are.
-  "macros.search": "Search abbreviations or expansions",
+  "macros.search": "Search abbreviations",
   "macros.import": "Import from file…",
   "macros.export": "Export to file…",
   "macros.exportShort": "Export…",
+  "macros.importShort": "Import…",
+  "macros.footer.entriesOnly": "entries",
+  "macros.footer.scroll": "scroll to see all",
   "macros.add": "Add",
   "macros.empty.title": "No abbreviations yet",
   "macros.empty.body": "Type dc, then Space, and you get “được”. Add a few samples to try:",

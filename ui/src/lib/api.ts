@@ -3,6 +3,7 @@
 // "additive" are proposed additions (reported to the Lead, never renamed).
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AppInfoView,
   AppRuleRow,
@@ -88,9 +89,11 @@ export const openPrivacyPane = (pane: "accessibility" | "input_monitoring") =>
 export const setHotkeyCapture = (active: boolean) =>
   invoke<void>("set_hotkey_capture", { active });
 
-/** Window management is presentation only; contract §6 commands are untouched. */
-export const openWindow = (kind: "hotkeys" | "advanced" | "macros" | "about") =>
-  invoke<void>("open_window", { kind });
+/** The page the shell asked for before this window's page was ready (`null` when none).
+ *  Live requests arrive as the `vkb:tab` event (see `onTabRequest`). */
+export const takeRequestedTab = () => invoke<string | null>("take_requested_tab");
+export const onTabRequest = (handler: (kind: string) => void): Promise<UnlistenFn> =>
+  listen<string>("vkb:tab", (event) => handler(event.payload));
 export const quitApp = () => invoke<void>("quit_app");
 
 // ------------------------------------------------------------------ updates
