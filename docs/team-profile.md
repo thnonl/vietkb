@@ -116,3 +116,4 @@ Platform input rules:
 - 2026-11-03 Tone overwrite: the UI Automation version was dropped for its cost (Chrome/Electron
   accessibility mode, first-key delay); in-memory only (owner). End forgets the line.
 - 2026-11-05 Mac: a fix that trusted the event string under Caps Lock broke real-app TX-C4/VN-C4 (apps follow the flag); ask the owner which platform a bug is on before diagnosing, and let real-app QA settle flag-vs-string guesses.
+- 2026-11-10 Mac QA builds: always sign with a stable certificate and keep one bundle id and path, so TCC grants survive rebuilds; never test with an ad-hoc build that needs grants. The project cert (CN VietKB) key exists only in the repo secrets, so QA uses the local identity CN `VietKB QA Local` (keychain `~/.claude/vietkb-qa-sign`), bundle id `vn.vietkb.app.dev`, installed at `qa-build/VietKB Dev.app` by `scripts/mac-e2e/build-dev-app.sh`; verify `codesign -d -r-` is identical across builds.
