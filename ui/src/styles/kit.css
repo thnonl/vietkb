@@ -1067,6 +1067,12 @@ svg.i.s16 {
   outline: none;
   box-shadow: none;
 }
+/* Focused but not recording (Tab lands here, or Esc ended a capture): the well
+ * itself carries the keyboard ring, since focus no longer starts recording
+ * (Mac QA run 5, 2026-11-10). Recording keeps its own 2 px accent edge. */
+.cap:not(.rec):focus-within {
+  box-shadow: inset 0 0 0 0.5px var(--ctl-edge), 0 0 0 1px var(--raised), 0 0 0 3px var(--focus);
+}
 .cap .caret {
   display: inline-block;
   flex: none;
