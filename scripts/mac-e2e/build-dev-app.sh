@@ -42,6 +42,19 @@ cat > "$APPDIR/Contents/Info.plist" <<EOF
   <key>LSUIElement</key><true/>
 </dict></plist>
 EOF
-codesign --force --deep -s - "$APPDIR" >&2
+# Sign with the stable local QA identity when it exists: macOS keys the Accessibility / Input Monitoring
+# grants to the designated requirement, and an ad-hoc signature pins the cdhash, so every rebuild lost them.
+# One identity (CN "VietKB QA Local", keychain in ~/.claude/vietkb-qa-sign), one bundle id, one install path
+# (qa-build/): the grant is given once and survives rebuilds. Falls back to ad-hoc (grants then reset).
+QA_SIGN=$HOME/.claude/vietkb-qa-sign
+if [[ -f $QA_SIGN/qa.keychain-db && -f $QA_SIGN/kcpass ]]; then
+  security unlock-keychain -p "$(cat $QA_SIGN/kcpass)" $QA_SIGN/qa.keychain-db >&2
+  codesign --force --deep -s "VietKB QA Local" --keychain $QA_SIGN/qa.keychain-db "$APPDIR" >&2
+else
+  echo "WARNING: no QA signing identity; ad-hoc build loses TCC grants on every rebuild" >&2
+  codesign --force --deep -s - "$APPDIR" >&2
+fi
+INSTALL=${VKB_QA_BUILD_DIR:-$HOME/Workspace/vietkb/qa-build}/"VietKB Dev.app"
+mkdir -p "${INSTALL:h}"; rm -rf "$INSTALL"; cp -R "$APPDIR" "$INSTALL"
 plutil -lint "$APPDIR/Contents/Info.plist" >&2
 echo "$APPDIR"
