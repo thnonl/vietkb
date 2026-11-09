@@ -6,6 +6,7 @@
   import { closeCurrent } from "../lib/window.svelte";
   import { platformState } from "../lib/platform.svelte";
   import { t } from "../lib/lang.svelte";
+  import { autostart, setAutostart } from "../lib/autostart.svelte";
   import type { SettingsView, TypingView } from "../lib/bindings";
 
   const settings = $derived(app.settings);
@@ -125,9 +126,9 @@
       <div class="v4row">
         <div class="l"><b>{autostartLabel}</b></div>
         <Toggle
-          checked={settings?.system.startWithWindows ?? true}
+          checked={autostart.on}
           label={autostartLabel}
-          onchange={(next) => setSystem({ startWithWindows: next })} />
+          onchange={setAutostart} />
       </div>
       <div class="v4row">
         <div class="l"><b>{t("adv.sound")}</b></div>

@@ -1,5 +1,4 @@
 ﻿<script lang="ts">
-  import { onMount } from "svelte";
   import Toggle from "../components/Toggle.svelte";
   import Select from "../components/Select.svelte";
   import AppRulesDialog from "../components/AppRulesDialog.svelte";
@@ -14,6 +13,7 @@
   import { platformState } from "../lib/platform.svelte";
   import { perms } from "../lib/permissions.svelte";
   import { plural, t } from "../lib/lang.svelte";
+  import { autostart, setAutostart } from "../lib/autostart.svelte";
 
   // Chung (SPEC section 8.1): three groups. Group 1 is the input, group 2 the typing
   // extras and the lists, group 3 the system switches.
@@ -30,61 +30,9 @@
   let rules = $state<AppRuleRow[]>([]);
   let dialogOpen = $state(false);
 
-  // The Run key is the truth, not config.toml: a user who removed the entry in
-  // Windows' own startup settings must see the switch off here too.
-  let autostart = $state(false);
-  // Set once the first answer is in. From then on the switch follows the
-  // setting, so flipping the same option in Advanced shows here at once (S-10).
-  let autostartReady = $state(false);
-
-  onMount(() => {
-    if (!native) {
-      autostart = settings?.system.startWithWindows ?? false;
-      autostartReady = true;
-      return;
-    }
-    void api
-      .autostartState()
-      .then((registry) => {
-        autostart = registry;
-        if (settings && settings.system.startWithWindows !== registry) {
-          app.patch({ system: { startWithWindows: registry } });
-        }
-      })
-      .catch(() => {
-        autostart = settings?.system.startWithWindows ?? false;
-      })
-      .finally(() => {
-        autostartReady = true;
-      });
-  });
-
-  $effect(() => {
-    const saved = settings?.system.startWithWindows;
-    if (autostartReady && saved !== undefined) autostart = saved;
-  });
-
-  const setAutostart = async (next: boolean) => {
-    if (!native) {
-      autostart = next;
-      app.patch({ system: { startWithWindows: next } });
-      return;
-    }
-    try {
-      // The command writes the Run entry and answers with what the registry
-      // now holds, so a failed write leaves the switch showing the truth.
-      autostart = await api.setAutostart(next);
-      if (settings && settings.system.startWithWindows !== autostart) {
-        app.patch({ system: { startWithWindows: autostart } });
-      }
-    } catch (failure) {
-      app.fail(
-        mac ? t("quick.autostart.fail.mac") : t("quick.autostart.fail.win"),
-        failure,
-      );
-      autostart = settings?.system.startWithWindows ?? false;
-    }
-  };
+  // Autostart state and writes are shared with Nâng cao (lib/autostart.svelte.ts);
+  // App.svelte syncs it with the OS entry once at start-up.
+  const autostartOn = $derived(autostart.on);
 
   const loadRules = async () => {
     if (!native) {
@@ -198,7 +146,7 @@
           <span class="h">{mac ? t("quick.autostart.hint.mac") : t("quick.autostart.hint.win")}</span>
         </div>
         <div class="c">
-          <Toggle checked={autostart} label={autostartLabel} onchange={setAutostart} />
+          <Toggle checked={autostartOn} label={autostartLabel} onchange={setAutostart} />
         </div>
       </div>
       <div class="v4row h">

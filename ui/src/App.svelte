@@ -14,6 +14,7 @@
   import { fitWindowToContent } from "./lib/fit";
   import { TABS, tabFromKind, tabs } from "./lib/tabs.svelte";
   import { probePermissions } from "./lib/permissions.svelte";
+  import { syncAutostart } from "./lib/autostart.svelte";
   import { t } from "./lib/lang.svelte";
 
   let page = $state<HTMLElement | null>(null);
@@ -55,6 +56,8 @@
     void probePermissions()
       .then(() => app.init())
       .then(async () => {
+      // The autostart switch shows the OS entry on every page (Chung and Nâng cao).
+      void syncAutostart();
       // A page asked for before this page existed (the window was still being built).
       if (api.isTauri()) {
         const kind = await api.takeRequestedTab().catch(() => null);
