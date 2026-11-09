@@ -27,5 +27,5 @@
       <option value={option.value}>{option.label}</option>
     {/each}
   </select>
-  <Icon name="chevron" small />
+  <Icon name="updown" small />
 </span>

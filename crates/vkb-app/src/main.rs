@@ -28,7 +28,7 @@ mod windows_backend;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use tauri::{Manager, PhysicalPosition, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, RunEvent, WindowEvent};
 
 /// Set only by the tray's quit item. Everything else is "hide to tray".
 static QUITTING: AtomicBool = AtomicBool::new(false);
@@ -62,19 +62,11 @@ fn content_height(windows_height: f64) -> f64 {
     }
 }
 
-/// Extra main-window height while the Accessibility banner is up (macOS). Keep
-/// equal to `AX_BANNER_PX` in ui/src/components/AccessibilityBanner.svelte,
-/// which resizes the window again when the grant appears or goes away.
-#[cfg(target_os = "macos")]
-const BANNER_PX: f64 = 80.0;
+/// Inner width of the single settings window.
+const MAIN_WIDTH: f64 = 560.0;
 
-/// Content height of the settings window. macOS without the Accessibility grant
-/// opens already tall enough for the banner, so it never visibly grows.
+/// Initial content height; the page fits its own height on load.
 fn main_content_height() -> f64 {
-    #[cfg(target_os = "macos")]
-    if permissions_missing() {
-        return content_height(460.0) + BANNER_PX;
-    }
     content_height(460.0)
 }
 
@@ -90,67 +82,6 @@ fn permissions_missing() -> bool {
     !vkb_macos::has_accessibility_permission() || !im_granted
 }
 
-/// Disable the window a modal was opened from.
-///
-/// Windows: `EnableWindow(false)`. macOS: no sheet. `set_enabled(false)` there
-/// begins a half-transparent sheet the size of the parent; it is ordered above
-/// the parent's child windows too, so it painted over the modal and the modal
-/// looked hidden (D-MAC-04). The modal stays above its parent as a child window
-/// and `refocus_modal` hands focus back to it whenever any other VietKB window
-/// is activated while a modal is open.
-fn disable_for_modal(owner: &tauri::WebviewWindow) {
-    #[cfg(not(target_os = "macos"))]
-    if let Err(error) = owner.set_enabled(false) {
-        tracing::warn!(%error, "could not disable the owner window for a modal");
-    }
-    #[cfg(target_os = "macos")]
-    let _ = owner;
-}
-
-/// One open modal: who opened it (its owner / parent window) and whether it has
-/// been asked to close. A closing modal must not win the focus back (it would be
-/// re-focused on its way out and swallow the close).
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Modal {
-    label: String,
-    owner: Option<String>,
-    closing: bool,
-}
-
-/// Open modals, oldest first. A modal opened from another modal (About from
-/// Advanced) is owned by it, so the stack is a chain, not a set of siblings
-/// (S-16).
-static MODALS: parking_lot::Mutex<Vec<Modal>> = parking_lot::Mutex::new(Vec::new());
-
-/// The window a new modal `label` belongs to: the topmost open modal (so a
-/// modal opened from a modal stacks on it), else the main window if it exists.
-fn modal_owner(stack: &[Modal], label: &str, main_exists: bool) -> Option<String> {
-    stack
-        .iter()
-        .rev()
-        .find(|modal| !modal.closing && modal.label != label)
-        .map(|modal| modal.label.clone())
-        .or_else(|| main_exists.then(|| MAIN_LABEL.to_string()))
-}
-
-/// The topmost modal that is not closing: the one that owns the focus.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-fn top_modal_of(stack: &[Modal]) -> Option<String> {
-    stack
-        .iter()
-        .rev()
-        .find(|modal| !modal.closing)
-        .map(|modal| modal.label.clone())
-}
-
-/// Whether a modal that is not closing still has `owner` as its owner, i.e.
-/// the owner must stay disabled.
-#[cfg_attr(target_os = "macos", allow(dead_code))]
-fn owner_has_open_modal(stack: &[Modal], owner: &str) -> bool {
-    stack
-        .iter()
-        .any(|modal| !modal.closing && modal.owner.as_deref() == Some(owner))
-}
 
 /// A window that is built but not shown yet. It stays hidden until its page
 /// reports `window_ready` (or the fallback timer fires): a window that appears
@@ -163,8 +94,6 @@ struct Pending {
     id: u64,
     /// Start of the build: the reference point for every timing log.
     started: Instant,
-    /// Modals: the window they were opened from (centring and modality).
-    owner: Option<String>,
 }
 
 static PENDING: parking_lot::Mutex<Vec<Pending>> = parking_lot::Mutex::new(Vec::new());
@@ -208,7 +137,7 @@ fn is_pending(label: &str) -> bool {
 
 /// Record a freshly built window and arm its fallback timer. `id` `None` on the
 /// page's own report (matches by label), the timer passes its id.
-fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner: Option<String>) {
+fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant) {
     // macOS: a hidden WKWebView runs no animation frames (and a cold one may not
     // start its navigation), so the page could never report a painted frame.
     // Order the window in at alpha 0 instead, already in place, and let `reveal`
@@ -216,19 +145,13 @@ fn hold_until_ready(app: &tauri::AppHandle, label: &str, started: Instant, owner
     #[cfg(target_os = "macos")]
     if let Some(window) = app.get_webview_window(label) {
         macos_shell::stage_transparent(&window);
-        if label == MAIN_LABEL {
-            centre_on_launch_monitor(&window);
-            centre_on_launch_monitor(&window);
-        } else {
-            match owner.as_deref().and_then(|name| app.get_webview_window(name)) {
-                Some(parent) => centre_on_parent(&window, Some(&parent)),
-                None => centre_on_monitor(&window, app),
-            }
-        }
+        // MAC-REVIEW: only the main window is staged now.
+        centre_on_launch_monitor(&window);
+        centre_on_launch_monitor(&window);
     }
 
     let id = NEXT_PENDING_ID.fetch_add(1, Ordering::SeqCst);
-    PENDING.lock().push(Pending { label: label.to_string(), id, started, owner });
+    PENDING.lock().push(Pending { label: label.to_string(), id, started });
     tracing::info!(window = label, build_ms = millis_since(started), "window.built");
 
     // macOS safety net: a staged window that WebKit is throttling is shown now
@@ -280,8 +203,7 @@ fn take_pending(label: &str, id: Option<u64>) -> Option<Pending> {
     Some(pending.remove(index))
 }
 
-/// Show a held window: place it, bring it forward and register it as the topmost
-/// modal when it is one. Runs once per build; a later call finds nothing pending.
+/// Show a held window: place it and bring it forward. Runs once per build; a later call finds nothing pending.
 ///
 /// Order for the main window: show, then centre, then focus. Showing first matters
 /// because a window that has never been shown has not had its DWM frame applied
@@ -299,47 +221,22 @@ fn reveal(app: &tauri::AppHandle, label: &str, id: Option<u64>, cause: &'static 
     #[cfg(target_os = "macos")]
     macos_shell::reveal_staged(&window);
 
-    if label == MAIN_LABEL {
-        enter_foreground(app);
-        if let Err(error) = window.show() {
-            tracing::warn!(%error, "could not show the settings window");
-        }
-        // Two passes: a window that has never been shown sits on the monitor it was
-        // created on, and `outer_size()` answers in that monitor's DPI. Moving it
-        // to the cursor's monitor first, then centring again, measures the size it
-        // actually has there (94 px off on a 125% -> 100% pair otherwise).
-        // macOS placed it already while staging it (`hold_until_ready`), on screen
-        // at alpha 0, so the sizes were real there.
-        #[cfg(not(target_os = "macos"))]
-        {
-            centre_on_launch_monitor(&window);
-            centre_on_launch_monitor(&window);
-        }
-        if let Err(error) = window.set_focus() {
-            tracing::warn!(%error, "could not focus the settings window");
-        }
-    } else {
-        let owner = pending.owner.as_deref().and_then(|name| app.get_webview_window(name));
-        if let Err(error) = window.show() {
-            tracing::warn!(%error, "could not show the modal");
-        }
-        // macOS placed it already while staging it (`hold_until_ready`).
-        #[cfg(not(target_os = "macos"))]
-        match owner.as_ref() {
-            Some(parent) => centre_on_parent(&window, Some(parent)),
-            // Opened from the tray: no parent to centre on, so centre on the screen
-            // the window landed on instead of leaving it at the corner.
-            None => centre_on_monitor(&window, app),
-        }
-        // Modal: the owner stops accepting input until this window is gone.
-        if let Some(owner) = &owner {
-            disable_for_modal(owner);
-        }
-        modal_opened(label, pending.owner.clone());
-        enter_foreground(app);
-        if let Err(error) = window.set_focus() {
-            tracing::warn!(%error, "could not focus the modal");
-        }
+    enter_foreground(app);
+    if let Err(error) = window.show() {
+        tracing::warn!(%error, "could not show the settings window");
+    }
+    // Two passes: a window that has never been shown sits on the monitor it was
+    // created on, and `outer_size()` answers in that monitor's DPI. Moving it
+    // to the cursor's monitor first, then centring again, measures the size it
+    // actually has there (94 px off on a 125% -> 100% pair otherwise).
+    // macOS placed it already while staging it (`hold_until_ready`).
+    #[cfg(not(target_os = "macos"))]
+    {
+        centre_on_launch_monitor(&window);
+        centre_on_launch_monitor(&window);
+    }
+    if let Err(error) = window.set_focus() {
+        tracing::warn!(%error, "could not focus the settings window");
     }
 
     tracing::info!(window = label, cause, since_build_ms = millis_since(pending.started), "window.shown");
@@ -388,41 +285,6 @@ fn keep_main_hidden(app: &tauri::AppHandle, api: &tauri::CloseRequestApi) {
     });
 }
 
-fn modal_opened(label: &str, owner: Option<String>) {
-    let mut modals = MODALS.lock();
-    modals.retain(|modal| modal.label != label);
-    modals.push(Modal { label: label.to_string(), owner, closing: false });
-}
-
-fn modal_closing(label: &str) {
-    if let Some(entry) = MODALS.lock().iter_mut().find(|modal| modal.label == label) {
-        entry.closing = true;
-    }
-}
-
-/// Forget a destroyed modal; answers with the window that owned it.
-fn modal_gone(label: &str) -> Option<String> {
-    let mut modals = MODALS.lock();
-    let owner = modals.iter().find(|modal| modal.label == label).and_then(|m| m.owner.clone());
-    modals.retain(|modal| modal.label != label);
-    owner
-}
-
-/// Modality without a disabled parent: when any VietKB window other than the
-/// topmost modal is activated, the topmost modal takes the focus back. Covers
-/// the main window behind a modal, a modal behind a modal it opened, and a
-/// modal opened from the menu before the main window existed (S-16). Windows
-/// disables the owner instead and needs none of this.
-#[cfg(target_os = "macos")]
-fn refocus_modal(app: &tauri::AppHandle, activated: &str) {
-    let Some(top) = top_modal_of(&MODALS.lock()) else { return };
-    if top == activated {
-        return;
-    }
-    if let Some(modal) = app.get_webview_window(&top) {
-        let _ = modal.set_focus();
-    }
-}
 
 /// Make the app a regular (Dock) app and bring it to the front. A window of an
 /// Accessory app opens behind whatever app is frontmost and cannot take focus,
@@ -478,35 +340,53 @@ pub fn show_settings(app: &tauri::AppHandle) {
     open_settings(app);
 }
 
-/// Raise the About modal: from the tray's update item and from the title-bar
-/// badge's window-level entry point. The page may not exist yet, so the request
-/// is also left in the update state for the next startup of the main window.
+/// Open the settings window on the About tab (tray update / about items).
 pub fn show_about(app: &tauri::AppHandle) {
-    if let Err(error) = show_aux(app, "about") {
-        tracing::warn!(%error, "could not open the About window");
-        show_settings(app);
+    let _ = show_aux(app, "about");
+}
+
+/// Old callers (hotkeys, tray) name a tab; the page switches to it.
+pub fn show_settings_tab(app: &tauri::AppHandle, tab: &str) {
+    let _ = show_aux(app, tab);
+}
+
+/// Tab id of the page for a window kind / legacy tab name.
+fn tab_for_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "hotkeys" => Some("hotkeys"),
+        "macros" => Some("macros"),
+        "advanced" | "system" => Some("advanced"),
+        "about" => Some("about"),
+        "go" => Some("general"),
+        _ => None,
     }
 }
 
-/// Keep old callers (hotkeys, tray) working after the tab strip was removed:
-/// the three screens that used to be tabs are now real windows of their own.
-pub fn show_settings_tab(app: &tauri::AppHandle, tab: &str) {
-    match tab {
-        "hotkeys" => {
-            let _ = show_aux(app, "hotkeys");
-        }
-        "advanced" | "system" | "go" => {
-            if tab == "go" {
-                show_settings(app);
-            } else {
-                let _ = show_aux(app, "advanced");
-            }
-        }
-        "macros" => {
-            let _ = show_aux(app, "macros");
-        }
-        _ => show_settings(app),
+/// Tab a caller asked for, until the page takes it (`take_requested_tab`).
+static REQUESTED_TAB: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::new(None);
+
+/// Page command: the tab requested while the window was still being built.
+#[tauri::command]
+fn take_requested_tab() -> Option<String> {
+    REQUESTED_TAB.lock().take()
+}
+
+/// Bring the settings window forward on the tab for `kind`: store it for a page
+/// still loading and tell a page that is already live.
+pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
+    let Some(tab) = tab_for_kind(kind) else {
+        // Plain settings (no tab): keep the current tab.
+        show_settings(app);
+        return Ok(());
+    };
+    *REQUESTED_TAB.lock() = Some(tab.to_string());
+    show_settings(app);
+    // MAC-REVIEW: on macOS show_settings may hop to the main thread, so the window
+    // can be built after this emit; the stored tab covers that case.
+    if let Err(error) = app.emit_to(MAIN_LABEL, "vkb:tab", tab.to_string()) {
+        tracing::debug!(%error, tab, "tab event not delivered");
     }
+    Ok(())
 }
 
 fn open_settings(app: &tauri::AppHandle) {
@@ -541,208 +421,8 @@ fn open_settings(app: &tauri::AppHandle) {
     }
 }
 
-/// Open one of the three secondary windows (or the macro table) as a modal of
-/// the main window. They share the frontend bundle and select their screen from
-/// `?win=`.
-///
-/// Tauri 2 has no `modal` window flag, so modality is built from two parts:
-/// the window is *owned* by the main window (`owner`), which keeps it above its
-/// parent and destroys it with it, and the main window is disabled
-/// (`set_enabled(false)`) for as long as the modal lives. The modal is centred
-/// on the main window rather than on the monitor.
-pub fn show_aux(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
-    // macOS: same rule as `show_settings`. The page's buttons reach this through
-    // the async `open_window` command, on a runtime worker: hop to the main
-    // thread so the modal is staged in the turn `addChildWindow:` orders it in.
-    #[cfg(target_os = "macos")]
-    if !macos_shell::on_main_thread() {
-        if !AUX_LABELS.contains(&kind) {
-            return Err(i18n::tf("rwin.invalid", &[("kind", kind)]));
-        }
-        let handle = app.clone();
-        let kind = kind.to_string();
-        return app
-            .run_on_main_thread(move || {
-                if let Err(error) = show_aux_here(&handle, &kind) {
-                    tracing::warn!(%error, kind, "could not open the window");
-                }
-            })
-            .map_err(|error| error.to_string());
-    }
-    show_aux_here(app, kind)
-}
 
-fn show_aux_here(app: &tauri::AppHandle, kind: &str) -> Result<(), String> {
-    // Height is the content height rounded up to the 4 px grid, never a
-    // guessed constant — the same rule the main window uses. Each value is
-    // measured from the screen it opens:
-    //   hotkeys   36 caption + 1 + 44 intro + 5×44 rows + 56 footer = 357 → 360
-    //   advanced  36 caption + 1 + content 295 (after removing two 36 px rows
-    //             and one 28 px row: 488 - 72 - 28) + 56 footer = 388 → 388
-    //   macros    36 caption + 1 + 16 + 36 toolbar + 12 + 406 table
-    //             (36 header + 8×46 rows + 2 border) + 9 + 28 footer
-    //             + 16 sheet pad = 560 → 560
-    //   about     36 caption + 1 + 12 pad + 493 measured content (story +
-    //             update block + links) + 14 pad = 556, inside the 560 px hard
-    //             cap the owner set; the sheet scrolls only if a longer
-    //             changelog is clipped.
-    let (label, title, width, height) = match kind {
-        "hotkeys" => ("hotkeys", "rwin.hotkeys", 520.0, 360.0),
-        // macOS drops the `Tương thích` section (33 px heading + 28 px row, 61 px,
-        // rounded to the 4 px grid) because its only option is Windows-only.
-        "advanced" => (
-            "advanced",
-            "rwin.advanced",
-            560.0,
-            if cfg!(target_os = "macos") { 328.0 } else { 388.0 },
-        ),
-        "macros" => ("macros", "rwin.macros", 720.0, 560.0),
-        "about" => ("about", "rwin.about", 560.0, 556.0),
-        other => return Err(i18n::tf("rwin.invalid", &[("kind", other)])),
-    };
-
-    enter_foreground(app);
-    let main = app.get_webview_window(MAIN_LABEL);
-
-    if let Some(window) = app.get_webview_window(label) {
-        // Built but still waiting for its page: `reveal` shows it.
-        if is_pending(label) {
-            return Ok(());
-        }
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-        // Already open: keep the owner it was opened with, and make it the
-        // topmost modal again.
-        let owner_label = MODALS
-            .lock()
-            .iter()
-            .find(|modal| modal.label == label)
-            .and_then(|modal| modal.owner.clone());
-        if let Some(owner) = owner_label.as_deref().and_then(|name| app.get_webview_window(name)) {
-            disable_for_modal(&owner);
-        }
-        modal_opened(label, owner_label);
-        return Ok(());
-    }
-
-    // The window this modal belongs to (S-16): the topmost open modal, so About
-    // opened from Advanced stacks on Advanced instead of becoming its sibling,
-    // else the main window, else nothing (opened from the menu with no main).
-    let owner_label = modal_owner(&MODALS.lock(), label, main.is_some());
-    let owner = owner_label.as_deref().and_then(|name| app.get_webview_window(name));
-
-    let started = Instant::now();
-    let url = tauri::WebviewUrl::App(format!("index.html?win={kind}").into());
-    let mut builder = tauri::WebviewWindowBuilder::new(app, label, url)
-        .title(i18n::t(title))
-        .inner_size(width, content_height(height))
-        .resizable(false)
-        .maximizable(false)
-        .minimizable(false)
-        // macOS: native frame with an overlay title bar (traffic lights over the
-        // page, set below); the page draws its own mac caption row there
-        // (`.cap-bar.mac`). Windows: frameless, the page draws the caption.
-        .decorations(cfg!(target_os = "macos"))
-        // Frameless windows get no system border, so the native shadow is the
-        // only thing separating this window from whatever is behind it. The 1 px
-        // ring the page draws on top is the edge itself (ui/src/styles/v4.css).
-        .shadow(true)
-        .transparent(false)
-        .background_color(window_bg::initial(app))
-        .theme(window_bg::configured_window_theme())
-        .initialization_script(window_bg::init_script())
-        .visible(false);
-    #[cfg(target_os = "macos")]
-    {
-        builder = builder
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .hidden_title(true);
-    }
-
-    // Owned by its opener: no orphan in the taskbar, and Windows tears it down
-    // first when the owner goes away.
-    if let Some(owner) = &owner {
-        #[cfg(windows)]
-        {
-            builder = builder.owner(owner).map_err(|error| error.to_string())?;
-        }
-        // macOS has no owner/owned notion; `parent` adds it as a child window.
-        #[cfg(target_os = "macos")]
-        {
-            builder = builder.parent(owner).map_err(|error| error.to_string())?;
-        }
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let _ = owner;
-    }
-    let window = builder.build().map_err(|error| error.to_string())?;
-    // Still hidden: settle the exact colour for the OS theme before it shows.
-    window_bg::apply(&window);
-    // Shown by `reveal` once the page has rendered (or the fallback fires).
-    hold_until_ready(app, label, started, owner_label);
-    Ok(())
-}
-
-/// Centre a parentless modal (opened from the tray) on its monitor's work area.
-///
-/// An unplaced window's `current_monitor()` is wherever the system dropped it,
-/// not where the user is (S-20), so this uses the same rule as the main window:
-/// the monitor under the cursor, centred twice (DPI re-measure).
-fn centre_on_monitor(window: &tauri::WebviewWindow, _app: &tauri::AppHandle) {
-    centre_on_launch_monitor(window);
-    centre_on_launch_monitor(window);
-}
-
-/// Centre a modal on the window that owns it, in physical pixels.
-fn centre_on_parent(
-    window: &tauri::WebviewWindow,
-    parent: Option<&tauri::WebviewWindow>,
-) {
-    let Some(parent) = parent else { return };
-    let (Ok(pos), Ok(parent_size), Ok(win)) = (
-        parent.outer_position(),
-        parent.outer_size(),
-        window.outer_size(),
-    ) else {
-        return;
-    };
-
-    // Exact centre of the parent in both axes: a modal wider or taller than the
-    // 480 px main window overhangs both sides by the same amount instead of
-    // hugging its top-left corner.
-    let mut x = pos.x + (parent_size.width as i32 - win.width as i32) / 2;
-    let mut y = pos.y + (parent_size.height as i32 - win.height as i32) / 2;
-
-    // …but never off the monitor the parent sits on.
-    if let Ok(Some(monitor)) = parent.current_monitor() {
-        let area = monitor.work_area();
-        let left = area.position.x;
-        let top = area.position.y;
-        let right = (left + area.size.width as i32 - win.width as i32).max(left);
-        let bottom = (top + area.size.height as i32 - win.height as i32).max(top);
-        x = x.clamp(left, right);
-        y = y.clamp(top, bottom);
-    }
-
-    if let Err(error) = window.set_position(PhysicalPosition::new(x, y)) {
-        tracing::warn!(%error, "could not centre the modal on the main window");
-    }
-}
-
-/// Labels of the modal windows that can be open at once.
-const AUX_LABELS: [&str; 4] = ["hotkeys", "advanced", "macros", "about"];
-
-/// Close every open modal. Used before the main window goes away so no window
-/// outlives its parent.
-fn close_aux(app: &tauri::AppHandle) {
-    for label in AUX_LABELS {
-        if let Some(window) = app.get_webview_window(label) {
-            let _ = window.close();
-        }
-    }
-}
-
-/// Build the settings window from scratch: same label, same fixed 480x460
+/// Build the settings window from scratch: same label, same fixed 560-wide
 /// frameless shell, centred on the launch monitor as it appears.
 fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let started = std::time::Instant::now();
@@ -753,7 +433,7 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title(i18n::t("rwin.main"))
-    .inner_size(480.0, main_content_height())
+    .inner_size(MAIN_WIDTH, main_content_height())
     .resizable(false)
     .maximizable(false)
     .decorations(cfg!(target_os = "macos"))
@@ -778,7 +458,7 @@ fn build_settings_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webview
     // Not shown here. `reveal` shows and places it once the page reports ready:
     // the placement rules (show first, then centre, see `reveal`) are unchanged,
     // they just run after the first real frame is ready instead of before it.
-    hold_until_ready(app, MAIN_LABEL, started, None);
+    hold_until_ready(app, MAIN_LABEL, started);
     Ok(window)
 }
 
@@ -1021,15 +701,9 @@ fn main() {
         // loop's `ExitRequested` guard is what keeps the process alive after the
         // last window is gone. A real quit is the tray menu's "Thoát VietKB".
         //
-        // Modals are owned by the main window and the main window is disabled
-        // while one is open, so this is also where they are taken down: closing
-        // the parent closes its modals first (no orphan window), and closing a
-        // modal hands the main window its input back.
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
-                modal_closing(window.label());
                 if window.label() == MAIN_LABEL {
-                    close_aux(window.app_handle());
                     // Off by default (`KEEP_CLOSED_MAIN_SECS` = 0): destroyed as before.
                     if KEEP_CLOSED_MAIN_SECS != 0 {
                         keep_main_hidden(window.app_handle(), api);
@@ -1042,27 +716,12 @@ fn main() {
                 crate::windows_backend::flush_perf();
             }
             WindowEvent::Destroyed => {
-                let owner = modal_gone(window.label());
                 // A window that was capturing a shortcut cannot say it stopped.
                 commands::clear_hotkey_capture_for(window.label());
-                match window.label() {
-                    MAIN_LABEL => close_aux(window.app_handle()),
-                    // Windows: hand input back to whoever opened the modal (the
-                    // main window, or the modal it was stacked on).
-                    #[cfg(not(target_os = "macos"))]
-                    label if AUX_LABELS.contains(&label) => {
-                        let owner = owner.as_deref().unwrap_or(MAIN_LABEL);
-                        // Another open modal may still belong to this owner.
-                        if !owner_has_open_modal(&MODALS.lock(), owner) {
-                            if let Some(owner) = window.app_handle().get_webview_window(owner) {
-                                let _ = owner.set_enabled(true);
-                            }
-                        }
-                    }
-                    _ => {}
+                // A tab request nobody took must not leak into the next window.
+                if window.label() == MAIN_LABEL {
+                    REQUESTED_TAB.lock().take();
                 }
-                #[cfg(target_os = "macos")]
-                let _ = owner;
                 leave_foreground_if_idle(window.app_handle(), window);
             }
             // Focus lost: a capture field in this window cannot be recording any
@@ -1071,8 +730,8 @@ fn main() {
             #[cfg(target_os = "macos")]
             WindowEvent::Focused(true) => {
                 // Back from System Settings, maybe with a new grant.
+                // MAC-REVIEW: refocus_modal call removed with the modal stack.
                 input_monitoring::refresh();
-                refocus_modal(window.app_handle(), window.label());
             }
             // The OS theme flipped: with theme=System the native background follows.
             WindowEvent::ThemeChanged(os) => window_bg::on_os_theme(window, *os),
@@ -1113,6 +772,7 @@ fn main() {
             commands::request_input_monitoring,
             commands::open_privacy_pane,
             window_ready,
+            take_requested_tab,
             #[cfg(not(feature = "store"))]
             update::check_update,
             #[cfg(not(feature = "store"))]
@@ -1184,16 +844,11 @@ mod tests {
             label: "t-held".into(),
             id: 900_001,
             started: Instant::now(),
-            owner: None,
         });
         assert!(take_pending("t-other", None).is_none());
         assert!(take_pending("t-held", Some(900_002)).is_none(), "a stale timer must not show it");
         assert!(take_pending("t-held", Some(900_001)).is_some());
         assert!(take_pending("t-held", None).is_none(), "shown once");
-    }
-
-    fn modal(label: &str, owner: Option<&str>, closing: bool) -> Modal {
-        Modal { label: label.into(), owner: owner.map(Into::into), closing }
     }
 
     #[test]
@@ -1207,34 +862,13 @@ mod tests {
     }
 
     #[test]
-    fn a_modal_opened_from_a_modal_stacks_on_it() {
-        let stack = vec![modal("advanced", Some("main"), false)];
-        assert_eq!(modal_owner(&stack, "about", true).as_deref(), Some("advanced"));
-        assert_eq!(top_modal_of(&stack).as_deref(), Some("advanced"));
-    }
-
-    #[test]
-    fn a_modal_opens_on_main_when_alone_and_on_nothing_without_main() {
-        assert_eq!(modal_owner(&[], "hotkeys", true).as_deref(), Some("main"));
-        assert_eq!(modal_owner(&[], "hotkeys", false), None);
-    }
-
-    #[test]
-    fn an_owner_stays_disabled_while_another_modal_belongs_to_it() {
-        let stack = vec![modal("hotkeys", Some("main"), false)];
-        assert!(owner_has_open_modal(&stack, "main"));
-        assert!(!owner_has_open_modal(&stack, "advanced"));
-        let closing = vec![modal("hotkeys", Some("main"), true)];
-        assert!(!owner_has_open_modal(&closing, "main"));
-    }
-
-    #[test]
-    fn closing_modals_neither_own_nor_take_the_focus() {
-        let stack = vec![
-            modal("advanced", Some("main"), false),
-            modal("about", Some("advanced"), true),
-        ];
-        assert_eq!(top_modal_of(&stack).as_deref(), Some("advanced"));
-        assert_eq!(modal_owner(&stack, "macros", true).as_deref(), Some("advanced"));
+    fn window_kinds_map_to_page_tabs() {
+        assert_eq!(tab_for_kind("hotkeys"), Some("hotkeys"));
+        assert_eq!(tab_for_kind("macros"), Some("macros"));
+        assert_eq!(tab_for_kind("advanced"), Some("advanced"));
+        assert_eq!(tab_for_kind("system"), Some("advanced"));
+        assert_eq!(tab_for_kind("about"), Some("about"));
+        assert_eq!(tab_for_kind("go"), Some("general"));
+        assert_eq!(tab_for_kind("other"), None);
     }
 }

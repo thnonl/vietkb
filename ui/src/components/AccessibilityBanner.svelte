@@ -1,19 +1,6 @@
-<script module lang="ts">
-  // The window is created tall exactly when Accessibility is missing (main.rs
-  // `main_content_height`), so its height at mount already answers the question
-  // before the first poll: seed the banner from it and no blank band is painted.
-  const BASE = 452; // 424 page + 28 caption row
-  const BANNER = 80;
-  export const seedMissing = (): boolean =>
-    typeof window !== "undefined" &&
-    document.documentElement.dataset.platform === "macos" &&
-    window.innerHeight >= BASE + BANNER / 2;
-</script>
-
 <script lang="ts">
   import { onMount } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { fitWindowToContent, resizeBy } from "../lib/fit";
   import Icon from "./Icon.svelte";
   import * as api from "../lib/api";
   import { platformState } from "../lib/platform.svelte";
@@ -29,11 +16,9 @@
   // instead (the app opens a pane for the user, it never scripts System
   // Settings: 27-mac-decisions M3).
   //
-  // The main window is fixed-size, so the banner's height is added to the
-  // window (and taken off again once the grant is there) instead of squeezing
-  // the rows. Keep these numbers equal to main.rs (`content_height(460.0)` and
-  // `BANNER_PX`) and `.axbanner` in styles/mac.css.
-  const AX_BANNER_PX = BANNER;
+  // The banner is part of the page: the window follows the page's height (fit.ts
+  // runs from App.svelte when the page changes size), so showing or hiding it
+  // adds or removes its 80 px (72 + 8 margin) without any size arithmetic here.
   const POLL_MS = 2000;
 
   let { missing = $bindable(false) }: { missing?: boolean } = $props();
@@ -74,16 +59,6 @@
           : t("ax.body"),
   );
 
-  const fit = (needsBanner: boolean) => {
-    if (!native) return;
-    // Relative, not absolute: the window's inner height includes the native
-    // title bar, which the page cannot see. Add or take off the banner's height
-    // and let the measured fit settle the rest.
-    void resizeBy(needsBanner ? AX_BANNER_PX : -AX_BANNER_PX)
-      .then(() => fitWindowToContent())
-      .catch(() => {});
-  };
-
   const refresh = async () => {
     if (!platformState.mac) return;
     try {
@@ -94,10 +69,7 @@
       axMissing = !ax;
       imMissing = !im;
       const now = !ax || !im;
-      if (now !== missing) {
-        missing = now;
-        fit(missing);
-      }
+      if (now !== missing) missing = now;
     } catch {
       // Command missing or not answering: show nothing rather than a false alarm.
     }

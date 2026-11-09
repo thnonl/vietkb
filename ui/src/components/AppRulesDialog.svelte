@@ -143,15 +143,17 @@
 
 <Modal bind:open title={mode === "rules" ? t("rules.title") : t("rules.pickTitle")}>
   {#if mode === "rules"}
-    <Row label={t("rules.auto")}>
-      {#snippet note()}{t("rules.auto.note")}{/snippet}
-      {#snippet control()}
-        <Toggle
-          checked={app.settings?.apps.rememberPerApp ?? false}
-          label={t("rules.auto")}
-          onchange={(next) => app.patch({ apps: { rememberPerApp: next } })} />
-      {/snippet}
-    </Row>
+    <div class="rules-top">
+      <Row label={t("rules.auto")}>
+        {#snippet note()}{t("rules.auto.note")}{/snippet}
+        {#snippet control()}
+          <Toggle
+            checked={app.settings?.apps.rememberPerApp ?? false}
+            label={t("rules.auto")}
+            onchange={(next) => app.patch({ apps: { rememberPerApp: next } })} />
+        {/snippet}
+      </Row>
+    </div>
 
     {#if error}
       <p class="err">{error}</p>
@@ -163,6 +165,12 @@
           <li>
             <div class="head">
               <span class="proc">{rule.process}</span>
+              <Select
+                width={112}
+                value={rule.method ?? ""}
+                label={t("rules.methodFor", { app: rule.process })}
+                options={[{ value: "", label: t("rules.methodDefault") }, ...METHODS.map((m) => ({ value: m.slug, label: m.label }))]}
+                onchange={(value) => setOverride(rule, value)} />
               <Toggle
                 checked={rule.enabled !== false}
                 label={t("rules.enableIn", { app: rule.process })}
@@ -175,16 +183,6 @@
                 onclick={() => removeRule(rule)}>
                 <Icon name="trash" />
               </button>
-            </div>
-            <div class="overrides">
-              <label class="mini">
-                <span>{t("rules.method")}</span>
-                <Select
-                  value={rule.method ?? ""}
-                  label={t("rules.methodFor", { app: rule.process })}
-                  options={[{ value: "", label: t("rules.methodDefault") }, ...METHODS.map((m) => ({ value: m.slug, label: m.label }))]}
-                  onchange={(value) => setOverride(rule, value)} />
-              </label>
             </div>
           </li>
         {/each}
@@ -281,23 +279,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .overrides {
-    display: grid;
-    grid-template-columns: minmax(0, 220px);
-    gap: 8px;
-    padding: 4px 0 2px;
-  }
-  .mini {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font: 400 12px/18px var(--sm);
-    color: var(--t3);
-  }
-  .mini :global(.sel-wrap),
-  .mini :global(.sel) {
-    width: 100%;
-  }
   .app {
     display: grid;
     grid-template-columns: 132px minmax(0, 1fr) auto;
@@ -326,5 +307,60 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* Restyled to the settings rows (SPEC 6, review 5): one grouped box, 28 px rows,
+   * pop-up and switch on the app's own line, separators inset 12 px. */
+  .rules,
+  .apps {
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--raised);
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--line-1);
+  }
+  .rules-top {
+    margin-bottom: 8px;
+    background: var(--raised);
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--line-1);
+  }
+  .rules > li {
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 3px 12px;
+    border-bottom: 1px solid var(--line-1);
+  }
+  .rules > li:last-child {
+    border-bottom: 0;
+  }
+  .head {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    gap: 8px;
+  }
+  .proc {
+    font: 400 12px/16px var(--mono);
+    color: var(--t1);
+  }
+  .head :global(.sel-wrap) {
+    margin-left: auto;
+  }
+  .apps > li + li {
+    border-top: 1px solid var(--line-1);
+  }
+  .app {
+    height: 28px;
+    width: 100%;
+    padding: 0 12px;
+    border-radius: 0;
+  }
+  .app:hover:not(:disabled) {
+    background: var(--hover-plane);
+  }
+  .app.added {
+    background: var(--acc-tint);
   }
 </style>

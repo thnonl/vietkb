@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VietKB – Hướng B (final), Xanh logo</title>
+<style>
+:root{--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+ --pg:#f2f2f4;--pgt:#1d1d1f;--pgs:#5c5c63;--card:#fff;--cardb:#dcdce0}
+@media (prefers-color-scheme:dark){:root{--pg:#161618;--pgt:#f2f2f4;--pgs:#a0a0a8;--card:#232326;--cardb:#38383c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pg);color:var(--pgt);font:15px/1.5 var(--ui)}
+.page{max-width:1240px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:26px 0 8px}
+.lead{color:var(--pgs);margin:0 0 12px}
+.bar{display:flex;flex-wrap:wrap;gap:8px 24px;padding:10px 0;border-bottom:1px solid var(--cardb);margin-bottom:16px}
+@media (min-width:900px){.bar{position:sticky;top:0;z-index:99;background:var(--pg)}}
+.bar label{font-size:13px;color:var(--pgs);display:flex;gap:8px;align-items:center}
+.tg{display:inline-flex;border:1px solid var(--cardb);border-radius:8px;overflow:hidden}
+.tg button{font:13px var(--ui);padding:5px 12px;border:0;background:var(--card);color:var(--pgt);cursor:pointer}
+.tg button[aria-pressed=true]{background:#3D8BE0;color:#fff}
+.pair{display:flex;flex-wrap:wrap;gap:18px 24px;align-items:flex-start;margin-bottom:6px}
+figure{margin:0}figcaption{font-size:12px;color:var(--pgs);margin:6px 0 0;max-width:560px}
+table.tk{border-collapse:collapse;font-size:13px;width:100%}.tk td,.tk th{border-top:1px solid var(--cardb);padding:5px 8px;text-align:left}
+.sw2{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
+.tw{overflow-x:auto}
+
+/* ===== themes ===== */
+.th-light{--win:#f5f5f7;--grp:#fff;--sep:rgba(0,0,0,.09);--t1:#1d1d1f;--t2:rgba(60,60,67,.66);--t3:rgba(60,60,67,.42);
+ --ctl:#fff;--ctl-bd:rgba(0,0,0,.15);--seg-bg:rgba(0,0,0,.06);--seg-on:#fff;--off:rgba(120,120,128,.3);--tool:#e8e8ec;--edge:rgba(0,0,0,.2);--kbd:#fff;--well:rgba(0,0,0,.05);
+ --acc:#3D8BE0;--acc-h:#4A97E8;--acc-p:#2F7DD0;--acct:#1C6CC6;--tint:#E0F1FD;--ring:rgba(61,139,224,.5);--on:#fff;
+ --bad:#d92d20;--badbg:#fdecea;--warn:#9a5b00;--warnbg:#fdf0d5;--ok:#1b7a4f;--hl:rgba(0,0,0,.07);--shade:rgba(0,0,0,.28);--dis:.42}
+.th-dark{--win:#1e1e1e;--grp:#2c2c2e;--sep:rgba(255,255,255,.1);--t1:#f5f5f7;--t2:rgba(235,235,245,.62);--t3:rgba(235,235,245,.34);
+ --ctl:#4a4a4d;--ctl-bd:rgba(255,255,255,.1);--seg-bg:rgba(255,255,255,.09);--seg-on:#666669;--off:rgba(120,120,128,.5);--tool:#2d2d30;--edge:rgba(255,255,255,.16);--kbd:#48484b;--well:rgba(255,255,255,.07);
+ --acc:#5AA2EE;--acc-h:#6AB0F2;--acc-p:#4C97E6;--acct:#6AB0F2;--tint:rgba(90,162,238,.2);--ring:rgba(90,162,238,.55);--on:#fff;
+ --bad:#ff6961;--badbg:#4a2220;--warn:#ffcc66;--warnbg:#4a3a14;--ok:#5ac98a;--hl:rgba(255,255,255,.1);--shade:rgba(0,0,0,.45);--dis:.4}
+body[data-os=win] .om,body[data-os=mac] .ow{display:none!important}
+
+/* ===== window ===== */
+.win{position:relative;display:flex;flex-direction:column;width:560px;max-height:560px;overflow:hidden;background:var(--win);color:var(--t1);font:13px/1.3 var(--ui);-webkit-font-smoothing:antialiased}
+.win.fix{height:560px}
+body[data-os=mac] .win{border-radius:10px;box-shadow:0 0 0 .5px var(--edge),0 18px 40px rgba(0,0,0,.28)}
+body[data-os=win] .win{border-radius:8px;box-shadow:0 0 0 1px var(--edge),0 10px 30px rgba(0,0,0,.25)}
+.g{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* title bar: mac 28, win 36 */
+.tb{flex:none;position:relative;display:flex;align-items:center;background:var(--tool)}
+body[data-os=mac] .tb{height:28px}body[data-os=win] .tb{height:36px}
+.tl{display:flex;gap:8px;padding-left:12px}.tl i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2)}
+.tl i:nth-child(2){background:#febc2e}.tl i:nth-child(3){background:#28c840}
+.tb .ttl{position:absolute;left:0;right:0;text-align:center;font-weight:600;pointer-events:none}
+.mark{width:16px;height:16px;border-radius:4px;background:var(--acc);color:#fff;font:700 10px/16px var(--ui);text-align:center;margin:0 6px 0 12px}
+.tb .rt{margin-left:auto;display:flex;align-items:center;gap:6px;padding-right:8px}
+.cap{display:flex;margin-left:2px}.cap span{width:44px;height:36px;display:grid;place-items:center}.cap .g{width:12px;height:12px;stroke-width:1.3}
+.lang{display:inline-flex;padding:1px;border-radius:6px;background:var(--seg-bg);font-size:11px}.lang b{font-weight:500;padding:0 6px;height:18px;line-height:18px;border-radius:5px;color:var(--t2)}
+.lang b.on{background:var(--seg-on);color:var(--t1);box-shadow:0 0 0 .5px var(--ctl-bd)}
+.ib{width:22px;height:22px;display:grid;place-items:center;border-radius:6px;color:var(--t2)}
+.upd{position:relative}.upd::after{content:"";position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 1.5px var(--tool)}
+/* toolbar: 52 */
+.tools{flex:none;height:52px;background:var(--tool);display:flex;justify-content:center;gap:2px;padding:4px 8px;border-bottom:1px solid var(--sep)}
+.tab{width:64px;height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:7px;color:var(--t2);font-size:11px;line-height:13px}
+.tab .g{width:20px;height:20px;stroke-width:1.5}
+.tab.on{background:var(--hl);color:var(--t1)}.tab.on .g{color:var(--acc)}
+/* content + footer */
+.ct{flex:1;min-height:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px;position:relative}
+.ct.nopad{padding:0;gap:0}
+.ft{flex:none;height:40px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-top:1px solid var(--sep);background:var(--win)}
+.ft .l{display:flex;align-items:center;gap:8px;color:var(--t2);min-width:0}.ft .l a{color:var(--acct)}
+.lk{color:var(--acct)}
+/* controls */
+.sw{display:inline-block;width:36px;height:20px;border-radius:10px;background:var(--off);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.sw.hv.on{background:var(--acc-h)}.sw.pr.on{background:var(--acc-p)}
+.sw.fc,.btn.fc,.pop.fc,.inp.fc,.seg.fc{box-shadow:0 0 0 3px var(--ring)}
+.btn{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 10px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 1px rgba(0,0,0,.08);white-space:nowrap;font-size:13px;color:var(--t1)}
+.btn.pri{background:var(--acc);color:var(--on);font-weight:600;text-shadow:0 .5px 0 rgba(0,0,0,.18);box-shadow:0 1px 1px rgba(0,0,0,.15)}
+.btn.pri.hv{background:var(--acc-h)}.btn.pri.pr{background:var(--acc-p)}.btn.pr:not(.pri){background:var(--hl)}
+.btn.dng{color:var(--bad)}
+.btn.sm{height:20px;padding:0 8px;font-size:12px}.btn.gh{background:transparent;box-shadow:none}
+.btn.fc.pri,.btn.pri.fc{box-shadow:0 0 0 3px var(--ring)}
+.dis{opacity:var(--dis);pointer-events:none}
+.pop{display:inline-flex;align-items:center;height:22px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 1px rgba(0,0,0,.08);white-space:nowrap;position:relative;color:var(--t1)}
+.pop .pt{padding:0 8px 0 9px}.pop .ud{height:22px;width:16px;padding:2px;background:var(--acc);color:#fff;border-radius:0 6px 6px 0;stroke-width:2.2}
+.menu{position:absolute;right:-6px;top:26px;min-width:120px;padding:4px;border-radius:8px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd),0 8px 24px rgba(0,0,0,.28);z-index:9}
+.th-dark .menu{background:#3c3c3f}
+.menu div{height:22px;padding:0 8px 0 20px;border-radius:5px;display:flex;align-items:center;position:relative}
+.menu div.sel{background:var(--acc);color:#fff;font-weight:600}.menu div.ck::before{content:"✓";position:absolute;left:6px;font-size:11px}
+.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--seg-bg)}
+.seg b{font-weight:400;padding:0 12px;height:18px;line-height:18px;border-radius:6px;white-space:nowrap}
+.seg b.on{background:var(--seg-on);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 2px rgba(0,0,0,.15)}
+.seg.acc b.on{background:var(--acc);color:#fff;font-weight:600}
+.cb{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;background:var(--ctl);box-shadow:inset 0 0 0 1px var(--ctl-bd);flex:none}
+.cb.on,.cb.mix{background:var(--acc);box-shadow:none;color:#fff}.cb .g{width:11px;height:11px;stroke-width:2.6}
+kbd{font:11px var(--ui);display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:4px;background:var(--kbd);box-shadow:0 0 0 .5px var(--ctl-bd),0 1px 0 rgba(0,0,0,.12);color:var(--t1)}
+kbd.mono{font:12px ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;height:20px}
+.keys{display:inline-flex;gap:3px;vertical-align:middle}small .keys kbd{height:16px;font-size:10px}
+.inp{display:flex;align-items:center;gap:6px;height:22px;padding:0 7px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd);color:var(--t3);min-width:0}
+.inp.v{color:var(--t1)}
+/* rows: 28 single-line, 38 with hint */
+.rows{background:var(--grp);border-radius:8px;box-shadow:0 0 0 1px var(--sep)}
+.row{position:relative;display:flex;align-items:center;gap:10px;min-height:28px;padding:3px 12px}
+.row.h{min-height:38px}
+.row+.row::before{content:"";position:absolute;left:12px;right:0;top:0;height:1px;background:var(--sep)}
+.row .l{flex:1;min-width:0;line-height:1.3}.row .l b{font-weight:400}
+.row .l small{font-size:11px;color:var(--t2)}.row .l small.in{margin-left:7px;white-space:nowrap}.row .l small:not(.in){display:block;margin-top:1px}
+.row .l small.serif{font:15px "Sitka Text",Cambria,Georgia,serif}
+.row .c{display:flex;align-items:center;gap:8px;flex:none}
+.nw .l b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp h6{margin:0 0 4px 4px;font:600 11px var(--ui);color:var(--t2)}
+.note{font-size:11px;color:var(--t2)}
+.well{display:flex;align-items:center;gap:3px;min-width:104px;height:22px;padding:0 6px;border-radius:6px;background:var(--well);box-shadow:inset 0 0 0 1px var(--ctl-bd)}
+.well.empty{color:var(--t3);font-size:12px}.well.cap2{background:var(--grp);box-shadow:inset 0 0 0 2px var(--acc);color:var(--acct);font-size:12px;min-width:130px}
+.well.bad{box-shadow:inset 0 0 0 2px var(--bad)}
+.chip{font-size:11px;padding:1px 6px;border-radius:99px;background:var(--warnbg);color:var(--warn);white-space:nowrap}
+.errt{color:var(--bad);font-size:11px}
+/* banners */
+.ax{flex:none;margin-bottom:-4px;display:flex;align-items:center;gap:12px;height:72px;padding:0 12px;border-radius:8px;background:var(--warnbg);box-shadow:inset 0 0 0 1px rgba(201,138,18,.45)}
+.ax .t{flex:1;min-width:0}.ax b{display:block;font-size:13px}.ax span{font-size:12px;color:var(--t2)}
+.sec{flex:none;margin-bottom:-4px;display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:6px;background:var(--warnbg);font-size:12px;color:var(--t2)}
+/* toast */
+.toast{position:absolute;left:16px;right:16px;bottom:50px;z-index:5;display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px 6px 10px;border-radius:8px;background:var(--grp);box-shadow:0 0 0 1px var(--sep),0 6px 18px rgba(0,0,0,.22)}
+.th-dark .toast{background:#3a3a3d}
+.toast .tx{flex:1;min-width:0}.toast .lk{font-weight:600}.toast.err .g.gi{color:var(--bad)}.toast .g.gi{color:var(--acc)}
+/* sheet (modal) */
+.dim{position:absolute;inset:0;background:var(--shade);z-index:6}
+.sheet{position:absolute;z-index:7;left:50%;margin-left:-220px;width:440px;background:var(--grp);border-radius:0 0 12px 12px;box-shadow:0 10px 30px rgba(0,0,0,.35),0 0 0 .5px var(--edge);display:flex;flex-direction:column}
+body[data-os=mac] .sheet{top:80px}body[data-os=win] .sheet{top:88px}
+.sheet .hd{display:flex;align-items:center;height:36px;padding:0 12px 0 16px;font-weight:600;font-size:14px}.sheet .hd span{flex:1}
+.sheet .bd{padding:4px 16px 12px;display:flex;flex-direction:column;gap:10px}
+.sheet .fo{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--sep)}
+.fld{display:flex;flex-direction:column;gap:4px}.fld label{font-size:12px;color:var(--t2);display:flex;justify-content:space-between}
+.ta{min-height:60px;padding:5px 7px;border-radius:6px;background:var(--ctl);box-shadow:0 0 0 .5px var(--ctl-bd);color:var(--t3)}
+.ta.v{color:var(--t1)}.ta.err,.inp.err{box-shadow:0 0 0 2px var(--bad)}
+/* macros table */
+.mtb{display:flex;gap:8px;align-items:center;padding:12px 16px 8px}
+.mtb .inp{flex:1}
+.tbl{flex:1;min-height:0;display:flex;flex-direction:column;margin:0 16px;background:var(--grp);border-radius:8px;box-shadow:0 0 0 1px var(--sep);overflow:hidden}
+.tr{position:relative;display:grid;grid-template-columns:22px 108px 1fr auto;align-items:center;gap:8px;height:28px;padding:0 10px;flex:none}
+.tr+.tr::before{content:"";position:absolute;left:10px;right:0;top:0;height:1px;background:var(--sep)}
+.tr.head{height:24px;color:var(--t2);font-size:11px;font-weight:600;background:var(--seg-bg)}
+.tr.on{background:var(--tint)}.tr .ex{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:10px;padding:0 5px;border-radius:99px;background:var(--seg-bg);color:var(--t2);margin-left:6px}
+.bulk{flex:none;display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:var(--tint);font-size:12px}
+.bulk.off{background:var(--warnbg)}
+.mfoot-gap{height:12px;flex:none}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:0 40px}
+.empty .il{display:flex;gap:6px;align-items:center;font-size:16px}
+.empty p{margin:0;color:var(--t2);max-width:360px}
+.samples{display:flex;flex-direction:column;gap:4px;width:280px;margin:4px 0}
+.samples .sr{display:flex;align-items:center;gap:10px;height:26px;padding:0 10px;border-radius:6px;background:var(--grp);box-shadow:0 0 0 1px var(--sep)}
+/* about */
+.ab{display:flex;flex-direction:column;gap:10px}
+.ab .head{display:flex;align-items:center;gap:10px}.ab .logo{width:40px;height:40px;border-radius:10px;background:var(--acc);color:#fff;display:grid;place-items:center;font:700 22px var(--ui)}
+.ab .head b{font-size:18px}.ab .ver{color:var(--t2);font-variant-numeric:tabular-nums}
+.ab p{margin:0}.ab .div{height:1px;background:var(--sep)}
+.ab .fold{font-weight:600;display:flex;align-items:center;gap:6px}
+.ab .story p{color:var(--t2);margin-top:4px}
+.cl{border-radius:8px;background:var(--grp);box-shadow:0 0 0 1px var(--sep);padding:8px 10px;max-height:104px;overflow:hidden}
+.cl h4{margin:0 0 4px;font-size:12px}.cl p{color:var(--t2);font-size:12px;margin:2px 0}
+.tone-acc{color:var(--acct);font-weight:600}
+/* tray */
+.tray{width:250px;padding:5px;border-radius:10px;font:13px/1.2 var(--ui);color:var(--t1);-webkit-font-smoothing:antialiased}
+.th-light.tray{background:rgba(246,246,248,.94);box-shadow:0 0 0 .5px rgba(0,0,0,.25),0 10px 30px rgba(0,0,0,.25)}
+.th-dark.tray{background:rgba(44,44,48,.94);box-shadow:0 0 0 .5px rgba(255,255,255,.18),0 10px 30px rgba(0,0,0,.5)}
+body[data-os=win] .tray{border-radius:8px}
+.tray div{display:flex;align-items:center;height:26px;padding:0 10px 0 22px;border-radius:5px;position:relative}body[data-os=win] .tray div{height:32px}
+.tray div.ck::before{content:"✓";position:absolute;left:7px}.tray div.hot{background:var(--acc);color:#fff}.tray div .sp{margin-left:auto;color:var(--t2)}
+.tray div.hot .sp{color:#fff}.tray hr{border:0;height:1px;background:var(--sep);margin:4px 8px}
+</style>
+</head>
+<body data-os="mac">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></symbol>
+<symbol id="i-kbd" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></symbol>
+<symbol id="i-sl" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></symbol>
+<symbol id="i-ud" viewBox="0 0 24 24"><path d="M8 10l4-4 4 4M8 14l4 4 4-4"/></symbol>
+<symbol id="i-min" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="i-ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 3 19h18z"/><path d="M12 10v4M12 16.5h.01"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+</defs></svg>
+
+<div class="page">
+<h1>VietKB – Hướng B (final), màu nhấn Xanh logo</h1>
+<p class="lead">Quyết định của chủ sở hữu 2026-11-09: “Tôi nghĩ hãy dùng màu nhấn xanh logo đi và phong cách B.” Một cửa sổ cài đặt, thanh công cụ 5 tab, rộng 560 px, cao theo nội dung (tối đa 560). Màu nhấn dùng bậc “Sáng hơn”: <b>#3D8BE0</b> (sáng) và <b>#5AA2EE</b> (tối), chữ trên nền màu nhấn là trắng. Số đo kích thước trong chú thích mỗi khung được đo từ chính mockup. Hướng A, C cũ nằm ở <a href="index.html">index.html</a>.</p>
+<div class="bar">
+ <label>Hệ điều hành:<span class="tg" id="tg-os"><button data-v="mac" aria-pressed="true">macOS</button><button data-v="win" aria-pressed="false">Windows</button></span></label>
+</div>
+
+<h2>0. Token màu nhấn và trạng thái điều khiển</h2>
+<div class="tw"><table class="tk">
+<tr><th>Token</th><th>Sáng</th><th>Tối</th><th>Dùng cho</th></tr>
+<tr><td>--acc</td><td><i class="sw2" style="background:#3D8BE0"></i>#3D8BE0</td><td><i class="sw2" style="background:#5AA2EE"></i>#5AA2EE</td><td>nền công tắc bật, ô chia đoạn đang chọn, nút mặc định, nắp pop-up, ô tick, chấm cập nhật, mục menu đang chọn</td></tr>
+<tr><td>--acc-h (hover)</td><td><i class="sw2" style="background:#4A97E8"></i>#4A97E8</td><td><i class="sw2" style="background:#6AB0F2"></i>#6AB0F2</td><td>hover nút mặc định, công tắc</td></tr>
+<tr><td>--acc-p (nhấn xuống)</td><td><i class="sw2" style="background:#2F7DD0"></i>#2F7DD0</td><td><i class="sw2" style="background:#4C97E6"></i>#4C97E6</td><td>pressed (vẫn sáng hơn logo gốc #1C6CC6 ở bản tối, nhỉnh tối hơn --acc 1 bậc ở bản sáng)</td></tr>
+<tr><td>--on</td><td>#FFFFFF</td><td>#FFFFFF</td><td>chữ/biểu tượng trên nền màu nhấn (phán quyết chủ sở hữu); trắng/nền 3,52 sáng, 2,68 tối: được chấp nhận; đậm 600, 13 px</td></tr>
+<tr><td>--acct (chữ liên kết)</td><td><i class="sw2" style="background:#1C6CC6"></i>#1C6CC6 (5,24 trên trắng)</td><td><i class="sw2" style="background:#6AB0F2"></i>#6AB0F2 (6,04 trên --grp)</td><td>liên kết, nhãn nhấn mạnh</td></tr>
+<tr><td>--ring (focus)</td><td>rgba(61,139,224,.5) 3 px ngoài</td><td>rgba(90,162,238,.55) 3 px ngoài</td><td>vòng focus bàn phím mọi điều khiển</td></tr>
+<tr><td>--tint</td><td><i class="sw2" style="background:#E0F1FD"></i>#E0F1FD (nền keycap E của logo)</td><td>rgba(90,162,238,.2)</td><td>hàng đang chọn, thanh thao tác hàng loạt</td></tr>
+</table></div>
+<div class="pair" id="states"></div>
+
+<h2>0b. So sánh màu nhấn: hiện tại và tinh chỉnh (tương phản hợp lý)</h2>
+<p class="lead" style="margin-bottom:8px">Chỉ thị mới của chủ sở hữu 2026-11-09: “Nhớ chú ý tưởng phản hợp lý” (tương phản hợp lý). Thay cho “chấp nhận tương phản thấp”. Giữ chữ trắng trên nền màu nhấn và tông xanh logo sáng. Nền có chữ dùng <b>#2876D2</b> ở cả sáng và tối (chữ trắng 4,55:1); công tắc, vòng focus, đường viền chọn giữ xanh sáng hơn vì không có chữ.</p>
+<div class="pair" id="tuned"></div>
+<div id="screens"></div>
+<h2>Thanh tiêu đề (4 biến thể)</h2>
+<div class="pair" id="titlebars"></div>
+<h2>Menu khay (do hệ điều hành vẽ, chỉ tham chiếu)</h2>
+<div class="pair" id="trays"></div>
+</div>
+
+<script>
+const I=(n,c='g')=>`<svg class="${c}" viewBox="0 0 24 24"><use href="#i-${n}"/></svg>`;
+const sw=(on,x='')=>`<i class="sw${on?' on':''} ${x}"></i>`;
+const pop=(t,open)=>`<span class="pop"><span class="pt">${t}</span>${I('ud','g ud')}${open?`<span class="menu"><div class="ck sel">Telex</div><div>VNI</div></span>`:''}</span>`;
+const btn=(t,x='')=>`<span class="btn ${x}">${t}</span>`;
+const seg=(o,s,x='')=>`<span class="seg ${x}">${o.map((v,i)=>`<b class="${i===s?'on':''}">${v}</b>`).join('')}</span>`;
+const om=(m,w)=>`<span class="om">${m}</span><span class="ow">${w}</span>`;
+const key=(...k)=>`<span class="keys">${k.map(x=>`<kbd>${om(x[0],x[1])}</kbd>`).join('')}</span>`;
+const row=(l,h,c,o={})=>`<div class="row${h&&!o.inline?' h':''}${o.nw?' nw':''}${o.dis?' dis':''}"><div class="l"><b>${l}</b>${h?`<small class="${o.inline?'in':''}${o.serif?' serif':''}">${h}</small>`:''}</div><div class="c">${c}</div></div>`;
+const grp=(rows,t,x='')=>`<section class="grp ${x}">${t?`<h6>${t}</h6>`:''}<div class="rows">${rows.join('')}</div></section>`;
+const CT=[['⌃','Ctrl'],['⇧','Shift']];
+const TABS=[['gear','Chung'],['kbd','Phím tắt'],['bolt','Gõ tắt'],['sl','Nâng cao'],['info','Giới thiệu']];
+
+function titlebar(title,upd){return `<div class="tb"><span class="om tl"><i></i><i></i><i></i></span><span class="om ttl">${title}</span>
+ <span class="ow mark">V</span><span class="ow" style="font-weight:600">VietKB</span>
+ <span class="rt"><span class="ib${upd?' upd':''}">${I('theme')}</span><span class="lang"><b class="on">VI</b><b>EN</b></span><span class="ow cap"><span>${I('min')}</span><span>${I('x')}</span></span></span></div>`;}
+function win({th,tab,body,left,fix,upd,extra='',nopad,ctStyle=''}){
+ return `<div class="win ${th}${fix?' fix':''}">${titlebar(TABS[tab][1],upd)}
+ <nav class="tools" role="tablist">${TABS.map(([g,l],i)=>`<div class="tab${i===tab?' on':''}">${I(g)}<span>${l}</span></div>`).join('')}</nav>
+ <div class="ct${nopad?' nopad':''}" style="${ctStyle}">${body}</div>
+ <div class="ft"><div class="l">${left}</div>${btn('Đóng','pri')}</div>${extra}</div>`;}
+
+/* data */
+const QUICK=(o={})=>{ // Chung
+ return (o.ax?`<div class="om ax"><span style="color:#c98a12">${I('warn','g')}</span><div class="t"><b>Cần quyền Trợ năng</b><span>Chưa cấp quyền thì VietKB chưa gõ được tiếng Việt.</span></div>${btn('Cấp quyền…','pri')}</div>`:'')+
+ (o.sec?`<div class="sec">${I('info')}Ứng dụng khác đang bật nhập bảo mật. VietKB để phím đi qua.</div>`:'')+
+ grp([row('Bật tiếng Việt',key(...CT),sw(1),{inline:1}),row('Kiểu gõ','',pop('Telex',o.open))])+
+ grp([row('Đặt dấu kiểu mới','hòa, thúy',sw(1),{inline:1,serif:1}),row('Kiểm tra chính tả','',sw(0)),
+  row('Cho phép gõ tắt','',btn('Bảng gõ tắt…',o.macroOff?'dis':'')+sw(o.macroOff?0:1)),
+  row('Loại trừ ứng dụng','6 ứng dụng',btn('Danh sách ứng dụng…'),{inline:1})])+
+ grp([row(om('Mở cùng macOS','Khởi động cùng Windows'),om('Chạy ngay khi đăng nhập macOS','Chạy ngay khi đăng nhập Windows'),sw(1)),
+  row('Chạy ẩn',om('Mở lên không hiện cửa sổ, chỉ nằm trên thanh menu','Mở lên không hiện cửa sổ, chỉ nằm trong khay'),sw(0))]);};
+const HK=(o={})=>`<div class="note">Bấm vào ô, nhấn tổ hợp mới. Esc để bỏ, Backspace để xoá phím tắt.</div>`+
+ grp([row('Bật/tắt tiếng Việt','',`<span class="well${o.clash?' bad':''}">${key(...CT)}</span>`,{nw:1}),
+  row('Đổi kiểu gõ','',`<span class="well cap2">Nhấn tổ hợp phím…</span>`,{nw:1}),
+  row('Khôi phục từ gõ sai','',(o.clash?'':`<span class="chip">Dễ trùng</span>`)+`<span class="well">${key(['⌃','Ctrl'],['⇧','Shift'],['Z','Z'])}</span>`,{nw:1}),
+  row('Mở cài đặt','',`<span class="well${o.clash?' bad':''}">${key(['⌃','Ctrl'],['⌥','Alt'],['S','S'])}</span>`,{nw:1})])+
+ (o.clash?`<div class="errt" style="padding:0 4px">“${om('⌃⌥S','Ctrl + Alt + S')}” đã dùng cho Mở cài đặt. Chọn tổ hợp khác.</div>`:'')+
+ grp([row('Kiểu chuyển bật/tắt','',seg(['Khi nhả phím','Khi nhấn phím'],0))]);
+const MAC=[['dc','được'],['ko','không'],['vn','Việt Nam'],['ntn','như thế nào'],['sdt','số điện thoại'],['hn','Hà Nội'],['tphcm','Thành phố Hồ Chí Minh'],['cmt','cảm ơn bạn đã quan tâm đến sản phẩm và dịch vụ của chúng tôi, chúc bạn một ngày tốt lành'],['bn','bao nhiêu'],['bt','bình thường'],['ctv','cộng tác viên'],['ck','cảm ơn bạn nhiều','+1 dòng'],['ad','quản trị viên']];
+const mrow=(r,i,sel)=>`<div class="tr${sel?' on':''}"><span class="cb${sel?' on':''}">${sel?I('ck'):''}</span><span><kbd class="mono">${r[0]}</kbd></span><span class="ex">${r[1]}${r[2]?`<span class="tag">${r[2]}</span>`:''}</span><span style="color:var(--t3)">${I('chev')}</span></div>`;
+const MTOOL=`<div class="mtb"><span class="inp">${I('search')}Tìm từ tắt hoặc nội dung</span>${btn('Nhập từ tệp…')}${btn('Xuất ra tệp…')}${btn(I('plus')+'Thêm','pri')}</div>`;
+const MLIST=(o={})=>MTOOL+`<div class="tbl">${o.sel?`<div class="bulk"><span class="cb mix">${I('ck')}</span><span>Đã chọn <b>2</b> trong 13</span><span style="flex:1"></span>${btn('Sửa','gh sm')}${btn('Xuất…','gh sm')}${btn('Xoá','gh sm dng')}${btn('Bỏ chọn <kbd>Esc</kbd>','gh sm')}</div>`:''}${o.off?`<div class="bulk off"><span>Gõ tắt đang tắt, các mục chưa có tác dụng · <span class="lk">Bật</span></span></div>`:''}
+ <div class="tr head"><span></span><span>Từ tắt</span><span>Nội dung</span><span></span></div>${MAC.map((r,i)=>mrow(r,i,o.sel&&(i===1||i===2))).join('')}</div><div class="mfoot-gap"></div>`;
+const MEMPTY=MTOOL+`<div class="tbl"><div class="empty"><div class="il"><kbd class="mono">dc</kbd> → <b>được</b></div><b style="font-size:14px">Chưa có gõ tắt nào</b><p>Gõ dc rồi bấm dấu cách sẽ ra “được”. Thêm vài mục mẫu để thử:</p><div class="samples"><div class="sr"><kbd class="mono">dc</kbd>được</div><div class="sr"><kbd class="mono">ko</kbd>không</div><div class="sr"><kbd class="mono">vn</kbd>Việt Nam</div></div><div style="display:flex;gap:8px">${btn('Thêm cả 3 mục','pri')}${btn('Nhập từ tệp…')}</div></div></div><div class="mfoot-gap"></div>`;
+const MSHEET=`<div class="dim"></div><div class="sheet"><div class="hd"><span>Thêm từ tắt</span><span class="ib">${I('x')}</span></div><div class="bd">
+ <div class="fld"><label>Từ tắt</label><div class="inp v">dc</div><div class="note">Từ tắt viết liền, không có dấu cách.</div></div>
+ <div class="fld"><label>Nội dung<span>0 ký tự</span></label><div class="ta err">ví dụ: được · Enter để xuống dòng</div><div class="errt">Phần thay thế không được để trống — muốn bỏ thì xoá cả mục.</div></div></div>
+ <div class="fo">${btn('Huỷ')}${btn('Lưu','pri')}</div></div>`;
+const ADV=()=>{const r=(l,on,d)=>row(l,'',sw(on),{dis:d});return [
+ grp([r('Gõ dấu ở cuối từ',0),r('Tự sửa ưo thành ươ',1),r('Viết hoa đầu câu',1),r('Cho phép f j w z làm phụ âm',0),r('Tự động khôi phục từ gõ sai',1),r('Tự nhận biết tiếng Anh và code',1)],'Gõ'),
+ grp([r('Vẫn dùng gõ tắt khi đã tắt tiếng Việt',0,1),r('Viết hoa theo từ tắt',1),r('Gửi chữ qua Clipboard',0)],'Tương thích','ow'),
+ grp([r('Âm thanh khi bật/tắt',0),r('Tự kiểm tra cập nhật',1),row('Đặt lại tất cả…','',btn('Đặt lại…'))],'Hệ thống')].join('');};
+const ABOUT=(upd)=>`<div class="ab"><div class="head"><span class="logo">V</span><div><b>VietKB</b> <span class="ver">0.3.6</span></div></div>
+ <p>Bộ gõ tiếng Việt cho ${om('macOS','Windows')}. Nhẹ, nhanh, và không làm phiền bạn.</p>
+ <div class="story"><div class="fold">${I('chev')}Vì sao có VietKB</div><p>Những bộ gõ đang có vẫn gõ đúng, nhưng mang theo cả một thời phần mềm cũ: bảng mã 8-bit, hàng chục tuỳ chọn, nhiều tab.</p><p>Miễn phí, mã nguồn mở, không quảng cáo, không ghi lại nội dung gõ.</p></div>
+ <div class="div"></div>
+ <div style="display:flex;align-items:center;gap:10px"><span class="${upd?'tone-acc':''}" style="flex:1">${upd?'Có bản cập nhật v0.3.7':'Bạn đang dùng bản mới nhất'}</span>${upd?btn('Cập nhật ngay','pri'):''}${btn('Kiểm tra cập nhật')}</div>
+ ${upd?`<div class="cl"><h4>Nhật ký thay đổi — v0.3.7 <span style="color:var(--t3);font-weight:400">2026-11-09</span></h4><p>• Sửa lỗi gõ dấu ở cuối từ trong trình duyệt.</p><p>• Giao diện mới kiểu macOS, màu nhấn xanh logo.</p><p>• Tắt kiểm tra chính tả mặc định khi cài mới.</p><p>• Cải thiện tốc độ mở cửa sổ cài đặt trên máy cấu hình thấp.</p></div>`:''}
+ <div class="div"></div><p class="note" style="text-align:center">Không quảng cáo. Không thu thập nội dung bạn gõ.</p></div>`;
+const LINKS=`<span class="lk">GitHub</span><span>·</span><span class="lk">Báo lỗi</span><span>·</span><span class="lk">Ko-fi</span>`;
+const RULES=`<div class="dim"></div><div class="sheet"><div class="hd"><span>Loại trừ ứng dụng</span><span class="ib">${I('x')}</span></div><div class="bd" style="gap:8px">
+ <div class="rows">${row('Loại trừ ứng dụng tự động','Nhớ trạng thái bật/tắt riêng cho từng ứng dụng',sw(1))}</div>
+ <div class="rows">${row('<b>Code.exe</b>','',pop('Mặc định')+sw(0)+`<span class="ib" style="color:var(--bad)">${I('x')}</span>`)}${row('<b>WindowsTerminal.exe</b>','',pop('Mặc định')+sw(0)+`<span class="ib" style="color:var(--bad)">${I('x')}</span>`)}${row('<b>Photoshop.exe</b>','Tên ứng dụng dài để thử cắt chữ nhiều hơn một dòng',pop('VNI')+sw(1)+`<span class="ib" style="color:var(--bad)">${I('x')}</span>`)}</div></div>
+ <div class="fo"><span style="margin-right:auto">${btn('Chọn ứng dụng')}</span>${btn('Đóng','pri')}</div></div>`;
+
+const FIGS=[ // [id,label,fn(th)->html,mac-only]
+ ['chung','Chung',th=>win({th,tab:0,body:QUICK(),left:btn('Thoát hẳn','gh')})],
+ ['chung-open','Chung · pop-up Kiểu gõ đang mở',th=>win({th,tab:0,body:QUICK({open:1}),left:btn('Thoát hẳn','gh')})],
+ ['chung-ax','Chung · banner Trợ năng (chỉ macOS, +80 px)',th=>win({th,tab:0,body:QUICK({ax:1}),left:btn('Thoát hẳn','gh')}),1],
+ ['chung-st','Chung · gợi ý nhập bảo mật (+36 px), gõ tắt tắt (nút bị vô hiệu), toast lỗi',th=>win({th,tab:0,body:QUICK({sec:1,macroOff:1}),left:btn('Thoát hẳn','gh'),extra:`<div class="toast err">${I('warn','g gi')}<span class="tx">Không lưu được thay đổi: tệp cấu hình đang bị khoá.</span>${btn('Thử lại','gh sm')}<span class="ib">${I('x')}</span></div>`})],
+ ['rules','Chung · hộp Loại trừ ứng dụng (sheet)',th=>win({th,tab:0,body:QUICK(),left:btn('Thoát hẳn','gh'),extra:RULES})],
+ ['hk','Phím tắt · đang ghi (Đổi kiểu gõ), dễ trùng (Khôi phục từ gõ sai)',th=>win({th,tab:1,body:HK(),left:`<span class="lk">Đặt lại tất cả</span>`})],
+ ['hk-clash','Phím tắt · xung đột',th=>win({th,tab:1,body:HK({clash:1}),left:`<span class="lk">Đặt lại tất cả</span>`})],
+ ['mc','Gõ tắt · danh sách, 2 mục được chọn (thanh thao tác hàng loạt), cuộn',th=>win({th,tab:2,body:MLIST({sel:1}),nopad:1,fix:1,left:`<span>Có 13 mục · cuộn để xem hết</span>`})],
+ ['mc-off','Gõ tắt · đang tắt (banner vàng, mục chưa có tác dụng) + toast hoàn tác',th=>win({th,tab:2,body:MLIST({off:1}),nopad:1,fix:1,left:`<span>Có 13 mục · cuộn để xem hết</span>`,extra:`<div class="toast">${I('info','g gi')}<span class="tx">Đã xoá 2 mục gõ tắt</span><span class="lk">Hoàn tác</span><span class="ib">${I('x')}</span></div>`})],
+ ['mc-empty','Gõ tắt · trống',th=>win({th,tab:2,body:MEMPTY,nopad:1,fix:1,left:`<span>Chưa có mục nào</span>`})],
+ ['mc-dlg','Gõ tắt · hộp Thêm từ tắt (sheet, lỗi nội dung trống)',th=>win({th,tab:2,body:MLIST(),nopad:1,fix:1,left:`<span>Có 13 mục · cuộn để xem hết</span>`,extra:MSHEET})],
+ ['adv','Nâng cao · hàng bị vô hiệu (Vẫn dùng gõ tắt…), cuộn khi quá 560',th=>win({th,tab:3,body:ADV(),left:`<span class="lk">Đặt lại tất cả…</span>`})],
+ ['ab','Giới thiệu · bản mới nhất',th=>win({th,tab:4,body:ABOUT(0),left:LINKS})],
+ ['ab-up','Giới thiệu · có bản cập nhật (chấm xanh ở thanh tiêu đề)',th=>win({th,tab:4,body:ABOUT(1),left:LINKS,upd:1})],
+];
+function build(){
+ const host=document.getElementById('screens');host.innerHTML='';
+ FIGS.forEach(([id,label,fn,macOnly])=>{
+  const wrap=document.createElement('div');
+  wrap.innerHTML=`<h2>${label}</h2><div class="pair">${['th-light','th-dark'].map(th=>`<figure${macOnly?' class="om"':''}><div class="fit">${fn(th)}</div><figcaption></figcaption></figure>`).join('')}</div>`;
+  if(macOnly)wrap.classList.add('om');
+  host.appendChild(wrap);
+ });
+ document.getElementById('titlebars').innerHTML=['th-light','th-dark'].map(th=>`<figure><div class="fit"><div class="win ${th}" style="height:auto;max-height:none">${titlebar('Chung',1)}<nav class="tools">${TABS.map(([g,l],i)=>`<div class="tab${i===0?' on':''}">${I(g)}<span>${l}</span></div>`).join('')}</nav></div></div><figcaption></figcaption></figure>`).join('');
+ const tray=th=>`<figure><div class="fit" style="padding:6px"><div class="tray ${th}"><div class="ck">Bật/tắt tiếng Việt<span class="sp">⌃⇧</span></div><div class="hot">Kiểu gõ<span class="sp">›</span></div><hr><div>Mở cài đặt…</div><div>Phím tắt…</div><hr><div>Giới thiệu</div><div>Có bản cập nhật v0.3.7</div><hr><div>Thoát VietKB</div></div></div><figcaption>Menu khay (${th==='th-light'?'Sáng':'Tối'}): menu hệ điều hành, không restyle được; chỉ biểu tượng khay đổi thành V xanh logo / E xanh.</figcaption></figure>`;
+ document.getElementById('trays').innerHTML=tray('th-light')+tray('th-dark');
+ document.getElementById('states').innerHTML=['th-light','th-dark'].map(th=>`<figure><div class="fit"><div class="win ${th}" style="width:560px;padding:12px 16px;gap:8px;height:auto;max-height:none"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="note">Công tắc</span>${sw(1)}${sw(1,'hv')}${sw(1,'pr')}${sw(1,'fc')}${sw(0)}<span class="dis">${sw(1)}</span></div>
+ <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="note">Nút</span>${btn('Đóng','pri')}${btn('Đóng','pri hv')}${btn('Đóng','pri pr')}${btn('Đóng','pri fc')}${btn('Nút thường')}${btn('Nút thường','fc')}${btn('Vô hiệu','dis')}</div>
+ <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="note">Chia đoạn</span>${seg(['Telex','VNI'],0)}${seg(['Telex','VNI'],1,'fc')}<span class="note">Pop-up</span>${pop('Telex')}<span class="note">Ô tick</span><span class="cb on">${I('ck')}</span><span class="cb"></span><span class="cb mix">${I('ck')}</span><span class="note">Keycap</span>${key(...CT)}<kbd class="mono">dc</kbd><span class="lk">Liên kết</span></div></div></div><figcaption>Trạng thái điều khiển (${th==='th-light'?'Sáng':'Tối'}): mặc định, hover, nhấn xuống, focus, vô hiệu.</figcaption></figure>`).join('');
+ measure();fit();
+}
+function measure(){
+ document.querySelectorAll('.fit').forEach(el=>{el.style.zoom=1;});
+ document.querySelectorAll('figure').forEach(f=>{const w=f.querySelector('.win');const cap=f.querySelector('figcaption');if(!w||!cap||cap.textContent.length>3||!w.offsetWidth)return;const os=document.body.dataset.os;cap.textContent=`${w.offsetWidth} × ${w.offsetHeight} px (${os==='mac'?'macOS':'Windows'}); tiêu đề ${f.querySelector('.tb').offsetHeight} + thanh công cụ ${f.querySelector('.tools')?.offsetHeight||0}`+(f.querySelector('.ct')&&f.querySelector('.ct').scrollHeight>f.querySelector('.ct').clientHeight+1?' · nội dung cuộn':'');});
+}
+function fit(){document.querySelectorAll('.pair').forEach(p=>{const avail=p.clientWidth;p.querySelectorAll('.fit').forEach(el=>{el.style.zoom=1;const w=el.firstElementChild.offsetWidth;el.style.zoom=Math.min(1,avail/w);});});}
+document.querySelectorAll('#tg-os button').forEach(b=>b.onclick=()=>{document.body.dataset.os=b.dataset.v;document.querySelectorAll('#tg-os button').forEach(x=>x.setAttribute('aria-pressed',x===b));document.querySelectorAll('figcaption').forEach(c=>{if(/ × /.test(c.textContent))c.textContent='';});measure();fit();});
+
+function cmp(){
+ const rat=(a,b)=>{const L=h=>{const c=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*c[0]+.7152*c[1]+.0722*c[2]};const x=L(a),y=L(b);return ((Math.max(x,y)+.05)/(Math.min(x,y)+.05)).toFixed(2)};
+ const V={
+  'th-light':{cur:{fill:'#3D8BE0',sw:'#3D8BE0',ring:'#3D8BE0',link:'#1C6CC6',hov:'#4A97E8',prs:'#2F7DD0'},tun:{fill:'#2876D2',sw:'#3D8BE0',ring:'#2876D2',link:'#1C6CC6',hov:'#2572CC',prs:'#1F6FCA'},surf:'#ffffff',win:'#f5f5f7',tint:'#E0F1FD'},
+  'th-dark':{cur:{fill:'#5AA2EE',sw:'#5AA2EE',ring:'#5AA2EE',link:'#6AB0F2',hov:'#6AB0F2',prs:'#4C97E6'},tun:{fill:'#2876D2',sw:'#5AA2EE',ring:'#5AA2EE',link:'#6AB0F2',hov:'#2572CC',prs:'#1F6FCA'},surf:'#2c2c2e',win:'#1e1e1e',tint:'rgba(90,162,238,.2)'}};
+ const card=(th,k)=>{const v=V[th],c=v[k],lab=k==='cur'?'Hiện tại':'Tinh chỉnh';
+  return `<figure><div class="win ${th}" style="width:560px;height:auto;max-height:none;padding:12px 16px;gap:10px">
+  <b style="font-size:13px">${lab} · ${th==='th-light'?'Sáng':'Tối'}</b>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+   <span class="btn" style="background:${c.fill};color:#fff;font-weight:600;box-shadow:none">Đóng</span>
+   <span class="btn" style="background:${c.hov};color:#fff;font-weight:600;box-shadow:none">Hover</span>
+   <span class="btn" style="background:${c.prs};color:#fff;font-weight:600;box-shadow:none">Nhấn</span>
+   <span class="sw on" style="background:${c.sw}"></span>
+   <span class="well" style="box-shadow:inset 0 0 0 2px ${c.ring};background:var(--grp)">Nhấn tổ hợp phím…</span>
+   <span style="color:${c.link};font-weight:600">Liên kết</span>
+   <span class="tab on" style="width:64px;height:44px"><svg class="g" viewBox="0 0 24 24" style="color:${c.fill}"><use href="#i-gear"/></svg><span>Chung</span></span>
+  </div>
+  <div class="note" style="line-height:1.6">Chữ trắng trên nền ${c.fill}: <b>${rat('#ffffff',c.fill)}</b>:1 · nền so với nhóm <b>${rat(c.fill,v.surf)}</b> · so với cửa sổ <b>${rat(c.fill,v.win)}</b><br>
+  Công tắc ${c.sw} so với nhóm <b>${rat(c.sw,v.surf)}</b> · vòng/viền ${c.ring} so với nhóm <b>${rat(c.ring,v.surf)}</b> · liên kết ${c.link} so với nhóm <b>${rat(c.link,v.surf)}</b><br>
+  Hover ${c.hov}: chữ trắng <b>${rat('#ffffff',c.hov)}</b> · nhấn ${c.prs}: chữ trắng <b>${rat('#ffffff',c.prs)}</b></div></div><figcaption>${lab}, ${th==='th-light'?'sáng':'tối'}</figcaption></figure>`};
+ document.getElementById('tuned').innerHTML=['th-light','th-dark'].map(th=>card(th,'cur')+card(th,'tun')).join('');
+}
+build();cmp();fit();addEventListener('resize',fit);
+</script>
+</body>
+</html>

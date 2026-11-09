@@ -1,21 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fitWindowToContent, resizeBy } from "../lib/fit";
   import Icon from "./Icon.svelte";
   import * as api from "../lib/api";
   import { platformState } from "../lib/platform.svelte";
   import { t } from "../lib/lang.svelte";
 
-  // macOS only (S-18). Another app (Terminal "Secure Keyboard Entry", a
-  // password manager that forgot to let go, a password field) holds secure event
-  // input, so VietKB passes every key through unconverted. This is a quiet,
-  // non-blocking line in the main window, shown only while it is true; nothing
-  // asks the user to do anything.
+  // macOS only (S-18). Another app (Terminal "Secure Keyboard Entry", a password
+  // manager that forgot to let go, a password field) holds secure event input, so
+  // VietKB passes every key through unconverted. This is a quiet, non-blocking line
+  // on the Chung page, shown only while it is true; nothing asks the user to act.
   //
-  // The main window is fixed-size, so the line's height is added to the window
-  // and taken off again when it goes, like the permission banner. Keep
-  // HINT_PX equal to `.sechint` in styles/mac.css (28 px + 8 px top margin).
-  const HINT_PX = 36;
+  // The line is part of the page, so the window follows its height (fit.ts, run
+  // from App.svelte): 28 px line + 8 px top margin, the same as `.sechint` in v4.css.
   const POLL_MS = 2000;
 
   let blocking = $state(false);
@@ -26,12 +22,7 @@
     try {
       const status = await api.getStatus();
       const now = status.secureInputBlocking === true;
-      if (now !== blocking) {
-        blocking = now;
-        void resizeBy(now ? HINT_PX : -HINT_PX)
-          .then(() => fitWindowToContent())
-          .catch(() => {});
-      }
+      if (now !== blocking) blocking = now;
     } catch {
       // Status not answering: say nothing rather than a false alarm.
     }
@@ -40,14 +31,7 @@
   onMount(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), POLL_MS);
-    return () => {
-      clearInterval(timer);
-      // Give the line's height back if the window goes away while it is shown.
-      if (blocking) {
-        blocking = false;
-        void resizeBy(-HINT_PX).catch(() => {});
-      }
-    };
+    return () => clearInterval(timer);
   });
 </script>
 

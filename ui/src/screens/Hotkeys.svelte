@@ -2,7 +2,6 @@
   import CaptureField from "../components/CaptureField.svelte";
   import Icon from "../components/Icon.svelte";
   import Segmented from "../components/Segmented.svelte";
-  import TitleBar from "../components/TitleBar.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
   import { closeCurrent } from "../lib/window.svelte";
@@ -84,6 +83,15 @@
     return stored ? { kind: "conflict", text: stored } : null;
   };
 
+  /** One line for the whole page: a clash lists both rows, so only the first problem shows. */
+  const shownProblem = $derived.by((): Problem | null => {
+    for (const row of rows) {
+      const problem = problemFor(row.field);
+      if (problem) return problem;
+    }
+    return null;
+  });
+
   const report = (field: HotkeyActionField, problem: Problem | null) => {
     const partner = clashPartner;
     clashPartner = null;
@@ -136,64 +144,62 @@
   };
 </script>
 
-<div class="v4win">
-  <TitleBar title={t("win.hotkeys.title")} subtitle="VietKB" showMark={false} showMinimize={false} />
-
-  <main class="v4sheet">
-    <div class="v4scroll">
-    <div class="v4intro">
+<div class="screen" data-screen>
+  <div class="body" data-body>
+    <p class="v4intro">
       {t("hotkeys.intro.a")}
       <span class="k sm">Esc</span> {t("hotkeys.intro.esc")}
       <span class="k sm">{platformState.mac ? "⌫" : "Backspace"}</span> {t("hotkeys.intro.del")}
-    </div>
+    </p>
 
-    {#each rows as row, index (row.field)}
-      {@const problem = problemFor(row.field)}
-      <div
-        class="v4row hkrow"
-        class:noline={index === 0}
-        class:tall={problem !== null}>
-        <div class="l"><b>{row.label}</b></div>
-        <CaptureField
-          width={248}
-          field={row.field}
-          value={settings?.hotkeys[row.field] ?? null}
-          label={row.label}
-          defaultValue={DEFAULT_HOTKEYS[row.field]}
-          conflictText={storedConflicts[row.field] ?? null}
-          oncommit={(next) => save(row.field, next)}
-          onreset={() => save(row.field, DEFAULT_HOTKEYS[row.field])}
-          onproblem={(next) => report(row.field, next)}
-          checkConflict={(canonical) => conflictFor(row.field, canonical)} />
-        {#if problem}
-          <div class="msg" role="status">
-            <Icon name="warning" small />
-            {problem.text}
-          </div>
-        {/if}
+    <section class="v4grp">
+      {#each rows as row (row.field)}
+        {@const problem = problemFor(row.field)}
+        <div class="v4row hkrow" class:tall={problem !== null}>
+          <div class="l"><b>{row.label}</b></div>
+          <CaptureField
+            width={248}
+            field={row.field}
+            value={settings?.hotkeys[row.field] ?? null}
+            label={row.label}
+            defaultValue={DEFAULT_HOTKEYS[row.field]}
+            conflictText={storedConflicts[row.field] ?? null}
+            oncommit={(next) => save(row.field, next)}
+            onreset={() => save(row.field, DEFAULT_HOTKEYS[row.field])}
+            onproblem={(next) => report(row.field, next)}
+            checkConflict={(canonical) => conflictFor(row.field, canonical)} />
+        </div>
+      {/each}
+    </section>
+
+    {#if shownProblem}
+      <div class="msg" role="status">
+        <Icon name="warning" small />
+        {shownProblem.text}
       </div>
-    {/each}
+    {/if}
 
-    <div class="v4row hkrow">
-      <div class="l"><b>{t("hotkeys.mode")}</b></div>
-      <Segmented
-        value={settings?.hotkeys.toggleMode ?? "release"}
-        label={t("hotkeys.mode")}
-        onchange={(mode) => app.patch({ hotkeys: { toggleMode: mode } })}
-        options={[
-          { value: "release", label: t("hotkeys.mode.release") },
-          { value: "press", label: t("hotkeys.mode.press") },
-        ]} />
-    </div>
-    </div>
+    <section class="v4grp">
+      <div class="v4row hkrow">
+        <div class="l"><b>{t("hotkeys.mode")}</b></div>
+        <Segmented
+          value={settings?.hotkeys.toggleMode ?? "release"}
+          label={t("hotkeys.mode")}
+          onchange={(mode) => app.patch({ hotkeys: { toggleMode: mode } })}
+          options={[
+            { value: "release", label: t("hotkeys.mode.release") },
+            { value: "press", label: t("hotkeys.mode.press") },
+          ]} />
+      </div>
+    </section>
+  </div>
 
-    <footer class="v4foot">
-      <button type="button" class="v4lk" onclick={resetAll}>
-        <Icon name="reset" small />
-        {t("hotkeys.resetAll")}
-      </button>
-      <span class="sp"></span>
-      <button type="button" class="btn pri" onclick={closeCurrent}>{t("common.close")}</button>
-    </footer>
-  </main>
+  <footer class="v4foot" data-foot>
+    <button type="button" class="btn ghost" onclick={resetAll}>
+      <Icon name="reset" small />
+      {t("hotkeys.resetAll")}
+    </button>
+    <span class="sp"></span>
+    <button type="button" class="btn pri" onclick={closeCurrent}>{t("common.close")}</button>
+  </footer>
 </div>

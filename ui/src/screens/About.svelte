@@ -1,19 +1,19 @@
 ﻿<script lang="ts">
-  import TitleBar from "../components/TitleBar.svelte";
   import { app } from "../lib/state.svelte";
   import * as api from "../lib/api";
+  import { closeCurrent } from "../lib/window.svelte";
   import { platformState } from "../lib/platform.svelte";
   import { t } from "../lib/lang.svelte";
   import { parseChangelog, type Block, type Inline } from "../lib/changelog";
-  // The keycap mark at 48 px: the app icon itself, so About carries the same
-  // mark as the title bar and the installer.
+  // The keycap mark: the app icon itself, so About carries the same mark as the title
+  // bar and the installer.
   import markSrc from "../assets/keycap-v-128.png";
 
   const REPO = "https://github.com/thnonl/vietkb";
   const ISSUES = "https://github.com/thnonl/vietkb/issues/new";
-  // Ko-fi as a plain link, not their script widget: the widget needs
-  // `script-src`/`frame-src` opened to a third party inside a webview that also
-  // holds the Tauri IPC bridge, which is a much bigger hole than it is worth.
+  // Ko-fi as a plain link, not their script widget: the widget needs `script-src`/
+  // `frame-src` opened to a third party inside a webview that also holds the Tauri IPC
+  // bridge, which is a much bigger hole than it is worth.
   const KOFI = "https://ko-fi.com/N4X728S6TT";
 
   const status = $derived(app.update);
@@ -57,15 +57,15 @@
   {/each}
 {/snippet}
 
-<div class="v4win">
-  <TitleBar title={t("win.about.title")} subtitle="VietKB" showMark={false} showMinimize={false} />
-
-  <main class="about-sheet">
-    <div class="about-inner">
-      <header class="about-head">
-        <img src={markSrc} alt="" width="48" height="48" />
-        <b>VietKB</b>
-        <span class="about-ver num" title={t("about.versionTitle")}>{version}</span>
+<div class="screen" data-screen>
+  <div class="body" data-body>
+    <div class="ab">
+      <header class="head">
+        <img src={markSrc} alt="" width="40" height="40" />
+        <div>
+          <b>VietKB</b>
+          <span class="ver num" title={t("about.versionTitle")}>{version}</span>
+        </div>
       </header>
 
       <p class="about-lead">{t("about.tagline", { os: platformState.mac ? "macOS" : "Windows" })}</p>
@@ -100,7 +100,6 @@
               {t("about.story3.win")}
             {/if}
           </p>
-
           <p class="about-close">{t("about.close")}</p>
         </div>
       </section>
@@ -108,67 +107,70 @@
       <div class="about-div"></div>
 
       {#if app.showUpdateUi}
-      <section class="about-update" class:story-open={showStory}>
-        <p class="about-status" data-tone={tone} role="status">{statusText}</p>
+        <section class="about-update">
+          <p class="about-status" data-tone={tone} role="status">{statusText}</p>
 
-        <div class="about-actions">
-          <button type="button" class="btn" disabled={busy} onclick={check}>
-            {app.updateBusy === "checking" ? t("about.status.checking") : t("about.check")}
-          </button>
-          {#if app.updateAvailable}
-            <button type="button" class="btn pri" disabled={busy} onclick={install}>
-              {#if app.updateBusy === "downloading"}
-                {t("about.downloading")}
-              {:else if app.updateBusy === "installing"}
-                {t("about.installing")}
-              {:else}
-                {t("about.updateNow")}
-              {/if}
+          <div class="about-actions">
+            <button type="button" class="btn" disabled={busy} onclick={check}>
+              {app.updateBusy === "checking" ? t("about.status.checking") : t("about.check")}
             </button>
-          {/if}
-        </div>
-
-        {#if app.updateNote}
-          <p class="about-progress">{app.updateNote}</p>
-        {/if}
-
-        {#if info}
-          <div class="about-changelog">
-            <div class="about-sec-head">
-              <h2>{t("about.changelog", { version: info.version })}</h2>
-              {#if info.publishedAt}<span class="num">{info.publishedAt.slice(0, 10)}</span>{/if}
-            </div>
-            <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-            <div class="about-cl-body" tabindex="0" role="region" aria-label={t("about.changelogAria")}>
-              {#each blocks as block}
-                {#if block.kind === "heading"}
-                  <h3 class="cl-h" data-level={block.level}>{@render spans(block.spans)}</h3>
-                {:else if block.kind === "item"}
-                  <p class="cl-li">{@render spans(block.spans)}</p>
+            {#if app.updateAvailable}
+              <button type="button" class="btn pri" disabled={busy} onclick={install}>
+                {#if app.updateBusy === "downloading"}
+                  {t("about.downloading")}
+                {:else if app.updateBusy === "installing"}
+                  {t("about.installing")}
                 {:else}
-                  <p class="cl-p">{@render spans(block.spans)}</p>
+                  {t("about.updateNow")}
                 {/if}
-              {:else}
-                <p class="cl-p">{t("about.noNotes")}</p>
-              {/each}
-            </div>
+              </button>
+            {/if}
           </div>
-        {/if}
-      </section>
 
-      <div class="about-div"></div>
+          {#if app.updateNote}
+            <p class="about-progress">{app.updateNote}</p>
+          {/if}
+
+          {#if info}
+            <div class="about-changelog">
+              <div class="about-sec-head">
+                <h2>{t("about.changelog", { version: info.version })}</h2>
+                {#if info.publishedAt}<span class="num">{info.publishedAt.slice(0, 10)}</span>{/if}
+              </div>
+              <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+              <div class="about-cl-body" tabindex="0" role="region" aria-label={t("about.changelogAria")}>
+                {#each blocks as block}
+                  {#if block.kind === "heading"}
+                    <h3 class="cl-h" data-level={block.level}>{@render spans(block.spans)}</h3>
+                  {:else if block.kind === "item"}
+                    <p class="cl-li">{@render spans(block.spans)}</p>
+                  {:else}
+                    <p class="cl-p">{@render spans(block.spans)}</p>
+                  {/if}
+                {:else}
+                  <p class="cl-p">{t("about.noNotes")}</p>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <div class="about-div"></div>
       {/if}
 
-      <footer class="about-foot">
-        <div class="about-links">
-          <button type="button" class="about-lk" onclick={() => open(REPO)}>{t("about.github")}</button>
-          <span class="about-dot">·</span>
-          <button type="button" class="about-lk" onclick={() => open(ISSUES)}>{t("about.reportBug")}</button>
-          <span class="about-dot">·</span>
-          <button type="button" class="about-lk" onclick={() => open(KOFI)}>{t("about.kofi")}</button>
-        </div>
-        <p class="about-privacy">{t("about.privacy")}</p>
-      </footer>
+      <p class="about-privacy">{t("about.privacy")}</p>
     </div>
-  </main>
+  </div>
+
+  <footer class="v4foot" data-foot>
+    <div class="about-links">
+      <button type="button" class="about-lk" onclick={() => open(REPO)}>{t("about.github")}</button>
+      <span class="about-dot">·</span>
+      <button type="button" class="about-lk" onclick={() => open(ISSUES)}>{t("about.reportBug")}</button>
+      <span class="about-dot">·</span>
+      <button type="button" class="about-lk" onclick={() => open(KOFI)}>{t("about.kofi")}</button>
+    </div>
+    <span class="sp"></span>
+    <button type="button" class="btn pri" onclick={closeCurrent}>{t("common.close")}</button>
+  </footer>
 </div>

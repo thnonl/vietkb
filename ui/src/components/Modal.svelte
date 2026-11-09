@@ -22,7 +22,11 @@
   $effect(() => {
     const node = el;
     if (!node) return;
-    if (open && !node.open) node.showModal();
+    if (open && !node.open) {
+      node.showModal();
+      // The first field takes focus, not the close button (SPEC 6: focus the first field).
+      node.querySelector<HTMLElement>("input:not([type=hidden]), textarea, select")?.focus();
+    }
     if (!open && node.open) node.close();
   });
 
