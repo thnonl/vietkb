@@ -29,7 +29,7 @@ New-Item -ItemType Directory -Force (Split-Path -Parent $posterPath) | Out-Null
 
 New-Item -ItemType Directory -Force $assets | Out-Null
 Copy-Item (Join-Path $root 'site\assets\logo-v.png') (Join-Path $assets 'logo-v.png') -Force
-foreach ($f in 'main-dark.png', 'mac-settings-dark.png') {
+foreach ($f in 'settings-vi-dark.png', 'gotat-vi-light.png') {
   Copy-Item (Join-Path $root "site\assets\$f") (Join-Path $assets $f) -Force
 }
 
