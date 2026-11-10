@@ -271,9 +271,9 @@ def check_positive():
     bad = []
     wants = {
         "vi": {"title/meta mention macOS": r"macOS", "Mở cùng macOS or equivalent": r"Mở cùng (?:máy|macOS)", "⌃⇧ default": r"⌃⇧", "Control + Shift": r"Control \+ Shift",
-               "Mac screenshot": r"mac-settings-dark\.png", "menu screenshot": r"mac-menu-dark\.png"},
+               "settings screenshot": r"settings-vi-light\.png", "menu screenshot": r"mac-menu-dark\.png"},
         "en": {"title/meta mention macOS": r"macOS", "Start with macOS": r"Start with macOS", "⌃⇧ default": r"⌃⇧", "Control \\+ Shift": r"Control \+ Shift",
-               "Mac screenshot": r"mac-settings-dark\.png", "menu screenshot": r"mac-menu-dark\.png"},
+               "settings screenshot": r"settings-en-light\.png", "menu screenshot": r"mac-menu-dark\.png"},
     }
     for lang, p in PAGES.items():
         for label, pat in wants[lang].items():
