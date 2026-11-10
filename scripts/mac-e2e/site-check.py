@@ -219,7 +219,7 @@ def check_fallback():
 # ---------------------------------------------------------------- macOS section: no Windows-only claims (MAC-DOC-01/04/05/11/12, MAC-LNG-24)
 MAC_FORBID = {  # Windows-only vocabulary that must not appear in the macOS install section
     r"\.exe\b": ".exe", r"SmartScreen": "SmartScreen", r"khay hệ thống|system tray|\btray\b": "tray (Mac: menu bar)",
-    r"Khởi động cùng Windows|Start with Windows|with Windows": "Windows autostart wording",
+    r"Khởi chạy app cùng Windows|Khởi động cùng Windows|Start with Windows|with Windows": "Windows autostart wording",
     r"\bF1\b|\bF2\b": "F1/F2 as Mac defaults", r"VK_PACKET": "VK_PACKET", r"Windows 10|Windows 11": "Windows versions",
     r"Nhấp trái|[Ll]eft-click": "left-click toggles (Windows behaviour)", r"nhấp đúp|double-click": "double click",
 }
@@ -270,7 +270,7 @@ def check_stale():
 def check_positive():
     bad = []
     wants = {
-        "vi": {"title/meta mention macOS": r"macOS", "Mở cùng macOS or equivalent": r"Mở cùng (?:máy|macOS)", "⌃⇧ default": r"⌃⇧", "Control + Shift": r"Control \+ Shift",
+        "vi": {"title/meta mention macOS": r"macOS", "Mở cùng macOS or equivalent": r"(?:Khởi chạy app|Mở) cùng (?:máy|macOS)", "⌃⇧ default": r"⌃⇧", "Control + Shift": r"Control \+ Shift",
                "settings screenshot": r"settings-vi-light\.png", "menu screenshot": r"mac-menu-dark\.png"},
         "en": {"title/meta mention macOS": r"macOS", "Start with macOS": r"Start with macOS", "⌃⇧ default": r"⌃⇧", "Control \\+ Shift": r"Control \+ Shift",
                "settings screenshot": r"settings-en-light\.png", "menu screenshot": r"mac-menu-dark\.png"},
@@ -319,7 +319,7 @@ def check_readme():
     if not re.search(r"\.dmg", rm): bad.append("README has no dmg install")
     if not re.search(r"Gatekeeper|quarantine|Open Anyway|Vẫn mở", rm): bad.append("README has no Gatekeeper note")
     if not re.search(r"Trợ năng|Accessibility", rm): bad.append("README has no Accessibility note")
-    if not re.search(r"Mở cùng macOS", rm): bad.append("README lacks 'Mở cùng macOS'")
+    if not re.search(r"Khởi chạy app cùng macOS", rm): bad.append("README lacks 'Khởi chạy app cùng macOS'")
     if not re.search(r"cargo|npm", rm.split("macOS", 1)[-1]): bad.append("README has no Mac build steps")
     record("SITE-12", "README: macOS install (dmg, Gatekeeper, Accessibility), Mac autostart wording, vkb-macos row, Mac build", "MAC-DOC-01,MAC-DOC-05,MAC-DOC-23", verdict(bad), "; ".join(bad))
     bad = []
