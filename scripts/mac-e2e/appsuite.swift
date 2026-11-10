@@ -552,7 +552,7 @@ func phaseMain(_ c: AppCtx, te: Target?) throws {
         vis.ok && controlsOutside(c, main0.el).isEmpty, "\(vis.text); size=\(sz.map { "\(Int($0.width))x\(Int($0.height))" } ?? "?") zoomEnabled=\(zoomEnabled) clipped=\(controlsOutside(c, main0.el))", evidence: mainShot)
     let mainTexts = windowTexts(c, main0.el)
     let footer = ["quick.hotkeys", "quick.advanced", "quick.quit", "common.close"].map { c.L($0) }
-    row("APP-04", "MAC-WIN-15,MAC-DOC-05,MAC-DOC-16,MAC-I18-01", "main window text: footer buttons present; Mac wording (Mở cùng macOS, thanh menu), no Windows/khay/Ctrl/exe; no Clipboard row",
+    row("APP-04", "MAC-WIN-15,MAC-DOC-05,MAC-DOC-16,MAC-I18-01", "main window text: footer buttons present; Mac wording (Khởi chạy app cùng macOS, thanh menu), no Windows/khay/Ctrl/exe; no Clipboard row",
         footer.allSatisfy { f in mainTexts.contains { norm($0) == norm(f) } } && mainTexts.contains { $0.contains("macOS") } && !mainTexts.contains { $0.range(of: #"Windows|khay|\bCtrl\b|\.exe|Backspace|Clipboard"#, options: .regularExpression) != nil },
         "footer=\(footer.map { f in mainTexts.contains { norm($0) == norm(f) } }) hits=\(mainTexts.filter { $0.range(of: #"Windows|khay|\bCtrl\b|\.exe|Backspace|Clipboard"#, options: .regularExpression) != nil })")
 

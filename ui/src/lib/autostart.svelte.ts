@@ -1,4 +1,4 @@
-// "Khởi động cùng Windows" / "Mở cùng macOS", shared by Chung and Nâng cao.
+// "Khởi chạy app cùng Windows" / "Khởi chạy app cùng macOS", shared by Chung and Nâng cao.
 //
 // The OS entry (Windows `Run` value, macOS login item) is the truth, not config.toml:
 // a user who removed the entry in the system's own startup settings must see the

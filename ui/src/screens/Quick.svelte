@@ -22,7 +22,7 @@
   const hotkey = $derived(settings?.hotkeys.toggle ?? "Ctrl+Shift");
   const prettyHotkey = $derived(formatHotkey(hotkey));
   const mac = $derived(platformState.mac);
-  // Windows: "Khởi động cùng Windows"; macOS: "Mở cùng macOS" (27-mac-decisions M4).
+  // Windows: "Khởi chạy app cùng Windows"; macOS: "Khởi chạy app cùng macOS" (27-mac-decisions M4).
   const autostartLabel = $derived(mac ? t("quick.autostart.mac") : t("quick.autostart.win"));
   let axMissing = $state(perms.missing);
   const macroOn = $derived(settings?.typing.macroEnabled ?? true);
