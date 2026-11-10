@@ -772,6 +772,8 @@ section[id] { scroll-margin-top: 80px; }
 
 .card h3 { margin-bottom: 6px; font-size: 1.0625rem; }
 .card p { font-size: .9375rem; line-height: 1.55; color: var(--ink-2); }
+.card-bullets { margin: 0; padding-left: 1.1em; list-style: disc; font-size: .9375rem; line-height: 1.55; color: var(--ink-2); }
+.card-bullets li + li { margin-top: 4px; }
 
 /* Tính năng mới: viền nhấn và nhãn "Mới" / "New". */
 .card-new {
