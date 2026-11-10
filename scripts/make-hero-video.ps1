@@ -18,8 +18,8 @@ $frames = Join-Path $root 'design\hero-motion\_frames'
 $assets = Join-Path $root 'design\hero-motion\assets'
 $edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 $fps = 25
-$duration = 30.72
-$n = $fps * $duration
+$duration = 36.52
+$n = [int][math]::Round($fps * $duration)  # 25 * 36.52 is 913.0000001 in floating point; round so no extra wrapped frame
 $inv = [Globalization.CultureInfo]::InvariantCulture
 
 $mp4 = if ($Out) { [IO.Path]::GetFullPath($Out) } else { Join-Path $root 'site\assets\hero-motion.mp4' }
